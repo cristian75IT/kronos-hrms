@@ -1,0 +1,316 @@
+version: "3.8"
+
+# ═══════════════════════════════════════════════════════════
+# KRONOS - Enterprise HRMS
+# Docker Compose Configuration
+# ═══════════════════════════════════════════════════════════
+
+networks:
+  kronos-internal:
+    driver: bridge
+    name: kronos-internal
+  kronos-external:
+    driver: bridge
+    name: kronos-external
+
+volumes:
+  postgres_data:
+  keycloak_data:
+  redis_data:
+  minio_data:
+  nginx_logs:
+
+
+services:
+  # ═══════════════════════════════════════════════════════════
+  # API GATEWAY - NGINX + MODSECURITY
+  # ═══════════════════════════════════════════════════════════
+  nginx:
+    image: owasp/modsecurity-crs:nginx-alpine
+    container_name: kronos-gateway
+    ports:
+      - "80:8080"
+      - "443:8443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/templates/nginx.conf.template
+      - ./nginx/proxy_params:/etc/nginx/proxy_params
+      - ./nginx/default.conf:/etc/nginx/templates/conf.d/default.conf.template
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - nginx_logs:/var/log/nginx
+    networks:
+      - kronos-internal
+    depends_on:
+      auth-service:
+        condition: service_started
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════════════════════
+  # MICROSERVICES
+  # ═══════════════════════════════════════════════════════════
+  auth-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kronos-auth
+    environment:
+      - SERVICE_NAME=auth-service
+      - DATABASE_URL=postgresql+asyncpg://kronos:kronos_dev@postgres:5432/kronos
+      - DATABASE_SCHEMA=auth
+      - REDIS_URL=redis://redis:6379/0
+      - KEYCLOAK_URL=http://keycloak:8080/
+      - KEYCLOAK_REALM=kronos
+      - KEYCLOAK_CLIENT_ID=kronos-backend
+      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    command: uvicorn src.services.auth.main:app --host 0.0.0.0 --port 8001 --reload
+    volumes:
+      - ./backend:/app
+    networks:
+      - kronos-internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  leave-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kronos-leaves
+    environment:
+      - SERVICE_NAME=leave-service
+      - DATABASE_URL=postgresql+asyncpg://kronos:kronos_dev@postgres:5432/kronos
+      - DATABASE_SCHEMA=leaves
+      - REDIS_URL=redis://redis:6379/1
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - CONFIG_SERVICE_URL=http://config-service:8004
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8005
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    command: uvicorn src.services.leaves.main:app --host 0.0.0.0 --port 8002 --reload
+    volumes:
+      - ./backend:/app
+    networks:
+      - kronos-internal
+    depends_on:
+      - postgres
+      - redis
+      - config-service
+    restart: unless-stopped
+
+  expense-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kronos-expenses
+    environment:
+      - SERVICE_NAME=expense-service
+      - DATABASE_URL=postgresql+asyncpg://kronos:kronos_dev@postgres:5432/kronos
+      - DATABASE_SCHEMA=expenses
+      - REDIS_URL=redis://redis:6379/2
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=kronos
+      - MINIO_SECRET_KEY=kronos_dev
+      - CONFIG_SERVICE_URL=http://config-service:8004
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8005
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    command: uvicorn src.services.expenses.main:app --host 0.0.0.0 --port 8003 --reload
+    volumes:
+      - ./backend:/app
+    networks:
+      - kronos-internal
+    depends_on:
+      - postgres
+      - minio
+      - config-service
+    restart: unless-stopped
+
+  config-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kronos-config
+    environment:
+      - SERVICE_NAME=config-service
+      - DATABASE_URL=postgresql+asyncpg://kronos:kronos_dev@postgres:5432/kronos
+      - DATABASE_SCHEMA=config
+      - REDIS_URL=redis://redis:6379/3
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    command: uvicorn src.services.config.main:app --host 0.0.0.0 --port 8004 --reload
+    volumes:
+      - ./backend:/app
+    networks:
+      - kronos-internal
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kronos-notifications
+    environment:
+      - SERVICE_NAME=notification-service
+      - DATABASE_URL=postgresql+asyncpg://kronos:kronos_dev@postgres:5432/kronos
+      - DATABASE_SCHEMA=notifications
+      - REDIS_URL=redis://redis:6379/4
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - BREVO_API_KEY=${BREVO_API_KEY:-}
+      - BREVO_SENDER_EMAIL=${BREVO_SENDER_EMAIL:-noreply@kronos.local}
+      - BREVO_SENDER_NAME=KRONOS HR
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    command: uvicorn src.services.notifications.main:app --host 0.0.0.0 --port 8005 --reload
+    volumes:
+      - ./backend:/app
+    networks:
+      - kronos-internal
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  audit-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kronos-audit
+    environment:
+      - SERVICE_NAME=audit-service
+      - DATABASE_URL=postgresql+asyncpg://kronos:kronos_dev@postgres:5432/kronos
+      - DATABASE_SCHEMA=audit
+      - REDIS_URL=redis://redis:6379/5
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    command: uvicorn src.services.audit.main:app --host 0.0.0.0 --port 8007 --reload
+    volumes:
+      - ./backend:/app
+    networks:
+      - kronos-internal
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════════════════════
+  # DATA LAYER
+  # ═══════════════════════════════════════════════════════════
+  postgres:
+    image: postgres:15-alpine
+    container_name: kronos-db
+    environment:
+      POSTGRES_USER: kronos
+      POSTGRES_PASSWORD: kronos_dev
+      POSTGRES_DB: kronos
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - kronos-internal
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U kronos -d kronos" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: kronos-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - kronos-internal
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio
+    container_name: kronos-storage
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: kronos
+      MINIO_ROOT_PASSWORD: kronos_dev
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - kronos-internal
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════════════════════
+  # SSO - KEYCLOAK (EXTERNAL NETWORK)
+  # ═══════════════════════════════════════════════════════════
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0
+    container_name: kronos-sso
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak_dev
+      KC_HEALTH_ENABLED: true
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak/realm-kronos.json:/opt/keycloak/data/import/realm-kronos.json:ro
+    networks:
+      - kronos-external
+      - kronos-internal
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  keycloak-db:
+    image: postgres:15-alpine
+    container_name: kronos-sso-db
+    environment:
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak_dev
+      POSTGRES_DB: keycloak
+    volumes:
+      - keycloak_data:/var/lib/postgresql/data
+    networks:
+      - kronos-external
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U keycloak -d keycloak" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════════════════════
+  # FRONTEND
+  # ═══════════════════════════════════════════════════════════
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: kronos-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost/api/v1
+      - VITE_KEYCLOAK_URL=http://localhost:8080/
+      - VITE_KEYCLOAK_REALM=kronos
+      - VITE_KEYCLOAK_CLIENT_ID=kronos-frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - kronos-internal
+    restart: unless-stopped

@@ -1,0 +1,138 @@
+# Nginx configuration for both HTTP and SSL
+
+server_tokens off;
+
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    '' close;
+}
+
+server {
+    listen 8080 default_server;
+
+    server_name localhost;
+    set $always_redirect off;
+
+    # API Gateway Routing
+    
+    # Auth Service
+    location ~ ^/api/v1/(auth|users|areas|locations|contract-types|work-schedules) {
+        proxy_pass http://auth-service:8001;
+        include /etc/nginx/proxy_params;
+    }
+
+    # Leave Service
+    location ~ ^/api/v1/(leaves|balances) {
+        proxy_pass http://leave-service:8002;
+        include /etc/nginx/proxy_params;
+    }
+
+    # Expense Service
+    location ~ ^/api/v1/(trips|allowances|expenses) {
+        proxy_pass http://expense-service:8003;
+        include /etc/nginx/proxy_params;
+    }
+
+    # Config Service
+    location ~ ^/api/v1/(config|leave-types|holidays|expense-types|allowance-rules) {
+        proxy_pass http://config-service:8004;
+        include /etc/nginx/proxy_params;
+    }
+
+    # Notification Service
+    location ~ ^/api/v1/notifications {
+        proxy_pass http://notification-service:8005;
+        include /etc/nginx/proxy_params;
+    }
+
+    # Audit Service
+    location ~ ^/api/v1/audit {
+        proxy_pass http://audit-service:8007;
+        include /etc/nginx/proxy_params;
+    }
+
+    location / {
+        proxy_pass http://frontend:3000;
+        include /etc/nginx/proxy_params;
+        
+        # WebSocket support
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+    }
+
+    include includes/location_common.conf;
+
+}
+
+server {
+    listen 8443 ssl;
+
+    server_name localhost;
+
+    ssl_certificate /etc/nginx/conf/server.crt;
+    ssl_certificate_key /etc/nginx/conf/server.key;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:MozSSL:10m;
+    ssl_session_tickets off;
+
+    ssl_dhparam /etc/ssl/certs/dhparam-2048.pem;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+
+    ssl_stapling on;
+    ssl_stapling_verify on;
+
+    ssl_verify_client off;
+    ssl_verify_depth 1;
+
+    # API Gateway Routing (SSL)
+    
+    # Auth Service
+    location ~ ^/api/v1/(auth|users|areas|locations|contract-types|work-schedules) {
+        proxy_pass http://auth-service:8001;
+        include /etc/nginx/proxy_params;
+    }
+
+    # Leave Service
+    location ~ ^/api/v1/(leaves|balances) {
+        proxy_pass http://leave-service:8002;
+        include /etc/nginx/proxy_params;
+    }
+
+    # Expense Service
+    location ~ ^/api/v1/(trips|allowances|expenses) {
+        proxy_pass http://expense-service:8003;
+        include /etc/nginx/proxy_params;
+    }
+
+    # Config Service
+    location ~ ^/api/v1/(config|leave-types|holidays|expense-types|allowance-rules) {
+        proxy_pass http://config-service:8004;
+        include /etc/nginx/proxy_params;
+    }
+
+    # Notification Service
+    location ~ ^/api/v1/notifications {
+        proxy_pass http://notification-service:8005;
+        include /etc/nginx/proxy_params;
+    }
+
+    # Audit Service
+    location ~ ^/api/v1/audit {
+        proxy_pass http://audit-service:8007;
+        include /etc/nginx/proxy_params;
+    }
+
+    location / {
+        proxy_pass http://frontend:3000;
+        include /etc/nginx/proxy_params;
+        
+        # WebSocket support
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+    }
+
+    include includes/location_common.conf;
+}

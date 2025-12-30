@@ -1,0 +1,267 @@
+/**
+ * KRONOS - React Query Hooks
+ */
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { leavesService } from '../services/leaves.service';
+import { tripsService, reportsService } from '../services/expenses.service';
+import type {
+    LeaveRequestCreate,
+    LeaveRequestUpdate,
+    BusinessTrip,
+    ExpenseReport,
+    ExpenseItem,
+} from '../types';
+
+// ═══════════════════════════════════════════════════════════════════
+// Query Keys
+// ═══════════════════════════════════════════════════════════════════
+
+export const queryKeys = {
+    // Leaves
+    leaveRequests: ['leave-requests'] as const,
+    leaveRequest: (id: string) => ['leave-requests', id] as const,
+    pendingApprovals: ['leave-requests', 'pending'] as const,
+    leaveBalance: (year?: number) => ['leave-balance', year] as const,
+    balanceSummary: ['balance-summary'] as const,
+    calendarEvents: (start: string, end: string) => ['calendar', start, end] as const,
+
+    // Expenses
+    trips: ['trips'] as const,
+    trip: (id: string) => ['trips', id] as const,
+    pendingTrips: ['trips', 'pending'] as const,
+    tripAllowances: (tripId: string) => ['trips', tripId, 'allowances'] as const,
+
+    reports: ['expense-reports'] as const,
+    report: (id: string) => ['expense-reports', id] as const,
+    pendingReports: ['expense-reports', 'pending'] as const,
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// Leave Hooks
+// ═══════════════════════════════════════════════════════════════════
+
+export function useLeaveRequests(year?: number, status?: string) {
+    return useQuery({
+        queryKey: [...queryKeys.leaveRequests, { year, status }],
+        queryFn: () => leavesService.getMyRequests(year, status),
+    });
+}
+
+export function useLeaveRequest(id: string) {
+    return useQuery({
+        queryKey: queryKeys.leaveRequest(id),
+        queryFn: () => leavesService.getRequest(id),
+        enabled: !!id,
+    });
+}
+
+export function usePendingApprovals() {
+    return useQuery({
+        queryKey: queryKeys.pendingApprovals,
+        queryFn: () => leavesService.getPendingApprovals(),
+    });
+}
+
+export function useLeaveBalance(year?: number) {
+    return useQuery({
+        queryKey: queryKeys.leaveBalance(year),
+        queryFn: () => leavesService.getMyBalance(year),
+    });
+}
+
+export function useBalanceSummary() {
+    return useQuery({
+        queryKey: queryKeys.balanceSummary,
+        queryFn: () => leavesService.getBalanceSummary(),
+    });
+}
+
+export function useCalendarEvents(startDate: string, endDate: string, includeTeam = false) {
+    return useQuery({
+        queryKey: queryKeys.calendarEvents(startDate, endDate),
+        queryFn: () => leavesService.getCalendarEvents(startDate, endDate, includeTeam, true),
+        enabled: !!startDate && !!endDate,
+    });
+}
+
+// Mutations
+export function useCreateLeaveRequest() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (data: LeaveRequestCreate) => leavesService.createRequest(data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.leaveRequests });
+        },
+    });
+}
+
+export function useUpdateLeaveRequest() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, data }: { id: string; data: LeaveRequestUpdate }) =>
+            leavesService.updateRequest(id, data),
+        onSuccess: (_, { id }) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.leaveRequest(id) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.leaveRequests });
+        },
+    });
+}
+
+export function useSubmitLeaveRequest() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: string) => leavesService.submitRequest(id),
+        onSuccess: (_, id) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.leaveRequest(id) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.leaveRequests });
+            queryClient.invalidateQueries({ queryKey: queryKeys.balanceSummary });
+        },
+    });
+}
+
+export function useApproveLeaveRequest() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, notes }: { id: string; notes?: string }) =>
+            leavesService.approveRequest(id, notes),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.leaveRequests });
+            queryClient.invalidateQueries({ queryKey: queryKeys.pendingApprovals });
+        },
+    });
+}
+
+export function useRejectLeaveRequest() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+            leavesService.rejectRequest(id, reason),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.leaveRequests });
+            queryClient.invalidateQueries({ queryKey: queryKeys.pendingApprovals });
+        },
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Trip Hooks
+// ═══════════════════════════════════════════════════════════════════
+
+export function useTrips(status?: string, year?: number) {
+    return useQuery({
+        queryKey: [...queryKeys.trips, { status, year }],
+        queryFn: () => tripsService.getMyTrips(status, year),
+    });
+}
+
+export function useTrip(id: string) {
+    return useQuery({
+        queryKey: queryKeys.trip(id),
+        queryFn: () => tripsService.getTrip(id),
+        enabled: !!id,
+    });
+}
+
+export function usePendingTrips() {
+    return useQuery({
+        queryKey: queryKeys.pendingTrips,
+        queryFn: () => tripsService.getPendingTrips(),
+    });
+}
+
+export function useTripAllowances(tripId: string) {
+    return useQuery({
+        queryKey: queryKeys.tripAllowances(tripId),
+        queryFn: () => tripsService.getTripAllowances(tripId),
+        enabled: !!tripId,
+    });
+}
+
+export function useCreateTrip() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (data: Partial<BusinessTrip>) => tripsService.createTrip(data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.trips });
+        },
+    });
+}
+
+export function useSubmitTrip() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: string) => tripsService.submitTrip(id),
+        onSuccess: (_, id) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.trip(id) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.trips });
+        },
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Expense Report Hooks
+// ═══════════════════════════════════════════════════════════════════
+
+export function useExpenseReports(status?: string) {
+    return useQuery({
+        queryKey: [...queryKeys.reports, { status }],
+        queryFn: () => reportsService.getMyReports(status),
+    });
+}
+
+export function useExpenseReport(id: string) {
+    return useQuery({
+        queryKey: queryKeys.report(id),
+        queryFn: () => reportsService.getReport(id),
+        enabled: !!id,
+    });
+}
+
+export function usePendingReports() {
+    return useQuery({
+        queryKey: queryKeys.pendingReports,
+        queryFn: () => reportsService.getPendingReports(),
+    });
+}
+
+export function useCreateExpenseReport() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (data: Partial<ExpenseReport>) => reportsService.createReport(data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.reports });
+        },
+    });
+}
+
+export function useAddExpenseItem() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ reportId, data }: { reportId: string; data: Partial<ExpenseItem> }) =>
+            reportsService.addItem(reportId, data),
+        onSuccess: (_, { reportId }) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.report(reportId) });
+        },
+    });
+}
+
+export function useSubmitExpenseReport() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: string) => reportsService.submitReport(id),
+        onSuccess: (_, id) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.report(id) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.reports });
+        },
+    });
+}

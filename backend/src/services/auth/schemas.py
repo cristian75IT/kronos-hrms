@@ -1,0 +1,260 @@
+"""KRONOS Auth Service - Pydantic Schemas."""
+from datetime import date, datetime
+from typing import Optional
+from uuid import UUID
+
+from pydantic import BaseModel, EmailStr, Field
+
+from src.shared.schemas import BaseSchema, IDMixin, TimestampMixin, DataTableRequest, DataTableResponse
+
+
+# ═══════════════════════════════════════════════════════════
+# User Schemas
+# ═══════════════════════════════════════════════════════════
+
+class UserBase(BaseModel):
+    """Base user schema."""
+    
+    email: EmailStr
+    first_name: str = Field(..., max_length=100)
+    last_name: str = Field(..., max_length=100)
+    badge_number: Optional[str] = Field(None, max_length=20)
+    fiscal_code: Optional[str] = Field(None, max_length=16)
+    hire_date: Optional[date] = None
+    termination_date: Optional[date] = None
+
+
+class UserCreate(UserBase):
+    """Schema for creating user from Keycloak sync."""
+    
+    keycloak_id: str
+    is_admin: bool = False
+    is_manager: bool = False
+    is_approver: bool = False
+
+
+class UserUpdate(BaseModel):
+    """Schema for updating user."""
+    
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    badge_number: Optional[str] = None
+    fiscal_code: Optional[str] = None
+    hire_date: Optional[date] = None
+    termination_date: Optional[date] = None
+    contract_type_id: Optional[UUID] = None
+    work_schedule_id: Optional[UUID] = None
+    location_id: Optional[UUID] = None
+    manager_id: Optional[UUID] = None
+    is_active: Optional[bool] = None
+
+
+class UserResponse(UserBase, IDMixin, BaseSchema):
+    """Response schema for user."""
+    
+    keycloak_id: str
+    is_admin: bool
+    is_manager: bool
+    is_approver: bool
+    is_active: bool
+    full_name: str
+    contract_type_id: Optional[UUID] = None
+    work_schedule_id: Optional[UUID] = None
+    location_id: Optional[UUID] = None
+    manager_id: Optional[UUID] = None
+    last_sync_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class UserListItem(BaseModel):
+    """Simplified user for lists."""
+    
+    id: UUID
+    email: str
+    full_name: str
+    badge_number: Optional[str] = None
+    is_active: bool
+    is_admin: bool
+    is_manager: bool
+    
+    model_config = {"from_attributes": True}
+
+
+class UserDataTableResponse(DataTableResponse[UserListItem]):
+    """DataTable response for users."""
+    pass
+
+
+class CurrentUserResponse(BaseModel):
+    """Response for current authenticated user."""
+    
+    id: UUID
+    keycloak_id: str
+    email: str
+    first_name: str
+    last_name: str
+    full_name: str
+    roles: list[str]
+    is_admin: bool
+    is_manager: bool
+    is_approver: bool
+    location: Optional[str] = None
+    manager: Optional[str] = None
+
+
+# ═══════════════════════════════════════════════════════════
+# Area Schemas
+# ═══════════════════════════════════════════════════════════
+
+class AreaBase(BaseModel):
+    """Base area schema."""
+    
+    code: str = Field(..., max_length=20)
+    name: str = Field(..., max_length=100)
+    description: Optional[str] = None
+    parent_id: Optional[UUID] = None
+    manager_id: Optional[UUID] = None
+
+
+class AreaCreate(AreaBase):
+    """Schema for creating area."""
+    pass
+
+
+class AreaUpdate(BaseModel):
+    """Schema for updating area."""
+    
+    name: Optional[str] = None
+    description: Optional[str] = None
+    parent_id: Optional[UUID] = None
+    manager_id: Optional[UUID] = None
+    is_active: Optional[bool] = None
+
+
+class AreaResponse(AreaBase, IDMixin, BaseSchema):
+    """Response schema for area."""
+    
+    is_active: bool
+
+
+class AreaWithUsersResponse(AreaResponse):
+    """Area response with users."""
+    
+    users: list[UserListItem] = []
+
+
+# ═══════════════════════════════════════════════════════════
+# Location Schemas
+# ═══════════════════════════════════════════════════════════
+
+class LocationBase(BaseModel):
+    """Base location schema."""
+    
+    code: str = Field(..., max_length=20)
+    name: str = Field(..., max_length=100)
+    address: Optional[str] = None
+    city: Optional[str] = Field(None, max_length=100)
+    province: Optional[str] = Field(None, max_length=2)
+    patron_saint_name: Optional[str] = None
+    patron_saint_date: Optional[date] = None
+
+
+class LocationCreate(LocationBase):
+    """Schema for creating location."""
+    pass
+
+
+class LocationUpdate(BaseModel):
+    """Schema for updating location."""
+    
+    name: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    province: Optional[str] = None
+    patron_saint_name: Optional[str] = None
+    patron_saint_date: Optional[date] = None
+    is_active: Optional[bool] = None
+
+
+class LocationResponse(LocationBase, IDMixin, BaseSchema):
+    """Response schema for location."""
+    
+    is_active: bool
+
+
+# ═══════════════════════════════════════════════════════════
+# Contract Type Schemas
+# ═══════════════════════════════════════════════════════════
+
+class ContractTypeBase(BaseModel):
+    """Base contract type schema."""
+    
+    code: str = Field(..., max_length=20)
+    name: str = Field(..., max_length=100)
+    is_part_time: bool = False
+    part_time_percentage: int = Field(default=100, ge=1, le=100)
+    annual_vacation_days: int = Field(default=26, ge=0)
+    annual_rol_hours: int = Field(default=104, ge=0)
+    annual_permit_hours: int = Field(default=32, ge=0)
+
+
+class ContractTypeCreate(ContractTypeBase):
+    """Schema for creating contract type."""
+    pass
+
+
+class ContractTypeResponse(ContractTypeBase, IDMixin, BaseSchema):
+    """Response schema for contract type."""
+    
+    is_active: bool
+
+
+# ═══════════════════════════════════════════════════════════
+# Work Schedule Schemas
+# ═══════════════════════════════════════════════════════════
+
+class WorkScheduleBase(BaseModel):
+    """Base work schedule schema."""
+    
+    code: str = Field(..., max_length=20)
+    name: str = Field(..., max_length=100)
+    monday_hours: int = Field(default=8, ge=0, le=24)
+    tuesday_hours: int = Field(default=8, ge=0, le=24)
+    wednesday_hours: int = Field(default=8, ge=0, le=24)
+    thursday_hours: int = Field(default=8, ge=0, le=24)
+    friday_hours: int = Field(default=8, ge=0, le=24)
+    saturday_hours: int = Field(default=0, ge=0, le=24)
+    sunday_hours: int = Field(default=0, ge=0, le=24)
+
+
+class WorkScheduleCreate(WorkScheduleBase):
+    """Schema for creating work schedule."""
+    pass
+
+
+class WorkScheduleResponse(WorkScheduleBase, IDMixin, BaseSchema):
+    """Response schema for work schedule."""
+    
+    is_active: bool
+    weekly_hours: int
+
+
+# ═══════════════════════════════════════════════════════════
+# Keycloak Sync
+# ═══════════════════════════════════════════════════════════
+
+class KeycloakSyncRequest(BaseModel):
+    """Request to sync users from Keycloak."""
+    
+    force_full_sync: bool = False
+
+
+class KeycloakSyncResponse(BaseModel):
+    """Response from Keycloak sync."""
+    
+    synced: int
+    created: int
+    updated: int
+    deactivated: int
+    errors: list[str] = []
