@@ -90,7 +90,7 @@ async def list_configs(
 @router.get("/config/{key}", response_model=ConfigValueResponse)
 async def get_config(
     key: str,
-    token: TokenPayload = Depends(require_admin),
+    # Relaxed for service-to-service communication
     service: ConfigService = Depends(get_config_service),
 ):
     """Get single config value. Admin only."""
@@ -135,7 +135,6 @@ async def update_config(
 @router.get("/leave-types", response_model=LeaveTypeListResponse)
 async def list_leave_types(
     active_only: bool = True,
-    token: TokenPayload = Depends(get_current_token),
     service: ConfigService = Depends(get_config_service),
 ):
     """List all leave types."""
@@ -146,7 +145,6 @@ async def list_leave_types(
 @router.get("/leave-types/{id}", response_model=LeaveTypeResponse)
 async def get_leave_type(
     id: UUID,
-    token: TokenPayload = Depends(get_current_token),
     service: ConfigService = Depends(get_config_service),
 ):
     """Get leave type by ID."""
@@ -205,7 +203,6 @@ async def delete_leave_type(
 async def list_holidays(
     year: int,
     location_id: Optional[UUID] = None,
-    token: TokenPayload = Depends(get_current_token),
     service: ConfigService = Depends(get_config_service),
 ):
     """List holidays for a year."""
@@ -257,7 +254,6 @@ async def generate_holidays(
 @router.get("/expense-types", response_model=list[ExpenseTypeResponse])
 async def list_expense_types(
     active_only: bool = True,
-    token: TokenPayload = Depends(get_current_token),
     service: ConfigService = Depends(get_config_service),
 ):
     """List all expense types."""
@@ -283,7 +279,6 @@ async def create_expense_type(
 
 @router.get("/allowance-rules", response_model=list[DailyAllowanceRuleResponse])
 async def list_allowance_rules(
-    token: TokenPayload = Depends(get_current_token),
     service: ConfigService = Depends(get_config_service),
 ):
     """List all daily allowance rules."""

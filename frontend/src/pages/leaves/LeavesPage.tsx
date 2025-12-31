@@ -9,6 +9,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { Plus, Filter, Calendar as CalendarIcon } from 'lucide-react';
 import { useCalendarEvents, useLeaveRequests, useBalanceSummary } from '../../hooks/useApi';
 import { useAuth } from '../../context/AuthContext';
+import { Button } from '../../components/common';
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
 import { it } from 'date-fns/locale';
 
@@ -52,14 +53,15 @@ export function LeavesPage() {
     <div className="leaves-page animate-fadeIn">
       {/* Header */}
       <div className="page-header">
-        <div>
-          <h1>Le Mie Ferie</h1>
-          <p className="page-subtitle">Gestisci richieste e visualizza il calendario</p>
-        </div>
-        <Link to="/leaves/new" className="btn btn-primary">
-          <Plus size={18} />
+        <h1 className="page-title">Calendario Assenze</h1>
+        <Button
+          as={Link}
+          to="/leaves/new"
+          variant="primary"
+          icon={<Plus size={18} />}
+        >
           Nuova Richiesta
-        </Link>
+        </Button>
       </div>
 
       {/* Balance Summary */}
@@ -67,7 +69,7 @@ export function LeavesPage() {
         <div className="balance-card">
           <div className="balance-label">Ferie AP (Anno Prec.)</div>
           <div className="balance-value">
-            {balance ? `${balance.vacation_available_ap}` : '-'}
+            {balance?.vacation_available_ap ?? '-'}
             <span className="balance-unit">gg</span>
           </div>
           {balance?.ap_expiry_date && (
@@ -79,21 +81,21 @@ export function LeavesPage() {
         <div className="balance-card">
           <div className="balance-label">Ferie AC (Anno Corr.)</div>
           <div className="balance-value">
-            {balance ? `${balance.vacation_available_ac}` : '-'}
+            {balance?.vacation_available_ac ?? '-'}
             <span className="balance-unit">gg</span>
           </div>
         </div>
         <div className="balance-card">
           <div className="balance-label">ROL Disponibili</div>
           <div className="balance-value">
-            {balance ? `${balance.rol_available}` : '-'}
+            {balance?.rol_available ?? '-'}
             <span className="balance-unit">ore</span>
           </div>
         </div>
         <div className="balance-card">
           <div className="balance-label">Permessi</div>
           <div className="balance-value">
-            {balance ? `${balance.permits_available}` : '-'}
+            {balance?.permits_available ?? '-'}
             <span className="balance-unit">ore</span>
           </div>
         </div>

@@ -97,9 +97,12 @@ services:
     networks:
       - kronos-internal
     depends_on:
-      - postgres
-      - redis
-      - config-service
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      config-service:
+        condition: service_started
     restart: unless-stopped
 
   expense-service:
@@ -127,9 +130,12 @@ services:
     networks:
       - kronos-internal
     depends_on:
-      - postgres
-      - minio
-      - config-service
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      config-service:
+        condition: service_started
     restart: unless-stopped
 
   config-service:
@@ -152,8 +158,10 @@ services:
     networks:
       - kronos-internal
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   notification-service:
@@ -180,8 +188,10 @@ services:
     networks:
       - kronos-internal
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   audit-service:
@@ -204,7 +214,9 @@ services:
     networks:
       - kronos-internal
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+
     restart: unless-stopped
 
   # ═══════════════════════════════════════════════════════════

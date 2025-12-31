@@ -34,6 +34,7 @@ from src.services.expenses.schemas import (
     MarkPaidRequest,
 )
 from src.shared.schemas import DataTableRequest
+from src.shared.storage import storage_manager
 
 
 class ExpenseService:
@@ -181,6 +182,34 @@ class ExpenseService:
         
         await self._trip_repo.update(id, status=TripStatus.COMPLETED)
         return await self.get_trip(id)
+
+    async def update_trip_attachment(
+        self, id: UUID, user_id: UUID, content: bytes, filename: str, content_type: str
+    ):
+        """Upload and update trip attachment."""
+        trip = await self.get_trip(id)
+        if trip.user_id != user_id:
+            raise BusinessRuleError("Cannot update another user's trip")
+        
+        # Validation
+        if content_type != "application/pdf":
+            raise ValidationError("Only PDF files are allowed", field="attachment")
+        if len(content) > 2 * 1024 * 1024:
+            raise ValidationError("File size exceeds 2MB limit", field="attachment")
+        
+        # Unique filename
+        ext = filename.split(".")[-1]
+        storage_filename = f"trip_{id}_{datetime.utcnow().timestamp()}.{ext}"
+        
+        path = storage_manager.upload_file(content, storage_filename, content_type)
+        if not path:
+            raise BusinessRuleError("Failed to upload file to storage")
+            
+        # Optional: delete old file
+        if trip.attachment_path:
+            storage_manager.delete_file(trip.attachment_path)
+            
+        return await self._trip_repo.update(id, attachment_path=path)
 
     # ═══════════════════════════════════════════════════════════
     # Daily Allowance Operations
@@ -409,6 +438,34 @@ class ExpenseService:
         )
         
         return await self.get_report(id)
+
+    async def update_report_attachment(
+        self, id: UUID, user_id: UUID, content: bytes, filename: str, content_type: str
+    ):
+        """Upload and update report attachment."""
+        report = await self.get_report(id)
+        if report.user_id != user_id:
+            raise BusinessRuleError("Cannot update another user's report")
+        
+        # Validation
+        if content_type != "application/pdf":
+            raise ValidationError("Only PDF files are allowed", field="attachment")
+        if len(content) > 2 * 1024 * 1014:
+            raise ValidationError("File size exceeds 2MB limit", field="attachment")
+        
+        # Unique filename
+        ext = filename.split(".")[-1]
+        storage_filename = f"report_{id}_{datetime.utcnow().timestamp()}.{ext}"
+        
+        path = storage_manager.upload_file(content, storage_filename, content_type)
+        if not path:
+            raise BusinessRuleError("Failed to upload file to storage")
+            
+        # Optional: delete old file
+        if report.attachment_path:
+            storage_manager.delete_file(report.attachment_path)
+            
+        return await self._report_repo.update(id, attachment_path=path)
 
     # ═══════════════════════════════════════════════════════════
     # Expense Item Operations

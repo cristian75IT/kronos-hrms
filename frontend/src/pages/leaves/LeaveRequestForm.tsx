@@ -8,6 +8,7 @@ import { Calendar as CalendarIcon, Save, X, AlertCircle } from 'lucide-react';
 import { useCreateLeaveRequest } from '../../hooks/useApi';
 import { configApi } from '../../services/api'; // Direct call for leave types since it's rarely updated
 import type { LeaveType, LeaveRequestCreate } from '../../types';
+import { formatApiError } from '../../utils/errorUtils';
 
 export function LeaveRequestForm() {
     const navigate = useNavigate();
@@ -36,9 +37,10 @@ export function LeaveRequestForm() {
         async function fetchLeaveTypes() {
             try {
                 const response = await configApi.get('/leave-types');
-                setLeaveTypes(response.data);
-                if (response.data.length > 0) {
-                    setValue('leave_type_id', response.data[0].id);
+                const types = response.data.items || [];
+                setLeaveTypes(types);
+                if (types.length > 0) {
+                    setValue('leave_type_id', types[0].id);
                 }
             } catch (error) {
                 console.error('Failed to load leave types', error);
@@ -200,8 +202,7 @@ export function LeaveRequestForm() {
                             <div>
                                 <div className="font-semibold text-sm">Errore durante l'invio</div>
                                 <div className="text-sm opacity-90">
-                                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                    {(createMutation.error as any)?.response?.data?.detail || 'Si è verificato un errore inatteso.'}
+                                    {formatApiError(createMutation.error)}
                                 </div>
                             </div>
                         </div>

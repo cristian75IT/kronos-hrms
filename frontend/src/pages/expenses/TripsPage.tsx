@@ -91,7 +91,7 @@ export function TripsPage() {
                                 {trip.estimated_budget && (
                                     <div className="trip-detail">
                                         <FileText size={16} />
-                                        <span>€ {trip.estimated_budget.toFixed(2)} previsti</span>
+                                        <span>€ {Number(trip.estimated_budget).toFixed(2)} previsti</span>
                                     </div>
                                 )}
                             </div>

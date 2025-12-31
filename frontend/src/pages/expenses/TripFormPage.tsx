@@ -3,11 +3,15 @@
  */
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { Calendar as CalendarIcon, Save, X, AlertCircle, MapPin, DollarSign, Globe } from 'lucide-react';
-import { useCreateTrip } from '../../hooks/useApi';
+import { Calendar as CalendarIcon, Save, X, AlertCircle, MapPin, DollarSign, Globe, Paperclip } from 'lucide-react';
+import { useCreateTrip, useUploadTripAttachment } from '../../hooks/useApi';
+import { useState } from 'react';
+import { useToast } from '../../context/ToastContext';
 import type { DestinationType } from '../../types';
+import { formatApiError } from '../../utils/errorUtils';
 
 interface TripFormValues {
+    title: string;
     destination: string;
     destination_type: DestinationType;
     purpose: string;
@@ -19,6 +23,9 @@ interface TripFormValues {
 export function TripFormPage() {
     const navigate = useNavigate();
     const createMutation = useCreateTrip();
+    const uploadMutation = useUploadTripAttachment();
+    const [attachment, setAttachment] = useState<File | null>(null);
+    const { success, error: showError } = useToast();
 
     const { register, handleSubmit, watch, formState: { errors } } = useForm<TripFormValues>({
         defaultValues: {
@@ -32,8 +39,22 @@ export function TripFormPage() {
 
     const onSubmit = (data: TripFormValues) => {
         createMutation.mutate(data, {
-            onSuccess: () => {
-                navigate('/trips');
+            onSuccess: (newTrip) => {
+                success('Trasferta creata con successo!');
+                if (attachment) {
+                    uploadMutation.mutate({ id: newTrip.id, file: attachment }, {
+                        onSuccess: () => {
+                            success('Allegato caricato correttamente');
+                            navigate('/trips');
+                        },
+                        onError: () => {
+                            showError('Errore durante il caricamento dell\'allegato');
+                            navigate('/trips');
+                        },
+                    });
+                } else {
+                    navigate('/trips');
+                }
             },
         });
     };
@@ -47,6 +68,18 @@ export function TripFormPage() {
 
             <div className="card">
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+
+                    {/* Title */}
+                    <div className="form-group">
+                        <label className="input-label block mb-2">Titolo Trasferta</label>
+                        <input
+                            type="text"
+                            {...register('title', { required: 'Il titolo è obbligatorio' })}
+                            className="input w-full"
+                            placeholder="Es. Visita Cliente Milano, Fiera Parigi..."
+                        />
+                        {errors.title && <span className="text-danger text-xs">{errors.title.message}</span>}
+                    </div>
 
                     {/* Destination */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -140,6 +173,31 @@ export function TripFormPage() {
                         {errors.purpose && <span className="text-danger text-xs">{errors.purpose.message}</span>}
                     </div>
 
+                    {/* Attachment */}
+                    <div className="form-group">
+                        <label className="input-label block mb-2">Allegato (PDF max 2MB)</label>
+                        <div className="relative">
+                            <Paperclip size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" />
+                            <input
+                                type="file"
+                                accept=".pdf"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file && file.size > 2 * 1024 * 1024) {
+                                        showError("Il file non può superare i 2MB");
+                                        e.target.value = "";
+                                        setAttachment(null);
+                                    } else {
+                                        setAttachment(file || null);
+                                    }
+                                }}
+                                className="input w-full pl-10"
+                                style={{ paddingTop: '0.5rem' }}
+                            />
+                        </div>
+                        <p className="text-xs text-secondary mt-1">Carica un piano di viaggio o altri documenti rilevanti.</p>
+                    </div>
+
                     {/* Error Message */}
                     {createMutation.isError && (
                         <div className="p-4 bg-danger/10 border border-danger/20 rounded-lg flex items-start gap-3 text-danger">
@@ -147,8 +205,7 @@ export function TripFormPage() {
                             <div>
                                 <div className="font-semibold text-sm">Errore durante l'invio</div>
                                 <div className="text-sm opacity-90">
-                                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                    {(createMutation.error as any)?.response?.data?.detail || 'Si è verificato un errore.'}
+                                    {formatApiError(createMutation.error)}
                                 </div>
                             </div>
                         </div>

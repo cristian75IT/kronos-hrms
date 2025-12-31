@@ -100,12 +100,12 @@ export const leavesService = {
 
     getMyBalance: async (year?: number): Promise<LeaveBalance> => {
         const params = year ? { year } : {};
-        const response = await leavesApi.get('/balance', { params });
+        const response = await leavesApi.get('/balances/me', { params });
         return response.data;
     },
 
     getBalanceSummary: async (): Promise<LeaveBalanceSummary> => {
-        const response = await leavesApi.get('/balance/summary');
+        const response = await leavesApi.get('/balances/me/summary');
         return response.data;
     },
 
@@ -119,14 +119,12 @@ export const leavesService = {
         includeTeam?: boolean,
         includeHolidays?: boolean,
     ): Promise<{ events: CalendarEvent[]; holidays: CalendarEvent[] }> => {
-        const params = new URLSearchParams({
+        const response = await leavesApi.post('/leaves/calendar', {
             start_date: startDate,
             end_date: endDate,
+            include_team: includeTeam,
+            include_holidays: includeHolidays,
         });
-        if (includeTeam) params.append('include_team', 'true');
-        if (includeHolidays) params.append('include_holidays', 'true');
-
-        const response = await leavesApi.get('/calendar', { params });
         return response.data;
     },
 

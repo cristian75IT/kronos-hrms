@@ -2,7 +2,7 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
@@ -202,6 +202,27 @@ async def complete_trip(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.post("/trips/{id}/attachment", response_model=BusinessTripResponse)
+async def upload_trip_attachment(
+    id: UUID,
+    file: UploadFile = File(...),
+    token: TokenPayload = Depends(get_current_token),
+    service: ExpenseService = Depends(get_expense_service),
+):
+    """Upload PDF attachment for a trip."""
+    user_id = UUID(token.keycloak_id)
+    content = await file.read()
+    
+    try:
+        return await service.update_trip_attachment(
+            id, user_id, content, file.filename, file.content_type
+        )
+    except (BusinessRuleError, ValidationError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+
 # ═══════════════════════════════════════════════════════════
 # Daily Allowance Endpoints
 # ═══════════════════════════════════════════════════════════
@@ -358,6 +379,27 @@ async def mark_paid(
         return await service.mark_paid(id, data)
     except (NotFoundError, BusinessRuleError) as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/expenses/{id}/attachment", response_model=ExpenseReportResponse)
+async def upload_report_attachment(
+    id: UUID,
+    file: UploadFile = File(...),
+    token: TokenPayload = Depends(get_current_token),
+    service: ExpenseService = Depends(get_expense_service),
+):
+    """Upload PDF attachment for an expense report."""
+    user_id = UUID(token.keycloak_id)
+    content = await file.read()
+    
+    try:
+        return await service.update_report_attachment(
+            id, user_id, content, file.filename, file.content_type
+        )
+    except (BusinessRuleError, ValidationError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
 # ═══════════════════════════════════════════════════════════

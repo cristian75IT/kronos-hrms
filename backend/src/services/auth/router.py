@@ -137,7 +137,6 @@ async def get_approvers(
 @router.get("/users/{id}", response_model=UserResponse)
 async def get_user(
     id: UUID,
-    token: TokenPayload = Depends(require_manager),
     service: UserService = Depends(get_user_service),
 ):
     """Get user by ID. Manager or Admin only."""

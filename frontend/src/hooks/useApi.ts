@@ -6,6 +6,7 @@ import { leavesService } from '../services/leaves.service';
 import { tripsService, reportsService } from '../services/expenses.service';
 import { userService } from '../services/userService';
 import { configService } from '../services/config.service';
+import { useToast } from '../context/ToastContext';
 import type {
     LeaveRequestCreate,
     LeaveRequestUpdate,
@@ -80,9 +81,20 @@ export function useLeaveBalance(year?: number) {
 }
 
 export function useBalanceSummary() {
+    const toast = useToast();
     return useQuery({
         queryKey: queryKeys.balanceSummary,
-        queryFn: () => leavesService.getBalanceSummary(),
+        queryFn: async () => {
+            try {
+                return await leavesService.getBalanceSummary();
+            } catch (error: any) {
+                toast.error(
+                    'Errore durante il recupero del saldo ferie. Per favore, ricarica la pagina.'
+                );
+                throw error;
+            }
+        },
+        retry: 1, // Don't spam if it fails
     });
 }
 
@@ -215,6 +227,19 @@ export function useSubmitTrip() {
     });
 }
 
+export function useUploadTripAttachment() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, file }: { id: string; file: File }) =>
+            tripsService.uploadAttachment(id, file),
+        onSuccess: (_, { id }) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.trip(id) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.trips });
+        },
+    });
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Expense Report Hooks
 // ═══════════════════════════════════════════════════════════════════
@@ -270,6 +295,19 @@ export function useSubmitExpenseReport() {
     return useMutation({
         mutationFn: (id: string) => reportsService.submitReport(id),
         onSuccess: (_, id) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.report(id) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.reports });
+        },
+    });
+}
+
+export function useUploadReportAttachment() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, file }: { id: string; file: File }) =>
+            reportsService.uploadAttachment(id, file),
+        onSuccess: (_, { id }) => {
             queryClient.invalidateQueries({ queryKey: queryKeys.report(id) });
             queryClient.invalidateQueries({ queryKey: queryKeys.reports });
         },

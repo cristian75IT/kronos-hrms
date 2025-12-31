@@ -81,7 +81,7 @@ class LeaveRequest(Base):
     
     # Status and workflow
     status: Mapped[LeaveRequestStatus] = mapped_column(
-        SQLEnum(LeaveRequestStatus),
+        SQLEnum(LeaveRequestStatus, native_enum=False),
         default=LeaveRequestStatus.DRAFT,
     )
     
@@ -95,7 +95,7 @@ class LeaveRequest(Base):
     
     # Conditional approval
     has_conditions: Mapped[bool] = mapped_column(Boolean, default=False)
-    condition_type: Mapped[Optional[ConditionType]] = mapped_column(SQLEnum(ConditionType))
+    condition_type: Mapped[Optional[ConditionType]] = mapped_column(SQLEnum(ConditionType, native_enum=False))
     condition_details: Mapped[Optional[str]] = mapped_column(Text)
     condition_accepted: Mapped[Optional[bool]] = mapped_column(Boolean)
     condition_accepted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -152,8 +152,8 @@ class LeaveRequestHistory(Base):
     )
     
     # Status change
-    from_status: Mapped[Optional[LeaveRequestStatus]] = mapped_column(SQLEnum(LeaveRequestStatus))
-    to_status: Mapped[LeaveRequestStatus] = mapped_column(SQLEnum(LeaveRequestStatus), nullable=False)
+    from_status: Mapped[Optional[LeaveRequestStatus]] = mapped_column(SQLEnum(LeaveRequestStatus, native_enum=False))
+    to_status: Mapped[LeaveRequestStatus] = mapped_column(SQLEnum(LeaveRequestStatus, native_enum=False), nullable=False)
     
     # Who and when
     changed_by: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
@@ -202,6 +202,7 @@ class LeaveBalance(Base):
     permits_used: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=0)
     
     # Metadata
+    ap_expiry_date: Mapped[Optional[date]] = mapped_column(Date)
     last_accrual_date: Mapped[Optional[date]] = mapped_column(Date)
     notes: Mapped[Optional[str]] = mapped_column(Text)
     

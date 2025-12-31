@@ -57,6 +57,7 @@ class BusinessTripResponse(BusinessTripBase, IDMixin, BaseSchema):
     approver_id: Optional[UUID] = None
     approved_at: Optional[datetime] = None
     approver_notes: Optional[str] = None
+    attachment_path: Optional[str] = None
     total_days: int
     created_at: datetime
     updated_at: datetime
@@ -148,6 +149,7 @@ class ExpenseReportResponse(ExpenseReportBase, IDMixin, BaseSchema):
     approver_id: Optional[UUID] = None
     approved_at: Optional[datetime] = None
     approver_notes: Optional[str] = None
+    attachment_path: Optional[str] = None
     paid_at: Optional[datetime] = None
     payment_reference: Optional[str] = None
     created_at: datetime

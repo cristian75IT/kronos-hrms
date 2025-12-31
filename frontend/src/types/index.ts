@@ -117,12 +117,13 @@ export interface LeaveType {
     name: string;
     description?: string;
     color: string;
-    is_paid: boolean;
-    affects_balance: boolean;
+    icon?: string;
+    scales_balance: boolean;
+    balance_type?: 'vacation' | 'rol' | 'permits';
     requires_approval: boolean;
     requires_attachment: boolean;
     max_consecutive_days?: number;
-    min_advance_days: number;
+    min_notice_days?: number;
     is_active: boolean;
 }
 

@@ -523,10 +523,18 @@ class LeaveService:
             r.days_requested * 8 for r in pending if r.leave_type_code in ["PER"]
         )
         
+        days_until_ap_expiry = None
+        if balance.ap_expiry_date:
+            days_until_ap_expiry = (balance.ap_expiry_date - date.today()).days
+
         return BalanceSummary(
-            vacation_available=balance.vacation_available_total,
+            vacation_total_available=balance.vacation_available_total,
+            vacation_available_ap=balance.vacation_available_ap,
+            vacation_available_ac=balance.vacation_available_ac,
             vacation_used=balance.vacation_used,
             vacation_pending=vacation_pending,
+            ap_expiry_date=balance.ap_expiry_date,
+            days_until_ap_expiry=days_until_ap_expiry,
             rol_available=balance.rol_available,
             rol_used=balance.rol_used,
             rol_pending=rol_pending,
@@ -624,12 +632,25 @@ class LeaveService:
         # Get holidays
         holidays = []
         if request.include_holidays:
-            holidays = await self._get_holidays(
+            raw_holidays = await self._get_holidays(
                 request.start_date.year,
                 request.start_date,
                 request.end_date,
             )
-        
+            holidays = [
+                CalendarEvent(
+                    id=f"hol_{h['id']}",
+                    title=h['name'],
+                    start=h['date'],
+                    end=h['date'],
+                    allDay=True,
+                    color="#F59E0B",  # Orange for holidays
+                    extendedProps={"type": "holiday"}
+                )
+                for h in raw_holidays
+                if isinstance(h, dict) and 'id' in h and 'name' in h and 'date' in h
+            ]
+            
         return CalendarResponse(events=events, holidays=holidays)
 
     # ═══════════════════════════════════════════════════════════
@@ -688,7 +709,7 @@ class LeaveService:
         holiday_dates = {h.get("date") for h in holidays if h.get("date")}
         
         # Get working days config (default 5: Mon-Fri)
-        working_days_limit = await self._get_system_config("leave.working_days_per_week", 5)
+        working_days_limit = await self._get_system_config("work_week_days", 5)
         try:
             working_days_limit = int(working_days_limit)
         except (ValueError, TypeError):
@@ -840,7 +861,10 @@ class LeaveService:
                     timeout=5.0,
                 )
                 if response.status_code == 200:
-                    return response.json()
+                    data = response.json()
+                    if isinstance(data, dict):
+                        return data.get("items", [])
+                    return data if isinstance(data, list) else []
         except Exception:
             pass
         return []

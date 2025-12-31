@@ -3,10 +3,14 @@
  */
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { Calendar as CalendarIcon, Save, X, AlertCircle, FileText } from 'lucide-react';
-import { useCreateExpenseReport } from '../../hooks/useApi';
+import { Calendar as CalendarIcon, Save, X, AlertCircle, FileText, Paperclip } from 'lucide-react';
+import { useCreateExpenseReport, useUploadReportAttachment, useTrips } from '../../hooks/useApi';
+import { useState } from 'react';
+import { useToast } from '../../context/ToastContext';
+import { formatApiError } from '../../utils/errorUtils';
 
 interface ExpenseFormValues {
+    trip_id: string;
     title: string;
     employee_notes?: string;
     period_start: string;
@@ -16,6 +20,10 @@ interface ExpenseFormValues {
 export function ExpenseFormPage() {
     const navigate = useNavigate();
     const createMutation = useCreateExpenseReport();
+    const uploadMutation = useUploadReportAttachment();
+    const { data: trips, isLoading: isLoadingTrips } = useTrips('approved,completed'); // Only link to approved or completed trips
+    const [attachment, setAttachment] = useState<File | null>(null);
+    const { success, error: showError } = useToast();
 
     const { register, handleSubmit, watch, formState: { errors } } = useForm<ExpenseFormValues>({
         defaultValues: {
@@ -29,8 +37,21 @@ export function ExpenseFormPage() {
     const onSubmit = (data: ExpenseFormValues) => {
         createMutation.mutate(data, {
             onSuccess: (newReport) => {
-                // Redirect to detail page to add items
-                navigate(`/expenses/${newReport.id}`);
+                success('Nota spese creata con successo!');
+                if (attachment) {
+                    uploadMutation.mutate({ id: newReport.id, file: attachment }, {
+                        onSuccess: () => {
+                            success('Allegato caricato correttamente');
+                            navigate(`/expenses/${newReport.id}`);
+                        },
+                        onError: () => {
+                            showError('Errore durante il caricamento dell\'allegato');
+                            navigate(`/expenses/${newReport.id}`);
+                        },
+                    });
+                } else {
+                    navigate(`/expenses/${newReport.id}`);
+                }
             },
         });
     };
@@ -44,6 +65,29 @@ export function ExpenseFormPage() {
 
             <div className="card">
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+
+                    {/* Trip Selection */}
+                    <div className="form-group">
+                        <label className="input-label block mb-2">Trasferta di Riferimento</label>
+                        <select
+                            {...register('trip_id', { required: 'Seleziona una trasferta' })}
+                            className="input w-full"
+                            disabled={isLoadingTrips}
+                        >
+                            <option value="">Seleziona una trasferta...</option>
+                            {trips?.map((trip) => (
+                                <option key={trip.id} value={trip.id}>
+                                    {trip.title} ({trip.destination}) - {new Date(trip.start_date).toLocaleDateString()}
+                                </option>
+                            ))}
+                        </select>
+                        {errors.trip_id && <span className="text-danger text-xs">{errors.trip_id.message}</span>}
+                        {trips?.length === 0 && !isLoadingTrips && (
+                            <p className="text-xs text-warning mt-1">
+                                Non hai trasferte approvate a cui collegare questa nota spese.
+                            </p>
+                        )}
+                    </div>
 
                     {/* Title */}
                     <div className="form-group">
@@ -103,6 +147,31 @@ export function ExpenseFormPage() {
                         />
                     </div>
 
+                    {/* Attachment */}
+                    <div className="form-group">
+                        <label className="input-label block mb-2">Allegato Riepilogativo (PDF max 2MB)</label>
+                        <div className="relative">
+                            <Paperclip size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" />
+                            <input
+                                type="file"
+                                accept=".pdf"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file && file.size > 2 * 1024 * 1024) {
+                                        showError("Il file non può superare i 2MB");
+                                        e.target.value = "";
+                                        setAttachment(null);
+                                    } else {
+                                        setAttachment(file || null);
+                                    }
+                                }}
+                                className="input w-full pl-10"
+                                style={{ paddingTop: '0.5rem' }}
+                            />
+                        </div>
+                        <p className="text-xs text-secondary mt-1">Carica un PDF riepilogativo o documenti giustificativi aggiuntivi.</p>
+                    </div>
+
                     {/* Error Message */}
                     {createMutation.isError && (
                         <div className="p-4 bg-danger/10 border border-danger/20 rounded-lg flex items-start gap-3 text-danger">
@@ -110,8 +179,7 @@ export function ExpenseFormPage() {
                             <div>
                                 <div className="font-semibold text-sm">Errore durante la creazione</div>
                                 <div className="text-sm opacity-90">
-                                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                    {(createMutation.error as any)?.response?.data?.detail || 'Si è verificato un errore.'}
+                                    {formatApiError(createMutation.error)}
                                 </div>
                             </div>
                         </div>

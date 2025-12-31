@@ -3,6 +3,7 @@
  */
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
 import { MainLayout } from './components/layout/MainLayout';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
 import { LoginPage } from './pages/auth/LoginPage';
@@ -24,48 +25,50 @@ import { ExpenseFormPage } from './pages/expenses/ExpenseFormPage';
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/login" element={<LoginPage />} />
+      <ToastProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/login" element={<LoginPage />} />
 
-          {/* Protected Routes */}
-          <Route element={
-            <ProtectedRoute>
-              <MainLayout />
-            </ProtectedRoute>
-          }>
-            <Route path="/" element={<DashboardPage />} />
+            {/* Protected Routes */}
+            <Route element={
+              <ProtectedRoute>
+                <MainLayout />
+              </ProtectedRoute>
+            }>
+              <Route path="/" element={<DashboardPage />} />
 
-            {/* Leaves */}
-            <Route path="/leaves" element={<LeavesPage />} />
-            <Route path="/leaves/new" element={<LeaveRequestForm />} />
-            <Route path="/leaves/:id" element={<PlaceholderPage title="Dettaglio Richiesta" />} />
+              {/* Leaves */}
+              <Route path="/leaves" element={<LeavesPage />} />
+              <Route path="/leaves/new" element={<LeaveRequestForm />} />
+              <Route path="/leaves/:id" element={<PlaceholderPage title="Dettaglio Richiesta" />} />
 
-            {/* Trips */}
-            <Route path="/trips" element={<TripsPage />} />
-            <Route path="/trips/new" element={<TripFormPage />} />
-            <Route path="/trips/:id" element={<PlaceholderPage title="Dettaglio Trasferta" />} />
+              {/* Trips */}
+              <Route path="/trips" element={<TripsPage />} />
+              <Route path="/trips/new" element={<TripFormPage />} />
+              <Route path="/trips/:id" element={<PlaceholderPage title="Dettaglio Trasferta" />} />
 
-            {/* Expenses */}
-            <Route path="/expenses" element={<ExpensesPage />} />
-            <Route path="/expenses/new" element={<ExpenseFormPage />} />
-            <Route path="/expenses/:id" element={<PlaceholderPage title="Dettaglio Nota Spese" />} />
+              {/* Expenses */}
+              <Route path="/expenses" element={<ExpensesPage />} />
+              <Route path="/expenses/new" element={<ExpenseFormPage />} />
+              <Route path="/expenses/:id" element={<PlaceholderPage title="Dettaglio Nota Spese" />} />
 
-            {/* Approvals */}
-            <Route path="/approvals" element={<ApprovalsPage />} />
+              {/* Approvals */}
+              <Route path="/approvals" element={<ApprovalsPage />} />
 
 
-            {/* Admin */}
-            <Route path="/admin/users" element={<ProtectedRoute roles={['admin', 'hr']}><UsersPage /></ProtectedRoute>} />
-            <Route path="/admin/config" element={<ProtectedRoute roles={['admin']}><ConfigPage /></ProtectedRoute>} />
+              {/* Admin */}
+              <Route path="/admin/users" element={<ProtectedRoute roles={['admin', 'hr']}><UsersPage /></ProtectedRoute>} />
+              <Route path="/admin/config" element={<ProtectedRoute roles={['admin']}><ConfigPage /></ProtectedRoute>} />
 
-          </Route>
+            </Route>
 
-          {/* Catch all */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
+            {/* Catch all */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </ToastProvider>
     </AuthProvider>
   );
 }

@@ -30,6 +30,40 @@ def upgrade() -> None:
     # AUTH SCHEMA
     # ═══════════════════════════════════════════════════════════════════
     
+    # Locations
+    op.create_table(
+        'locations',
+        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column('code', sa.String(20), unique=True, nullable=False),
+        sa.Column('name', sa.String(100), nullable=False),
+        sa.Column('address', sa.Text(), nullable=True),
+        sa.Column('city', sa.String(100), nullable=True),
+        sa.Column('province', sa.String(2), nullable=True),
+        sa.Column('patron_saint_name', sa.String(100), nullable=True),
+        sa.Column('patron_saint_date', sa.Date(), nullable=True),
+        sa.Column('is_active', sa.Boolean(), server_default='true', nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        schema='auth'
+    )
+
+    # Work Schedules
+    op.create_table(
+        'work_schedules',
+        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column('code', sa.String(20), unique=True, nullable=False),
+        sa.Column('name', sa.String(100), nullable=False),
+        sa.Column('monday_hours', sa.Integer(), server_default='8', nullable=False),
+        sa.Column('tuesday_hours', sa.Integer(), server_default='8', nullable=False),
+        sa.Column('wednesday_hours', sa.Integer(), server_default='8', nullable=False),
+        sa.Column('thursday_hours', sa.Integer(), server_default='8', nullable=False),
+        sa.Column('friday_hours', sa.Integer(), server_default='8', nullable=False),
+        sa.Column('saturday_hours', sa.Integer(), server_default='0', nullable=False),
+        sa.Column('sunday_hours', sa.Integer(), server_default='0', nullable=False),
+        sa.Column('is_active', sa.Boolean(), server_default='true', nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        schema='auth'
+    )
+
     # Users table
     op.create_table(
         'users',
@@ -46,8 +80,8 @@ def upgrade() -> None:
         sa.Column('fiscal_code', sa.String(16), nullable=True),
         sa.Column('hire_date', sa.Date(), nullable=True),
         sa.Column('termination_date', sa.Date(), nullable=True),
-        sa.Column('work_schedule_id', postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column('location_id', postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column('work_schedule_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('auth.work_schedules.id'), nullable=True),
+        sa.Column('location_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('auth.locations.id'), nullable=True),
         sa.Column('manager_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('auth.users.id', ondelete='SET NULL'), nullable=True),
         sa.Column('is_admin', sa.Boolean(), server_default='false', nullable=False),
         sa.Column('is_manager', sa.Boolean(), server_default='false', nullable=False),
@@ -91,48 +125,70 @@ def upgrade() -> None:
     )
     op.create_index('ix_auth_user_roles_user_role', 'user_roles', ['user_id', 'role_name'], schema='auth')
 
-    # ═══════════════════════════════════════════════════════════════════
-    # CONFIG SCHEMA
-    # ═══════════════════════════════════════════════════════════════════
-    
-    # System parameters
+    # Areas
     op.create_table(
-        'system_parameters',
-        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('category', sa.String(100), nullable=False, index=True),
-        sa.Column('key', sa.String(100), nullable=False),
-        sa.Column('value', sa.Text(), nullable=False),
-        sa.Column('value_type', sa.String(20), default='string', nullable=False),
-        sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('is_editable', sa.Boolean(), default=True, nullable=False),
-        sa.Column('valid_from', sa.Date(), nullable=True),
-        sa.Column('valid_to', sa.Date(), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
-        schema='config'
-    )
-    op.create_index('ix_config_system_parameters_category_key', 'system_parameters', ['category', 'key'], unique=True, schema='config')
-    
-    # Leave types
-    op.create_table(
-        'leave_types',
+        'areas',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column('code', sa.String(20), unique=True, nullable=False),
         sa.Column('name', sa.String(100), nullable=False),
         sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('color', sa.String(7), default='#3B82F6', nullable=False),
-        sa.Column('is_paid', sa.Boolean(), default=True, nullable=False),
-        sa.Column('affects_balance', sa.Boolean(), default=True, nullable=False),
+        sa.Column('parent_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('auth.areas.id'), nullable=True),
+        sa.Column('manager_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('auth.users.id'), nullable=True),
+        sa.Column('is_active', sa.Boolean(), server_default='true', nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        schema='auth'
+    )
+
+    # User Areas association
+    op.create_table(
+        'user_areas',
+        sa.Column('user_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('auth.users.id', ondelete='CASCADE'), primary_key=True),
+        sa.Column('area_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('auth.areas.id', ondelete='CASCADE'), primary_key=True),
+        schema='auth'
+    )
+
+    # ═══════════════════════════════════════════════════════════════════
+    # CONFIG SCHEMA
+    # ═══════════════════════════════════════════════════════════════════
+    
+    # System configuration
+    op.create_table(
+        'system_config',
+        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column('key', sa.String(100), unique=True, nullable=False),
+        sa.Column('value', postgresql.JSONB(), nullable=False),
+        sa.Column('value_type', sa.String(20), nullable=False),  # string, integer, boolean, float, json
+        sa.Column('category', sa.String(50), nullable=False),
+        sa.Column('description', sa.Text(), nullable=True),
+        sa.Column('is_sensitive', sa.Boolean(), server_default='false', nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
+        schema='config'
+    )
+    op.create_index('ix_config_system_config_key', 'system_config', ['key'], unique=True, schema='config')
+    
+    # Leave types (Updated to match model)
+    op.create_table(
+        'leave_types',
+        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column('code', sa.String(10), unique=True, nullable=False),
+        sa.Column('name', sa.String(100), nullable=False),
+        sa.Column('description', sa.Text(), nullable=True),
+        sa.Column('scales_balance', sa.Boolean(), default=True, nullable=False),
+        sa.Column('balance_type', sa.String(20), nullable=True),
         sa.Column('requires_approval', sa.Boolean(), default=True, nullable=False),
         sa.Column('requires_attachment', sa.Boolean(), default=False, nullable=False),
+        sa.Column('requires_protocol', sa.Boolean(), default=False, nullable=False),
+        sa.Column('min_notice_days', sa.Integer(), nullable=True),
         sa.Column('max_consecutive_days', sa.Integer(), nullable=True),
-        sa.Column('min_advance_days', sa.Integer(), default=0, nullable=False),
-        sa.Column('accrual_type', sa.String(20), nullable=True),
-        sa.Column('carry_over_allowed', sa.Boolean(), default=False, nullable=False),
-        sa.Column('carry_over_limit', sa.Numeric(5, 2), nullable=True),
-        sa.Column('carry_over_expiry_months', sa.Integer(), nullable=True),
-        sa.Column('is_active', sa.Boolean(), default=True, nullable=False),
+        sa.Column('max_per_month', sa.Integer(), nullable=True),
+        sa.Column('allow_past_dates', sa.Boolean(), default=False, nullable=False),
+        sa.Column('allow_half_day', sa.Boolean(), default=True, nullable=False),
+        sa.Column('allow_negative_balance', sa.Boolean(), default=False, nullable=False),
+        sa.Column('color', sa.String(7), default='#3B82F6', nullable=False),
+        sa.Column('icon', sa.String(50), nullable=True),
         sa.Column('sort_order', sa.Integer(), default=0, nullable=False),
+        sa.Column('is_active', sa.Boolean(), default=True, nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
         schema='config'
@@ -161,17 +217,15 @@ def upgrade() -> None:
     op.create_table(
         'holidays',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('name', sa.String(100), nullable=False),
         sa.Column('date', sa.Date(), nullable=False),
-        sa.Column('year', sa.Integer(), nullable=False, index=True),
+        sa.Column('name', sa.String(100), nullable=False),
+        sa.Column('location_id', postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column('is_national', sa.Boolean(), default=True, nullable=False),
-        sa.Column('is_recurring', sa.Boolean(), default=False, nullable=False),
-        sa.Column('location', sa.String(100), nullable=True),
+        sa.Column('year', sa.Integer(), nullable=False, index=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
         schema='config'
     )
-    op.create_index('ix_config_holidays_date_location', 'holidays', ['date', 'location'], unique=True, schema='config')
+    op.create_index('ix_config_holidays_date_location', 'holidays', ['date', 'location_id'], unique=True, schema='config')
     
     # Expense types
     op.create_table(
@@ -196,22 +250,32 @@ def upgrade() -> None:
     op.create_table(
         'daily_allowance_rules',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column('name', sa.String(100), nullable=False),
         sa.Column('destination_type', sa.String(20), nullable=False),
-        sa.Column('full_day_amount', sa.Numeric(10, 2), nullable=False),
-        sa.Column('half_day_amount', sa.Numeric(10, 2), nullable=False),
-        sa.Column('breakfast_deduction', sa.Numeric(10, 2), default=0, nullable=False),
-        sa.Column('lunch_deduction', sa.Numeric(10, 2), default=0, nullable=False),
-        sa.Column('dinner_deduction', sa.Numeric(10, 2), default=0, nullable=False),
-        sa.Column('overnight_bonus', sa.Numeric(10, 2), default=0, nullable=False),
-        sa.Column('tax_free_limit', sa.Numeric(10, 2), nullable=True),
-        sa.Column('valid_from', sa.Date(), nullable=False),
-        sa.Column('valid_to', sa.Date(), nullable=True),
+        sa.Column('full_day_amount', sa.Numeric(8, 2), nullable=False),
+        sa.Column('half_day_amount', sa.Numeric(8, 2), nullable=False),
+        sa.Column('threshold_hours', sa.Integer(), default=8, nullable=False),
+        sa.Column('meals_deduction', sa.Numeric(8, 2), default=0, nullable=False),
         sa.Column('is_active', sa.Boolean(), default=True, nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
         schema='config'
     )
-    op.create_index('ix_config_daily_allowance_rules_type_date', 'daily_allowance_rules', ['destination_type', 'valid_from'], schema='config')
+    
+    # Policy rules (Added to match model)
+    op.create_table(
+        'policy_rules',
+        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column('name', sa.String(100), nullable=False),
+        sa.Column('rule_type', sa.String(50), nullable=False),
+        sa.Column('conditions', postgresql.JSONB(), nullable=False),
+        sa.Column('actions', postgresql.JSONB(), nullable=False),
+        sa.Column('priority', sa.Integer(), default=0, nullable=False),
+        sa.Column('is_active', sa.Boolean(), default=True, nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
+        schema='config'
+    )
 
     # ═══════════════════════════════════════════════════════════════════
     # LEAVES SCHEMA
@@ -223,15 +287,20 @@ def upgrade() -> None:
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=False, index=True),
         sa.Column('year', sa.Integer(), nullable=False, index=True),
-        sa.Column('vacation_total_ap', sa.Numeric(5, 2), default=0, nullable=False),
-        sa.Column('vacation_used_ap', sa.Numeric(5, 2), default=0, nullable=False),
-        sa.Column('vacation_total_ac', sa.Numeric(5, 2), default=0, nullable=False),
-        sa.Column('vacation_used_ac', sa.Numeric(5, 2), default=0, nullable=False),
-        sa.Column('rol_total', sa.Numeric(5, 2), default=0, nullable=False),
-        sa.Column('rol_used', sa.Numeric(5, 2), default=0, nullable=False),
-        sa.Column('permits_total', sa.Numeric(5, 2), default=0, nullable=False),
-        sa.Column('permits_used', sa.Numeric(5, 2), default=0, nullable=False),
+        sa.Column('vacation_previous_year', sa.Numeric(5, 2), server_default='0', nullable=False),
+        sa.Column('vacation_current_year', sa.Numeric(5, 2), server_default='0', nullable=False),
+        sa.Column('vacation_accrued', sa.Numeric(5, 2), server_default='0', nullable=False),
+        sa.Column('vacation_used', sa.Numeric(5, 2), server_default='0', nullable=False),
+        sa.Column('vacation_used_ap', sa.Numeric(5, 2), server_default='0', nullable=False),
+        sa.Column('vacation_used_ac', sa.Numeric(5, 2), server_default='0', nullable=False),
+        sa.Column('rol_previous_year', sa.Numeric(6, 2), server_default='0', nullable=False),
+        sa.Column('rol_current_year', sa.Numeric(6, 2), server_default='0', nullable=False),
+        sa.Column('rol_accrued', sa.Numeric(6, 2), server_default='0', nullable=False),
+        sa.Column('rol_used', sa.Numeric(6, 2), server_default='0', nullable=False),
+        sa.Column('permits_total', sa.Numeric(6, 2), server_default='0', nullable=False),
+        sa.Column('permits_used', sa.Numeric(6, 2), server_default='0', nullable=False),
         sa.Column('ap_expiry_date', sa.Date(), nullable=True),
+        sa.Column('last_accrual_date', sa.Date(), nullable=True),
         sa.Column('notes', sa.Text(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
@@ -252,10 +321,12 @@ def upgrade() -> None:
         sa.Column('start_half_day', sa.Boolean(), default=False, nullable=False),
         sa.Column('end_half_day', sa.Boolean(), default=False, nullable=False),
         sa.Column('days_requested', sa.Numeric(5, 2), nullable=False),
+        sa.Column('hours_requested', sa.Numeric(6, 2), nullable=True),
         sa.Column('employee_notes', sa.Text(), nullable=True),
         sa.Column('approver_notes', sa.Text(), nullable=True),
         sa.Column('approver_id', postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column('approved_at', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('has_conditions', sa.Boolean(), default=False, nullable=False),
         sa.Column('condition_type', sa.String(20), nullable=True),
         sa.Column('condition_details', sa.Text(), nullable=True),
         sa.Column('condition_accepted', sa.Boolean(), nullable=True),
@@ -264,9 +335,11 @@ def upgrade() -> None:
         sa.Column('cancellation_reason', sa.Text(), nullable=True),
         sa.Column('recalled_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('recall_reason', sa.Text(), nullable=True),
+        sa.Column('protocol_number', sa.String(50), nullable=True),
         sa.Column('actual_return_date', sa.Date(), nullable=True),
         sa.Column('compensation_days', sa.Numeric(5, 2), nullable=True),
         sa.Column('deduction_details', postgresql.JSONB(), nullable=True),
+        sa.Column('policy_violations', postgresql.JSONB(), nullable=True),
         sa.Column('balance_deducted', sa.Boolean(), default=False, nullable=False),
         sa.Column('attachment_path', sa.Text(), nullable=True),
         sa.Column('submitted_at', sa.DateTime(timezone=True), nullable=True),
@@ -299,10 +372,10 @@ def upgrade() -> None:
         sa.Column('leave_request_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('leaves.leave_requests.id', ondelete='CASCADE'), nullable=False),
         sa.Column('from_status', sa.String(30), nullable=True),
         sa.Column('to_status', sa.String(30), nullable=False),
-        sa.Column('changed_by', postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column('changed_by', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('reason', sa.Text(), nullable=True),
         # sa.Column('metadata', postgresql.JSONB(), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column('changed_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         schema='leaves'
     )
     op.create_index('ix_leaves_leave_request_history_request', 'leave_request_history', ['leave_request_id'], schema='leaves')
@@ -317,19 +390,20 @@ def upgrade() -> None:
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=False, index=True),
         sa.Column('title', sa.String(200), nullable=False),
-        sa.Column('purpose', sa.Text(), nullable=True),
+        sa.Column('description', sa.Text(), nullable=True),
         sa.Column('destination', sa.String(200), nullable=False),
-        sa.Column('destination_type', sa.String(20), default='national', nullable=False),
+        sa.Column('destination_type', sa.String(20), server_default='national', nullable=False),
         sa.Column('start_date', sa.Date(), nullable=False),
         sa.Column('end_date', sa.Date(), nullable=False),
-        sa.Column('status', sa.String(20), default='draft', nullable=False, index=True),
+        sa.Column('purpose', sa.Text(), nullable=True),
         sa.Column('project_code', sa.String(50), nullable=True),
-        sa.Column('cost_center', sa.String(50), nullable=True),
+        sa.Column('client_name', sa.String(200), nullable=True),
         sa.Column('estimated_budget', sa.Numeric(10, 2), nullable=True),
+        sa.Column('status', sa.String(30), server_default='draft', nullable=False, index=True),
         sa.Column('approver_id', postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column('approved_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('approver_notes', sa.Text(), nullable=True),
-        sa.Column('employee_notes', sa.Text(), nullable=True),
+        sa.Column('attachment_path', sa.String(500), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
         schema='expenses'
@@ -359,7 +433,7 @@ def upgrade() -> None:
     op.create_table(
         'expense_reports',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('trip_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('expenses.business_trips.id', ondelete='SET NULL'), nullable=True),
+        sa.Column('trip_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('expenses.business_trips.id', ondelete='CASCADE'), nullable=False),
         sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=False, index=True),
         sa.Column('report_number', sa.String(50), unique=True, nullable=False),
         sa.Column('title', sa.String(200), nullable=False),
@@ -372,6 +446,7 @@ def upgrade() -> None:
         sa.Column('approver_notes', sa.Text(), nullable=True),
         sa.Column('approver_id', postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column('approved_at', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('attachment_path', sa.String(500), nullable=True),
         sa.Column('paid_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('payment_reference', sa.String(100), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
@@ -414,34 +489,38 @@ def upgrade() -> None:
         'notifications',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=False, index=True),
+        sa.Column('user_email', sa.String(255), nullable=False),
         sa.Column('notification_type', sa.String(50), nullable=False, index=True),
         sa.Column('title', sa.String(200), nullable=False),
         sa.Column('message', sa.Text(), nullable=False),
         sa.Column('channel', sa.String(20), default='in_app', nullable=False),
-        sa.Column('is_read', sa.Boolean(), default=False, nullable=False),
+        sa.Column('status', sa.String(20), default='pending', nullable=False),
+        sa.Column('sent_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('read_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('entity_type', sa.String(50), nullable=True),
-        sa.Column('entity_id', sa.String(50), nullable=True),
-        sa.Column('action_url', sa.Text(), nullable=True),
-        sa.Column('priority', sa.String(20), default='normal', nullable=False),
-        sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('entity_id', sa.String(100), nullable=True),
+        sa.Column('action_url', sa.String(500), nullable=True),
         sa.Column('payload', postgresql.JSONB(), nullable=True),
+        sa.Column('error_message', sa.Text(), nullable=True),
+        sa.Column('retry_count', sa.Integer(), default=0, nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         schema='notifications'
     )
-    op.create_index('ix_notifications_notifications_user_read', 'notifications', ['user_id', 'is_read'], schema='notifications')
+    # op.create_index('ix_notifications_notifications_user_read', 'notifications', ['user_id', 'is_read'], schema='notifications')
     
     # Email templates
     op.create_table(
         'email_templates',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('notification_type', sa.String(50), unique=True, nullable=False),
+        sa.Column('code', sa.String(50), unique=True, nullable=False),
         sa.Column('name', sa.String(100), nullable=False),
-        sa.Column('subject', sa.String(200), nullable=False),
+        sa.Column('description', sa.Text(), nullable=True),
+        sa.Column('brevo_template_id', sa.Integer(), nullable=True),
+        sa.Column('subject', sa.String(200), nullable=True),
         sa.Column('html_content', sa.Text(), nullable=True),
         sa.Column('text_content', sa.Text(), nullable=True),
-        sa.Column('brevo_template_id', sa.Integer(), nullable=True),
-        sa.Column('variables', postgresql.JSONB(), nullable=True),
+        sa.Column('notification_type', sa.String(50), nullable=False),
+        sa.Column('available_variables', postgresql.JSONB(), nullable=True),
         sa.Column('is_active', sa.Boolean(), default=True, nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
@@ -452,15 +531,18 @@ def upgrade() -> None:
     op.create_table(
         'user_notification_preferences',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column('notification_type', sa.String(50), nullable=False),
-        sa.Column('in_app_enabled', sa.Boolean(), default=True, nullable=False),
+        sa.Column('user_id', postgresql.UUID(as_uuid=True), unique=True, nullable=False),
         sa.Column('email_enabled', sa.Boolean(), default=True, nullable=False),
+        sa.Column('email_leave_updates', sa.Boolean(), default=True, nullable=False),
+        sa.Column('email_expense_updates', sa.Boolean(), default=True, nullable=False),
+        sa.Column('email_system_announcements', sa.Boolean(), default=True, nullable=False),
+        sa.Column('email_compliance_alerts', sa.Boolean(), default=True, nullable=False),
+        sa.Column('in_app_enabled', sa.Boolean(), default=True, nullable=False),
+        sa.Column('digest_frequency', sa.String(20), default='instant', nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
         schema='notifications'
     )
-    op.create_index('ix_notifications_preferences_user_type', 'user_notification_preferences', ['user_id', 'notification_type'], unique=True, schema='notifications')
 
     # ═══════════════════════════════════════════════════════════════════
     # AUDIT SCHEMA
@@ -470,43 +552,44 @@ def upgrade() -> None:
     op.create_table(
         'audit_logs',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=True, index=True),
+        sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column('user_email', sa.String(255), nullable=True),
-        sa.Column('action', sa.String(50), nullable=False, index=True),
-        sa.Column('resource_type', sa.String(50), nullable=False, index=True),
-        sa.Column('resource_id', sa.String(50), nullable=True),
+        sa.Column('action', sa.String(50), nullable=False),
+        sa.Column('resource_type', sa.String(50), nullable=False),
+        sa.Column('resource_id', sa.String(100), nullable=True),
         sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('request_method', sa.String(10), nullable=True),
-        sa.Column('request_path', sa.String(500), nullable=True),
-        sa.Column('request_body', postgresql.JSONB(), nullable=True),
-        sa.Column('response_status', sa.Integer(), nullable=True),
-        sa.Column('ip_address', sa.String(45), nullable=True),
+        sa.Column('request_data', postgresql.JSONB(), nullable=True),
+        sa.Column('response_data', postgresql.JSONB(), nullable=True),
+        sa.Column('ip_address', postgresql.INET(), nullable=True),
         sa.Column('user_agent', sa.Text(), nullable=True),
-        sa.Column('service_name', sa.String(50), nullable=True),
-        sa.Column('status', sa.String(20), default='success', nullable=False),
+        sa.Column('endpoint', sa.String(255), nullable=True),
+        sa.Column('http_method', sa.String(10), nullable=True),
+        sa.Column('status', sa.String(20), default='SUCCESS', nullable=False),
         sa.Column('error_message', sa.Text(), nullable=True),
-        sa.Column('duration_ms', sa.Integer(), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False, index=True),
+        sa.Column('service_name', sa.String(50), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         schema='audit'
     )
     
-    # Audit trails
+    # Audit trail
     op.create_table(
-        'audit_trails',
+        'audit_trail',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('entity_type', sa.String(50), nullable=False, index=True),
-        sa.Column('entity_id', sa.String(50), nullable=False, index=True),
-        sa.Column('version', sa.Integer(), nullable=False),
-        sa.Column('operation', sa.String(20), nullable=False),
+        sa.Column('entity_type', sa.String(50), nullable=False),
+        sa.Column('entity_id', sa.String(100), nullable=False),
+        sa.Column('version', sa.Integer(), default=1, nullable=False),
+        sa.Column('operation', sa.String(10), nullable=False),
+        sa.Column('before_data', postgresql.JSONB(), nullable=True),
+        sa.Column('after_data', postgresql.JSONB(), nullable=True),
+        sa.Column('changed_fields', postgresql.JSONB(), nullable=True),
         sa.Column('changed_by', postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column('changed_by_email', sa.String(255), nullable=True),
         sa.Column('changed_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column('before_state', postgresql.JSONB(), nullable=True),
-        sa.Column('after_state', postgresql.JSONB(), nullable=True),
-        sa.Column('changes', postgresql.JSONB(), nullable=True),
-        sa.Column('reason', sa.Text(), nullable=True),
+        sa.Column('change_reason', sa.Text(), nullable=True),
+        sa.Column('service_name', sa.String(50), nullable=False),
+        sa.Column('request_id', sa.String(100), nullable=True),
         schema='audit'
     )
-    op.create_index('ix_audit_audit_trails_entity', 'audit_trails', ['entity_type', 'entity_id', 'version'], unique=True, schema='audit')
 
     # ═══════════════════════════════════════════════════════════════════
     # NEW ENTITIES (Employee Contracts)
@@ -532,7 +615,8 @@ def upgrade() -> None:
     )
     
     # Add link to users
-    op.add_column('users', sa.Column('contract_type_id', postgresql.UUID(as_uuid=True), nullable=True), schema='auth')
+    # Add link to users (must be after config.contract_types is created)
+    op.add_column('users', sa.Column('contract_type_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('config.contract_types.id'), nullable=True), schema='auth')
 
 
 def downgrade() -> None:
@@ -568,9 +652,13 @@ def downgrade() -> None:
     op.drop_index('ix_config_contract_types_code', table_name='contract_types', schema='config')
     op.drop_table('contract_types', schema='config')
     op.drop_table('leave_types', schema='config')
-    op.drop_table('system_parameters', schema='config')
+    op.drop_table('system_config', schema='config')
     
     # Auth schema
     op.drop_table('user_roles', schema='auth')
+    op.drop_table('user_areas', schema='auth')
+    op.drop_table('areas', schema='auth')
     op.drop_table('user_profiles', schema='auth')
     op.drop_table('users', schema='auth')
+    op.drop_table('work_schedules', schema='auth')
+    op.drop_table('locations', schema='auth')

@@ -73,7 +73,7 @@ class BusinessTrip(Base):
     description: Mapped[Optional[str]] = mapped_column(Text)
     destination: Mapped[str] = mapped_column(String(200), nullable=False)
     destination_type: Mapped[DestinationType] = mapped_column(
-        SQLEnum(DestinationType),
+        SQLEnum(DestinationType, native_enum=False),
         default=DestinationType.NATIONAL,
     )
     
@@ -91,7 +91,7 @@ class BusinessTrip(Base):
     
     # Status
     status: Mapped[TripStatus] = mapped_column(
-        SQLEnum(TripStatus),
+        SQLEnum(TripStatus, native_enum=False),
         default=TripStatus.DRAFT,
     )
     
@@ -99,6 +99,7 @@ class BusinessTrip(Base):
     approver_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))
     approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     approver_notes: Mapped[Optional[str]] = mapped_column(Text)
+    attachment_path: Mapped[Optional[str]] = mapped_column(String(500))
     
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -202,7 +203,7 @@ class ExpenseReport(Base):
     
     # Status
     status: Mapped[ExpenseReportStatus] = mapped_column(
-        SQLEnum(ExpenseReportStatus),
+        SQLEnum(ExpenseReportStatus, native_enum=False),
         default=ExpenseReportStatus.DRAFT,
     )
     
@@ -213,6 +214,7 @@ class ExpenseReport(Base):
     # Approval
     approver_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))
     approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    attachment_path: Mapped[Optional[str]] = mapped_column(String(500))
     
     # Payment
     paid_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))

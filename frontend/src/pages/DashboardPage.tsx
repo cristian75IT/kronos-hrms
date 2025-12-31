@@ -2,191 +2,196 @@
  * KRONOS - Dashboard Page
  */
 import {
-    Calendar,
-    Clock,
-    TrendingUp,
-    AlertCircle,
-    CheckCircle,
-    ArrowUpRight,
-    Briefcase,
+  Calendar,
+  Clock,
+  TrendingUp,
+  AlertCircle,
+  CheckCircle,
+  Briefcase,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useBalanceSummary, usePendingApprovals, useLeaveRequests } from '../hooks/useApi';
 import { useAuth } from '../context/AuthContext';
+import { Button } from '../components/common';
 import type { LeaveRequest } from '../types';
 
 export function DashboardPage() {
-    const { user, isApprover } = useAuth();
-    const { data: balance, isLoading: balanceLoading } = useBalanceSummary();
-    const { data: pendingApprovals } = usePendingApprovals();
-    const { data: recentRequests } = useLeaveRequests(new Date().getFullYear());
+  const { user, isApprover } = useAuth();
+  const { data: balance, isLoading: balanceLoading } = useBalanceSummary();
+  const { data: pendingApprovals } = usePendingApprovals();
+  const { data: recentRequests } = useLeaveRequests(new Date().getFullYear());
 
-    const stats = [
-        {
-            label: 'Ferie Disponibili',
-            value: balance?.vacation_total_available ?? '-',
-            suffix: 'giorni',
-            icon: <Calendar size={24} />,
-            color: 'var(--color-success)',
-            gradient: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
-        },
-        {
-            label: 'ROL Disponibili',
-            value: balance?.rol_available ?? '-',
-            suffix: 'ore',
-            icon: <Clock size={24} />,
-            color: 'var(--color-info)',
-            gradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-        },
-        {
-            label: 'Permessi Disponibili',
-            value: balance?.permits_available ?? '-',
-            suffix: 'ore',
-            icon: <TrendingUp size={24} />,
-            color: 'var(--color-secondary)',
-            gradient: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
-        },
-        {
-            label: isApprover ? 'Da Approvare' : 'In Attesa',
-            value: isApprover ? (pendingApprovals?.length ?? 0) : (recentRequests?.filter((r: LeaveRequest) => r.status === 'pending').length ?? 0),
-            suffix: 'richieste',
-            icon: <AlertCircle size={24} />,
-            color: 'var(--color-warning)',
-            gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-        },
-    ];
+  const stats = [
+    {
+      label: 'Ferie Disponibili',
+      value: balance?.vacation_total_available ?? '-',
+      suffix: 'giorni',
+      icon: <Calendar size={24} />,
+      color: 'var(--color-success)',
+      gradient: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+    },
+    {
+      label: 'ROL Disponibili',
+      value: balance?.rol_available ?? '-',
+      suffix: 'ore',
+      icon: <Clock size={24} />,
+      color: 'var(--color-info)',
+      gradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+    },
+    {
+      label: 'Permessi Disponibili',
+      value: balance?.permits_available ?? '-',
+      suffix: 'ore',
+      icon: <TrendingUp size={24} />,
+      color: 'var(--color-secondary)',
+      gradient: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
+    },
+    {
+      label: isApprover ? 'Da Approvare' : 'In Attesa',
+      value: isApprover ? (pendingApprovals?.length ?? 0) : (recentRequests?.filter((r: LeaveRequest) => r.status === 'pending').length ?? 0),
+      suffix: 'richieste',
+      icon: <AlertCircle size={24} />,
+      color: 'var(--color-warning)',
+      gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+    },
+  ];
 
-    const quickActions = [
-        {
-            label: 'Richiedi Ferie',
-            description: 'Nuova richiesta ferie o permessi',
-            path: '/leaves/new',
-            icon: <Calendar size={20} />,
-        },
-        {
-            label: 'Nuova Trasferta',
-            description: 'Pianifica una trasferta di lavoro',
-            path: '/trips/new',
-            icon: <Briefcase size={20} />,
-        },
-    ];
+  const quickActions = [
+    {
+      label: 'Richiedi Ferie',
+      description: 'Nuova richiesta ferie o permessi',
+      path: '/leaves/new',
+      icon: <Calendar size={20} />,
+    },
+    {
+      label: 'Nuova Trasferta',
+      description: 'Pianifica una trasferta di lavoro',
+      path: '/trips/new',
+      icon: <Briefcase size={20} />,
+    },
+  ];
 
-    return (
-        <div className="dashboard animate-fadeIn">
-            {/* Welcome Section */}
-            <section className="dashboard-welcome">
-                <div className="welcome-content">
-                    <h1>Benvenuto, {user?.first_name}! 👋</h1>
-                    <p>Ecco il riepilogo della tua situazione</p>
-                </div>
-                <div className="welcome-date">
-                    {new Date().toLocaleDateString('it-IT', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                    })}
-                </div>
-            </section>
+  return (
+    <div className="dashboard animate-fadeIn">
+      {/* Welcome Section */}
+      <section className="dashboard-welcome">
+        <div className="welcome-content">
+          <h1>Benvenuto, {user?.first_name}!</h1>
+          <p>Ecco il riepilogo della tua situazione</p>
+        </div>
+        <div className="welcome-date">
+          {new Date().toLocaleDateString('it-IT', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })}
+        </div>
+      </section>
 
-            {/* Stats Grid */}
-            <section className="dashboard-stats">
-                {stats.map((stat, index) => (
-                    <div
-                        key={index}
-                        className="stat-card glass-card animate-slideUp"
-                        style={{ animationDelay: `${index * 50}ms` }}
-                    >
-                        <div className="stat-icon" style={{ background: stat.gradient }}>
-                            {stat.icon}
-                        </div>
-                        <div className="stat-content">
-                            <div className="stat-value">
-                                {balanceLoading ? (
-                                    <div className="skeleton" style={{ width: 60, height: 32 }} />
-                                ) : (
-                                    <>
-                                        {stat.value} <span className="stat-suffix">{stat.suffix}</span>
-                                    </>
-                                )}
-                            </div>
-                            <div className="stat-label">{stat.label}</div>
-                        </div>
-                    </div>
-                ))}
-            </section>
-
-            {/* AP Expiry Warning */}
-            {balance?.days_until_ap_expiry && balance.days_until_ap_expiry <= 60 && (
-                <section className="ap-warning glass-card">
-                    <AlertCircle size={20} />
-                    <div>
-                        <strong>Attenzione:</strong> Hai {balance.vacation_available_ap} giorni di ferie dell'anno precedente
-                        che scadranno tra {balance.days_until_ap_expiry} giorni ({balance.ap_expiry_date}).
-                    </div>
-                    <Link to="/leaves/new" className="btn btn-primary btn-sm">
-                        Pianifica ora
-                    </Link>
-                </section>
-            )}
-
-            {/* Quick Actions & Recent Activity */}
-            <div className="dashboard-grid">
-                {/* Quick Actions */}
-                <section className="card">
-                    <div className="card-header">
-                        <h2 className="card-title">Azioni Rapide</h2>
-                    </div>
-                    <div className="quick-actions">
-                        {quickActions.map((action, index) => (
-                            <Link key={index} to={action.path} className="quick-action-card">
-                                <div className="quick-action-icon">{action.icon}</div>
-                                <div className="quick-action-content">
-                                    <div className="quick-action-label">{action.label}</div>
-                                    <div className="quick-action-desc">{action.description}</div>
-                                </div>
-                                <ArrowUpRight size={16} className="quick-action-arrow" />
-                            </Link>
-                        ))}
-                    </div>
-                </section>
-
-                {/* Recent Requests */}
-                <section className="card">
-                    <div className="card-header">
-                        <h2 className="card-title">Richieste Recenti</h2>
-                        <Link to="/leaves" className="btn btn-ghost btn-sm">
-                            Vedi tutte
-                        </Link>
-                    </div>
-                    <div className="recent-list">
-                        {recentRequests?.slice(0, 5).map((request) => (
-                            <div key={request.id} className="recent-item">
-                                <div className={`recent-status status-${request.status}`}>
-                                    {request.status === 'approved' && <CheckCircle size={14} />}
-                                    {request.status === 'pending' && <Clock size={14} />}
-                                    {request.status === 'rejected' && <AlertCircle size={14} />}
-                                </div>
-                                <div className="recent-content">
-                                    <div className="recent-title">{request.leave_type_code}</div>
-                                    <div className="recent-dates">
-                                        {new Date(request.start_date).toLocaleDateString('it-IT')} -
-                                        {new Date(request.end_date).toLocaleDateString('it-IT')}
-                                    </div>
-                                </div>
-                                <div className="recent-days">{request.days_requested} gg</div>
-                            </div>
-                        ))}
-                        {(!recentRequests || recentRequests.length === 0) && (
-                            <div className="empty-state">
-                                <p>Nessuna richiesta recente</p>
-                            </div>
-                        )}
-                    </div>
-                </section>
+      {/* Stats Grid */}
+      <section className="dashboard-stats">
+        {stats.map((stat, index) => (
+          <div
+            key={index}
+            className="stat-card glass-card animate-slideUp"
+            style={{ animationDelay: `${index * 50}ms` }}
+          >
+            <div className="stat-icon" style={{ background: stat.gradient }}>
+              {stat.icon}
             </div>
+            <div className="stat-content">
+              <div className="stat-value">
+                {balanceLoading ? (
+                  <div className="skeleton" style={{ width: 60, height: 32 }} />
+                ) : (
+                  <>
+                    {typeof stat.value === 'number' || typeof stat.value === 'string'
+                      ? stat.value
+                      : '-'}
+                    <span className="stat-suffix">{stat.suffix}</span>
+                  </>
+                )}
+              </div>
+              <div className="stat-label">{stat.label}</div>
+            </div>
+          </div>
+        ))}
+      </section>
 
-            <style>{`
+      {/* AP Expiry Warning */}
+      {balance?.days_until_ap_expiry && balance.days_until_ap_expiry <= 60 && (
+        <section className="ap-warning glass-card">
+          <AlertCircle size={20} />
+          <div>
+            <strong>Attenzione:</strong> Hai {balance.vacation_available_ap} giorni di ferie dell'anno precedente
+            che scadranno tra {balance.days_until_ap_expiry} giorni ({balance.ap_expiry_date}).
+          </div>
+          <Button as={Link} to="/leaves/new" variant="primary" size="sm">
+            Pianifica ora
+          </Button>
+        </section>
+      )}
+
+      {/* Quick Actions & Recent Activity */}
+      <div className="dashboard-grid">
+        {/* Quick Actions */}
+        <section className="card">
+          <div className="card-header">
+            <h2 className="card-title">Azioni Rapide</h2>
+          </div>
+          <div className="quick-actions-grid">
+            {quickActions.map((action, index) => (
+              <Button
+                key={index}
+                as={Link}
+                to={action.path}
+                variant="secondary"
+                className="quick-action-btn"
+                icon={action.icon}
+              >
+                {action.label}
+              </Button>
+            ))}
+          </div>
+        </section>
+
+        {/* Recent Requests */}
+        <section className="card">
+          <div className="card-header">
+            <h2 className="card-title">Richieste Recenti</h2>
+            <Link to="/leaves" className="btn btn-ghost btn-sm">
+              Vedi tutte
+            </Link>
+          </div>
+          <div className="recent-list">
+            {recentRequests?.slice(0, 5).map((request) => (
+              <div key={request.id} className="recent-item">
+                <div className={`recent-status status-${request.status}`}>
+                  {request.status === 'approved' && <CheckCircle size={14} />}
+                  {request.status === 'pending' && <Clock size={14} />}
+                  {request.status === 'rejected' && <AlertCircle size={14} />}
+                </div>
+                <div className="recent-content">
+                  <div className="recent-title">{request.leave_type_code}</div>
+                  <div className="recent-dates">
+                    {new Date(request.start_date).toLocaleDateString('it-IT')} -
+                    {new Date(request.end_date).toLocaleDateString('it-IT')}
+                  </div>
+                </div>
+                <div className="recent-days">{request.days_requested} gg</div>
+              </div>
+            ))}
+            {(!recentRequests || recentRequests.length === 0) && (
+              <div className="empty-state">
+                <p>Nessuna richiesta recente</p>
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+
+      <style>{`
         .dashboard {
           display: flex;
           flex-direction: column;
@@ -384,8 +389,8 @@ export function DashboardPage() {
           color: var(--color-text-secondary);
         }
       `}</style>
-        </div>
-    );
+    </div>
+  );
 }
 
 export default DashboardPage;

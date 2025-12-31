@@ -66,6 +66,15 @@ export const tripsService = {
         return response.data;
     },
 
+    uploadAttachment: async (id: string, file: File): Promise<BusinessTrip> => {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await expensesApi.post(`/trips/${id}/attachment`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data;
+    },
+
     // Daily Allowances
     getTripAllowances: async (tripId: string): Promise<DailyAllowance[]> => {
         const response = await expensesApi.get(`/trips/${tripId}/allowances`);
@@ -138,6 +147,15 @@ export const reportsService = {
     markPaid: async (id: string, paymentReference: string): Promise<ExpenseReport> => {
         const response = await expensesApi.post(`/expenses/${id}/paid`, {
             payment_reference: paymentReference,
+        });
+        return response.data;
+    },
+
+    uploadAttachment: async (id: string, file: File): Promise<ExpenseReport> => {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await expensesApi.post(`/expenses/${id}/attachment`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
         });
         return response.data;
     },
