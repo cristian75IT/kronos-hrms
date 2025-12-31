@@ -7,6 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.core.config import settings
 from src.core.database import init_db, close_db
 from src.services.config.router import router
+# Import models to register them with SQLAlchemy metadata
+from src.services.config import models  # noqa: F401
 
 
 @asynccontextmanager

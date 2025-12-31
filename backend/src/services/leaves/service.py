@@ -636,6 +636,21 @@ class LeaveService:
     # Private Helpers
     # ═══════════════════════════════════════════════════════════
 
+    async def _get_system_config(self, key: str, default: any = None) -> any:
+        """Get global system config."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{settings.config_service_url}/api/v1/config/{key}",
+                    timeout=5.0,
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    return data.get("value", default)
+        except Exception:
+            pass
+        return default
+
     async def _get_leave_type(self, leave_type_id: UUID) -> Optional[dict]:
         """Get leave type from config service."""
         try:
@@ -672,12 +687,19 @@ class LeaveService:
         )
         holiday_dates = {h.get("date") for h in holidays if h.get("date")}
         
+        # Get working days config (default 5: Mon-Fri)
+        working_days_limit = await self._get_system_config("leave.working_days_per_week", 5)
+        try:
+            working_days_limit = int(working_days_limit)
+        except (ValueError, TypeError):
+            working_days_limit = 5
+        
         # Count working days
         working_days = 0
         current = start_date
         while current <= end_date:
-            # Skip weekends (Saturday=5, Sunday=6)
-            if current.weekday() < 5:
+            # Skip non-working days (based on config, e.g. < 5 for Mon-Fri, < 6 for Mon-Sat)
+            if current.weekday() < working_days_limit:
                 # Skip holidays
                 if current.isoformat() not in holiday_dates:
                     working_days += 1

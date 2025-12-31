@@ -56,6 +56,46 @@ export interface UserWithProfile extends User {
     roles: string[];
 }
 
+export interface ContractType {
+    id: string;
+    code: string;
+    name: string;
+    description?: string;
+    is_part_time: boolean;
+    part_time_percentage: number;
+    annual_vacation_days: number;
+    annual_rol_hours: number;
+    annual_permit_hours: number;
+    is_active: boolean;
+}
+
+export interface EmployeeContract {
+    id: string;
+    user_id: string;
+    contract_type_id: string;
+    start_date: string;
+    end_date?: string;
+    weekly_hours?: number;
+    job_title?: string;
+    level?: string;
+    department?: string;
+    document_path?: string;
+    created_at: string;
+    updated_at: string;
+    contract_type?: ContractType;
+}
+
+export interface EmployeeContractCreate {
+    contract_type_id: string;
+    start_date: string;
+    end_date?: string;
+    weekly_hours?: number;
+    job_title?: string;
+    level?: string;
+    department?: string;
+    document_path?: string;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Leave Types
 // ═══════════════════════════════════════════════════════════════════

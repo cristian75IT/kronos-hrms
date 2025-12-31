@@ -156,6 +156,13 @@ class ConfigService:
                 if cursor == 0:
                     break
 
+    async def clear_cache(self) -> None:
+        """Clear the entire Redis cache for this service."""
+        if not self._redis:
+            return
+            
+        await self._redis.flushdb()
+
     # ═══════════════════════════════════════════════════════════
     # Leave Types
     # ═══════════════════════════════════════════════════════════
@@ -229,12 +236,24 @@ class ConfigService:
             "id": str(leave_type.id),
             "code": leave_type.code,
             "name": leave_type.name,
+            "description": leave_type.description,
             "color": leave_type.color,
+            "icon": leave_type.icon,
+            "sort_order": leave_type.sort_order,
             "scales_balance": leave_type.scales_balance,
             "balance_type": leave_type.balance_type,
             "requires_approval": leave_type.requires_approval,
+            "requires_attachment": leave_type.requires_attachment,
+            "requires_protocol": leave_type.requires_protocol,
             "min_notice_days": leave_type.min_notice_days,
             "max_consecutive_days": leave_type.max_consecutive_days,
+            "max_per_month": leave_type.max_per_month,
+            "allow_past_dates": leave_type.allow_past_dates,
+            "allow_half_day": leave_type.allow_half_day,
+            "allow_negative_balance": leave_type.allow_negative_balance,
+            "is_active": leave_type.is_active,
+            "created_at": leave_type.created_at.isoformat() if leave_type.created_at else None,
+            "updated_at": leave_type.updated_at.isoformat() if leave_type.updated_at else None,
         }
 
     # ═══════════════════════════════════════════════════════════

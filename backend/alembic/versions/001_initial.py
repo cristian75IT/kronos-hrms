@@ -42,6 +42,17 @@ def upgrade() -> None:
         sa.Column('is_active', sa.Boolean(), default=True, nullable=False),
         sa.Column('is_synced', sa.Boolean(), default=False, nullable=False),
         sa.Column('last_login', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('badge_number', sa.String(50), nullable=True),
+        sa.Column('fiscal_code', sa.String(16), nullable=True),
+        sa.Column('hire_date', sa.Date(), nullable=True),
+        sa.Column('termination_date', sa.Date(), nullable=True),
+        sa.Column('work_schedule_id', postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column('location_id', postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column('manager_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('auth.users.id', ondelete='SET NULL'), nullable=True),
+        sa.Column('is_admin', sa.Boolean(), server_default='false', nullable=False),
+        sa.Column('is_manager', sa.Boolean(), server_default='false', nullable=False),
+        sa.Column('is_approver', sa.Boolean(), server_default='false', nullable=False),
+        sa.Column('last_sync_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
         schema='auth'
@@ -126,6 +137,25 @@ def upgrade() -> None:
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
         schema='config'
     )
+
+    # Contract types
+    op.create_table(
+        'contract_types',
+        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column('code', sa.String(20), nullable=False),
+        sa.Column('name', sa.String(100), nullable=False),
+        sa.Column('description', sa.String(255), nullable=True),
+        sa.Column('is_part_time', sa.Boolean(), server_default='false', nullable=False),
+        sa.Column('part_time_percentage', sa.Float(), server_default='100.0', nullable=False),
+        sa.Column('annual_vacation_days', sa.Integer(), server_default='26', nullable=False),
+        sa.Column('annual_rol_hours', sa.Integer(), server_default='72', nullable=False),
+        sa.Column('annual_permit_hours', sa.Integer(), server_default='0', nullable=False),
+        sa.Column('is_active', sa.Boolean(), server_default='true', nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
+        schema='config'
+    )
+    op.create_index('ix_config_contract_types_code', 'contract_types', ['code'], unique=True, schema='config')
     
     # Holidays
     op.create_table(
@@ -478,8 +508,38 @@ def upgrade() -> None:
     )
     op.create_index('ix_audit_audit_trails_entity', 'audit_trails', ['entity_type', 'entity_id', 'version'], unique=True, schema='audit')
 
+    # ═══════════════════════════════════════════════════════════════════
+    # NEW ENTITIES (Employee Contracts)
+    # ═══════════════════════════════════════════════════════════════════
+    
+    # Employee contracts
+    op.create_table(
+        'employee_contracts',
+        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column('user_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('auth.users.id', ondelete='CASCADE'), nullable=False, index=True),
+        sa.Column('contract_type_id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('start_date', sa.Date(), nullable=False),
+        sa.Column('end_date', sa.Date(), nullable=True),
+        sa.Column('weekly_hours', sa.Integer(), nullable=True, comment='Ore settimanali effettive'),
+        sa.Column('job_title', sa.String(100), nullable=True),
+        sa.Column('level', sa.String(50), nullable=True),
+        sa.Column('department', sa.String(100), nullable=True),
+        sa.Column('wage_data', sa.Text(), nullable=True),
+        sa.Column('document_path', sa.Text(), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
+        schema='auth'
+    )
+    
+    # Add link to users
+    op.add_column('users', sa.Column('contract_type_id', postgresql.UUID(as_uuid=True), nullable=True), schema='auth')
+
 
 def downgrade() -> None:
+    # New entities
+    op.drop_column('users', 'contract_type_id', schema='auth')
+    op.drop_table('employee_contracts', schema='auth')
+
     # Audit schema
     op.drop_table('audit_trails', schema='audit')
     op.drop_table('audit_logs', schema='audit')
@@ -505,6 +565,8 @@ def downgrade() -> None:
     op.drop_table('daily_allowance_rules', schema='config')
     op.drop_table('expense_types', schema='config')
     op.drop_table('holidays', schema='config')
+    op.drop_index('ix_config_contract_types_code', table_name='contract_types', schema='config')
+    op.drop_table('contract_types', schema='config')
     op.drop_table('leave_types', schema='config')
     op.drop_table('system_parameters', schema='config')
     

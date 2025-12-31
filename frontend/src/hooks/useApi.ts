@@ -4,12 +4,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { leavesService } from '../services/leaves.service';
 import { tripsService, reportsService } from '../services/expenses.service';
+import { userService } from '../services/userService';
+import { configService } from '../services/config.service';
 import type {
     LeaveRequestCreate,
     LeaveRequestUpdate,
     BusinessTrip,
     ExpenseReport,
     ExpenseItem,
+    UserWithProfile,
 } from '../types';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -34,6 +37,13 @@ export const queryKeys = {
     reports: ['expense-reports'] as const,
     report: (id: string) => ['expense-reports', id] as const,
     pendingReports: ['expense-reports', 'pending'] as const,
+
+    // Users
+    users: ['users'] as const,
+    user: (id: string) => ['users', id] as const,
+
+    // Configs
+    configs: ['configs'] as const,
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -263,5 +273,77 @@ export function useSubmitExpenseReport() {
             queryClient.invalidateQueries({ queryKey: queryKeys.report(id) });
             queryClient.invalidateQueries({ queryKey: queryKeys.reports });
         },
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// User Hooks
+// ═══════════════════════════════════════════════════════════════════
+
+export function useUsers() {
+    return useQuery({
+        queryKey: queryKeys.users,
+        queryFn: () => userService.getUsers(),
+    });
+}
+
+export function useUser(id: string) {
+    return useQuery({
+        queryKey: queryKeys.user(id),
+        queryFn: () => userService.getUser(id),
+        enabled: !!id,
+    });
+}
+
+export function useCreateUser() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (data: Partial<UserWithProfile>) => userService.createUser(data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.users });
+        },
+    });
+}
+
+export function useUpdateUser() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, data }: { id: string; data: Partial<UserWithProfile> }) =>
+            userService.updateUser(id, data),
+        onSuccess: (_, { id }) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.user(id) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.users });
+        },
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Config Hooks
+// ═══════════════════════════════════════════════════════════════════
+
+export function useConfigs() {
+    return useQuery({
+        queryKey: queryKeys.configs,
+        queryFn: () => configService.getAllConfigs(),
+    });
+}
+
+export function useUpdateConfig() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ key, value }: { key: string; value: any }) =>
+            configService.updateConfig(key, value),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.configs });
+        },
+    });
+}
+
+export function useClearCache() {
+    return useMutation({
+        mutationFn: () => configService.clearCache(),
     });
 }

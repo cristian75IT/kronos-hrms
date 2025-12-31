@@ -28,7 +28,7 @@ server {
     }
 
     # Expense Service
-    location ~ ^/api/v1/(trips|allowances|expenses) {
+    location ~ ^/api/v1/(trips|allowances|expenses|reports|items) {
         proxy_pass http://expense-service:8003;
         include /etc/nginx/proxy_params;
     }
@@ -102,7 +102,7 @@ server {
     }
 
     # Expense Service
-    location ~ ^/api/v1/(trips|allowances|expenses) {
+    location ~ ^/api/v1/(trips|allowances|expenses|reports|items) {
         proxy_pass http://expense-service:8003;
         include /etc/nginx/proxy_params;
     }

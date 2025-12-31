@@ -63,6 +63,16 @@ async def get_config_service(
 # System Config Endpoints
 # ═══════════════════════════════════════════════════════════
 
+@router.post("/config/cache/clear", response_model=MessageResponse)
+async def clear_cache(
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Clear Redis cache. Admin only."""
+    await service.clear_cache()
+    return MessageResponse(message="Cache cleared successfully")
+
+
 @router.get("/config", response_model=list[SystemConfigResponse])
 async def list_configs(
     category: Optional[str] = None,

@@ -91,28 +91,28 @@ export const tripsService = {
 export const reportsService = {
     getMyReports: async (status?: string): Promise<ExpenseReport[]> => {
         const params = status ? { status } : {};
-        const response = await expensesApi.get('/reports', { params });
+        const response = await expensesApi.get('/expenses', { params });
         return response.data;
     },
 
     getReport: async (id: string): Promise<ExpenseReport> => {
-        const response = await expensesApi.get(`/reports/${id}`);
+        const response = await expensesApi.get(`/expenses/${id}`);
         return response.data;
     },
 
     createReport: async (data: Partial<ExpenseReport>): Promise<ExpenseReport> => {
-        const response = await expensesApi.post('/reports', data);
+        const response = await expensesApi.post('/expenses', data);
         return response.data;
     },
 
     submitReport: async (id: string): Promise<ExpenseReport> => {
-        const response = await expensesApi.post(`/reports/${id}/submit`);
+        const response = await expensesApi.post(`/expenses/${id}/submit`);
         return response.data;
     },
 
     // Approver actions
     getPendingReports: async (): Promise<ExpenseReport[]> => {
-        const response = await expensesApi.get('/reports/pending');
+        const response = await expensesApi.get('/expenses/pending');
         return response.data;
     },
 
@@ -122,7 +122,7 @@ export const reportsService = {
         notes?: string,
         itemApprovals?: Record<string, boolean>,
     ): Promise<ExpenseReport> => {
-        const response = await expensesApi.post(`/reports/${id}/approve`, {
+        const response = await expensesApi.post(`/expenses/${id}/approve`, {
             approved_amount: approvedAmount,
             notes,
             item_approvals: itemApprovals,
@@ -131,12 +131,12 @@ export const reportsService = {
     },
 
     rejectReport: async (id: string, reason: string): Promise<ExpenseReport> => {
-        const response = await expensesApi.post(`/reports/${id}/reject`, { reason });
+        const response = await expensesApi.post(`/expenses/${id}/reject`, { reason });
         return response.data;
     },
 
     markPaid: async (id: string, paymentReference: string): Promise<ExpenseReport> => {
-        const response = await expensesApi.post(`/reports/${id}/mark-paid`, {
+        const response = await expensesApi.post(`/expenses/${id}/paid`, {
             payment_reference: paymentReference,
         });
         return response.data;
@@ -144,24 +144,25 @@ export const reportsService = {
 
     // Expense Items
     addItem: async (reportId: string, data: Partial<ExpenseItem>): Promise<ExpenseItem> => {
-        const response = await expensesApi.post(`/reports/${reportId}/items`, data);
+        const payload = { ...data, report_id: reportId };
+        const response = await expensesApi.post('/expenses/items', payload);
         return response.data;
     },
 
     updateItem: async (itemId: string, data: Partial<ExpenseItem>): Promise<ExpenseItem> => {
-        const response = await expensesApi.put(`/items/${itemId}`, data);
+        const response = await expensesApi.put(`/expenses/items/${itemId}`, data);
         return response.data;
     },
 
     deleteItem: async (itemId: string): Promise<void> => {
-        await expensesApi.delete(`/items/${itemId}`);
+        await expensesApi.delete(`/expenses/items/${itemId}`);
     },
 
     uploadReceipt: async (itemId: string, file: File): Promise<{ path: string }> => {
         const formData = new FormData();
         formData.append('file', file);
-
-        const response = await expensesApi.post(`/items/${itemId}/receipt`, formData, {
+        // Note: Backend endpoint for receipt upload missing in router, assuming pattern:
+        const response = await expensesApi.post(`/expenses/items/${itemId}/receipt`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
         return response.data;

@@ -14,6 +14,7 @@ from src.services.auth.repository import (
     LocationRepository,
     ContractTypeRepository,
     WorkScheduleRepository,
+    EmployeeContractRepository,
 )
 from src.services.auth.schemas import (
     UserCreate,
@@ -24,6 +25,7 @@ from src.services.auth.schemas import (
     LocationUpdate,
     ContractTypeCreate,
     WorkScheduleCreate,
+    EmployeeContractCreate,
     KeycloakSyncRequest,
     KeycloakSyncResponse,
 )
@@ -40,6 +42,7 @@ class UserService:
         self._location_repo = LocationRepository(session)
         self._contract_repo = ContractTypeRepository(session)
         self._schedule_repo = WorkScheduleRepository(session)
+        self._emp_contract_repo = EmployeeContractRepository(session)
 
     # ═══════════════════════════════════════════════════════════
     # User Operations
@@ -63,6 +66,7 @@ class UserService:
         self,
         keycloak_id: str,
         email: str,
+        username: str,
         first_name: str,
         last_name: str,
         roles: list[str],
@@ -88,6 +92,7 @@ class UserService:
         return await self._user_repo.create(
             keycloak_id=keycloak_id,
             email=email,
+            username=username or email,
             first_name=first_name or email.split("@")[0],
             last_name=last_name or "",
             is_admin="admin" in roles,
@@ -189,6 +194,7 @@ class UserService:
                         await self._user_repo.update(
                             local_user.id,
                             email=kc_user.get("email", local_user.email),
+                            username=kc_user.get("username", local_user.username),
                             first_name=kc_user.get("firstName", local_user.first_name),
                             last_name=kc_user.get("lastName", local_user.last_name),
                             is_admin="admin" in role_names,
@@ -203,6 +209,7 @@ class UserService:
                         await self._user_repo.create(
                             keycloak_id=kc_id,
                             email=kc_user.get("email", f"{kc_id}@unknown"),
+                            username=kc_user.get("username") or kc_user.get("email", f"{kc_id}@unknown"),
                             first_name=kc_user.get("firstName", ""),
                             last_name=kc_user.get("lastName", ""),
                             is_admin="admin" in role_names,
@@ -317,6 +324,27 @@ class UserService:
         """Get all work schedules."""
         return await self._schedule_repo.get_all(active_only)
 
-    async def create_work_schedule(self, data: WorkScheduleCreate):
-        """Create new work schedule."""
         return await self._schedule_repo.create(**data.model_dump())
+
+    # ═══════════════════════════════════════════════════════════
+    # Employee Contract Operations
+    # ═══════════════════════════════════════════════════════════
+
+    async def get_employee_contracts(self, user_id: UUID):
+        """Get all contracts for a user."""
+        # Verify user exists? Maybe not strictly needed for list, empty list is fine.
+        return await self._emp_contract_repo.get_by_user(user_id)
+
+    async def create_employee_contract(self, user_id: UUID, data: EmployeeContractCreate):
+        """Create new employee contract."""
+        # Verify user exists
+        user = await self._user_repo.get(user_id)
+        if not user:
+             raise NotFoundError("User not found", entity_type="User", entity_id=str(user_id))
+             
+        # Verify contract type exists
+        c_type = await self._contract_repo.get(data.contract_type_id)
+        if not c_type:
+             raise NotFoundError("Contract Type not found", entity_type="ContractType", entity_id=str(data.contract_type_id))
+
+        return await self._emp_contract_repo.create(user_id=user_id, **data.model_dump())

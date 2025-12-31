@@ -87,6 +87,9 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:8001
       - CONFIG_SERVICE_URL=http://config-service:8004
       - NOTIFICATION_SERVICE_URL=http://notification-service:8005
+      - KEYCLOAK_URL=http://keycloak:8080/
+      - KEYCLOAK_REALM=kronos
+      - KEYCLOAK_CLIENT_ID=kronos-backend
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
     command: uvicorn src.services.leaves.main:app --host 0.0.0.0 --port 8002 --reload
     volumes:
@@ -114,6 +117,9 @@ services:
       - MINIO_SECRET_KEY=kronos_dev
       - CONFIG_SERVICE_URL=http://config-service:8004
       - NOTIFICATION_SERVICE_URL=http://notification-service:8005
+      - KEYCLOAK_URL=http://keycloak:8080/
+      - KEYCLOAK_REALM=kronos
+      - KEYCLOAK_CLIENT_ID=kronos-backend
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
     command: uvicorn src.services.expenses.main:app --host 0.0.0.0 --port 8003 --reload
     volumes:
@@ -136,6 +142,9 @@ services:
       - DATABASE_URL=postgresql+asyncpg://kronos:kronos_dev@postgres:5432/kronos
       - DATABASE_SCHEMA=config
       - REDIS_URL=redis://redis:6379/3
+      - KEYCLOAK_URL=http://keycloak:8080/
+      - KEYCLOAK_REALM=kronos
+      - KEYCLOAK_CLIENT_ID=kronos-backend
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
     command: uvicorn src.services.config.main:app --host 0.0.0.0 --port 8004 --reload
     volumes:
@@ -161,6 +170,9 @@ services:
       - BREVO_API_KEY=${BREVO_API_KEY:-}
       - BREVO_SENDER_EMAIL=${BREVO_SENDER_EMAIL:-noreply@kronos.local}
       - BREVO_SENDER_NAME=KRONOS HR
+      - KEYCLOAK_URL=http://keycloak:8080/
+      - KEYCLOAK_REALM=kronos
+      - KEYCLOAK_CLIENT_ID=kronos-backend
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
     command: uvicorn src.services.notifications.main:app --host 0.0.0.0 --port 8005 --reload
     volumes:
@@ -182,6 +194,9 @@ services:
       - DATABASE_URL=postgresql+asyncpg://kronos:kronos_dev@postgres:5432/kronos
       - DATABASE_SCHEMA=audit
       - REDIS_URL=redis://redis:6379/5
+      - KEYCLOAK_URL=http://keycloak:8080/
+      - KEYCLOAK_REALM=kronos
+      - KEYCLOAK_CLIENT_ID=kronos-backend
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
     command: uvicorn src.services.audit.main:app --host 0.0.0.0 --port 8007 --reload
     volumes:
@@ -305,7 +320,7 @@ services:
       - "3000:3000"
     environment:
       - VITE_API_URL=http://localhost/api/v1
-      - VITE_KEYCLOAK_URL=http://localhost:8080/
+      - VITE_KEYCLOAK_URL=http://localhost:8080
       - VITE_KEYCLOAK_REALM=kronos
       - VITE_KEYCLOAK_CLIENT_ID=kronos-frontend
     volumes:

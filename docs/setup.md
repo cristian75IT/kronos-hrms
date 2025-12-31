@@ -17,27 +17,21 @@ git clone <repo-url>
 cd kronos
 
 # 2. Avvia infrastruttura Docker
+# Questo avvia tutti i servizi, database e frontend
 docker-compose up -d
 
-# 3. Setup Backend
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
+# Nota: Al primo avvio, i servizi backend creeranno automaticamente le tabelle necessarie nel database.
+#       Keycloak verrà importato automaticamente con realm e utenti preconfigurati.
 
-# 4. Crea schema database
-python scripts/create_schemas.py
+# 3. Accesso
+# Frontend: http://localhost
+# Keycloak: http://localhost:8080/admin (user: admin / pass: admin)
+# MinIO:    http://localhost:9001 (user: kronos / pass: kronos_dev)
 
-# 5. Migrazioni
-alembic upgrade head
-
-# 6. Avvia backend
-uvicorn src.main:app --reload --port 8000
-
-# 7. Setup Frontend
-cd ../frontend
-npm install
-npm run dev
+# 4. Utenti Demo
+# Admin:    admin@kronos.local    / admin123
+# Manager:  manager@kronos.local  / manager123
+# Employee: employee@kronos.local / employee123
 ```
 
 ---
@@ -426,10 +420,37 @@ docker-compose down -v --remove-orphans
 
 ## URLs
 
-| Service | URL |
-|---------|-----|
 | API Gateway | http://localhost |
 | Frontend | http://localhost:3000 |
 | Keycloak Admin | http://localhost:8080/admin |
 | MinIO Console | http://localhost:9001 |
 | PostgreSQL | localhost:5432 |
+
+---
+
+## Note Importanti su Configurazione e Troubleshooting
+
+### 1. Autenticazione & Keycloak
+Tutti i microservizi backend ora richiedono la connessione a Keycloak per validare i token JWT delle richieste.
+Assicurarsi che le seguenti variabili d'ambiente siano presenti in `docker-compose.yml` per ogni servizio (auth, leave, config, etc.):
+
+```yaml
+    environment:
+      - KEYCLOAK_URL=http://keycloak:8080/  # Richiede slash finale per il backend
+      - KEYCLOAK_REALM=kronos
+      - KEYCLOAK_CLIENT_ID=kronos-backend
+```
+
+Per il **Frontend**, la variabile `VITE_KEYCLOAK_URL` deve essere `http://localhost:8080/` (o senza slash, ma coerente). Se si verificano doppi slash nei log (es. `//realms/...`), rimuovere lo slash finale dalla configurazione.
+
+### 2. Database e Tabelle
+I servizi sono configurati per creare automaticamente le tabelle all'avvio (`init_db` in `src/core/database.py`).
+Se si vedono errori `Relation "..." does not exist`, provare a riavviare il servizio specifico:
+```bash
+docker-compose restart <service-name>
+```
+
+### 3. Errori Comuni
+- **401 Unauthorized**: Token scaduto o servizio non in grado di validarlo (controllare logs backend per errori di connessione a Keycloak).
+- **500 Internal Server Error su Leave Types**: Assicurarsi che i valori nel database per `balance_type` corrispondano ai valori validi (`vacation`, `rol`, `permits`). Valori come `days` o `hours` causeranno errori di validazione Pydantic.
+

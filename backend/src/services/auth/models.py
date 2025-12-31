@@ -54,6 +54,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    username: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     
     # Employment info
     badge_number: Mapped[Optional[str]] = mapped_column(String(20), unique=True)
@@ -64,7 +65,7 @@ class User(Base):
     # Work configuration
     contract_type_id: Mapped[Optional[UUID]] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("auth.contract_types.id"),
+        ForeignKey("config.contract_types.id"),
     )
     work_schedule_id: Mapped[Optional[UUID]] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -112,6 +113,11 @@ class User(Base):
     areas: Mapped[list["Area"]] = relationship(
         secondary=user_areas,
         back_populates="users",
+    )
+    contracts: Mapped[list["EmployeeContract"]] = relationship(
+        back_populates="user",
+        order_by="desc(EmployeeContract.start_date)",
+        cascade="all, delete-orphan",
     )
     
     @property
@@ -197,7 +203,7 @@ class ContractType(Base):
     """Employment contract type."""
     
     __tablename__ = "contract_types"
-    __table_args__ = {"schema": "auth"}
+    __table_args__ = {"schema": "config"}
     
     id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -272,3 +278,58 @@ class WorkSchedule(Base):
             self.saturday_hours +
             self.sunday_hours
         )
+
+
+class EmployeeContract(Base):
+    """Employee contract history (storicizzazione contratti)."""
+    
+    __tablename__ = "employee_contracts"
+    __table_args__ = {"schema": "auth"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    
+    user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("auth.users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    contract_type_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("config.contract_types.id"),
+        nullable=False
+    )
+    
+    start_date: Mapped[datetime] = mapped_column(Date, nullable=False)
+    end_date: Mapped[Optional[datetime]] = mapped_column(Date)
+    
+    # Contract details
+    weekly_hours: Mapped[Optional[int]] = mapped_column(Integer, comment="Ore settimanali effettive")
+    job_title: Mapped[Optional[str]] = mapped_column(String(100))
+    level: Mapped[Optional[str]] = mapped_column(String(50))
+    department: Mapped[Optional[str]] = mapped_column(String(100))
+    
+    wage_data: Mapped[Optional[dict]] = mapped_column(
+        Text, # JSONB not available directly in this file imports easily without refactor, using generic Type or just skip for now. 
+              # Actually Text is safer for now if we don't need complex queries. Or just skip wage for MVP.
+              # Let's verify imports first. JSONB is not imported.
+    )
+    document_path: Mapped[Optional[str]] = mapped_column(Text)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+    
+    # Relationships
+    user: Mapped["User"] = relationship(back_populates="contracts")
+    contract_type: Mapped["ContractType"] = relationship()

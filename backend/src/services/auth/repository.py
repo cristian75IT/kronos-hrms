@@ -12,6 +12,7 @@ from src.services.auth.models import (
     Location,
     ContractType,
     WorkSchedule,
+    EmployeeContract,
 )
 from src.shared.schemas import DataTableRequest
 
@@ -329,3 +330,28 @@ class WorkScheduleRepository:
         self._session.add(schedule)
         await self._session.flush()
         return schedule
+
+
+class EmployeeContractRepository:
+    """Repository for employee contracts."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get_by_user(self, user_id: UUID) -> list[EmployeeContract]:
+        """Get all contracts for a user."""
+        query = (
+            select(EmployeeContract)
+            .options(selectinload(EmployeeContract.contract_type))
+            .where(EmployeeContract.user_id == user_id)
+            .order_by(EmployeeContract.start_date.desc())
+        )
+        result = await self._session.execute(query)
+        return list(result.scalars().all())
+
+    async def create(self, **kwargs: Any) -> EmployeeContract:
+        """Create new contract."""
+        contract = EmployeeContract(**kwargs)
+        self._session.add(contract)
+        await self._session.flush()
+        return contract

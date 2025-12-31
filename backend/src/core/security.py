@@ -79,22 +79,11 @@ async def decode_token(token: str) -> TokenPayload:
         HTTPException: If token is invalid.
     """
     try:
-        # Get public key for verification
-        public_key = (
-            "-----BEGIN PUBLIC KEY-----\n"
-            + keycloak_openid.public_key()
-            + "\n-----END PUBLIC KEY-----"
-        )
-        
-        # Decode token
+        # Decode token with signature verification
+        # python-keycloak 6.0 handles public key retrieval internally
         payload = keycloak_openid.decode_token(
             token,
-            key=public_key,
-            options={
-                "verify_signature": True,
-                "verify_aud": False,
-                "verify_exp": True,
-            },
+            validate=True,
         )
         
         return TokenPayload(**payload)

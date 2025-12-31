@@ -16,6 +16,7 @@ class UserBase(BaseModel):
     """Base user schema."""
     
     email: EmailStr
+    username: str = Field(..., max_length=100)
     first_name: str = Field(..., max_length=100)
     last_name: str = Field(..., max_length=100)
     badge_number: Optional[str] = Field(None, max_length=20)
@@ -238,6 +239,48 @@ class WorkScheduleResponse(WorkScheduleBase, IDMixin, BaseSchema):
     
     is_active: bool
     weekly_hours: int
+
+
+# ═══════════════════════════════════════════════════════════
+# Employee Contract Schemas
+# ═══════════════════════════════════════════════════════════
+
+class EmployeeContractBase(BaseModel):
+    """Base employee contract schema."""
+    
+    contract_type_id: UUID
+    start_date: date
+    end_date: Optional[date] = None
+    weekly_hours: Optional[int] = Field(None, ge=0)
+    job_title: Optional[str] = Field(None, max_length=100)
+    level: Optional[str] = Field(None, max_length=50)
+    department: Optional[str] = Field(None, max_length=100)
+    document_path: Optional[str] = None
+
+
+class EmployeeContractCreate(EmployeeContractBase):
+    """Schema for creating employee contract."""
+    pass
+
+
+class EmployeeContractUpdate(BaseModel):
+    """Schema for updating employee contract."""
+    
+    contract_type_id: Optional[UUID] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    weekly_hours: Optional[int] = Field(None, ge=0)
+    job_title: Optional[str] = None
+    level: Optional[str] = None
+    department: Optional[str] = None
+    document_path: Optional[str] = None
+
+
+class EmployeeContractResponse(EmployeeContractBase, IDMixin, BaseSchema):
+    """Response schema for employee contract."""
+    
+    user_id: UUID
+    contract_type: Optional[ContractTypeResponse] = None # Include full type info if joined
 
 
 # ═══════════════════════════════════════════════════════════

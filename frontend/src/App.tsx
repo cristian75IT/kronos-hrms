@@ -10,6 +10,14 @@ import { DashboardPage } from './pages/DashboardPage';
 import { LeavesPage } from './pages/leaves/LeavesPage';
 import { LeaveRequestForm } from './pages/leaves/LeaveRequestForm';
 
+import { TripsPage } from './pages/expenses/TripsPage';
+import { ExpensesPage } from './pages/expenses/ExpensesPage';
+import { ApprovalsPage } from './pages/ApprovalsPage';
+import { UsersPage } from './pages/admin/UsersPage';
+import { TripFormPage } from './pages/expenses/TripFormPage';
+import { ConfigPage } from './pages/admin/ConfigPage';
+import { ExpenseFormPage } from './pages/expenses/ExpenseFormPage';
+
 // Lazy load other pages
 // const TripsPage = lazy(() => import('./pages/expenses/TripsPage'));
 
@@ -35,21 +43,22 @@ function App() {
             <Route path="/leaves/:id" element={<PlaceholderPage title="Dettaglio Richiesta" />} />
 
             {/* Trips */}
-            <Route path="/trips" element={<PlaceholderPage title="Trasferte" />} />
-            <Route path="/trips/new" element={<PlaceholderPage title="Nuova Trasferta" />} />
+            <Route path="/trips" element={<TripsPage />} />
+            <Route path="/trips/new" element={<TripFormPage />} />
             <Route path="/trips/:id" element={<PlaceholderPage title="Dettaglio Trasferta" />} />
 
             {/* Expenses */}
-            <Route path="/expenses" element={<PlaceholderPage title="Note Spese" />} />
-            <Route path="/expenses/new" element={<PlaceholderPage title="Nuova Nota Spese" />} />
+            <Route path="/expenses" element={<ExpensesPage />} />
+            <Route path="/expenses/new" element={<ExpenseFormPage />} />
             <Route path="/expenses/:id" element={<PlaceholderPage title="Dettaglio Nota Spese" />} />
 
             {/* Approvals */}
-            <Route path="/approvals" element={<PlaceholderPage title="Approvazioni" />} />
+            <Route path="/approvals" element={<ApprovalsPage />} />
+
 
             {/* Admin */}
-            <Route path="/admin/users" element={<ProtectedRoute roles={['admin', 'hr']}><PlaceholderPage title="Gestione Utenti" /></ProtectedRoute>} />
-            <Route path="/admin/config" element={<ProtectedRoute roles={['admin']}><PlaceholderPage title="Configurazione" /></ProtectedRoute>} />
+            <Route path="/admin/users" element={<ProtectedRoute roles={['admin', 'hr']}><UsersPage /></ProtectedRoute>} />
+            <Route path="/admin/config" element={<ProtectedRoute roles={['admin']}><ConfigPage /></ProtectedRoute>} />
 
           </Route>
 

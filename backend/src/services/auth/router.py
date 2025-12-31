@@ -25,6 +25,8 @@ from src.services.auth.schemas import (
     ContractTypeCreate,
     WorkScheduleResponse,
     WorkScheduleCreate,
+    EmployeeContractCreate,
+    EmployeeContractResponse,
     KeycloakSyncRequest,
     KeycloakSyncResponse,
 )
@@ -54,6 +56,7 @@ async def get_current_user(
     user = await service.get_or_create_from_token(
         keycloak_id=token.keycloak_id,
         email=token.email or "",
+        username=token.preferred_username or token.email or "",
         first_name=token.name.split()[0] if token.name else "",
         last_name=" ".join(token.name.split()[1:]) if token.name and len(token.name.split()) > 1 else "",
         roles=token.roles,
@@ -274,6 +277,34 @@ async def create_location(
         return await service.create_location(data)
     except ConflictError as e:
         raise HTTPException(status_code=409, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════
+# Employee Contract Endpoints
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/users/{user_id}/contracts", response_model=list[EmployeeContractResponse])
+async def get_user_contracts(
+    user_id: UUID,
+    token: TokenPayload = Depends(require_manager),
+    service: UserService = Depends(get_user_service),
+):
+    """Get all contracts for a user."""
+    return await service.get_employee_contracts(user_id)
+
+
+@router.post("/users/{user_id}/contracts", response_model=EmployeeContractResponse, status_code=201)
+async def create_user_contract(
+    user_id: UUID,
+    data: EmployeeContractCreate,
+    token: TokenPayload = Depends(require_admin),
+    service: UserService = Depends(get_user_service),
+):
+    """Add a new contract to user history. Admin only."""
+    try:
+        return await service.create_employee_contract(user_id, data)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 # ═══════════════════════════════════════════════════════════

@@ -84,13 +84,17 @@ async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """Initialize database connection.
+    """Initialize database connection and create tables.
     
-    Called on application startup to verify connection.
+    Called on application startup to verify connection and create tables.
     """
     async with engine.begin() as conn:
         # Verify connection
         await conn.execute(text("SELECT 1"))
+        
+        # Set schema for table creation
+        await conn.execute(text(f"SET search_path TO {settings.database_schema}, public"))
+        
         
         # Log schema
         result = await conn.execute(text("SHOW search_path"))
