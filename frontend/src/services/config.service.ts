@@ -6,7 +6,7 @@ import { configApi } from './api';
 export interface SystemConfig {
     key: string;
     value: any;
-    value_type: 'string' | 'integer' | 'boolean' | 'float' | 'json';
+    value_type: 'string' | 'integer' | 'boolean' | 'float' | 'decimal' | 'json';
     category: string;
     description?: string;
 }

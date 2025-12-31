@@ -25,6 +25,10 @@ from src.services.config.schemas import (
     HolidayListResponse,
     HolidayCreate,
     GenerateHolidaysRequest,
+    CompanyClosureResponse,
+    CompanyClosureListResponse,
+    CompanyClosureCreate,
+    CompanyClosureUpdate,
     ExpenseTypeResponse,
     ExpenseTypeCreate,
     DailyAllowanceRuleResponse,
@@ -76,10 +80,10 @@ async def clear_cache(
 @router.get("/config", response_model=list[SystemConfigResponse])
 async def list_configs(
     category: Optional[str] = None,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(get_current_token),  # Any authenticated user can view
     service: ConfigService = Depends(get_config_service),
 ):
-    """List all system configurations. Admin only."""
+    """List all system configurations. Any authenticated user can view."""
     if category:
         configs = await service._config_repo.get_by_category(category)
     else:
@@ -245,6 +249,78 @@ async def generate_holidays(
 ):
     """Generate Italian national holidays for a year. Admin only."""
     return await service.generate_holidays(data)
+
+
+# ═══════════════════════════════════════════════════════════
+# Company Closures Endpoints
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/closures", response_model=CompanyClosureListResponse)
+async def list_closures(
+    year: Optional[int] = None,
+    include_inactive: bool = False,
+    token: TokenPayload = Depends(get_current_token),
+    service: ConfigService = Depends(get_config_service),
+):
+    """List company closures for a year."""
+    from datetime import datetime
+    year = year or datetime.now().year
+    closures = await service.get_closures(year, include_inactive)
+    return CompanyClosureListResponse(items=closures, year=year, total=len(closures))
+
+
+@router.post("/closures", response_model=CompanyClosureResponse, status_code=201)
+async def create_closure(
+    data: CompanyClosureCreate,
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Create company closure. Admin only."""
+    try:
+        return await service.create_closure(data, created_by=token.sub)
+    except ConflictError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/closures/{id}", response_model=CompanyClosureResponse)
+async def get_closure(
+    id: UUID,
+    token: TokenPayload = Depends(get_current_token),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Get closure by ID."""
+    closure = await service.get_closure(id)
+    if not closure:
+        raise HTTPException(status_code=404, detail="Closure not found")
+    return closure
+
+
+@router.put("/closures/{id}", response_model=CompanyClosureResponse)
+async def update_closure(
+    id: UUID,
+    data: CompanyClosureUpdate,
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Update closure. Admin only."""
+    try:
+        return await service.update_closure(id, data)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/closures/{id}", response_model=MessageResponse)
+async def delete_closure(
+    id: UUID,
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Delete closure. Admin only."""
+    try:
+        await service.delete_closure(id)
+        return MessageResponse(message="Closure deleted")
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 # ═══════════════════════════════════════════════════════════

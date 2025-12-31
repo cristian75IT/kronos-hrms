@@ -10,17 +10,19 @@ import { LoginPage } from './pages/auth/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { LeavesPage } from './pages/leaves/LeavesPage';
 import { LeaveRequestForm } from './pages/leaves/LeaveRequestForm';
+import { LeaveDetailPage } from './pages/leaves/LeaveDetailPage';
 
 import { TripsPage } from './pages/expenses/TripsPage';
+import { TripFormPage } from './pages/expenses/TripFormPage';
+import { TripDetailPage } from './pages/expenses/TripDetailPage';
 import { ExpensesPage } from './pages/expenses/ExpensesPage';
+import { ExpenseFormPage } from './pages/expenses/ExpenseFormPage';
+import { ExpenseDetailPage } from './pages/expenses/ExpenseDetailPage';
 import { ApprovalsPage } from './pages/ApprovalsPage';
 import { UsersPage } from './pages/admin/UsersPage';
-import { TripFormPage } from './pages/expenses/TripFormPage';
+import { UserFormPage } from './pages/admin/UserFormPage';
+import { CompanyClosuresPage } from './pages/admin/CompanyClosuresPage';
 import { ConfigPage } from './pages/admin/ConfigPage';
-import { ExpenseFormPage } from './pages/expenses/ExpenseFormPage';
-
-// Lazy load other pages
-// const TripsPage = lazy(() => import('./pages/expenses/TripsPage'));
 
 function App() {
   return (
@@ -42,24 +44,26 @@ function App() {
               {/* Leaves */}
               <Route path="/leaves" element={<LeavesPage />} />
               <Route path="/leaves/new" element={<LeaveRequestForm />} />
-              <Route path="/leaves/:id" element={<PlaceholderPage title="Dettaglio Richiesta" />} />
+              <Route path="/leaves/:id" element={<LeaveDetailPage />} />
 
               {/* Trips */}
               <Route path="/trips" element={<TripsPage />} />
               <Route path="/trips/new" element={<TripFormPage />} />
-              <Route path="/trips/:id" element={<PlaceholderPage title="Dettaglio Trasferta" />} />
+              <Route path="/trips/:id" element={<TripDetailPage />} />
 
               {/* Expenses */}
               <Route path="/expenses" element={<ExpensesPage />} />
               <Route path="/expenses/new" element={<ExpenseFormPage />} />
-              <Route path="/expenses/:id" element={<PlaceholderPage title="Dettaglio Nota Spese" />} />
+              <Route path="/expenses/:id" element={<ExpenseDetailPage />} />
 
               {/* Approvals */}
               <Route path="/approvals" element={<ApprovalsPage />} />
 
-
               {/* Admin */}
               <Route path="/admin/users" element={<ProtectedRoute roles={['admin', 'hr']}><UsersPage /></ProtectedRoute>} />
+              <Route path="/admin/users/new" element={<ProtectedRoute roles={['admin', 'hr']}><UserFormPage /></ProtectedRoute>} />
+              <Route path="/admin/users/:id" element={<ProtectedRoute roles={['admin', 'hr']}><PlaceholderPage title="Dettaglio Utente" /></ProtectedRoute>} />
+              <Route path="/admin/closures" element={<ProtectedRoute roles={['admin', 'hr']}><CompanyClosuresPage /></ProtectedRoute>} />
               <Route path="/admin/config" element={<ProtectedRoute roles={['admin']}><ConfigPage /></ProtectedRoute>} />
 
             </Route>
@@ -104,3 +108,4 @@ function PlaceholderPage({ title }: { title: string }) {
 }
 
 export default App;
+

@@ -97,8 +97,55 @@ export interface EmployeeContractCreate {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Leave Types
+// Calendar & Holidays
 // ═══════════════════════════════════════════════════════════════════
+
+export interface Holiday {
+    id: string;
+    date: string;
+    name: string;
+    location_id?: string;
+    is_national: boolean;
+    year: number;
+    created_at: string;
+}
+
+export type ClosureType = 'total' | 'partial';
+
+export interface CompanyClosure {
+    id: string;
+    name: string;
+    description?: string;
+    start_date: string;
+    end_date: string;
+    closure_type: ClosureType;
+    affected_departments?: string[];
+    affected_locations?: string[];
+    is_paid: boolean;
+    consumes_leave_balance: boolean;
+    leave_type_id?: string;
+    year: number;
+    is_active: boolean;
+    created_by?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface CompanyClosureCreate {
+    name: string;
+    description?: string;
+    start_date: string;
+    end_date: string;
+    closure_type?: ClosureType;
+    affected_departments?: string[];
+    affected_locations?: string[];
+    is_paid?: boolean;
+    consumes_leave_balance?: boolean;
+    leave_type_id?: string;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Leave Types
 
 export type LeaveRequestStatus =
     | 'draft'
@@ -199,6 +246,7 @@ export interface LeaveRequestUpdate {
 export type TripStatus =
     | 'draft'
     | 'pending'
+    | 'submitted'
     | 'approved'
     | 'rejected'
     | 'completed'
@@ -237,6 +285,8 @@ export interface BusinessTrip {
     status: TripStatus;
     project_code?: string;
     cost_center?: string;
+    client_name?: string;
+    attachment_path?: string;
     estimated_budget?: number;
     approver_id?: string;
     approved_at?: string;
@@ -301,12 +351,20 @@ export interface CalendarEvent {
     id: string;
     title: string;
     start: string;
-    end: string;
+    end?: string;
     color?: string;
     allDay?: boolean;
+    is_national?: boolean;
+    userName?: string;
     extendedProps?: Record<string, unknown>;
 }
 
+export interface CalendarData {
+    events: CalendarEvent[];
+    holidays: CalendarEvent[];
+    closures?: CompanyClosure[];
+    teamEvents?: CalendarEvent[];
+}
 export interface Holiday {
     id: string;
     name: string;

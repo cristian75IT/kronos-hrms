@@ -3,7 +3,7 @@
  */
 import { useAuth } from '../../context/AuthContext';
 import { Navigate, useLocation } from 'react-router-dom';
-import { ArrowRight, ShieldCheck, Clock, Globe, User, Lock, AlertCircle } from 'lucide-react';
+import { ArrowRight, User, Lock, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 
 export function LoginPage() {

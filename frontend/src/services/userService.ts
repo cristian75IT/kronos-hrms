@@ -57,4 +57,14 @@ export const userService = {
         const response = await authApi.get('/contract-types');
         return response.data;
     },
+
+    createContractType: async (data: Partial<ContractType>): Promise<ContractType> => {
+        const response = await authApi.post('/contract-types', data);
+        return response.data;
+    },
+
+    updateContractType: async (id: string, data: Partial<ContractType>): Promise<ContractType> => {
+        const response = await authApi.put(`/contract-types/${id}`, data);
+        return response.data;
+    },
 };

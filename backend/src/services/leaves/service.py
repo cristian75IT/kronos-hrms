@@ -1,10 +1,12 @@
-"""KRONOS Leave Service - Business Logic."""
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from calendar import monthrange
 from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
 import httpx
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
@@ -14,7 +16,8 @@ from src.core.exceptions import (
     BusinessRuleError,
     ValidationError,
 )
-from src.services.leaves.models import LeaveRequest, LeaveRequestStatus, ConditionType
+from src.services.auth.models import EmployeeContract, ContractType
+from src.services.leaves.models import LeaveRequest, LeaveRequestStatus, ConditionType, LeaveBalance
 from src.services.leaves.repository import LeaveRequestRepository, LeaveBalanceRepository
 from src.services.leaves.policy_engine import PolicyEngine
 from src.services.leaves.schemas import (
@@ -46,6 +49,97 @@ class LeaveService:
             session,
             self._request_repo,
             self._balance_repo,
+        )
+
+    async def recalculate_all_balances(self, year: int):
+        """Recalculate accruals for all users based on their contracts."""
+        # Get all users with contracts
+        query = select(EmployeeContract.user_id).distinct()
+        result = await self._session.execute(query)
+        user_ids = result.scalars().all()
+
+        for user_id in user_ids:
+            await self.recalculate_user_accrual(user_id, year)
+
+    async def recalculate_user_accrual(self, user_id: UUID, year: int):
+        """Recalculate annual accrual based on contracts history."""
+        # Get contracts with types
+        query = (
+            select(EmployeeContract)
+            .options(selectinload(EmployeeContract.contract_type))
+            .where(EmployeeContract.user_id == user_id)
+            .order_by(EmployeeContract.start_date)
+        )
+        result = await self._session.execute(query)
+        contracts = result.scalars().all()
+
+        if not contracts:
+            return
+
+        total_vacation = Decimal(0)
+        total_rol = Decimal(0)
+        total_permits = Decimal(0)
+        
+        today = date.today()
+        
+        # Calculate for each month
+        for month in range(1, 13):
+            month_start = date(year, month, 1)
+            _, last_day = monthrange(year, month)
+            month_end = date(year, month, last_day)
+            
+            # Stop if future month (accrue only past/current months)
+            if month_start > today:
+                break
+                
+            # Find active contract for this month (at start of month)
+            active_contract = None
+            for contract in contracts:
+                c_start = contract.start_date
+                c_end = contract.end_date or date(9999, 12, 31)
+                
+                # Overlap check
+                if c_start <= month_end and c_end >= month_start:
+                    active_contract = contract
+                    # Prefer contract active at start of month
+                    if c_start <= month_start:
+                        break
+            
+            if active_contract and active_contract.contract_type:
+                ctype = active_contract.contract_type
+                
+                # Monthly rates
+                monthly_vacation = Decimal(ctype.annual_vacation_days) / 12
+                monthly_rol = Decimal(ctype.annual_rol_hours) / 12
+                monthly_permits = Decimal(ctype.annual_permit_hours) / 12
+                
+                # Adjust for Part-Time or Effective Weekly Hours
+                # We assume 40h as standard weekly base for 100% accrual
+                if active_contract.weekly_hours is not None:
+                    ratio = Decimal(active_contract.weekly_hours) / 40
+                elif ctype.is_part_time:
+                    ratio = Decimal(ctype.part_time_percentage) / 100
+                else:
+                    ratio = Decimal(1.0)
+                
+                if ratio != Decimal(1.0):
+                    monthly_vacation *= ratio
+                    monthly_rol *= ratio
+                    monthly_permits *= ratio
+                
+                total_vacation += monthly_vacation
+                total_rol += monthly_rol
+                total_permits += monthly_permits
+
+        # Update balance
+        balance = await self._balance_repo.get_or_create(user_id, year)
+        
+        await self._balance_repo.update(
+            balance.id, 
+            vacation_accrued=total_vacation,
+            rol_accrued=total_rol,
+            permits_total=total_permits,
+            last_accrual_date=today
         )
 
     # ═══════════════════════════════════════════════════════════

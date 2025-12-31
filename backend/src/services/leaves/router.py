@@ -3,7 +3,7 @@ from datetime import date
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
@@ -337,6 +337,27 @@ async def adjust_balance(
         return await service.adjust_balance(user_id, year, data, admin_id)
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/balances/accrual/recalculate", status_code=status.HTTP_204_NO_CONTENT)
+async def recalculate_accruals(
+    year: int = Query(default_factory=lambda: date.today().year),
+    token: TokenPayload = Depends(require_admin),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Admin only: Recalculate accruals for all users based on contracts."""
+    await service.recalculate_all_balances(year)
+
+
+@router.post("/balances/{user_id}/accrual/recalculate", status_code=status.HTTP_204_NO_CONTENT)
+async def recalculate_user_accruals(
+    user_id: UUID,
+    year: int = Query(default_factory=lambda: date.today().year),
+    token: TokenPayload = Depends(require_admin),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Admin only: Recalculate accruals for a specific user."""
+    await service.recalculate_user_accrual(user_id, year)
 
 
 # ═══════════════════════════════════════════════════════════

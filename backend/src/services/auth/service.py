@@ -24,6 +24,7 @@ from src.services.auth.schemas import (
     LocationCreate,
     LocationUpdate,
     ContractTypeCreate,
+    ContractTypeUpdate,
     WorkScheduleCreate,
     EmployeeContractCreate,
     KeycloakSyncRequest,
@@ -43,6 +44,7 @@ class UserService:
         self._contract_repo = ContractTypeRepository(session)
         self._schedule_repo = WorkScheduleRepository(session)
         self._emp_contract_repo = EmployeeContractRepository(session)
+
 
     # ═══════════════════════════════════════════════════════════
     # User Operations
@@ -316,6 +318,19 @@ class UserService:
         """Create new contract type."""
         return await self._contract_repo.create(**data.model_dump())
 
+    async def update_contract_type(self, id: UUID, data: ContractTypeUpdate):
+        """Update contract type."""
+        update_data = data.model_dump(exclude_unset=True)
+        
+        # Enforce percentage 100 if switching to full time
+        if update_data.get('is_part_time') is False:
+            update_data['part_time_percentage'] = 100
+            
+        c_type = await self._contract_repo.update(id, **update_data)
+        if not c_type:
+             raise NotFoundError("Contract Type not found", entity_type="ContractType", entity_id=str(id))
+        return c_type
+
     # ═══════════════════════════════════════════════════════════
     # Work Schedule Operations
     # ═══════════════════════════════════════════════════════════
@@ -324,7 +339,7 @@ class UserService:
         """Get all work schedules."""
         return await self._schedule_repo.get_all(active_only)
 
-        return await self._schedule_repo.create(**data.model_dump())
+        # return await self._schedule_repo.create(**data.model_dump())
 
     # ═══════════════════════════════════════════════════════════
     # Employee Contract Operations

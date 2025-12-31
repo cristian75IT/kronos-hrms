@@ -136,6 +136,17 @@ export const leavesService = {
         const response = await leavesApi.post(`${ENDPOINT}/datatable`, request);
         return response.data;
     },
+
+    recalculateAccruals: async (year?: number): Promise<void> => {
+        const params = year ? { year } : {};
+        // Note: endpoint is /balances/accrual/recalculate. BaseURL is /api/v1.
+        await leavesApi.post('/balances/accrual/recalculate', null, { params });
+    },
+
+    recalculateUserAccruals: async (userId: string, year?: number): Promise<void> => {
+        const params = year ? { year } : {};
+        await leavesApi.post(`/balances/${userId}/accrual/recalculate`, null, { params });
+    },
 };
 
 export default leavesService;

@@ -2,6 +2,7 @@
  * KRONOS - User Management Page
  */
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useUsers } from '../../hooks/useApi';
 import { User as UserIcon, Mail, Briefcase, UserPlus, Search, Building } from 'lucide-react';
 import { ContractHistory } from '../../components/users/ContractHistory';
@@ -34,10 +35,10 @@ export function UsersPage() {
                     <h1>Gestione Utenti</h1>
                     <p className="page-subtitle">Amministra gli utenti e i loro permessi</p>
                 </div>
-                <button className="btn btn-primary" disabled>
+                <Link to="/admin/users/new" className="btn btn-primary">
                     <UserPlus size={18} />
-                    Nuovo Utente (Coming Soon)
-                </button>
+                    Nuovo Utente
+                </Link>
             </div>
 
             {/* Toolbar */}

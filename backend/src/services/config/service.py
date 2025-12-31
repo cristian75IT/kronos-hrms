@@ -13,6 +13,7 @@ from src.services.config.repository import (
     SystemConfigRepository,
     LeaveTypeRepository,
     HolidayRepository,
+    CompanyClosureRepository,
     ExpenseTypeRepository,
     DailyAllowanceRuleRepository,
 )
@@ -23,6 +24,8 @@ from src.services.config.schemas import (
     LeaveTypeUpdate,
     HolidayCreate,
     GenerateHolidaysRequest,
+    CompanyClosureCreate,
+    CompanyClosureUpdate,
     ExpenseTypeCreate,
     DailyAllowanceRuleCreate,
 )
@@ -43,6 +46,7 @@ class ConfigService:
         self._config_repo = SystemConfigRepository(session)
         self._leave_type_repo = LeaveTypeRepository(session)
         self._holiday_repo = HolidayRepository(session)
+        self._closure_repo = CompanyClosureRepository(session)
         self._expense_type_repo = ExpenseTypeRepository(session)
         self._allowance_repo = DailyAllowanceRuleRepository(session)
         self._redis = redis_client
@@ -383,3 +387,41 @@ class ConfigService:
             raise ConflictError(f"Rule already exists for: {data.destination_type}")
 
         return await self._allowance_repo.create(**data.model_dump())
+
+    # ═══════════════════════════════════════════════════════════
+    # Company Closures
+    # ═══════════════════════════════════════════════════════════
+
+    async def get_closures(
+        self,
+        year: int,
+        include_inactive: bool = False,
+    ) -> list:
+        """Get company closures for a year."""
+        return await self._closure_repo.get_by_year(year, include_inactive)
+
+    async def get_closure(self, id: UUID):
+        """Get closure by ID."""
+        return await self._closure_repo.get(id)
+
+    async def create_closure(self, data: CompanyClosureCreate, created_by: UUID = None):
+        """Create new company closure."""
+        closure = await self._closure_repo.create(
+            **data.model_dump(),
+            created_by=created_by,
+        )
+        return closure
+
+    async def update_closure(self, id: UUID, data: CompanyClosureUpdate):
+        """Update company closure."""
+        closure = await self._closure_repo.update(id, **data.model_dump(exclude_unset=True))
+        if not closure:
+            raise NotFoundError("Company closure not found", entity_type="CompanyClosure", entity_id=str(id))
+        return closure
+
+    async def delete_closure(self, id: UUID) -> bool:
+        """Delete company closure."""
+        result = await self._closure_repo.delete(id)
+        if not result:
+            raise NotFoundError("Company closure not found", entity_type="CompanyClosure", entity_id=str(id))
+        return True

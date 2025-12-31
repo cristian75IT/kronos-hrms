@@ -205,6 +205,18 @@ class ContractTypeCreate(ContractTypeBase):
     pass
 
 
+class ContractTypeUpdate(BaseModel):
+    """Schema for updating contract type."""
+    
+    name: Optional[str] = Field(None, max_length=100)
+    is_part_time: Optional[bool] = None
+    part_time_percentage: Optional[int] = Field(None, ge=1, le=100)
+    annual_vacation_days: Optional[int] = Field(None, ge=0)
+    annual_rol_hours: Optional[int] = Field(None, ge=0)
+    annual_permit_hours: Optional[int] = Field(None, ge=0)
+    is_active: Optional[bool] = None
+
+
 class ContractTypeResponse(ContractTypeBase, IDMixin, BaseSchema):
     """Response schema for contract type."""
     

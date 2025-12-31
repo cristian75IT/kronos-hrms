@@ -106,7 +106,7 @@ export function LeaveRequestForm() {
                                                 style={{ backgroundColor: type.color }}
                                             />
                                             <div>
-                                                <div className="font-semibold text-sm">{type.name}</div>
+                                                <div className="font-semibold text-sm">{(type.name === 'Permesso' || type.name === 'Permessi') ? 'Ex-Festività / Altri' : type.name}</div>
                                                 {type.max_consecutive_days && (
                                                     <div className="text-xs text-secondary mt-0.5">Max {type.max_consecutive_days} gg</div>
                                                 )}

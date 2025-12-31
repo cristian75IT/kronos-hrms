@@ -132,6 +132,63 @@ class Holiday(Base):
     )
 
 
+class CompanyClosure(Base):
+    """Company closure calendar.
+    
+    Stores company-wide closures (total or partial).
+    Can affect all employees or specific departments.
+    """
+    
+    __tablename__ = "company_closures"
+    __table_args__ = {"schema": "config"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    
+    # Date range
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    
+    # Closure type: total (entire company) or partial (specific departments)
+    closure_type: Mapped[str] = mapped_column(String(20), nullable=False, default="total")  # total, partial
+    
+    # For partial closures, list of affected department codes
+    affected_departments: Mapped[Optional[list]] = mapped_column(JSONB)
+    
+    # For partial closures, list of affected location IDs
+    affected_locations: Mapped[Optional[list]] = mapped_column(JSONB)
+    
+    # Whether employees are still paid (e.g., company holiday vs unpaid closure)
+    is_paid: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    # Whether this closure consumes employee leave balance
+    consumes_leave_balance: Mapped[bool] = mapped_column(Boolean, default=False)
+    leave_type_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))  # If consumes balance, which leave type
+    
+    # Year for filtering
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    
+    # Status
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    # Audit
+    created_by: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class ExpenseType(Base):
     """Expense type configuration.
     

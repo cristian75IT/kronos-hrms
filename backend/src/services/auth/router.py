@@ -23,6 +23,7 @@ from src.services.auth.schemas import (
     LocationCreate,
     ContractTypeResponse,
     ContractTypeCreate,
+    ContractTypeUpdate,
     WorkScheduleResponse,
     WorkScheduleCreate,
     EmployeeContractCreate,
@@ -328,6 +329,17 @@ async def create_contract_type(
 ):
     """Create new contract type. Admin only."""
     return await service.create_contract_type(data)
+
+
+@router.put("/contract-types/{id}", response_model=ContractTypeResponse)
+async def update_contract_type(
+    id: UUID,
+    data: ContractTypeUpdate,
+    token: TokenPayload = Depends(require_admin),
+    service: UserService = Depends(get_user_service),
+):
+    """Update contract type. Admin only."""
+    return await service.update_contract_type(id, data)
 
 
 # ═══════════════════════════════════════════════════════════

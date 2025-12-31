@@ -39,7 +39,7 @@ export function DashboardPage() {
       gradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
     },
     {
-      label: 'Permessi Disponibili',
+      label: 'Ex-Festività / Altri',
       value: balance?.permits_available ?? '-',
       suffix: 'ore',
       icon: <TrendingUp size={24} />,

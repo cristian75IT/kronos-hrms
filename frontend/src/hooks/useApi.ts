@@ -45,6 +45,7 @@ export const queryKeys = {
 
     // Configs
     configs: ['configs'] as const,
+    contractTypes: ['contract-types'] as const,
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -251,6 +252,9 @@ export function useExpenseReports(status?: string) {
     });
 }
 
+export const useReports = useExpenseReports;
+export const useReport = useExpenseReport;
+
 export function useExpenseReport(id: string) {
     return useQuery({
         queryKey: queryKeys.report(id),
@@ -357,6 +361,29 @@ export function useUpdateUser() {
     });
 }
 
+export function useContractTypes() {
+    return useQuery({
+        queryKey: queryKeys.contractTypes,
+        queryFn: () => userService.getContractTypes(),
+    });
+}
+
+export function useCreateContractType() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (data: any) => userService.createContractType(data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.contractTypes }),
+    });
+}
+
+export function useUpdateContractType() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, data }: { id: string; data: any }) => userService.updateContractType(id, data),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.contractTypes }),
+    });
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Config Hooks
 // ═══════════════════════════════════════════════════════════════════
@@ -376,6 +403,18 @@ export function useUpdateConfig() {
             configService.updateConfig(key, value),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.configs });
+        },
+    });
+}
+
+export function useRecalculateAccruals() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (year?: number) => leavesService.recalculateAccruals(year),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['leave-balance'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.balanceSummary });
         },
     });
 }

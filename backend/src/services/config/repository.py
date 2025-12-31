@@ -9,6 +9,7 @@ from src.services.config.models import (
     SystemConfig,
     LeaveType,
     Holiday,
+    CompanyClosure,
     ExpenseType,
     DailyAllowanceRule,
     PolicyRule,
@@ -208,6 +209,88 @@ class HolidayRepository:
         
         await self._session.flush()
         return count
+
+
+class CompanyClosureRepository:
+    """Repository for company closures."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get(self, id: UUID) -> Optional[CompanyClosure]:
+        """Get closure by ID."""
+        result = await self._session.execute(
+            select(CompanyClosure).where(CompanyClosure.id == id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_year(
+        self,
+        year: int,
+        include_inactive: bool = False,
+    ) -> list[CompanyClosure]:
+        """Get all closures for a year."""
+        query = select(CompanyClosure).where(CompanyClosure.year == year)
+        
+        if not include_inactive:
+            query = query.where(CompanyClosure.is_active == True)
+        
+        query = query.order_by(CompanyClosure.start_date)
+        result = await self._session.execute(query)
+        return list(result.scalars().all())
+
+    async def get_by_date_range(
+        self,
+        start_date,
+        end_date,
+        include_inactive: bool = False,
+    ) -> list[CompanyClosure]:
+        """Get closures that overlap with a date range."""
+        query = select(CompanyClosure).where(
+            CompanyClosure.start_date <= end_date,
+            CompanyClosure.end_date >= start_date,
+        )
+        
+        if not include_inactive:
+            query = query.where(CompanyClosure.is_active == True)
+        
+        query = query.order_by(CompanyClosure.start_date)
+        result = await self._session.execute(query)
+        return list(result.scalars().all())
+
+    async def create(self, **kwargs: Any) -> CompanyClosure:
+        """Create company closure."""
+        # Auto-set year from start_date
+        if "year" not in kwargs and "start_date" in kwargs:
+            kwargs["year"] = kwargs["start_date"].year
+        
+        closure = CompanyClosure(**kwargs)
+        self._session.add(closure)
+        await self._session.flush()
+        return closure
+
+    async def update(self, id: UUID, **kwargs: Any) -> Optional[CompanyClosure]:
+        """Update company closure."""
+        closure = await self.get(id)
+        if not closure:
+            return None
+        
+        for key, value in kwargs.items():
+            if hasattr(closure, key) and value is not None:
+                setattr(closure, key, value)
+        
+        await self._session.flush()
+        return closure
+
+    async def delete(self, id: UUID) -> bool:
+        """Delete company closure."""
+        closure = await self.get(id)
+        if not closure:
+            return False
+        
+        await self._session.delete(closure)
+        await self._session.flush()
+        return True
 
 
 class ExpenseTypeRepository:

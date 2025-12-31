@@ -227,6 +227,29 @@ def upgrade() -> None:
     )
     op.create_index('ix_config_holidays_date_location', 'holidays', ['date', 'location_id'], unique=True, schema='config')
     
+    # Company Closures
+    op.create_table(
+        'company_closures',
+        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column('name', sa.String(200), nullable=False),
+        sa.Column('description', sa.Text(), nullable=True),
+        sa.Column('start_date', sa.Date(), nullable=False),
+        sa.Column('end_date', sa.Date(), nullable=False),
+        sa.Column('closure_type', sa.String(20), nullable=False, default='total'),  # total, partial
+        sa.Column('affected_departments', postgresql.JSONB(), nullable=True),
+        sa.Column('affected_locations', postgresql.JSONB(), nullable=True),
+        sa.Column('is_paid', sa.Boolean(), default=True, nullable=False),
+        sa.Column('consumes_leave_balance', sa.Boolean(), default=False, nullable=False),
+        sa.Column('leave_type_id', postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column('year', sa.Integer(), nullable=False, index=True),
+        sa.Column('is_active', sa.Boolean(), default=True, nullable=False),
+        sa.Column('created_by', postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
+        schema='config'
+    )
+    op.create_index('ix_config_closures_dates', 'company_closures', ['start_date', 'end_date'], schema='config')
+    
     # Expense types
     op.create_table(
         'expense_types',
@@ -648,6 +671,8 @@ def downgrade() -> None:
     # Config schema
     op.drop_table('daily_allowance_rules', schema='config')
     op.drop_table('expense_types', schema='config')
+    op.drop_index('ix_config_closures_dates', table_name='company_closures', schema='config')
+    op.drop_table('company_closures', schema='config')
     op.drop_table('holidays', schema='config')
     op.drop_index('ix_config_contract_types_code', table_name='contract_types', schema='config')
     op.drop_table('contract_types', schema='config')

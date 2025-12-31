@@ -17,7 +17,7 @@ class SystemConfigBase(BaseModel):
     
     key: str = Field(..., max_length=100)
     value: Any
-    value_type: str = Field(..., pattern="^(string|integer|boolean|float|json)$")
+    value_type: str = Field(..., pattern="^(string|integer|boolean|float|decimal|json)$")
     category: str = Field(..., max_length=50)
     description: Optional[str] = None
     is_sensitive: bool = False
@@ -158,6 +158,62 @@ class GenerateHolidaysRequest(BaseModel):
     year: int = Field(..., ge=2020, le=2100)
     include_local: bool = False
     location_id: Optional[UUID] = None
+
+
+# ═══════════════════════════════════════════════════════════
+# Company Closures
+# ═══════════════════════════════════════════════════════════
+
+class CompanyClosureBase(BaseModel):
+    """Base schema for company closure."""
+    
+    name: str = Field(..., max_length=200)
+    description: Optional[str] = None
+    start_date: date
+    end_date: date
+    closure_type: str = Field(default="total", pattern="^(total|partial)$")
+    affected_departments: Optional[list[str]] = None
+    affected_locations: Optional[list[UUID]] = None
+    is_paid: bool = True
+    consumes_leave_balance: bool = False
+    leave_type_id: Optional[UUID] = None
+
+
+class CompanyClosureCreate(CompanyClosureBase):
+    """Schema for creating company closure."""
+    pass
+
+
+class CompanyClosureUpdate(BaseModel):
+    """Schema for updating company closure."""
+    
+    name: Optional[str] = Field(None, max_length=200)
+    description: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    closure_type: Optional[str] = Field(None, pattern="^(total|partial)$")
+    affected_departments: Optional[list[str]] = None
+    affected_locations: Optional[list[UUID]] = None
+    is_paid: Optional[bool] = None
+    consumes_leave_balance: Optional[bool] = None
+    leave_type_id: Optional[UUID] = None
+    is_active: Optional[bool] = None
+
+
+class CompanyClosureResponse(CompanyClosureBase, IDMixin, BaseSchema):
+    """Response schema for company closure."""
+    
+    year: int
+    is_active: bool
+    created_by: Optional[UUID] = None
+
+
+class CompanyClosureListResponse(BaseModel):
+    """List response for company closures."""
+    
+    items: list[CompanyClosureResponse]
+    year: int
+    total: int
 
 
 # ═══════════════════════════════════════════════════════════
