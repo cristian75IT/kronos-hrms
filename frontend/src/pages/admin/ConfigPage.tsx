@@ -1,6 +1,6 @@
 /**
  * KRONOS - System Configuration Page
- * Enterprise-grade configuration management
+ * Premium Enterprise-grade configuration management
  */
 import { useState } from 'react';
 import { useConfigs, useUpdateConfig, useClearCache, useRecalculateAccruals } from '../../hooks/useApi';
@@ -11,14 +11,14 @@ import {
     Calculator,
     Trash2,
     Search,
-    Check,
     X,
     Loader,
     Shield,
     Clock,
     Database,
     Sliders,
-    Files, // Icona per contratti
+    Files,
+    ArrowRight,
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { ContractTypesManager } from './ContractTypesManager';
@@ -36,12 +36,6 @@ export function ConfigPage() {
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [activeTab, setActiveTab] = useState<'system' | 'contracts'>('system');
 
-    // Filter configs to exclude obsolete contract params from general view
-    // const filteredConfigs = configs?.filter(config =>
-    // !['ferie_annuali', 'rol_annui', 'permessi_annui'].includes(config.key) &&
-    // !config.key.startsWith('contratto_') // Future proofing
-    // );
-
     const handleEdit = (config: SystemConfig) => {
         setEditingKey(config.key);
         setEditValue(config.value);
@@ -53,7 +47,7 @@ export function ConfigPage() {
             {
                 onSuccess: () => {
                     setEditingKey(null);
-                    toast.success('Configurazione aggiornata');
+                    toast.success('Configurazione aggiornata con successo');
                     refetch();
                 },
                 onError: () => {
@@ -69,10 +63,10 @@ export function ConfigPage() {
     };
 
     const handleClearCache = () => {
-        if (confirm('Sei sicuro di voler svuotare la cache Redis?')) {
+        if (confirm('Sei sicuro di voler svuotare la cache Redis? Questa operazione potrebbe rallentare temporaneamente il sistema.')) {
             clearCacheMutation.mutate(undefined, {
                 onSuccess: () => {
-                    toast.success('Cache svuotata con successo');
+                    toast.success('Cache Redis svuotata');
                     refetch();
                 },
                 onError: () => {
@@ -83,13 +77,13 @@ export function ConfigPage() {
     };
 
     const handleRecalculate = () => {
-        if (confirm('Attenzione: Questa operazione ricalcolerà i ratei maturati (Ferie/ROL) per tutti gli utenti, basandosi sui contratti storici. I valori manuali di "maturato" saranno sovrascritti. Continuare?')) {
+        if (confirm('Attenzione: Il ricalcolo dei ratei è un operazione intensiva che sovrascriverà i saldi attuali basandosi sullo storico contrattuale. Continuare?')) {
             recalculateMutation.mutate(undefined, {
                 onSuccess: () => {
-                    toast.success('Ricalcolo ratei completato');
+                    toast.success('Ricalcolo ratei completato con successo');
                 },
                 onError: () => {
-                    toast.error('Errore durante il ricalcolo');
+                    toast.error('Errore durante il ricalcolo dei ratei');
                 }
             });
         }
@@ -97,32 +91,43 @@ export function ConfigPage() {
 
     const renderInput = (config: SystemConfig) => {
         if (config.key !== editingKey) {
-            // Display value
             if (config.value_type === 'boolean') {
                 return (
-                    <span className={`config-badge ${config.value ? 'badge-success' : 'badge-muted'}`}>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.value
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
                         {config.value ? 'Attivo' : 'Disattivo'}
                     </span>
                 );
             }
             if (config.value_type === 'json') {
-                return <code className="config-code">{JSON.stringify(config.value)}</code>;
+                return (
+                    <code className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs font-mono break-all line-clamp-2">
+                        {JSON.stringify(config.value)}
+                    </code>
+                );
             }
-            return <span className="config-value-text">{String(config.value)}</span>;
+            return <span className="font-medium text-gray-900">{String(config.value)}</span>;
         }
 
-        // Edit mode
         if (config.value_type === 'boolean') {
             return (
-                <div className="toggle-switch">
+                <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
                     <button
-                        className={`toggle-option ${editValue === true ? 'active' : ''}`}
+                        className={`flex-1 px-3 py-1 rounded-md text-xs font-medium transition-all ${editValue === true
+                                ? 'bg-white text-green-700 shadow-sm border border-gray-200'
+                                : 'text-gray-500 hover:text-gray-900'
+                            }`}
                         onClick={() => setEditValue(true)}
                     >
                         Attivo
                     </button>
                     <button
-                        className={`toggle-option ${editValue === false ? 'active' : ''}`}
+                        className={`flex-1 px-3 py-1 rounded-md text-xs font-medium transition-all ${editValue === false
+                                ? 'bg-white text-gray-900 shadow-sm border border-gray-200'
+                                : 'text-gray-500 hover:text-gray-900'
+                            }`}
                         onClick={() => setEditValue(false)}
                     >
                         Disattivo
@@ -133,20 +138,15 @@ export function ConfigPage() {
 
         return (
             <input
-                type={config.value_type === 'integer' || config.value_type === 'float' || config.value_type === 'decimal' ? 'number' : 'text'}
+                type={['integer', 'float', 'decimal'].includes(config.value_type) ? 'number' : 'text'}
                 value={editValue ?? ''}
                 onChange={(e) => {
                     const val = e.target.value;
-                    if (config.value_type === 'integer') {
-                        setEditValue(parseInt(val) || 0);
-                    } else if (config.value_type === 'float' || config.value_type === 'decimal') {
-                        setEditValue(parseFloat(val) || 0);
-                    } else {
-                        setEditValue(val);
-                    }
+                    if (config.value_type === 'integer') setEditValue(parseInt(val) || 0);
+                    else if (['float', 'decimal'].includes(config.value_type)) setEditValue(parseFloat(val) || 0);
+                    else setEditValue(val);
                 }}
-                className="input input-sm"
-                style={{ width: '200px' }}
+                className="input w-48 h-9 text-sm"
                 autoFocus
             />
         );
@@ -154,564 +154,210 @@ export function ConfigPage() {
 
     const getCategoryIcon = (category: string) => {
         switch (category.toLowerCase()) {
-            case 'core':
-            case 'sistema':
-                return <Settings size={14} />;
-            case 'leave':
-            case 'ferie':
-                return <Clock size={14} />;
-            case 'security':
-            case 'sicurezza':
-                return <Shield size={14} />;
-            default:
-                return <Sliders size={14} />;
+            case 'core': case 'sistema': return <Settings size={16} />;
+            case 'leave': case 'ferie': return <Clock size={16} />;
+            case 'security': case 'sicurezza': return <Shield size={16} />;
+            default: return <Sliders size={16} />;
         }
     };
 
-    if (isLoading) {
-        return (
-            <div className="config-page animate-fadeIn">
-                <div className="loading-state">
-                    <Loader size={32} className="animate-spin" />
-                    <p>Caricamento configurazioni...</p>
-                </div>
-            </div>
-        );
-    }
+    if (isLoading) return (
+        <div className="flex flex-col items-center justify-center py-20">
+            <Loader size={32} className="animate-spin text-primary mb-3" />
+            <span className="text-sm text-gray-500 font-medium">Caricamento configurazioni...</span>
+        </div>
+    );
 
     if (error) {
         return (
-            <div className="config-page animate-fadeIn">
-                <div className="error-state">
-                    <AlertCircle size={48} />
-                    <h2>Errore di caricamento</h2>
-                    <p>Impossibile caricare le configurazioni di sistema.</p>
-                    <button className="btn btn-primary" onClick={() => refetch()}>
-                        <RefreshCw size={18} />
-                        Riprova
-                    </button>
+            <div className="max-w-md mx-auto mt-20 p-6 bg-red-50 border border-red-100 rounded-lg text-center">
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <AlertCircle size={24} className="text-red-600" />
                 </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Impossibile caricare le configurazioni</h3>
+                <p className="text-gray-600 mb-6">Si è verificato un errore durante la comunicazione con il server.</p>
+                <button className="btn btn-outline border-red-200 text-red-700 hover:bg-red-50" onClick={() => refetch()}>
+                    <RefreshCw size={16} className="mr-2" /> Riprova
+                </button>
             </div>
         );
     }
 
     const list = configs || [];
     const categories = ['all', ...new Set(list.map(c => c.category))];
-
     const filteredConfigs = list.filter(config => {
-        // Exclude contract params
         if (['ferie_annuali', 'rol_annui', 'permessi_annui'].includes(config.key)) return false;
-
-        const matchesSearch = config.key.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (config.description?.toLowerCase().includes(searchTerm.toLowerCase()));
+        const matchesSearch = config.key.toLowerCase().includes(searchTerm.toLowerCase()) || (config.description?.toLowerCase().includes(searchTerm.toLowerCase()));
         const matchesCategory = selectedCategory === 'all' || config.category === selectedCategory;
         return matchesSearch && matchesCategory;
     });
 
     return (
-        <div className="config-page animate-fadeIn">
+        <div className="space-y-6 animate-fadeIn max-w-[1400px] mx-auto pb-12 px-4 sm:px-6 lg:px-8">
             {/* Header */}
-            <header className="page-header">
-                <div className="header-left">
-                    <div className="header-icon">
-                        <Settings size={24} />
-                    </div>
-                    <div>
-                        <h1 className="page-title">Configurazione Sistema</h1>
-                        <p className="page-subtitle">Gestisci i parametri globali e le policy aziendali</p>
-                    </div>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pt-6">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900">Configurazione Sistema</h1>
+                    <p className="mt-1 text-sm text-gray-500">
+                        Gestione dei parametri globali e delle policy applicative.
+                    </p>
                 </div>
-                <div className="header-actions">
-                    <button
-                        className="btn btn-secondary"
-                        onClick={handleRecalculate}
-                        disabled={recalculateMutation.isPending}
-                    >
-                        {recalculateMutation.isPending ? (
-                            <Loader size={18} className="animate-spin" />
-                        ) : (
-                            <Calculator size={18} />
-                        )}
-                        Ricalcola Ratei
-                    </button>
-                    <button
-                        onClick={handleClearCache}
-                        className="btn btn-warning"
-                        disabled={clearCacheMutation.isPending}
-                    >
-                        {clearCacheMutation.isPending ? (
-                            <Loader size={18} className="animate-spin" />
-                        ) : (
-                            <Trash2 size={18} />
-                        )}
-                        Svuota Cache
-                    </button>
-                    <button onClick={() => refetch()} className="btn btn-ghost btn-icon">
-                        <RefreshCw size={18} />
-                    </button>
-                </div>
-            </header>
 
-            {/* Navigation Tabs */}
-            {/* Navigation Tabs - Enterprise Style */}
-            <div className="flex border-b border-base-200 mb-8 gap-8">
-                <button
-                    className={`pb-4 px-2 text-sm font-medium transition-all relative flex items-center gap-2 ${activeTab === 'system' ? 'text-primary' : 'text-base-content/60 hover:text-base-content'}`}
-                    onClick={() => setActiveTab('system')}
-                >
-                    <Settings size={18} />
-                    <span>Impostazioni Generali</span>
-                    {activeTab === 'system' && (
-                        <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-full animate-fadeIn" />
-                    )}
-                </button>
-                <button
-                    className={`pb-4 px-2 text-sm font-medium transition-all relative flex items-center gap-2 ${activeTab === 'contracts' ? 'text-primary' : 'text-base-content/60 hover:text-base-content'}`}
-                    onClick={() => setActiveTab('contracts')}
-                >
-                    <Files size={18} />
-                    <span>Tipi di Contratto</span>
-                    {activeTab === 'contracts' && (
-                        <div className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-full animate-fadeIn" />
-                    )}
-                </button>
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="bg-gray-100 p-1 rounded-lg inline-flex">
+                        <button
+                            onClick={() => setActiveTab('system')}
+                            className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'system' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            <Settings size={16} /> Impostazioni
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('contracts')}
+                            className={`flex items-center gap-2 px-4 py-1.5 rounded-md text-sm font-medium transition-all ${activeTab === 'contracts' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            <Files size={16} /> Contratti
+                        </button>
+                    </div>
+
+                    <div className="h-6 w-px bg-gray-300 mx-2 hidden md:block" />
+
+                    <div className="flex gap-2">
+                        <button
+                            onClick={handleRecalculate}
+                            disabled={recalculateMutation.isPending}
+                            className="btn btn-ghost btn-sm text-gray-600 hover:bg-gray-100"
+                            title="Ricalcola Ratei"
+                        >
+                            {recalculateMutation.isPending ? <Loader className="animate-spin" size={18} /> : <Calculator size={18} />}
+                        </button>
+                        <button
+                            onClick={handleClearCache}
+                            disabled={clearCacheMutation.isPending}
+                            className="btn btn-ghost btn-sm text-gray-600 hover:bg-gray-100 hover:text-red-600"
+                            title="Svuota Cache"
+                        >
+                            {clearCacheMutation.isPending ? <Loader className="animate-spin" size={18} /> : <Trash2 size={18} />}
+                        </button>
+                    </div>
+                </div>
             </div>
 
-            {activeTab === 'contracts' && <ContractTypesManager />}
+            {activeTab === 'contracts' && (
+                <div className="animate-fadeIn">
+                    <ContractTypesManager />
+                </div>
+            )}
 
             {activeTab === 'system' && (
-                <>
-                    {/* Filters */}
-                    <div className="config-filters card bg-base-100 shadow-sm border border-base-200 p-4">
-                        <div className="search-box">
-                            <Search size={18} className="search-icon" />
+                <div className="space-y-6 animate-fadeIn">
+                    {/* Toolbar */}
+                    <div className="flex flex-col sm:flex-row gap-4">
+                        <div className="relative flex-1 max-w-md">
+                            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                             <input
                                 type="text"
-                                placeholder="Cerca configurazione..."
+                                placeholder="Cerca parametro..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="search-input"
+                                className="input w-full pl-10"
                             />
                         </div>
-                        <div className="category-tabs">
+
+                        <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 scrollbar-hide">
                             {categories.map(cat => (
                                 <button
                                     key={cat}
-                                    className={`category-tab ${selectedCategory === cat ? 'active' : ''}`}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap border transition-colors ${selectedCategory === cat
+                                            ? 'bg-primary/10 border-primary text-primary'
+                                            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                                        }`}
                                     onClick={() => setSelectedCategory(cat)}
                                 >
                                     {cat === 'all' ? <Database size={14} /> : getCategoryIcon(cat)}
-                                    {cat === 'all' ? 'Tutte' : cat}
+                                    <span className="capitalize">{cat === 'all' ? 'Tutte' : cat}</span>
                                 </button>
                             ))}
                         </div>
                     </div>
 
-                    {/* Config List */}
-                    <div className="config-list">
+                    {/* Config Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filteredConfigs.length === 0 ? (
-                            <div className="empty-state card bg-base-100 shadow-sm border border-base-200 p-8 rounded-xl">
-                                <Search size={48} />
-                                <h3>Nessuna configurazione trovata</h3>
-                                <p>Prova a modificare i filtri di ricerca</p>
+                            <div className="col-span-full py-20 text-center bg-white rounded-lg border border-dashed border-gray-300">
+                                <Search size={48} className="mx-auto text-gray-300 mb-4" />
+                                <h3 className="text-lg font-medium text-gray-900">Nessun risultato</h3>
+                                <p className="text-gray-500">Prova a modificare i filtri di ricerca.</p>
                             </div>
                         ) : (
                             filteredConfigs.map((config) => (
-                                <div key={config.key} className={`config-item card bg-base-100 shadow-sm border border-base-200 hover:shadow-md transition-all p-4 rounded-xl ${editingKey === config.key ? 'editing' : ''}`}>
-                                    <div className="config-info">
-                                        <div className="config-header">
-                                            <span className="config-key">{config.key}</span>
-                                            <span className={`category-badge cat-${config.category.toLowerCase()}`}>
-                                                {getCategoryIcon(config.category)}
-                                                {config.category}
-                                            </span>
-                                        </div>
-                                        {config.description && (
-                                            <p className="config-description">{config.description}</p>
-                                        )}
-                                    </div>
-                                    <div className="config-value">
-                                        {renderInput(config)}
-                                    </div>
-                                    <div className="config-actions">
-                                        {editingKey === config.key ? (
-                                            <>
-                                                <button
-                                                    onClick={() => handleSave(config.key)}
-                                                    className="btn btn-success btn-sm btn-icon"
-                                                    disabled={updateMutation.isPending}
-                                                >
-                                                    {updateMutation.isPending ? (
-                                                        <Loader size={16} className="animate-spin" />
-                                                    ) : (
-                                                        <Check size={16} />
-                                                    )}
-                                                </button>
-                                                <button
-                                                    onClick={handleCancel}
-                                                    className="btn btn-ghost btn-sm btn-icon"
-                                                >
-                                                    <X size={16} />
-                                                </button>
-                                            </>
-                                        ) : (
+                                <div key={config.key}
+                                    className={`bg-white rounded-xl border p-5 flex flex-col transition-all ${editingKey === config.key
+                                            ? 'border-primary ring-1 ring-primary shadow-md'
+                                            : 'border-gray-200 shadow-sm hover:border-gray-300'
+                                        }`}
+                                >
+                                    <div className="flex justify-between items-start mb-2">
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-gray-100 text-gray-600">
+                                            {config.category}
+                                        </span>
+                                        {editingKey !== config.key && (
                                             <button
                                                 onClick={() => handleEdit(config)}
-                                                className="btn btn-secondary btn-sm"
+                                                className="text-primary text-xs font-medium hover:underline opacity-0 group-hover:opacity-100 transition-opacity"
                                             >
                                                 Modifica
                                             </button>
                                         )}
+                                    </div>
+
+                                    <div className="mb-4">
+                                        <h3 className="text-sm font-bold text-gray-900 break-all mb-1 font-mono">{config.key}</h3>
+                                        <p className="text-xs text-gray-500 line-clamp-2 min-h-[2.5em]">
+                                            {config.description || 'Nessuna descrizione disponibile.'}
+                                        </p>
+                                    </div>
+
+                                    <div className="mt-auto pt-4 border-t border-gray-100">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex-1 min-w-0">
+                                                {renderInput(config)}
+                                            </div>
+
+                                            {editingKey === config.key && (
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                    <button
+                                                        onClick={handleCancel}
+                                                        className="p-1.5 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
+                                                    >
+                                                        <X size={18} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleSave(config.key)}
+                                                        className="p-1.5 text-white bg-primary hover:bg-primary-focus rounded shadow-sm"
+                                                        disabled={updateMutation.isPending}
+                                                    >
+                                                        {updateMutation.isPending ? <Loader size={16} className="animate-spin" /> : <ArrowRight size={18} />}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             ))
                         )}
                     </div>
 
-                    {/* Info Banner */}
-                    <div className="info-banner">
-                        <AlertCircle size={20} />
-                        <div>
-                            <strong>Nota Compliance:</strong> La modifica di <code>leave.working_days_per_week</code> a 6 includerà il Sabato come giorno lavorativo per il conteggio ferie (CCNL compliant).
+                    {/* Alert Banner */}
+                    <div className="rounded-lg bg-blue-50 border border-blue-100 p-4 flex items-start gap-4">
+                        <AlertCircle className="text-blue-600 mt-0.5 shrink-0" size={20} />
+                        <div className="flex-1">
+                            <h4 className="text-sm font-semibold text-blue-900">Nota importante</h4>
+                            <p className="text-sm text-blue-700 mt-1">
+                                La modifica di <code className="bg-blue-100 px-1 py-0.5 rounded text-blue-900 font-mono text-xs">leave.working_days_per_week</code> attiva un ricalcolo automatico delle proiezioni ferie nel calendario.
+                            </p>
                         </div>
                     </div>
-
-                    <style>{`
-                .config-page {
-                    display: flex;
-                    flex-direction: column;
-                    gap: var(--space-6);
-                }
-
-                .page-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                }
-
-                .header-left {
-                    display: flex;
-                    align-items: center;
-                    gap: var(--space-4);
-                }
-
-                .header-icon {
-                    width: 56px;
-                    height: 56px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
-                    border-radius: var(--radius-xl);
-                    color: white;
-                }
-
-                .page-title {
-                    font-size: var(--font-size-2xl);
-                    font-weight: var(--font-weight-bold);
-                    margin-bottom: var(--space-1);
-                }
-
-                .page-subtitle {
-                    color: var(--color-text-muted);
-                    font-size: var(--font-size-sm);
-                }
-
-                .header-actions {
-                    display: flex;
-                    gap: var(--space-2);
-                }
-
-                .loading-state,
-                .error-state {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    min-height: 400px;
-                    gap: var(--space-4);
-                    text-align: center;
-                    color: var(--color-text-muted);
-                }
-
-                .error-state h2 {
-                    color: var(--color-text-primary);
-                    margin: 0;
-                }
-
-                .config-filters {
-                    display: flex;
-                    gap: var(--space-4);
-                    padding: var(--space-4);
-                    flex-wrap: wrap;
-                }
-
-                .search-box {
-                    position: relative;
-                    flex: 1;
-                    min-width: 250px;
-                }
-
-                .search-icon {
-                    position: absolute;
-                    left: var(--space-3);
-                    top: 50%;
-                    transform: translateY(-50%);
-                    color: var(--color-text-muted);
-                }
-
-                .search-input {
-                    width: 100%;
-                    padding: var(--space-2) var(--space-3) var(--space-2) var(--space-10);
-                    border: 1px solid var(--color-border);
-                    border-radius: var(--radius-lg);
-                    background: var(--color-bg-secondary);
-                    font-size: var(--font-size-sm);
-                }
-
-                .search-input:focus {
-                    outline: none;
-                    border-color: var(--color-primary);
-                    box-shadow: 0 0 0 3px var(--color-primary-transparent);
-                }
-
-                .category-tabs {
-                    display: flex;
-                    gap: var(--space-2);
-                    flex-wrap: wrap;
-                }
-
-                .category-tab {
-                    display: flex;
-                    align-items: center;
-                    gap: var(--space-1);
-                    padding: var(--space-2) var(--space-3);
-                    border: 1px solid var(--color-border);
-                    border-radius: var(--radius-full);
-                    background: transparent;
-                    font-size: var(--font-size-xs);
-                    font-weight: var(--font-weight-medium);
-                    color: var(--color-text-secondary);
-                    cursor: pointer;
-                    transition: all var(--transition-fast);
-                    text-transform: capitalize;
-                }
-
-                .category-tab:hover {
-                    border-color: var(--color-primary);
-                    color: var(--color-primary);
-                }
-
-                .category-tab.active {
-                    background: var(--color-primary);
-                    border-color: var(--color-primary);
-                    color: white;
-                }
-
-                .config-list {
-                    display: flex;
-                    flex-direction: column;
-                    gap: var(--space-3);
-                }
-
-                .config-item {
-                    display: grid;
-                    grid-template-columns: 1fr auto auto;
-                    gap: var(--space-4);
-                    align-items: center;
-                    padding: var(--space-4);
-                    transition: all var(--transition-fast);
-                }
-
-                .config-item.editing {
-                    border-color: var(--color-primary);
-                    box-shadow: 0 0 0 3px var(--color-primary-transparent);
-                }
-
-                .config-item:hover {
-                    border-color: var(--color-border-hover);
-                }
-
-                .config-info {
-                    min-width: 0;
-                }
-
-                .config-header {
-                    display: flex;
-                    align-items: center;
-                    gap: var(--space-2);
-                    margin-bottom: var(--space-1);
-                    flex-wrap: wrap;
-                }
-
-                .config-key {
-                    font-family: var(--font-mono);
-                    font-size: var(--font-size-sm);
-                    font-weight: var(--font-weight-semibold);
-                    color: var(--color-text-primary);
-                }
-
-                .category-badge {
-                    display: inline-flex;
-                    align-items: center;
-                    gap: var(--space-1);
-                    padding: 2px var(--space-2);
-                    border-radius: var(--radius-full);
-                    font-size: var(--font-size-xs);
-                    font-weight: var(--font-weight-medium);
-                    text-transform: capitalize;
-                    background: var(--color-bg-tertiary);
-                    color: var(--color-text-muted);
-                }
-
-                .cat-core, .cat-sistema {
-                    background: var(--color-primary-bg);
-                    color: var(--color-primary);
-                }
-
-                .cat-leave, .cat-ferie {
-                    background: var(--color-success-bg);
-                    color: var(--color-success);
-                }
-
-                .cat-security, .cat-sicurezza {
-                    background: var(--color-warning-bg);
-                    color: var(--color-warning);
-                }
-
-                .config-description {
-                    font-size: var(--font-size-xs);
-                    color: var(--color-text-muted);
-                    margin: 0;
-                    line-height: 1.4;
-                }
-
-                .config-value {
-                    display: flex;
-                    align-items: center;
-                    min-width: 150px;
-                }
-
-                .config-badge {
-                    padding: var(--space-1) var(--space-3);
-                    border-radius: var(--radius-full);
-                    font-size: var(--font-size-xs);
-                    font-weight: var(--font-weight-medium);
-                }
-
-                .badge-success {
-                    background: var(--color-success-bg);
-                    color: var(--color-success);
-                }
-
-                .badge-muted {
-                    background: var(--color-bg-tertiary);
-                    color: var(--color-text-muted);
-                }
-
-                .config-code {
-                    font-family: var(--font-mono);
-                    font-size: var(--font-size-xs);
-                    background: var(--color-bg-tertiary);
-                    padding: var(--space-1) var(--space-2);
-                    border-radius: var(--radius-sm);
-                    max-width: 200px;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
-                }
-
-                .config-value-text {
-                    font-weight: var(--font-weight-medium);
-                    color: var(--color-text-primary);
-                }
-
-                .toggle-switch {
-                    display: flex;
-                    background: var(--color-bg-tertiary);
-                    border-radius: var(--radius-lg);
-                    padding: 2px;
-                }
-
-                .toggle-option {
-                    padding: var(--space-1) var(--space-3);
-                    border: none;
-                    background: transparent;
-                    border-radius: var(--radius-md);
-                    font-size: var(--font-size-xs);
-                    font-weight: var(--font-weight-medium);
-                    color: var(--color-text-muted);
-                    cursor: pointer;
-                    transition: all var(--transition-fast);
-                }
-
-                .toggle-option.active {
-                    background: white;
-                    color: var(--color-text-primary);
-                    box-shadow: var(--shadow-sm);
-                }
-
-                [data-theme='dark'] .toggle-option.active {
-                    background: var(--color-bg-secondary);
-                }
-
-                .config-actions {
-                    display: flex;
-                    gap: var(--space-2);
-                }
-
-                .empty-state {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    padding: var(--space-12);
-                    text-align: center;
-                    color: var(--color-text-muted);
-                    gap: var(--space-3);
-                }
-
-                .empty-state h3 {
-                    color: var(--color-text-primary);
-                    margin: 0;
-                }
-
-                .info-banner {
-                    display: flex;
-                    align-items: flex-start;
-                    gap: var(--space-3);
-                    padding: var(--space-4);
-                    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
-                    border: 1px solid rgba(59, 130, 246, 0.2);
-                    border-radius: var(--radius-lg);
-                    font-size: var(--font-size-sm);
-                    color: var(--color-text-secondary);
-                }
-
-                .info-banner code {
-                    background: rgba(59, 130, 246, 0.15);
-                    padding: 2px 6px;
-                    border-radius: var(--radius-sm);
-                    font-family: var(--font-mono);
-                    font-size: var(--font-size-xs);
-                }
-
-                @media (max-width: 768px) {
-                    .config-item {
-                        grid-template-columns: 1fr;
-                        gap: var(--space-3);
-                    }
-
-                    .config-value {
-                        min-width: auto;
-                    }
-
-                    .config-actions {
-                        justify-content: flex-end;
-                    }
-                }
-            `}</style>
-                </>
+                </div>
             )}
         </div>
     );

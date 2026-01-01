@@ -150,6 +150,39 @@ class NotificationService:
             errors=errors,
         )
 
+    async def process_queue(self, batch_size: int = 100) -> int:
+        """Process pending notifications."""
+        notifications = await self._notification_repo.get_pending(limit=batch_size)
+        processed = 0
+        
+        for notification in notifications:
+            try:
+                if notification.channel == NotificationChannel.EMAIL:
+                    await self._send_email_notification(notification)
+                else:
+                    # Mark as sent for other channels (e.g. In-App are 'sent' when created usually, but if queued here)
+                    await self._notification_repo.update(
+                        notification.id,
+                        status=NotificationStatus.SENT,
+                        sent_at=datetime.utcnow(),
+                    )
+                processed += 1
+            except Exception as e:
+                # Error handling already in _send_email_notification but good to catch generic here
+                print(f"Error processing notification {notification.id}: {e}")
+                
+        return processed
+
+    async def cleanup_old(self, days: int = 90) -> int:
+        """Cleanup old notifications."""
+        return await self._notification_repo.delete_old(days)
+
+    async def send_daily_digests(self) -> int:
+        """Send daily digest to users."""
+        # Implementation of daily digest logic
+        # For now return 0 as specific logic depends on aggregator requirements
+        return 0
+
     # ═══════════════════════════════════════════════════════════
     # Email Operations
     # ═══════════════════════════════════════════════════════════

@@ -29,6 +29,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Dashboard', path: '/', icon: <LayoutDashboard size={20} /> },
   { label: 'Le Mie Ferie', path: '/leaves', icon: <Calendar size={20} /> },
+  { label: 'Calendario', path: '/calendar', icon: <Calendar size={20} /> },
   { label: 'Trasferte', path: '/trips', icon: <Briefcase size={20} /> },
   { label: 'Note Spese', path: '/expenses', icon: <FileText size={20} /> },
 ];
@@ -39,6 +40,8 @@ const approverItems: NavItem[] = [
 
 const adminItems: NavItem[] = [
   { label: 'Gestione Utenti', path: '/admin/users', icon: <Users size={20} />, roles: ['admin', 'hr'] },
+  { label: 'Festività e Chiusure', path: '/admin/holidays', icon: <Calendar size={20} />, roles: ['admin', 'hr'] },
+  { label: 'Contratti CCNL', path: '/admin/contracts', icon: <FileText size={20} />, roles: ['admin', 'hr'] },
   { label: 'Configurazione', path: '/admin/config', icon: <Settings size={20} />, roles: ['admin'] },
 ];
 
@@ -159,9 +162,8 @@ export function Sidebar() {
           top: 0;
           bottom: 0;
           width: var(--sidebar-width);
-          background: var(--glass-bg);
-          backdrop-filter: blur(var(--glass-blur));
-          border-right: 1px solid var(--glass-border);
+          background: var(--color-bg-primary); /* Solid sidebar */
+          border-right: 1px solid var(--color-border);
           display: flex;
           flex-direction: column;
           z-index: var(--z-sticky);
@@ -177,7 +179,8 @@ export function Sidebar() {
           align-items: center;
           justify-content: space-between;
           padding: var(--space-4);
-          border-bottom: 1px solid var(--color-border-light);
+          border-bottom: 1px solid var(--color-border);
+          background: var(--color-bg-primary);
         }
 
         .sidebar-logo {
@@ -188,35 +191,35 @@ export function Sidebar() {
         }
 
         .sidebar-logo-icon {
-          width: 40px;
-          height: 40px;
-          background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
-          border-radius: var(--radius-lg);
+          width: 32px;
+          height: 32px;
+          background: var(--color-primary);
+          border-radius: var(--radius-md);
           display: flex;
           align-items: center;
           justify-content: center;
           color: white;
           font-weight: var(--font-weight-bold);
-          font-size: var(--font-size-xl);
+          font-size: var(--font-size-lg);
         }
 
         .sidebar-logo-text {
-          font-size: var(--font-size-xl);
+          font-size: var(--font-size-lg);
           font-weight: var(--font-weight-bold);
-          background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
+          color: var(--color-primary-dark);
         }
 
         .sidebar-toggle {
-          padding: var(--space-2);
-          background: var(--color-bg-tertiary);
-          border: none;
+          padding: var(--space-1-5);
+          background: transparent;
+          border: 1px solid var(--color-border);
           border-radius: var(--radius-md);
           color: var(--color-text-secondary);
           cursor: pointer;
           transition: all var(--transition-fast);
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .sidebar-toggle:hover {
@@ -226,22 +229,28 @@ export function Sidebar() {
 
         .sidebar-nav {
           flex: 1;
-          padding: var(--space-4);
+          padding: var(--space-3) var(--space-2);
           overflow-y: auto;
         }
 
         .sidebar-section {
-          margin-bottom: var(--space-6);
+          margin-bottom: var(--space-4);
+          padding-bottom: var(--space-2);
+          border-bottom: 1px solid var(--color-border-light);
+        }
+        
+        .sidebar-section:last-child {
+          border-bottom: none;
         }
 
         .sidebar-section-title {
-          font-size: var(--font-size-xs);
-          font-weight: var(--font-weight-semibold);
+          font-size: 0.65rem; /* Smaller, sharper */
+          font-weight: var(--font-weight-bold);
           text-transform: uppercase;
           letter-spacing: 0.05em;
           color: var(--color-text-muted);
           padding: var(--space-2) var(--space-3);
-          margin-bottom: var(--space-2);
+          margin-bottom: var(--space-1);
         }
 
         .sidebar-item {
@@ -252,8 +261,11 @@ export function Sidebar() {
           border-radius: var(--radius-md);
           color: var(--color-text-secondary);
           text-decoration: none;
-          margin-bottom: var(--space-1);
+          margin-bottom: 1px;
+          font-size: var(--font-size-sm);
+          font-weight: var(--font-weight-medium);
           transition: all var(--transition-fast);
+          border-left: 3px solid transparent; /* Prepare for active border */
         }
 
         .sidebar-item:hover {
@@ -262,8 +274,10 @@ export function Sidebar() {
         }
 
         .sidebar-item.active {
-          background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(236, 72, 153, 0.1) 100%);
-          color: var(--color-primary);
+          background: var(--color-bg-active);
+          color: var(--color-primary-dark);
+          border-left-color: var(--color-primary); /* Enterprise Accent */
+          font-weight: var(--font-weight-semibold);
         }
 
         .sidebar-item.active .sidebar-item-icon {
@@ -272,18 +286,24 @@ export function Sidebar() {
 
         .sidebar-item-icon {
           flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 20px;
         }
 
         .sidebar-item-label {
-          font-size: var(--font-size-sm);
-          font-weight: var(--font-weight-medium);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .sidebar-footer {
           display: flex;
           gap: var(--space-2);
           padding: var(--space-3) var(--space-4);
-          border-top: 1px solid var(--color-border-light);
+          border-top: 1px solid var(--color-border);
+          background: var(--color-bg-tertiary); /* Distinct footer area */
         }
 
         .sidebar-footer-btn {
@@ -292,8 +312,8 @@ export function Sidebar() {
           align-items: center;
           justify-content: center;
           padding: var(--space-2);
-          background: var(--color-bg-tertiary);
-          border: none;
+          background: var(--color-bg-primary);
+          border: 1px solid var(--color-border);
           border-radius: var(--radius-md);
           color: var(--color-text-secondary);
           cursor: pointer;
@@ -303,6 +323,7 @@ export function Sidebar() {
         .sidebar-footer-btn:hover {
           background: var(--color-bg-hover);
           color: var(--color-text-primary);
+          border-color: var(--color-border-strong);
         }
 
         .sidebar-user {
@@ -310,7 +331,8 @@ export function Sidebar() {
           align-items: center;
           gap: var(--space-3);
           padding: var(--space-4);
-          border-top: 1px solid var(--color-border-light);
+          border-top: 1px solid var(--color-border);
+          background: var(--color-bg-primary);
         }
 
         .sidebar-user-info {
@@ -320,7 +342,7 @@ export function Sidebar() {
 
         .sidebar-user-name {
           font-size: var(--font-size-sm);
-          font-weight: var(--font-weight-medium);
+          font-weight: var(--font-weight-semibold);
           color: var(--color-text-primary);
           white-space: nowrap;
           overflow: hidden;
@@ -338,6 +360,12 @@ export function Sidebar() {
         .collapsed .sidebar-item {
           justify-content: center;
           padding: var(--space-3);
+          border-left: none; /* No border in collapsed to keep centered */
+        }
+        
+        .collapsed .sidebar-item.active {
+          background: var(--color-bg-active);
+          color: var(--color-primary);
         }
 
         .collapsed .sidebar-section-title,

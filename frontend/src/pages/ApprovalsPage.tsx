@@ -1,17 +1,28 @@
 /**
  * KRONOS - Approvals Management Page
+ * Enterprise approval workflow interface
  */
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { Calendar, MapPin, FileText, Clock } from 'lucide-react';
+import {
+    Calendar,
+    MapPin,
+    FileText,
+    Clock,
+    CheckCircle,
+    ArrowRight,
+    Loader,
+    User
+} from 'lucide-react';
 import { usePendingApprovals, usePendingTrips, usePendingReports } from '../hooks/useApi';
 import type { LeaveRequest, BusinessTrip, ExpenseReport } from '../types';
 
 type TabType = 'leaves' | 'trips' | 'expenses';
 
 export function ApprovalsPage() {
+    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<TabType>('leaves');
 
     // Fetch data
@@ -23,211 +34,119 @@ export function ApprovalsPage() {
     const leavesCount = pendingLeaves?.length || 0;
     const tripsCount = pendingTrips?.length || 0;
     const reportsCount = pendingReports?.length || 0;
+    const totalCount = leavesCount + tripsCount + reportsCount;
+
+    const tabs = [
+        { key: 'leaves' as TabType, label: 'Ferie e Permessi', icon: Calendar, count: leavesCount, color: 'from-indigo-500 to-purple-500' },
+        { key: 'trips' as TabType, label: 'Trasferte', icon: MapPin, count: tripsCount, color: 'from-cyan-500 to-blue-500' },
+        { key: 'expenses' as TabType, label: 'Note Spese', icon: FileText, count: reportsCount, color: 'from-emerald-500 to-green-500' },
+    ];
 
     return (
-        <div className="approvals-page animate-fadeIn">
-            <div className="page-header">
+        <div className="space-y-6 animate-fadeIn max-w-[1400px] mx-auto pb-8">
+            {/* Enterprise Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200 pb-6">
                 <div>
-                    <h1>Approvazioni</h1>
-                    <p className="page-subtitle">Gestisci le richieste in attesa</p>
+                    <h1 className="text-2xl font-bold text-gray-900">Centro Approvazioni</h1>
+                    <p className="text-sm text-gray-500 mt-1">Valuta e gestisci tutte le richieste del tuo team.</p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200 text-amber-700">
+                        <span className="text-sm font-semibold">In Attesa:</span>
+                        <span className="text-sm font-bold">{totalCount}</span>
+                    </div>
                 </div>
             </div>
 
-            {/* Tabs */}
-            <div className="tabs">
-                <button
-                    className={`tab-btn ${activeTab === 'leaves' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('leaves')}
-                >
-                    <Calendar size={18} />
-                    Ferie e Permessi
-                    {leavesCount > 0 && <span className="badge badge-warning ml-2">{leavesCount}</span>}
-                </button>
-                <button
-                    className={`tab-btn ${activeTab === 'trips' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('trips')}
-                >
-                    <MapPin size={18} />
-                    Trasferte
-                    {tripsCount > 0 && <span className="badge badge-warning ml-2">{tripsCount}</span>}
-                </button>
-                <button
-                    className={`tab-btn ${activeTab === 'expenses' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('expenses')}
-                >
-                    <FileText size={18} />
-                    Note Spese
-                    {reportsCount > 0 && <span className="badge badge-warning ml-2">{reportsCount}</span>}
-                </button>
+            {/* Tab Navigation */}
+            <div className="border-b border-gray-200">
+                <div className="flex gap-6">
+                    {tabs.map(tab => (
+                        <button
+                            key={tab.key}
+                            onClick={() => setActiveTab(tab.key)}
+                            className={`group flex items-center gap-2 pb-3 border-b-2 transition-colors ${activeTab === tab.key
+                                ? 'border-primary text-primary'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                        >
+                            <tab.icon size={18} />
+                            <span className="font-medium text-sm">{tab.label}</span>
+                            {tab.count > 0 && (
+                                <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${activeTab === tab.key ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-600'
+                                    }`}>
+                                    {tab.count}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {/* Content */}
-            <div className="tab-content">
+            <div className="min-h-[400px]">
                 {activeTab === 'leaves' && (
-                    <LeavesApprovalsList requests={pendingLeaves} isLoading={loadingLeaves} />
+                    <LeavesApprovalsList requests={pendingLeaves} isLoading={loadingLeaves} navigate={navigate} />
                 )}
                 {activeTab === 'trips' && (
-                    <TripsApprovalsList trips={pendingTrips} isLoading={loadingTrips} />
+                    <TripsApprovalsList trips={pendingTrips} isLoading={loadingTrips} navigate={navigate} />
                 )}
                 {activeTab === 'expenses' && (
-                    <ReportsApprovalsList reports={pendingReports} isLoading={loadingReports} />
+                    <ReportsApprovalsList reports={pendingReports} isLoading={loadingReports} navigate={navigate} />
                 )}
             </div>
-
-            <style>{`
-                .approvals-page {
-                    display: flex;
-                    flex-direction: column;
-                    gap: var(--space-6);
-                }
-                .page-header h1 {
-                    font-size: var(--font-size-2xl);
-                    margin-bottom: var(--space-1);
-                }
-                .page-subtitle {
-                    color: var(--color-text-muted);
-                }
-
-                .tabs {
-                    display: flex;
-                    gap: var(--space-2);
-                    border-bottom: 1px solid var(--color-border-light);
-                    padding-bottom: var(--space-1);
-                }
-
-                .tab-btn {
-                    display: flex;
-                    align-items: center;
-                    gap: var(--space-2);
-                    padding: var(--space-3) var(--space-4);
-                    background: transparent;
-                    border: none;
-                    border-bottom: 2px solid transparent;
-                    color: var(--color-text-secondary);
-                    font-weight: var(--font-weight-medium);
-                    cursor: pointer;
-                    transition: all var(--transition-fast);
-                }
-
-                .tab-btn:hover {
-                    color: var(--color-primary);
-                    background: var(--color-bg-hover);
-                    border-radius: var(--radius-md) var(--radius-md) 0 0;
-                }
-
-                .tab-btn.active {
-                    color: var(--color-primary);
-                    border-bottom-color: var(--color-primary);
-                }
-
-                .approvals-list {
-                    display: flex;
-                    flex-direction: column;
-                    gap: var(--space-4);
-                }
-
-                .approval-card {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    background: var(--glass-bg);
-                    border: 1px solid var(--glass-border);
-                    border-radius: var(--radius-lg);
-                    padding: var(--space-4);
-                    transition: all var(--transition-fast);
-                }
-
-                .approval-card:hover {
-                    border-color: var(--color-primary);
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-                }
-
-                .approval-info {
-                    flex: 1;
-                }
-
-                .approval-header {
-                    display: flex;
-                    align-items: center;
-                    gap: var(--space-3);
-                    margin-bottom: var(--space-2);
-                }
-
-                .approval-title {
-                    font-weight: var(--font-weight-bold);
-                    font-size: var(--font-size-lg);
-                }
-
-                .approval-user {
-                    font-size: var(--font-size-sm);
-                    color: var(--color-text-secondary);
-                    display: flex;
-                    align-items: center;
-                    gap: var(--space-2);
-                }
-
-                .approval-meta {
-                    display: flex;
-                    gap: var(--space-4);
-                    font-size: var(--font-size-sm);
-                    color: var(--color-text-muted);
-                    margin-top: var(--space-2);
-                }
-
-                .approval-actions {
-                    display: flex;
-                    gap: var(--space-2);
-                }
-
-                .empty-state {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    padding: var(--space-12);
-                    text-align: center;
-                    color: var(--color-text-muted);
-                    background: var(--glass-bg);
-                    border-radius: var(--radius-lg);
-                    border: 1px dashed var(--color-border-light);
-                }
-            `}</style>
         </div>
     );
 }
 
 // Sub-components for lists
-function LeavesApprovalsList({ requests, isLoading }: { requests: LeaveRequest[] | undefined; isLoading: boolean }) {
-    if (isLoading) return <div className="spinner-lg mx-auto" />;
+function LeavesApprovalsList({ requests, isLoading, navigate }: { requests: LeaveRequest[] | undefined; isLoading: boolean; navigate: (path: string) => void }) {
+    if (isLoading) return <LoadingState />;
 
     const list = requests || [];
-    if (list.length === 0) return <EmptyState label="Nessuna richiesta ferie in attesa" icon={Calendar} />;
+    if (list.length === 0) return <EmptyState label="Nessuna richiesta ferie in attesa" icon={Calendar} color="gray" />;
 
     return (
-        <div className="approvals-list">
+        <div className="grid gap-4">
             {list.map((req) => (
-                <div key={req.id} className="approval-card">
-                    <div className="approval-info">
-                        <div className="approval-header">
-                            <span className="approval-title">{req.leave_type_code}</span>
-                            <span className="badge badge-warning">In attesa</span>
+                <div
+                    key={req.id}
+                    onClick={() => navigate(`/leaves/${req.id}`)}
+                    className="group flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 bg-white rounded-lg border border-gray-200 hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer"
+                >
+                    <div className="flex items-start gap-4">
+                        <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                            <Calendar size={24} />
                         </div>
-                        <div className="approval-user">
-                            Richiesto da: {req.user_id}
-                        </div>
-                        <div className="approval-meta">
-                            <span>
-                                <Calendar size={14} className="inline mr-1" />
-                                {format(new Date(req.start_date), 'd MMM', { locale: it })} -{' '}
-                                {format(new Date(req.end_date), 'd MMM yyyy', { locale: it })}
-                            </span>
-                            <span>{req.days_requested} giorni</span>
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <h3 className="text-lg font-bold text-gray-900">{getLeaveTypeName(req.leave_type_code)}</h3>
+                                <span className="px-2 py-0.5 rounded text-[0.65rem] font-bold uppercase bg-amber-50 text-amber-700 border border-amber-100">
+                                    In Attesa
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-gray-500">
+                                <span className="flex items-center gap-1.5">
+                                    <User size={14} />
+                                    {req.user_id?.substring(0, 8)}...
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                    <Calendar size={14} />
+                                    {format(new Date(req.start_date), 'd MMM', { locale: it })} - {format(new Date(req.end_date), 'd MMM yyyy', { locale: it })}
+                                </span>
+                            </div>
                         </div>
                     </div>
-                    <div className="approval-actions">
-                        <Link to={`/leaves/${req.id}`} className="btn btn-secondary btn-sm">
-                            Vedi Dettagli
-                        </Link>
+
+                    <div className="flex items-center justify-between md:justify-end gap-6 pl-14 md:pl-0 border-t md:border-0 border-gray-100 pt-3 md:pt-0">
+                        <div className="text-right">
+                            <span className="block text-2xl font-bold text-gray-900">{req.days_requested}</span>
+                            <span className="text-xs text-gray-400 uppercase font-semibold">Giorni</span>
+                        </div>
+                        <div className="hidden md:flex items-center gap-1 text-primary text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                            Valuta <ArrowRight size={16} />
+                        </div>
                     </div>
                 </div>
             ))}
@@ -235,39 +154,51 @@ function LeavesApprovalsList({ requests, isLoading }: { requests: LeaveRequest[]
     );
 }
 
-function TripsApprovalsList({ trips, isLoading }: { trips: BusinessTrip[] | undefined; isLoading: boolean }) {
-    if (isLoading) return <div className="spinner-lg mx-auto" />;
+function TripsApprovalsList({ trips, isLoading, navigate }: { trips: BusinessTrip[] | undefined; isLoading: boolean; navigate: (path: string) => void }) {
+    if (isLoading) return <LoadingState />;
 
     const list = trips || [];
-    if (list.length === 0) return <EmptyState label="Nessuna trasferta in attesa" icon={MapPin} />;
+    if (list.length === 0) return <EmptyState label="Nessuna trasferta in attesa" icon={MapPin} color="gray" />;
 
     return (
-        <div className="approvals-list">
+        <div className="grid gap-4">
             {list.map((trip) => (
-                <div key={trip.id} className="approval-card">
-                    <div className="approval-info">
-                        <div className="approval-header">
-                            <span className="approval-title">{trip.destination}</span>
-                            <span className="badge badge-warning">In attesa</span>
+                <div
+                    key={trip.id}
+                    onClick={() => navigate(`/trips/${trip.id}`)}
+                    className="group flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 bg-white rounded-lg border border-gray-200 hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer"
+                >
+                    <div className="flex items-start gap-4">
+                        <div className="p-2.5 bg-cyan-50 text-cyan-600 rounded-lg">
+                            <MapPin size={24} />
                         </div>
-                        <div className="approval-meta">
-                            <span>
-                                <Calendar size={14} className="inline mr-1" />
-                                {format(new Date(trip.start_date), 'd MMM', { locale: it })} -{' '}
-                                {format(new Date(trip.end_date), 'd MMM yyyy', { locale: it })}
-                            </span>
-                            <span>{trip.purpose}</span>
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <h3 className="text-lg font-bold text-gray-900">{trip.destination}</h3>
+                                <span className="px-2 py-0.5 rounded text-[0.65rem] font-bold uppercase bg-amber-50 text-amber-700 border border-amber-100">
+                                    In Attesa
+                                </span>
+                            </div>
+                            <div className="text-sm text-gray-500 mb-2 line-clamp-1">{trip.purpose}</div>
+                            <div className="flex items-center gap-4 text-sm text-gray-400">
+                                <span className="flex items-center gap-1.5">
+                                    <Calendar size={14} />
+                                    {format(new Date(trip.start_date), 'd MMM', { locale: it })} - {format(new Date(trip.end_date), 'd MMM yyyy', { locale: it })}
+                                </span>
+                            </div>
                         </div>
+                    </div>
+
+                    <div className="flex items-center justify-between md:justify-end gap-6 pl-14 md:pl-0 border-t md:border-0 border-gray-100 pt-3 md:pt-0">
                         {trip.estimated_budget && (
-                            <div className="mt-2 text-sm font-medium">
-                                Costo stimato: € {trip.estimated_budget}
+                            <div className="text-right">
+                                <span className="block text-xl font-bold text-gray-900">€{Number(trip.estimated_budget).toLocaleString('it-IT', { minimumFractionDigits: 2 })}</span>
+                                <span className="text-xs text-gray-400 uppercase font-semibold">Stimati</span>
                             </div>
                         )}
-                    </div>
-                    <div className="approval-actions">
-                        <Link to={`/trips/${trip.id}`} className="btn btn-secondary btn-sm">
-                            Vedi Dettagli
-                        </Link>
+                        <div className="hidden md:flex items-center gap-1 text-primary text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                            Valuta <ArrowRight size={16} />
+                        </div>
                     </div>
                 </div>
             ))}
@@ -275,35 +206,48 @@ function TripsApprovalsList({ trips, isLoading }: { trips: BusinessTrip[] | unde
     );
 }
 
-function ReportsApprovalsList({ reports, isLoading }: { reports: ExpenseReport[] | undefined; isLoading: boolean }) {
-    if (isLoading) return <div className="spinner-lg mx-auto" />;
+function ReportsApprovalsList({ reports, isLoading, navigate }: { reports: ExpenseReport[] | undefined; isLoading: boolean; navigate: (path: string) => void }) {
+    if (isLoading) return <LoadingState />;
 
     const list = reports || [];
-    if (list.length === 0) return <EmptyState label="Nessuna nota spese in attesa" icon={FileText} />;
+    if (list.length === 0) return <EmptyState label="Nessuna nota spese in attesa" icon={FileText} color="gray" />;
 
     return (
-        <div className="approvals-list">
+        <div className="grid gap-4">
             {list.map((report) => (
-                <div key={report.id} className="approval-card">
-                    <div className="approval-info">
-                        <div className="approval-header">
-                            <span className="approval-title">{report.title}</span>
-                            <span className="badge badge-warning">In attesa</span>
+                <div
+                    key={report.id}
+                    onClick={() => navigate(`/expenses/${report.id}`)}
+                    className="group flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 bg-white rounded-lg border border-gray-200 hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer"
+                >
+                    <div className="flex items-start gap-4">
+                        <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-lg">
+                            <FileText size={24} />
                         </div>
-                        <div className="approval-meta">
-                            <span>
-                                <Clock size={14} className="inline mr-1" />
-                                Creata il {format(new Date(report.created_at), 'd MMM yyyy', { locale: it })}
-                            </span>
-                        </div>
-                        <div className="mt-2 text-sm font-bold text-primary">
-                            Totale: € {report.total_amount.toFixed(2)}
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <h3 className="text-lg font-bold text-gray-900">{report.title}</h3>
+                                <span className="px-2 py-0.5 rounded text-[0.65rem] font-bold uppercase bg-amber-50 text-amber-700 border border-amber-100">
+                                    In Attesa
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-gray-500">
+                                <span className="flex items-center gap-1.5">
+                                    <Clock size={14} />
+                                    Creata il {format(new Date(report.created_at), 'd MMM yyyy', { locale: it })}
+                                </span>
+                            </div>
                         </div>
                     </div>
-                    <div className="approval-actions">
-                        <Link to={`/expenses/${report.id}`} className="btn btn-secondary btn-sm">
-                            Vedi Dettagli
-                        </Link>
+
+                    <div className="flex items-center justify-between md:justify-end gap-6 pl-14 md:pl-0 border-t md:border-0 border-gray-100 pt-3 md:pt-0">
+                        <div className="text-right">
+                            <span className="block text-xl font-bold text-gray-900">€{Number(report.total_amount).toLocaleString('it-IT', { minimumFractionDigits: 2 })}</span>
+                            <span className="text-xs text-gray-400 uppercase font-semibold">Totale</span>
+                        </div>
+                        <div className="hidden md:flex items-center gap-1 text-primary text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                            Valuta <ArrowRight size={16} />
+                        </div>
                     </div>
                 </div>
             ))}
@@ -311,14 +255,43 @@ function ReportsApprovalsList({ reports, isLoading }: { reports: ExpenseReport[]
     );
 }
 
-function EmptyState({ label, icon: Icon }: { label: string; icon: any }) {
+function LoadingState() {
     return (
-        <div className="empty-state">
-            <Icon size={48} className="mb-4 text-gray-400" />
-            <h3>{label}</h3>
-            <p className="text-gray-500">Non ci sono elementi da approvare al momento.</p>
+        <div className="flex flex-col items-center justify-center p-16 gap-4">
+            <Loader size={48} className="animate-spin text-primary" />
+            <span className="text-sm font-black uppercase tracking-widest text-base-content/30">Caricamento...</span>
         </div>
     );
+}
+
+function EmptyState({ label, icon: Icon, color }: { label: string; icon: any; color: string }) {
+    return (
+        <div className="flex flex-col items-center justify-center p-16 text-center">
+            <div className={`p-8 rounded-full bg-${color}-500/10 mb-6`}>
+                <Icon size={64} className={`text-${color}-500/30`} />
+            </div>
+            <h3 className="text-2xl font-black tracking-tight text-base-content/80">{label}</h3>
+            <p className="text-base-content/40 mt-2">Non ci sono elementi da approvare al momento.</p>
+            <div className="flex items-center gap-2 mt-6 text-emerald-500">
+                <CheckCircle size={20} />
+                <span className="font-bold">Tutto in ordine!</span>
+            </div>
+        </div>
+    );
+}
+
+function getLeaveTypeName(code: string): string {
+    const types: Record<string, string> = {
+        'FER': 'Ferie',
+        'ROL': 'ROL - Riduzione Orario',
+        'PER': 'Permessi Ex Festività',
+        'MAL': 'Malattia',
+        'LUT': 'Lutto',
+        'MAT': 'Matrimonio',
+        'L104': 'Legge 104',
+        'DON': 'Donazione Sangue',
+    };
+    return types[code] || code;
 }
 
 export default ApprovalsPage;

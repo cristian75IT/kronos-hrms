@@ -12,6 +12,8 @@ from sqlalchemy import (
     String,
     Text,
     Numeric,
+    UniqueConstraint,
+    Float,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
@@ -109,7 +111,8 @@ class LeaveType(Base):
 class Holiday(Base):
     """Holiday calendar.
     
-    Stores national and local holidays.
+    Stores national, regional, and local holidays.
+    Supports year-to-year confirmation mechanism.
     """
     
     __tablename__ = "holidays"
@@ -122,8 +125,11 @@ class Holiday(Base):
     )
     date: Mapped[date] = mapped_column(Date, nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    location_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))  # NULL = national
+    location_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))  # NULL = not local
     is_national: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_regional: Mapped[bool] = mapped_column(Boolean, default=False)
+    region_code: Mapped[Optional[str]] = mapped_column(String(10))  # SAR = Sardegna
+    is_confirmed: Mapped[bool] = mapped_column(Boolean, default=True)  # For year-to-year confirmation
     year: Mapped[int] = mapped_column(Integer, nullable=False)
     
     created_at: Mapped[datetime] = mapped_column(
@@ -285,3 +291,233 @@ class PolicyRule(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+
+class ContractType(Base):
+    """Employee Contract Type (e.g. Full Time, Part Time, Stage)."""
+    
+    __tablename__ = "contract_types"
+    __table_args__ = {"schema": "config", "extend_existing": True}
+    
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String(200))
+    
+    is_part_time: Mapped[bool] = mapped_column(Boolean, default=False)
+    part_time_percentage: Mapped[float] = mapped_column(Float, default=100.0)
+    
+    # Default parameters (fallback if not specified in CCNL version config)
+    annual_vacation_days: Mapped[int] = mapped_column(Integer, default=26)
+    annual_rol_hours: Mapped[int] = mapped_column(Integer, default=72)
+    annual_permit_hours: Mapped[int] = mapped_column(Integer, default=0)
+    
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class NationalContract(Base):
+    """National Collective Labor Agreement (CCNL).
+    
+    Represents Italian CCNL contracts like Commercio, Metalmeccanico, etc.
+    Each CCNL can have multiple versions with different parameters over time.
+    """
+    
+    __tablename__ = "national_contracts"
+    __table_args__ = {"schema": "config"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    sector: Mapped[Optional[str]] = mapped_column(String(100))  # Settore economico
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    source_url: Mapped[Optional[str]] = mapped_column(Text)  # Link to official text
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+    
+    # Relationships
+    versions: Mapped[list["NationalContractVersion"]] = relationship(
+        back_populates="national_contract",
+        order_by="desc(NationalContractVersion.valid_from)",
+        cascade="all, delete-orphan",
+    )
+
+    levels: Mapped[list["NationalContractLevel"]] = relationship(
+        back_populates="national_contract",
+        order_by="NationalContractLevel.sort_order",
+        cascade="all, delete-orphan",
+    )
+
+
+class NationalContractVersion(Base):
+    """Historical version of CCNL parameters.
+    
+    Each version contains all parameters valid from a specific date.
+    This ensures historical calculations use the correct parameters.
+    """
+    
+    __tablename__ = "national_contract_versions"
+    __table_args__ = {"schema": "config"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    national_contract_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("config.national_contracts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    version_name: Mapped[str] = mapped_column(String(100), nullable=False)  # e.g., "Rinnovo 2024-2027"
+    valid_from: Mapped[date] = mapped_column(Date, nullable=False)
+    valid_to: Mapped[Optional[date]] = mapped_column(Date)
+    
+    # Working Hours Parameters
+    weekly_hours_full_time: Mapped[float] = mapped_column(Numeric(4, 1), default=40.0)
+    working_days_per_week: Mapped[int] = mapped_column(Integer, default=5)
+    daily_hours: Mapped[float] = mapped_column(Numeric(4, 2), default=8.0)
+    
+    # Vacation Parameters (in working days per year)
+    annual_vacation_days: Mapped[int] = mapped_column(Integer, default=26)
+    vacation_accrual_method: Mapped[str] = mapped_column(String(20), default="monthly")
+    vacation_carryover_months: Mapped[int] = mapped_column(Integer, default=18)
+    vacation_carryover_deadline_month: Mapped[int] = mapped_column(Integer, default=6)
+    vacation_carryover_deadline_day: Mapped[int] = mapped_column(Integer, default=30)
+    
+    # ROL Parameters (in hours per year)
+    annual_rol_hours: Mapped[int] = mapped_column(Integer, default=72)
+    rol_accrual_method: Mapped[str] = mapped_column(String(20), default="monthly")
+    rol_carryover_months: Mapped[int] = mapped_column(Integer, default=24)
+    
+    # Ex-Festività (in hours per year, typically 32h = 4 days)
+    annual_ex_festivita_hours: Mapped[int] = mapped_column(Integer, default=32)
+    ex_festivita_accrual_method: Mapped[str] = mapped_column(String(20), default="yearly")
+    
+    # Other Paid Leave
+    annual_study_leave_hours: Mapped[Optional[int]] = mapped_column(Integer)
+    blood_donation_paid_hours: Mapped[Optional[int]] = mapped_column(Integer)
+    marriage_leave_days: Mapped[Optional[int]] = mapped_column(Integer)
+    bereavement_leave_days: Mapped[Optional[int]] = mapped_column(Integer)
+    l104_monthly_days: Mapped[Optional[int]] = mapped_column(Integer)
+    
+    # Sick Leave Parameters
+    sick_leave_carenza_days: Mapped[int] = mapped_column(Integer, default=3)
+    sick_leave_max_days_year: Mapped[Optional[int]] = mapped_column(Integer)
+    
+    # Seniority Bonuses (JSONB with progression rules)
+    seniority_vacation_bonus: Mapped[Optional[dict]] = mapped_column(JSONB)
+    seniority_rol_bonus: Mapped[Optional[dict]] = mapped_column(JSONB)
+    
+    # Metadata
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    created_by: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+    
+    # Relationships
+    contract_type_configs: Mapped[list["NationalContractTypeConfig"]] = relationship(
+        back_populates="version",
+        cascade="all, delete-orphan",
+    )
+
+    national_contract: Mapped["NationalContract"] = relationship(back_populates="versions")
+
+class NationalContractLevel(Base):
+    """Level of a National Contract (e.g. Livello 1, Quadro)."""
+    
+    __tablename__ = "national_contract_levels"
+    __table_args__ = {"schema": "config"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    national_contract_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("config.national_contracts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    level_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String(200))
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    
+    national_contract: Mapped["NationalContract"] = relationship(back_populates="levels")
+
+
+class NationalContractTypeConfig(Base):
+    """Configuration of a Contract Type within a specific CCNL Version."""
+    
+    __tablename__ = "national_contract_type_configs"
+    __table_args__ = (
+        UniqueConstraint('national_contract_version_id', 'contract_type_id', name='uq_nc_version_contract_type'),
+        {"schema": "config"}
+    )
+    
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    
+    national_contract_version_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("config.national_contract_versions.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    contract_type_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("config.contract_types.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    
+    # Specific Parameters (Overrides)
+    weekly_hours: Mapped[float] = mapped_column(Float, nullable=False) # e.g. 40.0, 20.0
+    annual_vacation_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    annual_rol_hours: Mapped[int] = mapped_column(Integer, nullable=False)
+    annual_ex_festivita_hours: Mapped[int] = mapped_column(Integer, nullable=False)
+    
+    # Optional metadata
+    description: Mapped[Optional[str]] = mapped_column(String(200)) # e.g. "Part Time Orizzontale al 50%"
+    
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    version: Mapped["NationalContractVersion"] = relationship(back_populates="contract_type_configs")
+    contract_type: Mapped["ContractType"] = relationship()  # Unidirectional is fine for now, or add backref if needed
+

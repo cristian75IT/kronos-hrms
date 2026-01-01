@@ -28,6 +28,7 @@ class TripStatus(str, enum.Enum):
     """Business trip status."""
     DRAFT = "draft"
     PENDING = "pending"
+    SUBMITTED = "submitted"  # Alias for pending, used by frontend
     APPROVED = "approved"
     REJECTED = "rejected"
     CANCELLED = "cancelled"

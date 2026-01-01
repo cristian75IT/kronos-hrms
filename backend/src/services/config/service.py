@@ -309,10 +309,26 @@ class ConfigService:
         await self._invalidate_cache(f"holidays:{year}")
         return result
 
+    async def update_holiday(self, id: UUID, data) -> Any:
+        """Update holiday - supports confirmation and other fields."""
+        holiday = await self._holiday_repo.get(id)
+        if not holiday:
+            raise NotFoundError("Holiday not found")
+
+        update_data = data.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(holiday, key, value)
+        
+        await self._db.commit()
+        await self._db.refresh(holiday)
+        await self._invalidate_cache(f"holidays:{holiday.year}")
+        return holiday
+
+
     async def generate_holidays(self, data: GenerateHolidaysRequest) -> list:
         """Generate Italian national holidays for a year using workalendar."""
-        # Delete existing for this year
-        await self._holiday_repo.delete_by_year(data.year)
+        # Delete existing NATIONAL holidays for this year (preserve manual/local ones)
+        await self._holiday_repo.delete_national_by_year(data.year)
 
         # Generate using workalendar
         cal = Italy()
@@ -425,3 +441,267 @@ class ConfigService:
         if not result:
             raise NotFoundError("Company closure not found", entity_type="CompanyClosure", entity_id=str(id))
         return True
+
+    # ═══════════════════════════════════════════════════════════
+    # National Contracts (CCNL)
+    # ═══════════════════════════════════════════════════════════
+
+    async def get_national_contracts(self, active_only: bool = True) -> list:
+        """Get all national contracts."""
+        from src.services.config.models import NationalContract, NationalContractVersion, NationalContractTypeConfig
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        
+        query = select(NationalContract).options(
+            selectinload(NationalContract.versions)
+            .selectinload(NationalContractVersion.contract_type_configs)
+            .selectinload(NationalContractTypeConfig.contract_type),
+            selectinload(NationalContract.levels)
+        )
+        if active_only:
+            query = query.where(NationalContract.is_active == True)
+        query = query.order_by(NationalContract.name)
+        
+        result = await self._session.execute(query)
+        return result.scalars().all()
+
+    async def get_national_contract(self, id: UUID):
+        """Get national contract by ID."""
+        from src.services.config.models import NationalContract, NationalContractVersion, NationalContractTypeConfig
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        
+        query = select(NationalContract).options(
+            selectinload(NationalContract.versions)
+            .selectinload(NationalContractVersion.contract_type_configs)
+            .selectinload(NationalContractTypeConfig.contract_type),
+            selectinload(NationalContract.levels)
+        ).where(NationalContract.id == id)
+        
+        result = await self._session.execute(query)
+        contract = result.scalar_one_or_none()
+        
+        if not contract:
+            raise NotFoundError("National contract not found", entity_type="NationalContract", entity_id=str(id))
+        return contract
+
+    async def create_national_contract(self, data):
+        """Create new national contract."""
+        from src.services.config.models import NationalContract
+        from sqlalchemy import select
+        
+        # Check if code exists
+        query = select(NationalContract).where(NationalContract.code == data.code)
+        result = await self._session.execute(query)
+        existing = result.scalar_one_or_none()
+        
+        if existing:
+            raise ConflictError(f"National contract code already exists: {data.code}")
+        
+        contract = NationalContract(**data.model_dump())
+        self._session.add(contract)
+        await self._session.commit()
+        await self._session.refresh(contract)
+        return contract
+
+    async def update_national_contract(self, id: UUID, data):
+        """Update national contract."""
+        from src.services.config.models import NationalContract
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        
+        query = select(NationalContract).options(
+            selectinload(NationalContract.versions)
+        ).where(NationalContract.id == id)
+        result = await self._session.execute(query)
+        contract = result.scalar_one_or_none()
+        
+        if not contract:
+            raise NotFoundError("National contract not found", entity_type="NationalContract", entity_id=str(id))
+        
+        update_data = data.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(contract, key, value)
+        
+        await self._session.commit()
+        await self._session.refresh(contract)
+        return contract
+
+    async def delete_national_contract(self, id: UUID) -> bool:
+        """Deactivate national contract (soft delete)."""
+        from src.services.config.models import NationalContract
+        from sqlalchemy import select
+        
+        query = select(NationalContract).where(NationalContract.id == id)
+        result = await self._session.execute(query)
+        contract = result.scalar_one_or_none()
+        
+        if not contract:
+            raise NotFoundError("National contract not found", entity_type="NationalContract", entity_id=str(id))
+        
+        contract.is_active = False
+        await self._session.commit()
+        return True
+
+    # ═══════════════════════════════════════════════════════════
+    # National Contract Versions
+    # ═══════════════════════════════════════════════════════════
+
+    async def get_contract_versions(self, contract_id: UUID) -> list:
+        """Get all versions for a national contract."""
+        from src.services.config.models import NationalContractVersion
+        from sqlalchemy import select
+        
+        query = select(NationalContractVersion).where(
+            NationalContractVersion.national_contract_id == contract_id
+        ).order_by(NationalContractVersion.valid_from.desc())
+        
+        result = await self._session.execute(query)
+        return result.scalars().all()
+
+    async def get_contract_version(self, version_id: UUID):
+        """Get a specific version by ID."""
+        from src.services.config.models import NationalContractVersion
+        from sqlalchemy import select
+        
+        query = select(NationalContractVersion).where(NationalContractVersion.id == version_id)
+        result = await self._session.execute(query)
+        version = result.scalar_one_or_none()
+        
+        if not version:
+            raise NotFoundError("Contract version not found", entity_type="NationalContractVersion", entity_id=str(version_id))
+        return version
+
+    async def get_contract_version_at_date(self, contract_id: UUID, reference_date):
+        """Get the version valid at a specific date.
+        
+        This is the core method for historical calculations.
+        Returns the version where valid_from <= reference_date AND (valid_to is NULL OR valid_to >= reference_date).
+        """
+        from src.services.config.models import NationalContractVersion
+        from sqlalchemy import select, and_, or_
+        
+        query = select(NationalContractVersion).where(
+            and_(
+                NationalContractVersion.national_contract_id == contract_id,
+                NationalContractVersion.valid_from <= reference_date,
+                or_(
+                    NationalContractVersion.valid_to == None,
+                    NationalContractVersion.valid_to >= reference_date
+                )
+            )
+        ).order_by(NationalContractVersion.valid_from.desc()).limit(1)
+        
+        result = await self._session.execute(query)
+        version = result.scalar_one_or_none()
+        
+        if not version:
+            raise NotFoundError(
+                f"No contract version found for date {reference_date}", 
+                entity_type="NationalContractVersion", 
+                entity_id=str(contract_id)
+            )
+        return version
+
+    async def create_contract_version(self, data, created_by: UUID = None):
+        """Create new version for a national contract.
+        
+        Automatically updates the valid_to of the previous version.
+        """
+        from src.services.config.models import NationalContract, NationalContractVersion
+        from sqlalchemy import select
+        from datetime import timedelta
+        
+        # Verify contract exists
+        query = select(NationalContract).where(NationalContract.id == data.national_contract_id)
+        result = await self._session.execute(query)
+        contract = result.scalar_one_or_none()
+        
+        if not contract:
+            raise NotFoundError("National contract not found", entity_type="NationalContract", entity_id=str(data.national_contract_id))
+        
+        # Find the previous version that is still valid (valid_to is NULL)
+        query = select(NationalContractVersion).where(
+            and_(
+                NationalContractVersion.national_contract_id == data.national_contract_id,
+                NationalContractVersion.valid_to == None,
+                NationalContractVersion.valid_from < data.valid_from
+            )
+        ).order_by(NationalContractVersion.valid_from.desc()).limit(1)
+        
+        result = await self._session.execute(query)
+        previous_version = result.scalar_one_or_none()
+        
+        # Update the previous version's valid_to to day before new version starts
+        if previous_version:
+            previous_version.valid_to = data.valid_from - timedelta(days=1)
+        
+        # Create new version
+        version_data = data.model_dump()
+        version_data['created_by'] = created_by
+        version = NationalContractVersion(**version_data)
+        self._session.add(version)
+        
+        await self._session.commit()
+        await self._session.refresh(version)
+        return version
+
+    async def update_contract_version(self, version_id: UUID, data):
+        """Update a contract version."""
+        from src.services.config.models import NationalContractVersion
+        from sqlalchemy import select
+        
+        query = select(NationalContractVersion).where(NationalContractVersion.id == version_id)
+        result = await self._session.execute(query)
+        version = result.scalar_one_or_none()
+        
+        if not version:
+            raise NotFoundError("Contract version not found", entity_type="NationalContractVersion", entity_id=str(version_id))
+        
+        update_data = data.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(version, key, value)
+        
+        await self._session.commit()
+        await self._session.refresh(version)
+        return version
+
+    async def delete_contract_version(self, version_id: UUID) -> bool:
+        """Delete a contract version (hard delete)."""
+        from src.services.config.models import NationalContractVersion
+        from sqlalchemy import select
+        
+        query = select(NationalContractVersion).where(NationalContractVersion.id == version_id)
+        result = await self._session.execute(query)
+        version = result.scalar_one_or_none()
+        
+        if not version:
+            raise NotFoundError("Contract version not found", entity_type="NationalContractVersion", entity_id=str(version_id))
+        
+        await self._session.delete(version)
+        await self._session.commit()
+        return True
+
+    async def update_contract_type_config(self, config_id: UUID, data):
+        """Update contract type parameter configuration."""
+        from src.services.config.models import NationalContractTypeConfig
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        
+        stmt = select(NationalContractTypeConfig).options(
+            selectinload(NationalContractTypeConfig.contract_type)
+        ).where(NationalContractTypeConfig.id == config_id)
+        
+        result = await self._session.execute(stmt)
+        config = result.scalar_one_or_none()
+        
+        if not config:
+            raise NotFoundError("Contract type configuration not found", entity_type="NationalContractTypeConfig", entity_id=str(config_id))
+            
+        update_data = data.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(config, key, value)
+            
+        await self._session.commit()
+        await self._session.refresh(config)
+        return config

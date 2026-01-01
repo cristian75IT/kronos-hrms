@@ -60,33 +60,33 @@ export function TripFormPage() {
     };
 
     return (
-        <div className="max-w-2xl mx-auto animate-fadeIn">
+        <div className="max-w-2xl mx-auto animate-fadeIn pb-8">
             <div className="mb-6">
-                <h1 className="text-2xl font-bold mb-1">Nuova Trasferta</h1>
-                <p className="text-secondary">Richiedi l'autorizzazione per una nuova missione.</p>
+                <h1 className="text-2xl font-bold text-gray-900 mb-1">Nuova Trasferta</h1>
+                <p className="text-gray-500">Richiedi l'autorizzazione per una nuova missione.</p>
             </div>
 
-            <div className="card">
+            <div className="card bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
                     {/* Title */}
-                    <div className="form-group">
-                        <label className="input-label block mb-2">Titolo Trasferta</label>
+                    <div className="space-y-1.5">
+                        <label className="block text-sm font-medium text-gray-700">Titolo Trasferta</label>
                         <input
                             type="text"
                             {...register('title', { required: 'Il titolo è obbligatorio' })}
                             className="input w-full"
                             placeholder="Es. Visita Cliente Milano, Fiera Parigi..."
                         />
-                        {errors.title && <span className="text-danger text-xs">{errors.title.message}</span>}
+                        {errors.title && <span className="text-red-500 text-xs">{errors.title.message}</span>}
                     </div>
 
                     {/* Destination */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="form-group">
-                            <label className="input-label block mb-2">Destinazione</label>
+                        <div className="space-y-1.5">
+                            <label className="block text-sm font-medium text-gray-700">Destinazione</label>
                             <div className="relative">
-                                <MapPin size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" />
+                                <MapPin size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                 <input
                                     type="text"
                                     {...register('destination', { required: 'La destinazione è obbligatoria' })}
@@ -94,16 +94,16 @@ export function TripFormPage() {
                                     placeholder="Es. Milano, Parigi..."
                                 />
                             </div>
-                            {errors.destination && <span className="text-danger text-xs">{errors.destination.message}</span>}
+                            {errors.destination && <span className="text-red-500 text-xs">{errors.destination.message}</span>}
                         </div>
 
-                        <div className="form-group">
-                            <label className="input-label block mb-2">Tipo Destinazione</label>
+                        <div className="space-y-1.5">
+                            <label className="block text-sm font-medium text-gray-700">Tipo Destinazione</label>
                             <div className="relative">
-                                <Globe size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" />
+                                <Globe size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                 <select
                                     {...register('destination_type')}
-                                    className="input w-full pl-10"
+                                    className="input w-full pl-10 appearance-none bg-none"
                                 >
                                     <option value="national">Italia</option>
                                     <option value="eu">Europa (UE)</option>
@@ -115,23 +115,23 @@ export function TripFormPage() {
 
                     {/* Dates */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="form-group">
-                            <label className="input-label block mb-2">Data Inizio</label>
+                        <div className="space-y-1.5">
+                            <label className="block text-sm font-medium text-gray-700">Data Inizio</label>
                             <div className="relative">
-                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" />
+                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                 <input
                                     type="date"
                                     {...register('start_date', { required: 'Data inizio obbligatoria' })}
                                     className="input w-full pl-10"
                                 />
                             </div>
-                            {errors.start_date && <span className="text-danger text-xs">{errors.start_date.message}</span>}
+                            {errors.start_date && <span className="text-red-500 text-xs">{errors.start_date.message}</span>}
                         </div>
 
-                        <div className="form-group">
-                            <label className="input-label block mb-2">Data Fine</label>
+                        <div className="space-y-1.5">
+                            <label className="block text-sm font-medium text-gray-700">Data Fine</label>
                             <div className="relative">
-                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" />
+                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                 <input
                                     type="date"
                                     {...register('end_date', {
@@ -142,15 +142,15 @@ export function TripFormPage() {
                                     className="input w-full pl-10"
                                 />
                             </div>
-                            {errors.end_date && <span className="text-danger text-xs">{errors.end_date.message}</span>}
+                            {errors.end_date && <span className="text-red-500 text-xs">{errors.end_date.message}</span>}
                         </div>
                     </div>
 
                     {/* Budget */}
-                    <div className="form-group">
-                        <label className="input-label block mb-2">Budget Stimato (€)</label>
+                    <div className="space-y-1.5">
+                        <label className="block text-sm font-medium text-gray-700">Budget Stimato (€)</label>
                         <div className="relative max-w-xs">
-                            <DollarSign size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" />
+                            <DollarSign size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                             <input
                                 type="number"
                                 step="0.01"
@@ -163,21 +163,21 @@ export function TripFormPage() {
                     </div>
 
                     {/* Purpose */}
-                    <div className="form-group">
-                        <label className="input-label block mb-2">Scopo / Motivo</label>
+                    <div className="space-y-1.5">
+                        <label className="block text-sm font-medium text-gray-700">Scopo / Motivo</label>
                         <textarea
                             {...register('purpose', { required: 'Il motivo è obbligatorio' })}
-                            className="input w-full min-h-[100px] resize-y"
+                            className="input w-full min-h-[100px] resize-y p-3"
                             placeholder="Descrivi il motivo della trasferta..."
                         />
-                        {errors.purpose && <span className="text-danger text-xs">{errors.purpose.message}</span>}
+                        {errors.purpose && <span className="text-red-500 text-xs">{errors.purpose.message}</span>}
                     </div>
 
                     {/* Attachment */}
-                    <div className="form-group">
-                        <label className="input-label block mb-2">Allegato (PDF max 2MB)</label>
+                    <div className="space-y-1.5">
+                        <label className="block text-sm font-medium text-gray-700">Allegato (PDF max 2MB)</label>
                         <div className="relative">
-                            <Paperclip size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" />
+                            <Paperclip size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                             <input
                                 type="file"
                                 accept=".pdf"
@@ -191,16 +191,15 @@ export function TripFormPage() {
                                         setAttachment(file || null);
                                     }
                                 }}
-                                className="input w-full pl-10"
-                                style={{ paddingTop: '0.5rem' }}
+                                className="input w-full pl-10 py-2"
                             />
                         </div>
-                        <p className="text-xs text-secondary mt-1">Carica un piano di viaggio o altri documenti rilevanti.</p>
+                        <p className="text-xs text-gray-500 mt-1">Carica un piano di viaggio o altri documenti rilevanti.</p>
                     </div>
 
                     {/* Error Message */}
                     {createMutation.isError && (
-                        <div className="p-4 bg-danger/10 border border-danger/20 rounded-lg flex items-start gap-3 text-danger">
+                        <div className="p-4 bg-red-50 border border-red-100 rounded-lg flex items-start gap-3 text-red-600">
                             <AlertCircle size={20} className="mt-0.5 flex-shrink-0" />
                             <div>
                                 <div className="font-semibold text-sm">Errore durante l'invio</div>
@@ -212,13 +211,13 @@ export function TripFormPage() {
                     )}
 
                     {/* Actions */}
-                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
+                    <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-100">
                         <button
                             type="button"
                             onClick={() => navigate('/trips')}
-                            className="btn btn-ghost"
+                            className="btn btn-ghost text-gray-600 hover:bg-gray-100"
                         >
-                            <X size={18} />
+                            <X size={18} className="mr-2" />
                             Annulla
                         </button>
                         <button
@@ -228,12 +227,12 @@ export function TripFormPage() {
                         >
                             {createMutation.isPending ? (
                                 <>
-                                    <div className="spinner w-4 h-4 border-2 border-white/30 border-t-white mr-2" />
+                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
                                     Invio...
                                 </>
                             ) : (
                                 <>
-                                    <Save size={18} />
+                                    <Save size={18} className="mr-2" />
                                     Salva Bozza
                                 </>
                             )}
@@ -241,49 +240,6 @@ export function TripFormPage() {
                     </div>
                 </form>
             </div>
-
-            <style>{`
-        .grid { display: grid; }
-        .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
-        .gap-3 { gap: 0.75rem; }
-        .gap-6 { gap: 1.5rem; }
-        .mb-1 { margin-bottom: 0.25rem; }
-        .mb-2 { margin-bottom: 0.5rem; }
-        .mb-6 { margin-bottom: 1.5rem; }
-        .mt-0.5 { margin-top: 0.125rem; }
-        .p-4 { padding: 1rem; }
-        .pt-4 { padding-top: 1rem; }
-        .pl-10 { padding-left: 2.5rem; }
-        .w-full { width: 100%; }
-        .w-4 { width: 1rem; }
-        .h-4 { height: 1rem; }
-        .max-w-xs { max-width: 20rem; }
-        .border-t { border-top-width: 1px; }
-        .border-border { border-color: var(--color-border); }
-        .bg-danger\\/10 { background-color: rgba(239, 68, 68, 0.1); }
-        .text-sm { font-size: var(--font-size-sm); }
-        .text-xs { font-size: var(--font-size-xs); }
-        .text-2xl { font-size: var(--font-size-2xl); }
-        .text-secondary { color: var(--color-text-secondary); }
-        .text-danger { color: var(--color-danger); }
-        .font-bold { font-weight: 700; }
-        .font-semibold { font-weight: 600; }
-        .block { display: block; }
-        .flex { display: flex; }
-        .items-center { align-items: center; }
-        .justify-end { justify-content: flex-end; }
-        .relative { position: relative; }
-        .absolute { position: absolute; }
-        .left-3 { left: 0.75rem; }
-        .top-1\\/2 { top: 50%; }
-        .-translate-y-1\\/2 { transform: translateY(-50%); }
-        .resize-y { resize: vertical; }
-        .space-y-6 > * + * { margin-top: 1.5rem; }
-        
-        @media (min-width: 768px) {
-          .md\\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        }
-            `}</style>
         </div>
     );
 }

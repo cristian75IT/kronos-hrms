@@ -1,289 +1,197 @@
 /**
  * KRONOS - Expense Reports Page
+ * Enterprise expense management interface
  */
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useExpenseReports } from '../../hooks/useApi';
-import { Plus, FileText, Calendar, Filter, AlertCircle, DollarSign } from 'lucide-react';
+import {
+    Plus,
+    AlertCircle,
+    Receipt,
+    ArrowRight,
+    RefreshCw,
+    Calendar
+} from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 
 export function ExpensesPage() {
+    const navigate = useNavigate();
     const [statusFilter, setStatusFilter] = useState<string>('');
-    const { data: reports, isLoading, error } = useExpenseReports(statusFilter || undefined);
+    const { data: reports, isLoading, error, refetch } = useExpenseReports(statusFilter || undefined);
+
+    // Stats calculation
+    const stats = {
+        total: reports?.length || 0,
+        pending: reports?.filter(r => r.status === 'submitted').length || 0,
+        paid: reports?.filter(r => r.status === 'paid').length || 0,
+        totalAmount: reports?.reduce((sum, r) => sum + (Number(r.total_amount) || 0), 0) || 0,
+        paidAmount: reports?.filter(r => r.status === 'paid').reduce((sum, r) => sum + (Number(r.total_amount) || 0), 0) || 0,
+    };
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <div className="spinner-lg" />
+            <div className="flex flex-col items-center justify-center p-32 gap-6">
+                <div className="relative">
+                    <div className="w-20 h-20 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+                    <Receipt className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-emerald-500" size={32} />
+                </div>
+                <p className="text-sm font-black uppercase tracking-[0.2em] text-base-content/30 animate-pulse">Caricamento Rimborsi...</p>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="flex flex-col items-center justify-center h-64 text-red-500">
-                <AlertCircle size={48} className="mb-4" />
-                <p>Errore nel caricamento delle note spese</p>
+            <div className="flex flex-col items-center justify-center p-12 gap-6 bg-error/5 border border-error/10 rounded-[3rem] text-center">
+                <div className="p-4 bg-error/10 rounded-2xl">
+                    <AlertCircle size={48} className="text-error" />
+                </div>
+                <div>
+                    <h2 className="text-2xl font-black">Errore di Connessione</h2>
+                    <p className="text-base-content/50 max-w-md mx-auto">Impossibile recuperare le note spese.</p>
+                </div>
+                <button className="btn btn-primary rounded-2xl px-8" onClick={() => refetch()}>
+                    <RefreshCw size={18} /> Riprova
+                </button>
             </div>
         );
     }
 
     return (
-        <div className="expenses-page animate-fadeIn">
-            {/* Header */}
-            <div className="page-header">
+        <div className="space-y-6 animate-fadeIn max-w-[1400px] mx-auto pb-8">
+            {/* Enterprise Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200 pb-6">
                 <div>
-                    <h1>Note Spese</h1>
-                    <p className="page-subtitle">Gestisci le richieste di rimborso spese</p>
+                    <h1 className="text-2xl font-bold text-gray-900">Note Spese</h1>
+                    <p className="text-sm text-gray-500 mt-1">Gestisci e traccia tutti i rimborsi aziendali.</p>
                 </div>
-                <Link to="/expenses/new" className="btn btn-primary">
-                    <Plus size={18} />
-                    Nuova Nota Spese
-                </Link>
-            </div>
 
-            {/* Filters */}
-            <div className="filters-bar">
-                <div className="filter-group">
-                    <Filter size={16} className="text-gray-500" />
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="form-select"
-                    >
-                        <option value="">Tutti gli stati</option>
-                        <option value="draft">Bozza</option>
-                        <option value="submitted">Inviata</option>
-                        <option value="approved">Approvata</option>
-                        <option value="rejected">Rifiutata</option>
-                        <option value="paid">Pagata</option>
-                    </select>
+                <div className="flex flex-wrap gap-3 items-center">
+                    <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+                        <span className="text-sm font-semibold text-gray-600">Totale:</span>
+                        <span className="text-sm font-bold text-gray-900">€{stats.totalAmount.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</span>
+                    </div>
+
+                    <Link to="/expenses/new" className="btn btn-primary btn-sm h-10 px-4 rounded-lg font-medium shadow-none">
+                        <Plus size={16} className="mr-2" />
+                        Nuova Nota
+                    </Link>
                 </div>
             </div>
 
-            {/* List */}
-            <div className="expenses-grid">
-                {reports?.map((report) => (
-                    <Link key={report.id} to={`/expenses/${report.id}`} className="expense-card">
-                        <div className="expense-status-stripe" data-status={report.status} />
-                        <div className="expense-content">
-                            <div className="expense-header">
-                                <h3 className="expense-title">
-                                    <FileText size={18} className="text-primary" />
-                                    {report.title}
-                                </h3>
-                                <span className={`badge badge-${getStatusColor(report.status)}`}>
-                                    {getStatusLabel(report.status)}
-                                </span>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-4 bg-white border border-gray-200 rounded-lg">
+                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Totali</div>
+                    <div className="text-2xl font-bold text-gray-900 mt-1">{stats.total}</div>
+                </div>
+                <div className="p-4 bg-white border border-gray-200 rounded-lg">
+                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pendenti</div>
+                    <div className="text-2xl font-bold text-amber-600 mt-1">{stats.pending}</div>
+                </div>
+                <div className="p-4 bg-white border border-gray-200 rounded-lg">
+                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Rimborsati</div>
+                    <div className="text-2xl font-bold text-emerald-600 mt-1">{stats.paid}</div>
+                </div>
+            </div>
+
+            {/* Filter Toolbar */}
+            <div className="flex items-center justify-between py-2 overflow-x-auto">
+                <div className="flex gap-2">
+                    {['', 'draft', 'submitted', 'approved', 'paid'].map(status => (
+                        <button
+                            key={status}
+                            onClick={() => setStatusFilter(status)}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${statusFilter === status
+                                ? 'bg-gray-900 text-white border-gray-900'
+                                : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                                }`}
+                        >
+                            {status === '' ? 'Tutti' : getStatusLabel(status)}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Expense Reports Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {reports?.length === 0 ? (
+                    <div className="col-span-full flex flex-col items-center justify-center p-16 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                        <Receipt size={48} className="text-gray-300 mb-4" />
+                        <h3 className="text-lg font-semibold text-gray-900">Nessuna Nota Spese</h3>
+                        <p className="text-sm text-gray-500 mt-1">Non ci sono note spese per questo filtro.</p>
+                        <Link to="/expenses/new" className="mt-6 btn btn-outline btn-sm">
+                            Crea la Prima
+                        </Link>
+                    </div>
+                ) : (
+                    reports?.map((report) => (
+                        <div
+                            key={report.id}
+                            onClick={() => navigate(`/expenses/${report.id}`)}
+                            className="group flex flex-col bg-white rounded-lg border border-gray-200 hover:border-emerald-500/50 hover:shadow-sm transition-all cursor-pointer p-5"
+                        >
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <div className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium mb-2 ${getStatusBadgeClass(report.status)}`}>
+                                        {getStatusLabel(report.status)}
+                                    </div>
+                                    <h3 className="text-lg font-bold text-gray-900 line-clamp-1 group-hover:text-emerald-700 transition-colors">
+                                        {report.title}
+                                    </h3>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-lg font-bold text-gray-900">
+                                        €{Number(report.total_amount).toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                                    </div>
+                                </div>
                             </div>
 
-                            <p className="expense-description">{report.employee_notes || 'Nessuna descrizione'}</p>
+                            <p className="text-sm text-gray-500 line-clamp-2 mb-4 flex-1">
+                                {report.employee_notes || 'Nessuna descrizione'}
+                            </p>
 
-                            <div className="expense-details">
-                                <div className="expense-detail">
-                                    <Calendar size={16} />
-                                    <span>
-                                        Creata il {format(new Date(report.created_at), 'd MMM yyyy', { locale: it })}
-                                    </span>
+                            <div className="flex items-center justify-between text-xs text-gray-400 pt-4 border-t border-gray-100 mt-auto">
+                                <div className="flex items-center gap-1.5">
+                                    <Calendar size={14} />
+                                    {format(new Date(report.created_at), 'd MMM yyyy', { locale: it })}
                                 </div>
-                                <div className="expense-detail highlight">
-                                    <DollarSign size={16} />
-                                    <span>€ {report.total_amount.toFixed(2)}</span>
+                                <div className="flex items-center gap-1 text-emerald-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                                    Dettagli <ArrowRight size={14} />
                                 </div>
                             </div>
                         </div>
-                    </Link>
-                ))}
-
-                {(!reports || reports.length === 0) && (
-                    <div className="empty-state">
-                        <FileText size={48} />
-                        <h3>Nessuna nota spese trovata</h3>
-                        <p>Non ci sono note spese corrispondenti ai criteri di ricerca.</p>
-                        <Link to="/expenses/new" className="btn btn-primary mt-4">
-                            Crea Nota Spese
-                        </Link>
-                    </div>
+                    ))
                 )}
             </div>
-
-            <style>{`
-                .expenses-page {
-                    display: flex;
-                    flex-direction: column;
-                    gap: var(--space-6);
-                }
-
-                .page-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                }
-                .page-header h1 {
-                    font-size: var(--font-size-2xl);
-                    margin-bottom: var(--space-1);
-                }
-                .page-subtitle {
-                    color: var(--color-text-muted);
-                }
-
-                .filters-bar {
-                    display: flex;
-                    gap: var(--space-4);
-                    padding: var(--space-4);
-                    background: var(--glass-bg);
-                    border: 1px solid var(--glass-border);
-                    border-radius: var(--radius-lg);
-                }
-
-                .filter-group {
-                    display: flex;
-                    align-items: center;
-                    gap: var(--space-2);
-                }
-
-                .form-select {
-                    padding: var(--space-2) var(--space-8) var(--space-2) var(--space-3);
-                    border-radius: var(--radius-md);
-                    border: 1px solid var(--color-border-light);
-                    background-color: var(--color-bg-primary);
-                    font-size: var(--font-size-sm);
-                }
-
-                .expenses-grid {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-                    gap: var(--space-4);
-                }
-
-                .expense-card {
-                    position: relative;
-                    background: var(--glass-bg);
-                    border: 1px solid var(--glass-border);
-                    border-radius: var(--radius-lg);
-                    overflow: hidden;
-                    text-decoration: none;
-                    color: inherit;
-                    transition: all var(--transition-fast);
-                    display: flex;
-                }
-
-                .expense-card:hover {
-                    border-color: var(--color-primary);
-                    transform: translateY(-2px);
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-                }
-
-                .expense-status-stripe {
-                    width: 6px;
-                    background-color: var(--color-text-muted);
-                }
-                .expense-status-stripe[data-status="approved"] { background-color: var(--color-success); }
-                .expense-status-stripe[data-status="submitted"] { background-color: var(--color-warning); }
-                .expense-status-stripe[data-status="rejected"] { background-color: var(--color-danger); }
-                .expense-status-stripe[data-status="paid"] { background-color: var(--color-info); }
-
-                .expense-content {
-                    flex: 1;
-                    padding: var(--space-4);
-                    display: flex;
-                    flex-direction: column;
-                    gap: var(--space-3);
-                }
-
-                .expense-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-start;
-                    gap: var(--space-2);
-                }
-
-                .expense-title {
-                    font-size: var(--font-size-lg);
-                    font-weight: var(--font-weight-bold);
-                    display: flex;
-                    align-items: center;
-                    gap: var(--space-2);
-                }
-
-                .expense-description {
-                    font-size: var(--font-size-sm);
-                    color: var(--color-text-secondary);
-                    display: -webkit-box;
-                    -webkit-line-clamp: 2;
-                    -webkit-box-orient: vertical;
-                    overflow: hidden;
-                }
-
-                .expense-details {
-                    margin-top: auto;
-                    display: flex;
-                    flex-direction: column;
-                    gap: var(--space-2);
-                    padding-top: var(--space-3);
-                    border-top: 1px solid var(--color-border-light);
-                }
-
-                .expense-detail {
-                    display: flex;
-                    align-items: center;
-                    gap: var(--space-2);
-                    font-size: var(--font-size-xs);
-                    color: var(--color-text-muted);
-                }
-
-                .expense-detail.highlight {
-                    color: var(--color-text-primary);
-                    font-weight: var(--font-weight-bold);
-                    font-size: var(--font-size-sm);
-                }
-
-                .empty-state {
-                    grid-column: 1 / -1;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    padding: var(--space-12);
-                    text-align: center;
-                    color: var(--color-text-muted);
-                    background: var(--glass-bg);
-                    border-radius: var(--radius-lg);
-                    border: 1px dashed var(--color-border-light);
-                }
-                .empty-state h3 {
-                    margin-top: var(--space-4);
-                    font-size: var(--font-size-lg);
-                    color: var(--color-text-primary);
-                }
-            `}</style>
         </div>
     );
-}
-
-function getStatusColor(status: string): string {
-    const colors: Record<string, string> = {
-        draft: 'neutral',
-        submitted: 'warning',
-        approved: 'success',
-        rejected: 'danger',
-        paid: 'info',
-        cancelled: 'neutral',
-    };
-    return colors[status] || 'neutral';
 }
 
 function getStatusLabel(status: string): string {
     const labels: Record<string, string> = {
         draft: 'Bozza',
-        submitted: 'In Approvazione',
+        submitted: 'Pendente',
         approved: 'Approvata',
         rejected: 'Rifiutata',
         paid: 'Pagata',
         cancelled: 'Annullata',
     };
     return labels[status] || status;
+}
+
+function getStatusBadgeClass(status: string): string {
+    const classes: Record<string, string> = {
+        draft: 'bg-gray-100 text-gray-600',
+        submitted: 'bg-amber-50 text-amber-700 border border-amber-100',
+        approved: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
+        rejected: 'bg-red-50 text-red-700 border border-red-100',
+        paid: 'bg-blue-50 text-blue-700 border border-blue-100',
+        cancelled: 'bg-gray-100 text-gray-500',
+    };
+    return classes[status] || 'bg-gray-100 text-gray-600';
 }
 
 export default ExpensesPage;

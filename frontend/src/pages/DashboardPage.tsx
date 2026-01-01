@@ -1,58 +1,52 @@
 /**
  * KRONOS - Dashboard Page
+ * Enterprise command center with premium aesthetics
  */
 import {
   Calendar,
   Clock,
-  TrendingUp,
   AlertCircle,
   CheckCircle,
   Briefcase,
+  ArrowRight,
+  ChevronRight,
+  Bell,
+  Target,
+  CalendarDays
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useBalanceSummary, usePendingApprovals, useLeaveRequests } from '../hooks/useApi';
 import { useAuth } from '../context/AuthContext';
-import { Button } from '../components/common';
 import type { LeaveRequest } from '../types';
+import { format } from 'date-fns';
+import { it } from 'date-fns/locale';
 
 export function DashboardPage() {
+  const navigate = useNavigate();
   const { user, isApprover } = useAuth();
   const { data: balance, isLoading: balanceLoading } = useBalanceSummary();
   const { data: pendingApprovals } = usePendingApprovals();
   const { data: recentRequests } = useLeaveRequests(new Date().getFullYear());
+
+  const currentDate = new Date();
+  const greeting = currentDate.getHours() < 12 ? 'Buongiorno' : currentDate.getHours() < 18 ? 'Buon pomeriggio' : 'Buonasera';
 
   const stats = [
     {
       label: 'Ferie Disponibili',
       value: balance?.vacation_total_available ?? '-',
       suffix: 'giorni',
-      icon: <Calendar size={24} />,
-      color: 'var(--color-success)',
-      gradient: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
-    },
-    {
-      label: 'ROL Disponibili',
-      value: balance?.rol_available ?? '-',
-      suffix: 'ore',
-      icon: <Clock size={24} />,
-      color: 'var(--color-info)',
-      gradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-    },
-    {
-      label: 'Ex-Festività / Altri',
-      value: balance?.permits_available ?? '-',
-      suffix: 'ore',
-      icon: <TrendingUp size={24} />,
-      color: 'var(--color-secondary)',
-      gradient: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
+      icon: Calendar,
+      color: 'text-emerald-600',
+      bg: 'bg-emerald-50',
     },
     {
       label: isApprover ? 'Da Approvare' : 'In Attesa',
       value: isApprover ? (pendingApprovals?.length ?? 0) : (recentRequests?.filter((r: LeaveRequest) => r.status === 'pending').length ?? 0),
       suffix: 'richieste',
-      icon: <AlertCircle size={24} />,
-      color: 'var(--color-warning)',
-      gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+      icon: AlertCircle,
+      color: 'text-amber-600',
+      bg: 'bg-amber-50',
     },
   ];
 
@@ -61,336 +55,208 @@ export function DashboardPage() {
       label: 'Richiedi Ferie',
       description: 'Nuova richiesta ferie o permessi',
       path: '/leaves/new',
-      icon: <Calendar size={20} />,
+      icon: CalendarDays,
+      color: 'text-indigo-600',
+      bg: 'bg-indigo-50',
     },
     {
       label: 'Nuova Trasferta',
-      description: 'Pianifica una trasferta di lavoro',
+      description: 'Pianifica una missione di lavoro',
       path: '/trips/new',
-      icon: <Briefcase size={20} />,
+      icon: Briefcase,
+      color: 'text-cyan-600',
+      bg: 'bg-cyan-50',
+    },
+    {
+      label: 'Nota Spese',
+      description: 'Registra rimborsi e spese',
+      path: '/expenses/new',
+      icon: Target,
+      color: 'text-emerald-600',
+      bg: 'bg-emerald-50',
     },
   ];
 
   return (
-    <div className="dashboard animate-fadeIn">
-      {/* Welcome Section */}
-      <section className="dashboard-welcome">
-        <div className="welcome-content">
-          <h1>Benvenuto, {user?.first_name}!</h1>
-          <p>Ecco il riepilogo della tua situazione</p>
+    <div className="space-y-6 max-w-[1400px] mx-auto pb-8">
+      {/* Enterprise Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200 pb-6">
+        <div>
+          <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+            <span className="uppercase tracking-wider text-xs font-bold">KRONOS</span>
+            <span>•</span>
+            <span>{format(currentDate, 'EEEE d MMMM', { locale: it })}</span>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {greeting}, {user?.first_name}
+          </h1>
         </div>
-        <div className="welcome-date">
-          {new Date().toLocaleDateString('it-IT', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          })}
-        </div>
-      </section>
+
+        {isApprover && (pendingApprovals?.length ?? 0) > 0 && (
+          <Link to="/approvals" className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 hover:bg-amber-100 transition-colors text-sm font-medium">
+            <Bell size={16} className="text-amber-600" />
+            <span>{pendingApprovals?.length} approvazioni in attesa</span>
+            <ArrowRight size={14} />
+          </Link>
+        )}
+      </div>
 
       {/* Stats Grid */}
-      <section className="dashboard-stats">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {stats.map((stat, index) => (
           <div
             key={index}
-            className="stat-card glass-card animate-slideUp"
-            style={{ animationDelay: `${index * 50}ms` }}
+            className="p-5 bg-white rounded-lg border border-gray-200 hover:border-primary/50 hover:shadow-sm transition-all"
           >
-            <div className="stat-icon" style={{ background: stat.gradient }}>
-              {stat.icon}
-            </div>
-            <div className="stat-content">
-              <div className="stat-value">
-                {balanceLoading ? (
-                  <div className="skeleton" style={{ width: 60, height: 32 }} />
-                ) : (
-                  <>
-                    {typeof stat.value === 'number' || typeof stat.value === 'string'
-                      ? stat.value
-                      : '-'}
-                    <span className="stat-suffix">{stat.suffix}</span>
-                  </>
-                )}
+            <div className="flex items-center gap-3 mb-3">
+              <div className={`p-2 rounded-md ${stat.bg} ${stat.color}`}>
+                <stat.icon size={20} />
               </div>
-              <div className="stat-label">{stat.label}</div>
+              <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">{stat.label}</div>
+            </div>
+
+            <div>
+              {balanceLoading ? (
+                <div className="h-8 w-20 bg-gray-100 rounded animate-pulse" />
+              ) : (
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-2xl font-bold text-gray-900">
+                    {typeof stat.value === 'number' || typeof stat.value === 'string' ? stat.value : '-'}
+                  </span>
+                  <span className="text-sm font-medium text-gray-400">{stat.suffix}</span>
+                </div>
+              )}
             </div>
           </div>
         ))}
-      </section>
+      </div>
 
       {/* AP Expiry Warning */}
       {balance?.days_until_ap_expiry && balance.days_until_ap_expiry <= 60 && (
-        <section className="ap-warning glass-card">
-          <AlertCircle size={20} />
-          <div>
-            <strong>Attenzione:</strong> Hai {balance.vacation_available_ap} giorni di ferie dell'anno precedente
-            che scadranno tra {balance.days_until_ap_expiry} giorni ({balance.ap_expiry_date}).
+        <div className="p-4 rounded-lg bg-orange-50 border border-orange-200 flex flex-col md:flex-row items-center gap-4">
+          <div className="p-2 bg-orange-100 rounded-full text-orange-600">
+            <AlertCircle size={20} />
           </div>
-          <Button as={Link} to="/leaves/new" variant="primary" size="sm">
-            Pianifica ora
-          </Button>
-        </section>
+          <div className="flex-1 text-center md:text-left">
+            <h3 className="text-sm font-bold text-orange-800">Scadenza Ferie Anno Precedente</h3>
+            <p className="text-orange-700 text-sm">
+              Hai <strong>{balance.vacation_available_ap} giorni</strong> in scadenza tra <strong>{balance.days_until_ap_expiry} giorni</strong>.
+            </p>
+          </div>
+          <Link to="/leaves/new" className="btn btn-sm bg-white text-orange-700 border-orange-200 hover:bg-orange-50 font-medium">
+            Pianifica Ora
+          </Link>
+        </div>
       )}
 
-      {/* Quick Actions & Recent Activity */}
-      <div className="dashboard-grid">
+      {/* Quick Actions & Recent Activity Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Quick Actions */}
-        <section className="card">
-          <div className="card-header">
-            <h2 className="card-title">Azioni Rapide</h2>
-          </div>
-          <div className="quick-actions-grid">
+        <div className="lg:col-span-2 space-y-4">
+          <h2 className="text-lg font-bold text-gray-900">Azioni Rapide</h2>
+          <div className="grid gap-3">
             {quickActions.map((action, index) => (
-              <Button
+              <Link
                 key={index}
-                as={Link}
                 to={action.path}
-                variant="secondary"
-                className="quick-action-btn"
-                icon={action.icon}
+                className="group flex items-center gap-4 p-4 bg-white rounded-lg border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all"
               >
-                {action.label}
-              </Button>
+                <div className={`p-2 rounded-md ${action.bg} ${action.color}`}>
+                  <action.icon size={20} />
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-sm text-gray-900">{action.label}</div>
+                  <div className="text-xs text-gray-500">{action.description}</div>
+                </div>
+                <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
+              </Link>
             ))}
           </div>
-        </section>
+        </div>
 
         {/* Recent Requests */}
-        <section className="card">
-          <div className="card-header">
-            <h2 className="card-title">Richieste Recenti</h2>
-            <Link to="/leaves" className="btn btn-ghost btn-sm">
+        <div className="lg:col-span-3 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-gray-900">Richieste Recenti</h2>
+            <Link to="/leaves" className="text-primary text-sm font-medium hover:underline">
               Vedi tutte
             </Link>
           </div>
-          <div className="recent-list">
-            {recentRequests?.slice(0, 5).map((request) => (
-              <div key={request.id} className="recent-item">
-                <div className={`recent-status status-${request.status}`}>
-                  {request.status === 'approved' && <CheckCircle size={14} />}
-                  {request.status === 'pending' && <Clock size={14} />}
-                  {request.status === 'rejected' && <AlertCircle size={14} />}
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            {recentRequests?.slice(0, 5).map((request, index) => (
+              <div
+                key={request.id}
+                onClick={() => navigate(`/leaves/${request.id}`)}
+                className={`group flex items-center gap-4 p-4 cursor-pointer hover:bg-gray-50 transition-colors ${index !== 0 ? 'border-t border-gray-100' : ''}`}
+              >
+                <div className={`w-8 h-8 rounded-md flex items-center justify-center ${request.status === 'approved' ? 'bg-emerald-50 text-emerald-600' :
+                  request.status === 'pending' ? 'bg-amber-50 text-amber-600' :
+                    request.status === 'rejected' ? 'bg-red-50 text-red-600' :
+                      'bg-gray-100 text-gray-400'
+                  }`}>
+                  {request.status === 'approved' && <CheckCircle size={16} />}
+                  {request.status === 'pending' && <Clock size={16} />}
+                  {request.status === 'rejected' && <AlertCircle size={16} />}
+                  {!['approved', 'pending', 'rejected'].includes(request.status) && <Calendar size={16} />}
                 </div>
-                <div className="recent-content">
-                  <div className="recent-title">{request.leave_type_code}</div>
-                  <div className="recent-dates">
-                    {new Date(request.start_date).toLocaleDateString('it-IT')} -
-                    {new Date(request.end_date).toLocaleDateString('it-IT')}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm text-gray-900">{getLeaveTypeName(request.leave_type_code)}</span>
+                    <span className={`px-2 py-0.5 rounded text-[0.65rem] font-bold uppercase ${request.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                      request.status === 'pending' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
+                        request.status === 'rejected' ? 'bg-red-50 text-red-700 border border-red-100' :
+                          'bg-gray-100 text-gray-600 border border-gray-200'
+                      }`}>
+                      {getStatusLabel(request.status)}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    {format(new Date(request.start_date), 'd MMM', { locale: it })} - {format(new Date(request.end_date), 'd MMM yyyy', { locale: it })}
                   </div>
                 </div>
-                <div className="recent-days">{request.days_requested} gg</div>
+                <div className="text-right">
+                  <div className="text-lg font-bold text-gray-900">{request.days_requested}</div>
+                  <div className="text-[0.65rem] text-gray-400 uppercase">gg</div>
+                </div>
+                <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
               </div>
             ))}
             {(!recentRequests || recentRequests.length === 0) && (
-              <div className="empty-state">
-                <p>Nessuna richiesta recente</p>
+              <div className="flex flex-col items-center justify-center p-8 text-center text-gray-400">
+                <Calendar size={32} className="mb-2 opacity-50" />
+                <p className="text-sm">Nessuna richiesta recente</p>
               </div>
             )}
           </div>
-        </section>
+        </div>
       </div>
-
-      <style>{`
-        .dashboard {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-6);
-        }
-
-        .dashboard-welcome {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .welcome-content h1 {
-          font-size: var(--font-size-3xl);
-          margin-bottom: var(--space-1);
-        }
-
-        .welcome-content p {
-          color: var(--color-text-muted);
-        }
-
-        .welcome-date {
-          font-size: var(--font-size-sm);
-          color: var(--color-text-muted);
-          text-transform: capitalize;
-        }
-
-        .dashboard-stats {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-          gap: var(--space-4);
-        }
-
-        .stat-card {
-          display: flex;
-          align-items: center;
-          gap: var(--space-4);
-          padding: var(--space-5);
-        }
-
-        .stat-icon {
-          width: 56px;
-          height: 56px;
-          border-radius: var(--radius-lg);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          flex-shrink: 0;
-        }
-
-        .stat-value {
-          font-size: var(--font-size-2xl);
-          font-weight: var(--font-weight-bold);
-          color: var(--color-text-primary);
-        }
-
-        .stat-suffix {
-          font-size: var(--font-size-sm);
-          font-weight: var(--font-weight-normal);
-          color: var(--color-text-muted);
-          margin-left: var(--space-1);
-        }
-
-        .stat-label {
-          font-size: var(--font-size-sm);
-          color: var(--color-text-muted);
-        }
-
-        .ap-warning {
-          display: flex;
-          align-items: center;
-          gap: var(--space-4);
-          padding: var(--space-4);
-          background: rgba(245, 158, 11, 0.1);
-          border-color: var(--color-warning);
-          color: var(--color-warning-dark);
-        }
-
-        .dashboard-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-          gap: var(--space-6);
-        }
-
-        .quick-actions {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-3);
-        }
-
-        .quick-action-card {
-          display: flex;
-          align-items: center;
-          gap: var(--space-4);
-          padding: var(--space-4);
-          background: var(--color-bg-secondary);
-          border-radius: var(--radius-lg);
-          text-decoration: none;
-          transition: all var(--transition-fast);
-        }
-
-        .quick-action-card:hover {
-          background: var(--color-bg-hover);
-          transform: translateX(4px);
-        }
-
-        .quick-action-icon {
-          width: 44px;
-          height: 44px;
-          border-radius: var(--radius-md);
-          background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-        }
-
-        .quick-action-content {
-          flex: 1;
-        }
-
-        .quick-action-label {
-          font-weight: var(--font-weight-semibold);
-          color: var(--color-text-primary);
-        }
-
-        .quick-action-desc {
-          font-size: var(--font-size-sm);
-          color: var(--color-text-muted);
-        }
-
-        .quick-action-arrow {
-          color: var(--color-text-muted);
-        }
-
-        .recent-list {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .recent-item {
-          display: flex;
-          align-items: center;
-          gap: var(--space-3);
-          padding: var(--space-3) 0;
-          border-bottom: 1px solid var(--color-border-light);
-        }
-
-        .recent-item:last-child {
-          border-bottom: none;
-        }
-
-        .recent-status {
-          width: 28px;
-          height: 28px;
-          border-radius: var(--radius-full);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .status-approved {
-          background: rgba(34, 197, 94, 0.1);
-          color: var(--color-success);
-        }
-
-        .status-pending {
-          background: rgba(245, 158, 11, 0.1);
-          color: var(--color-warning);
-        }
-
-        .status-rejected {
-          background: rgba(239, 68, 68, 0.1);
-          color: var(--color-danger);
-        }
-
-        .recent-content {
-          flex: 1;
-        }
-
-        .recent-title {
-          font-weight: var(--font-weight-medium);
-          color: var(--color-text-primary);
-        }
-
-        .recent-dates {
-          font-size: var(--font-size-xs);
-          color: var(--color-text-muted);
-        }
-
-        .recent-days {
-          font-size: var(--font-size-sm);
-          font-weight: var(--font-weight-semibold);
-          color: var(--color-text-secondary);
-        }
-      `}</style>
     </div>
   );
+}
+
+function getLeaveTypeName(code: string): string {
+  const types: Record<string, string> = {
+    'FER': 'Ferie',
+    'ROL': 'ROL',
+    'PER': 'Permessi',
+    'MAL': 'Malattia',
+    'LUT': 'Lutto',
+    'MAT': 'Matrimonio',
+    'L104': 'Legge 104',
+    'DON': 'Donazione Sangue',
+  };
+  return types[code] || code;
+}
+
+function getStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    'approved': 'Approvata',
+    'pending': 'In Attesa',
+    'rejected': 'Rifiutata',
+    'draft': 'Bozza',
+    'cancelled': 'Annullata',
+  };
+  return labels[status] || status;
 }
 
 export default DashboardPage;

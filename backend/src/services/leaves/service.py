@@ -34,6 +34,8 @@ from src.services.leaves.schemas import (
     CalendarRequest,
     CalendarEvent,
     CalendarResponse,
+    DaysCalculationRequest,
+    DaysCalculationResponse,
 )
 from src.shared.schemas import DataTableRequest
 
@@ -583,6 +585,41 @@ class LeaveService:
         )
         
         return await self.get_request(id)
+    
+    async def delete_request(
+        self,
+        id: UUID,
+        user_id: UUID,
+    ) -> bool:
+        """Delete a draft request."""
+        request = await self.get_request(id)
+        
+        # Only drafts can be deleted
+        if request.status != LeaveRequestStatus.DRAFT:
+            raise BusinessRuleError(
+                "Only draft requests can be deleted",
+                rule="DRAFT_ONLY_DELETE",
+            )
+        
+        # Only owner can delete
+        if request.user_id != user_id:
+            raise BusinessRuleError("Cannot delete another user's request")
+            
+        return await self._request_repo.delete(id)
+
+    async def calculate_preview(self, request: DaysCalculationRequest) -> DaysCalculationResponse:
+        """Calculate days for a preview (no persistence)."""
+        days = await self._calculate_days(
+            request.start_date,
+            request.end_date,
+            request.start_half_day,
+            request.end_half_day,
+        )
+        return DaysCalculationResponse(
+            days=days,
+            hours=days * Decimal("8"), # Approximation
+            message=f"Calcolati {days} giorni lavorativi escludendo festività e chiusure."
+        )
 
     # ═══════════════════════════════════════════════════════════
     # Balance Operations
@@ -738,14 +775,41 @@ class LeaveService:
                     start=h['date'],
                     end=h['date'],
                     allDay=True,
-                    color="#F59E0B",  # Orange for holidays
-                    extendedProps={"type": "holiday"}
+                    color="#EF4444" if h.get('is_national') else "#3B82F6" if h.get('is_regional') else "#F59E0B",
+                    extendedProps={
+                        "type": "holiday",
+                        "is_national": h.get('is_national', False),
+                        "is_regional": h.get('is_regional', False),
+                    }
                 )
                 for h in raw_holidays
                 if isinstance(h, dict) and 'id' in h and 'name' in h and 'date' in h
             ]
+        
+        # Get company closures
+        closures = []
+        raw_closures = await self._get_company_closures(request.start_date, request.end_date)
+        for closure in raw_closures:
+            closure_start = closure.get("start_date")
+            closure_end = closure.get("end_date")
+            if closure_start and closure_end:
+                closures.append(CalendarEvent(
+                    id=f"closure_{closure.get('id', 'unknown')}",
+                    title=closure.get('name', 'Chiusura'),
+                    start=closure_start,
+                    end=closure_end,
+                    allDay=True,
+                    color="#9333EA",  # Purple for closures
+                    extendedProps={
+                        "type": "closure",
+                        "closure_type": closure.get('closure_type', 'total'),
+                        "is_paid": closure.get('is_paid', True),
+                        "consumes_leave_balance": closure.get('consumes_leave_balance', False),
+                        "description": closure.get('description', ''),
+                    }
+                ))
             
-        return CalendarResponse(events=events, holidays=holidays)
+        return CalendarResponse(events=events, holidays=holidays, closures=closures)
 
     # ═══════════════════════════════════════════════════════════
     # Private Helpers
@@ -790,7 +854,10 @@ class LeaveService:
     ) -> Decimal:
         """Calculate working days between dates.
         
-        Excludes weekends. Holidays can be excluded via config.
+        Excludes:
+        - Weekends (based on work_week_days config)
+        - National, regional, and local holidays
+        - Company closure days (total closures)
         """
         from datetime import timedelta
         
@@ -801,6 +868,25 @@ class LeaveService:
             end_date,
         )
         holiday_dates = {h.get("date") for h in holidays if h.get("date")}
+        
+        # Get company closures for the period
+        closures = await self._get_company_closures(start_date, end_date)
+        closure_dates = set()
+        for closure in closures:
+            # Only exclude dates from total closures (partial closures may still be workable)
+            if closure.get("closure_type") == "total":
+                closure_start = closure.get("start_date")
+                closure_end = closure.get("end_date")
+                if closure_start and closure_end:
+                    try:
+                        c_start = date.fromisoformat(closure_start) if isinstance(closure_start, str) else closure_start
+                        c_end = date.fromisoformat(closure_end) if isinstance(closure_end, str) else closure_end
+                        current_closure = c_start
+                        while current_closure <= c_end:
+                            closure_dates.add(current_closure.isoformat())
+                            current_closure += timedelta(days=1)
+                    except (ValueError, TypeError):
+                        pass
         
         # Get working days config (default 5: Mon-Fri)
         working_days_limit = await self._get_system_config("work_week_days", 5)
@@ -813,11 +899,14 @@ class LeaveService:
         working_days = 0
         current = start_date
         while current <= end_date:
-            # Skip non-working days (based on config, e.g. < 5 for Mon-Fri, < 6 for Mon-Sat)
+            # Skip non-working days (based on config)
             if current.weekday() < working_days_limit:
+                current_iso = current.isoformat()
                 # Skip holidays
-                if current.isoformat() not in holiday_dates:
-                    working_days += 1
+                if current_iso not in holiday_dates:
+                    # Skip company closures (total)
+                    if current_iso not in closure_dates:
+                        working_days += 1
             current += timedelta(days=1)
         
         # Apply half-day adjustments
@@ -959,6 +1048,53 @@ class LeaveService:
                     if isinstance(data, dict):
                         return data.get("items", [])
                     return data if isinstance(data, list) else []
+        except Exception:
+            pass
+        return []
+
+    async def _get_company_closures(
+        self,
+        start_date: date,
+        end_date: date,
+    ) -> list[dict]:
+        """Get company closures from config service for date range.
+        
+        Returns closures that overlap with the given date range.
+        Used to exclude closure days from working days calculation.
+        """
+        try:
+            # Get closures for all years that overlap with the date range
+            years = set()
+            years.add(start_date.year)
+            years.add(end_date.year)
+            
+            all_closures = []
+            async with httpx.AsyncClient() as client:
+                for year in years:
+                    response = await client.get(
+                        f"{settings.config_service_url}/api/v1/closures",
+                        params={"year": year},
+                        timeout=5.0,
+                    )
+                    if response.status_code == 200:
+                        data = response.json()
+                        closures = data.get("items", []) if isinstance(data, dict) else []
+                        
+                        # Filter closures that overlap with our date range
+                        for closure in closures:
+                            closure_start = closure.get("start_date")
+                            closure_end = closure.get("end_date")
+                            if closure_start and closure_end:
+                                try:
+                                    c_start = date.fromisoformat(closure_start) if isinstance(closure_start, str) else closure_start
+                                    c_end = date.fromisoformat(closure_end) if isinstance(closure_end, str) else closure_end
+                                    # Check overlap
+                                    if c_start <= end_date and c_end >= start_date:
+                                        all_closures.append(closure)
+                                except (ValueError, TypeError):
+                                    pass
+            
+            return all_closures
         except Exception:
             pass
         return []

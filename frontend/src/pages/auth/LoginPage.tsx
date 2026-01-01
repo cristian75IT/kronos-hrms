@@ -38,313 +38,97 @@ export function LoginPage() {
   };
 
   return (
-    <div className="login-page">
-      <div className="login-container glass-card">
-        {/* Logo Area */}
-        <div className="login-header">
-          <div className="logo-icon">K</div>
-          <h1 className="logo-text">KRONOS</h1>
-          <p className="login-subtitle">Enterprise HR Management System</p>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl border border-gray-200 shadow-sm">
+        <div className="text-center">
+          <div className="mx-auto h-16 w-16 bg-primary rounded-xl flex items-center justify-center text-white text-3xl font-bold shadow-sm mb-4">
+            K
+          </div>
+          <h2 className="text-3xl font-extrabold text-gray-900">KRONOS</h2>
+          <p className="mt-2 text-sm text-gray-600">Enterprise HR Management System</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="login-form">
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
-            <div className="error-message">
+            <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-center gap-2">
               <AlertCircle size={16} />
-              <span>{error}</span>
+              {error}
             </div>
           )}
 
-          <div className="form-group">
-            <label htmlFor="username">Username o Email</label>
-            <div className="input-wrapper">
-              <User size={18} className="input-icon" />
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="inserisci username"
-                disabled={loading}
-              />
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
+                Username o Email
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                  <User size={18} />
+                </div>
+                <input
+                  id="username"
+                  name="username"
+                  type="text"
+                  required
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm transition-all"
+                  placeholder="Inserisci username"
+                  disabled={loading}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                Password
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                  <Lock size={18} />
+                </div>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm transition-all"
+                  placeholder="••••••••"
+                  disabled={loading}
+                />
+              </div>
             </div>
           </div>
 
-          <div className="form-group">
-            <label htmlFor="password">Password</label>
-            <div className="input-wrapper">
-              <Lock size={18} className="input-icon" />
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                disabled={loading}
-              />
-            </div>
+          <div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="group relative w-full flex justify-center py-2.5 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 disabled:opacity-70 disabled:cursor-not-allowed transition-all"
+            >
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <span className="flex items-center gap-2">
+                  Accedi
+                  <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                </span>
+              )}
+            </button>
           </div>
-
-          <button type="submit" className="btn-login group" disabled={loading}>
-            {loading ? (
-              <div className="spinner-sm" />
-            ) : (
-              <>
-                <span>Accedi</span>
-                <ArrowRight size={20} className="arrow-icon" />
-              </>
-            )}
-          </button>
         </form>
 
-        <div className="login-footer">
-          <p>Utenti demo: admin@kronos.local (admin123)</p>
-          <p>manager@kronos.local (manager123)</p>
-          <p>&copy; {new Date().getFullYear()} Kronos Systems</p>
+        <div className="mt-6 pt-6 border-t border-gray-100 text-center text-xs text-gray-500 space-y-2">
+          <p>
+            <span className="font-semibold block mb-1">Utenti Demo:</span>
+            admin@kronos.local (admin123)<br />
+            manager@kronos.local (manager123)
+          </p>
+          <p className="pt-4 text-gray-400">&copy; {new Date().getFullYear()} Kronos Systems</p>
         </div>
       </div>
-
-      {/* Decorative Background Elements */}
-      <div className="bg-blob blob-1"></div>
-      <div className="bg-blob blob-2"></div>
-      <div className="bg-grid"></div>
-
-      <style>{`
-        .login-page {
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: var(--color-bg-primary);
-          position: relative;
-          overflow: hidden;
-          padding: var(--space-4);
-        }
-
-        .login-container {
-          width: 100%;
-          max-width: 420px;
-          padding: 3rem 2.5rem;
-          border-radius: var(--radius-2xl);
-          background: rgba(255, 255, 255, 0.7);
-          backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.5);
-          box-shadow: 
-            0 20px 40px rgba(0, 0, 0, 0.05),
-            0 1px 3px rgba(0, 0, 0, 0.1);
-          z-index: 10;
-          display: flex;
-          flex-direction: column;
-          gap: 2rem;
-        }
-
-        [data-theme='dark'] .login-container {
-          background: rgba(30, 41, 59, 0.7);
-          border-color: rgba(255, 255, 255, 0.1);
-        }
-
-        .login-header {
-          text-align: center;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-        }
-
-        .logo-icon {
-          width: 64px;
-          height: 64px;
-          background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
-          border-radius: 18px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-weight: 800;
-          font-size: 32px;
-          margin-bottom: 1.5rem;
-          box-shadow: 0 10px 25px -5px var(--color-primary-transparent);
-        }
-
-        .logo-text {
-          font-size: 2rem;
-          font-weight: 800;
-          background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          letter-spacing: -0.02em;
-          margin-bottom: 0.5rem;
-        }
-
-        .login-subtitle {
-          color: var(--color-text-secondary);
-          font-size: 0.875rem;
-          font-weight: 500;
-          letter-spacing: 0.02em;
-        }
-
-        .login-form {
-            display: flex;
-            flex-direction: column;
-            gap: 1.25rem;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        .form-group label {
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: var(--color-text-primary);
-            margin-left: 0.25rem;
-        }
-
-        .input-wrapper {
-            position: relative;
-        }
-
-        .input-icon {
-            position: absolute;
-            left: 1rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--color-text-muted);
-            pointer-events: none;
-        }
-
-        .input-wrapper input {
-            width: 100%;
-            padding: 0.875rem 1rem 0.875rem 2.75rem;
-            border-radius: var(--radius-xl);
-            border: 1px solid var(--color-border-light);
-            background: var(--color-bg-tertiary);
-            color: var(--color-text-primary);
-            font-size: 0.95rem;
-            transition: all 0.2s;
-        }
-
-        .input-wrapper input:focus {
-            outline: none;
-            background: var(--color-bg-primary);
-            border-color: var(--color-primary);
-            box-shadow: 0 0 0 3px var(--color-primary-transparent);
-        }
-
-        .error-message {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.75rem;
-            background: #fee2e2;
-            color: #ef4444;
-            border-radius: var(--radius-lg);
-            font-size: 0.875rem;
-        }
-        [data-theme='dark'] .error-message {
-            background: rgba(239, 68, 68, 0.1);
-        }
-
-        .btn-login {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.75rem;
-          padding: 1rem;
-          background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
-          color: white;
-          border: none;
-          border-radius: var(--radius-xl);
-          font-weight: 600;
-          font-size: 1rem;
-          cursor: pointer;
-          transition: all 0.2s;
-          box-shadow: 0 4px 6px -1px var(--color-primary-transparent);
-          margin-top: 0.5rem;
-        }
-
-        .btn-login:hover:not(:disabled) {
-          transform: translateY(-1px);
-          box-shadow: 0 10px 15px -3px var(--color-primary-transparent);
-          filter: brightness(1.05);
-        }
-
-        .btn-login:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-        }
-
-        .spinner-sm {
-            width: 20px;
-            height: 20px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-top-color: white;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        .arrow-icon {
-          transition: transform 0.2s;
-        }
-
-        .btn-login:hover .arrow-icon {
-          transform: translateX(4px);
-        }
-
-        .login-footer {
-          margin-top: 1rem;
-          text-align: center;
-          font-size: 0.75rem;
-          color: var(--color-text-muted);
-          line-height: 1.5;
-        }
-
-        /* Background Effects */
-        .bg-blob {
-          position: absolute;
-          border-radius: 50%;
-          filter: blur(80px);
-          opacity: 0.4;
-          z-index: 0;
-        }
-
-        .blob-1 {
-          top: -10%;
-          left: -10%;
-          width: 500px;
-          height: 500px;
-          background: var(--color-primary);
-          animation: float 20s infinite alternate;
-        }
-
-        .blob-2 {
-          bottom: -10%;
-          right: -10%;
-          width: 400px;
-          height: 400px;
-          background: var(--color-secondary);
-          animation: float 15s infinite alternate-reverse;
-        }
-
-        .bg-grid {
-          position: absolute;
-          inset: 0;
-          background-image: linear-gradient(var(--color-border-light) 1px, transparent 1px),
-            linear-gradient(90deg, var(--color-border-light) 1px, transparent 1px);
-          background-size: 50px 50px;
-          opacity: 0.3;
-          z-index: 0;
-          mask-image: radial-gradient(circle at center, black 40%, transparent 80%);
-        }
-
-        @keyframes float {
-          0% { transform: translate(0, 0) scale(1); }
-          100% { transform: translate(50px, 50px) scale(1.1); }
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-      `}</style>
     </div>
   );
 }

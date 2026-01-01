@@ -6,44 +6,43 @@ import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 
 export function Header() {
-    const [showNotifications, setShowNotifications] = useState(false);
-    const { user } = useAuth();
+  const [showNotifications, setShowNotifications] = useState(false);
+  const { user } = useAuth();
 
-    return (
-        <header className="app-header">
-            <div className="header-left">
-                <div className="header-search">
-                    <Search size={18} className="header-search-icon" />
-                    <input
-                        type="text"
-                        placeholder="Cerca..."
-                        className="header-search-input"
-                    />
-                </div>
-            </div>
+  return (
+    <header className="app-header">
+      <div className="header-left">
+        <div className="header-search">
+          <Search size={18} className="header-search-icon" />
+          <input
+            type="text"
+            placeholder="Cerca..."
+            className="header-search-input"
+          />
+        </div>
+      </div>
 
-            <div className="header-right">
-                <button
-                    className="header-notification-btn"
-                    onClick={() => setShowNotifications(!showNotifications)}
-                >
-                    <Bell size={20} />
-                    <span className="notification-badge">3</span>
-                </button>
+      <div className="header-right">
+        <button
+          className="header-notification-btn"
+          onClick={() => setShowNotifications(!showNotifications)}
+        >
+          <Bell size={20} />
+          <span className="notification-badge">3</span>
+        </button>
 
-                <div className="header-user">
-                    <span className="header-greeting">
-                        Ciao, <strong>{user?.first_name}</strong>
-                    </span>
-                </div>
-            </div>
+        <div className="header-user">
+          <span className="header-greeting">
+            Ciao, <strong>{user?.first_name}</strong>
+          </span>
+        </div>
+      </div>
 
-            <style>{`
+      <style>{`
         .app-header {
           height: var(--header-height);
-          background: var(--glass-bg);
-          backdrop-filter: blur(var(--glass-blur));
-          border-bottom: 1px solid var(--glass-border);
+          background: var(--color-bg-primary); /* Solid header */
+          border-bottom: 1px solid var(--color-border);
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -78,7 +77,7 @@ export function Header() {
           padding-left: var(--space-10);
           background: var(--color-bg-tertiary);
           border: 1px solid transparent;
-          border-radius: var(--radius-full);
+          border-radius: var(--radius-md); /* Consistent rounding */
           font-size: var(--font-size-sm);
           color: var(--color-text-primary);
           transition: all var(--transition-fast);
@@ -103,9 +102,9 @@ export function Header() {
         .header-notification-btn {
           position: relative;
           padding: var(--space-2);
-          background: var(--color-bg-tertiary);
-          border: none;
-          border-radius: var(--radius-full);
+          background: transparent; /* Cleaner look */
+          border: 1px solid transparent;
+          border-radius: var(--radius-md);
           color: var(--color-text-secondary);
           cursor: pointer;
           transition: all var(--transition-fast);
@@ -114,22 +113,23 @@ export function Header() {
         .header-notification-btn:hover {
           background: var(--color-bg-hover);
           color: var(--color-text-primary);
+          border-color: var(--color-border);
         }
 
         .notification-badge {
           position: absolute;
-          top: -2px;
-          right: -2px;
-          width: 18px;
-          height: 18px;
+          top: 4px; /* Adjusted for square button */
+          right: 4px;
+          width: 8px; /* Dot style badge */
+          height: 8px;
           background: var(--color-danger);
-          color: white;
-          font-size: 10px;
-          font-weight: var(--font-weight-bold);
           border-radius: var(--radius-full);
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          border: 2px solid var(--color-bg-primary);
+        }
+
+        /* Hiding badge text for cleaner look, or just style as dot */
+        .notification-badge span {
+            display: none;
         }
 
         .header-user {
@@ -141,8 +141,8 @@ export function Header() {
           color: var(--color-text-primary);
         }
       `}</style>
-        </header>
-    );
+    </header>
+  );
 }
 
 export default Header;

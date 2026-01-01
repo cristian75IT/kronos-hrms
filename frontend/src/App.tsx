@@ -11,6 +11,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { LeavesPage } from './pages/leaves/LeavesPage';
 import { LeaveRequestForm } from './pages/leaves/LeaveRequestForm';
 import { LeaveDetailPage } from './pages/leaves/LeaveDetailPage';
+import { CalendarPage } from './pages/CalendarPage';
 
 import { TripsPage } from './pages/expenses/TripsPage';
 import { TripFormPage } from './pages/expenses/TripFormPage';
@@ -21,8 +22,10 @@ import { ExpenseDetailPage } from './pages/expenses/ExpenseDetailPage';
 import { ApprovalsPage } from './pages/ApprovalsPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { UserFormPage } from './pages/admin/UserFormPage';
-import { CompanyClosuresPage } from './pages/admin/CompanyClosuresPage';
 import { ConfigPage } from './pages/admin/ConfigPage';
+import { UserDetailPage } from './pages/admin/UserDetailPage';
+import { NationalContractsPage } from './pages/admin/NationalContractsPage';
+import { HolidaysClosuresPage } from './pages/admin/HolidaysClosuresPage';
 
 function App() {
   return (
@@ -45,6 +48,7 @@ function App() {
               <Route path="/leaves" element={<LeavesPage />} />
               <Route path="/leaves/new" element={<LeaveRequestForm />} />
               <Route path="/leaves/:id" element={<LeaveDetailPage />} />
+              <Route path="/calendar" element={<CalendarPage />} />
 
               {/* Trips */}
               <Route path="/trips" element={<TripsPage />} />
@@ -62,8 +66,10 @@ function App() {
               {/* Admin */}
               <Route path="/admin/users" element={<ProtectedRoute roles={['admin', 'hr']}><UsersPage /></ProtectedRoute>} />
               <Route path="/admin/users/new" element={<ProtectedRoute roles={['admin', 'hr']}><UserFormPage /></ProtectedRoute>} />
-              <Route path="/admin/users/:id" element={<ProtectedRoute roles={['admin', 'hr']}><PlaceholderPage title="Dettaglio Utente" /></ProtectedRoute>} />
-              <Route path="/admin/closures" element={<ProtectedRoute roles={['admin', 'hr']}><CompanyClosuresPage /></ProtectedRoute>} />
+              <Route path="/admin/users/:id" element={<ProtectedRoute roles={['admin', 'hr']}><UserDetailPage /></ProtectedRoute>} />
+              <Route path="/admin/users/:id/edit" element={<ProtectedRoute roles={['admin', 'hr']}><UserFormPage /></ProtectedRoute>} />
+              <Route path="/admin/holidays" element={<ProtectedRoute roles={['admin', 'hr']}><HolidaysClosuresPage /></ProtectedRoute>} />
+              <Route path="/admin/contracts" element={<ProtectedRoute roles={['admin', 'hr']}><NationalContractsPage /></ProtectedRoute>} />
               <Route path="/admin/config" element={<ProtectedRoute roles={['admin']}><ConfigPage /></ProtectedRoute>} />
 
             </Route>
@@ -77,35 +83,4 @@ function App() {
   );
 }
 
-// Temporary placeholder for unimplemented pages
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="placeholder-page">
-      <div className="placeholder-content">
-        <h1>{title}</h1>
-        <p>Questa pagina è in fase di sviluppo</p>
-      </div>
-      <style>{`
-        .placeholder-page {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 60vh;
-        }
-        .placeholder-content {
-          text-align: center;
-        }
-        .placeholder-content h1 {
-          font-size: var(--font-size-2xl);
-          margin-bottom: var(--space-2);
-        }
-        .placeholder-content p {
-          color: var(--color-text-muted);
-        }
-      `}</style>
-    </div>
-  );
-}
-
 export default App;
-

@@ -1,9 +1,9 @@
 """KRONOS Notification Service - Repository Layer."""
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Optional
 from uuid import UUID
 
-from sqlalchemy import select, func, and_, update
+from sqlalchemy import select, func, and_, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.services.notifications.models import (
@@ -124,6 +124,14 @@ class NotificationRepository:
             )
         )
         await self._session.flush()
+        return result.rowcount
+
+    async def delete_old(self, days: int = 90) -> int:
+        """Delete old notifications."""
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        result = await self._session.execute(
+            delete(Notification).where(Notification.created_at < cutoff_date)
+        )
         return result.rowcount
 
 

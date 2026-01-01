@@ -15,6 +15,7 @@ from sqlalchemy import (
     Column,
     func,
 )
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -57,7 +58,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     
     # Employment info
-    badge_number: Mapped[Optional[str]] = mapped_column(String(20), unique=True)
+    badge_number: Mapped[Optional[str]] = mapped_column(String(50), unique=True)
     fiscal_code: Mapped[Optional[str]] = mapped_column(String(16), unique=True)
     hire_date: Mapped[Optional[datetime]] = mapped_column(Date)
     termination_date: Mapped[Optional[datetime]] = mapped_column(Date)
@@ -116,6 +117,12 @@ class User(Base):
         secondary=user_areas,
         back_populates="users",
     )
+    profile: Mapped[Optional["UserProfile"]] = relationship(
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+        foreign_keys="UserProfile.user_id",
+    )
     contracts: Mapped[list["EmployeeContract"]] = relationship(
         back_populates="user",
         order_by="desc(EmployeeContract.start_date)",
@@ -126,6 +133,60 @@ class User(Base):
     def full_name(self) -> str:
         """Get user's full name."""
         return f"{self.first_name} {self.last_name}"
+
+
+class UserProfile(Base):
+    """Extended user profile."""
+    
+    __tablename__ = "user_profiles"
+    __table_args__ = {"schema": "auth"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("auth.users.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
+    
+    # Contact & Work Info
+    phone: Mapped[Optional[str]] = mapped_column(String(50))
+    department: Mapped[Optional[str]] = mapped_column(String(100))
+    position: Mapped[Optional[str]] = mapped_column(String(100))
+    employee_number: Mapped[Optional[str]] = mapped_column(String(50), unique=True)
+    avatar_url: Mapped[Optional[str]] = mapped_column(Text)
+    
+    # Legacy fields (kept for compatibility with existing DB structure if any)
+    hire_date: Mapped[Optional[datetime]] = mapped_column(Date)
+    contract_type: Mapped[Optional[str]] = mapped_column(String(50))
+    weekly_hours: Mapped[Optional[float]] = mapped_column(
+        postgresql.NUMERIC(4, 1), # Use numeric for precision if needed, but float is mapped here
+        default=40.0
+    )
+    location: Mapped[Optional[str]] = mapped_column(String(100))
+    
+    # Manager link (redundant with User.manager_id but present in schema)
+    manager_id: Mapped[Optional[UUID]] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("auth.users.id", ondelete="SET NULL"),
+    )
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+    
+    # Relationships
+    user: Mapped["User"] = relationship(back_populates="profile", foreign_keys=[user_id])
 
 
 class Area(Base):

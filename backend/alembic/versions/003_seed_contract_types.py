@@ -22,11 +22,14 @@ def upgrade() -> None:
         INSERT INTO config.contract_types (id, code, name, description, is_part_time, part_time_percentage, annual_vacation_days, annual_rol_hours, annual_permit_hours, is_active)
         VALUES 
             (gen_random_uuid(), 'FT_IND', 'Full Time Indeterminato', 'Contratto a tempo indeterminato full time (40h)', false, 100.0, 26, 72, 0, true),
+            (gen_random_uuid(), 'FT_DET', 'Full Time Determinato', 'Contratto a tempo determinato full time', false, 100.0, 26, 72, 0, true),
             (gen_random_uuid(), 'PT_50', 'Part Time 50%', 'Contratto part time 20h settimanali', true, 50.0, 26, 36, 0, true),
+            (gen_random_uuid(), 'PT_75', 'Part Time 75%', 'Contratto part time 30h settimanali', true, 75.0, 26, 54, 0, true),
+            (gen_random_uuid(), 'PT_VAR', 'Part Time Variabile', 'Part time con orario variabile/verticale', true, 0.0, 26, 0, 0, true),
             (gen_random_uuid(), 'APP', 'Apprendistato', 'Contratto di apprendistato', false, 100.0, 26, 72, 0, true),
             (gen_random_uuid(), 'STG', 'Stage', 'Tirocinio formativo', false, 100.0, 0, 0, 0, true)
     """)
 
 
 def downgrade() -> None:
-    op.execute("DELETE FROM config.contract_types WHERE code IN ('FT_IND', 'PT_50', 'APP', 'STG')")
+    op.execute("DELETE FROM config.contract_types WHERE code IN ('FT_IND', 'FT_DET', 'PT_50', 'PT_75', 'PT_VAR', 'APP', 'STG')")

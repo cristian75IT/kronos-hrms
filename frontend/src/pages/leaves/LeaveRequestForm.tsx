@@ -4,11 +4,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { Calendar as CalendarIcon, Save, X, AlertCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, Save, X, AlertCircle, ChevronDown } from 'lucide-react';
 import { useCreateLeaveRequest } from '../../hooks/useApi';
 import { configApi } from '../../services/api'; // Direct call for leave types since it's rarely updated
 import type { LeaveType, LeaveRequestCreate } from '../../types';
 import { formatApiError } from '../../utils/errorUtils';
+
+import { leavesService } from '../../services/leaves.service';
 
 export function LeaveRequestForm() {
     const navigate = useNavigate();
@@ -16,6 +18,10 @@ export function LeaveRequestForm() {
     const createMutation = useCreateLeaveRequest();
     const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
     const [loadingTypes, setLoadingTypes] = useState(true);
+
+    // Calculation state
+    const [calculatedDays, setCalculatedDays] = useState<number | null>(null);
+    const [isCalculating, setIsCalculating] = useState(false);
 
     // Pre-fill date from URL query param if present
     const initialDate = searchParams.get('date') || new Date().toISOString().split('T')[0];
@@ -31,6 +37,9 @@ export function LeaveRequestForm() {
 
     const startDate = watch('start_date');
     const endDate = watch('end_date');
+    const startHalfDay = watch('start_half_day');
+    const endHalfDay = watch('end_half_day');
+    const leaveTypeId = watch('leave_type_id');
 
     // Fetch leave types
     useEffect(() => {
@@ -38,8 +47,17 @@ export function LeaveRequestForm() {
             try {
                 const response = await configApi.get('/leave-types');
                 const types = response.data.items || [];
-                setLeaveTypes(types);
-                if (types.length > 0) {
+                // Filter out Permessi and Ex-Festività as requested
+                const filteredTypes = types.filter((t: LeaveType) =>
+                    !t.name.toLowerCase().includes('permess') &&
+                    !t.name.toLowerCase().includes('ex-fest') &&
+                    !t.name.toLowerCase().includes('rol')
+                );
+                setLeaveTypes(filteredTypes);
+
+                // Set default if not set
+                const currentType = watch('leave_type_id');
+                if (types.length > 0 && !currentType) {
                     setValue('leave_type_id', types[0].id);
                 }
             } catch (error) {
@@ -49,106 +67,118 @@ export function LeaveRequestForm() {
             }
         }
         fetchLeaveTypes();
-    }, [setValue]);
+    }, [setValue, watch]);
+
+    // Calculate days effect
+    useEffect(() => {
+        const calculate = async () => {
+            if (!startDate || !endDate) {
+                setCalculatedDays(null);
+                return;
+            }
+
+            // Check valid range
+            if (new Date(endDate) < new Date(startDate)) {
+                setCalculatedDays(null);
+                return;
+            }
+
+            setIsCalculating(true);
+            try {
+                // Debounce could be added here if typing is fast, but date pickers usually trigger once
+                const result = await leavesService.calculateDays(
+                    startDate,
+                    endDate,
+                    startHalfDay,
+                    endHalfDay,
+                    leaveTypeId
+                );
+                setCalculatedDays(result.days);
+            } catch (error) {
+                console.error("Calculation failed", error);
+                setCalculatedDays(null);
+            } finally {
+                setIsCalculating(false);
+            }
+        };
+
+        const timeoutId = setTimeout(calculate, 300); // Simple debounce
+        return () => clearTimeout(timeoutId);
+    }, [startDate, endDate, startHalfDay, endHalfDay, leaveTypeId]);
 
     const onSubmit = (data: LeaveRequestCreate) => {
+        console.log('Submitting leave request:', data);
         createMutation.mutate(data, {
             onSuccess: () => {
                 navigate('/leaves');
             },
+            onError: (error) => {
+                console.error('Mutation failed:', error);
+            }
         });
     };
 
-    // Simple days calculation for preview (logic mirrored from backend for instant feedback)
-    const calculateDaysPreview = () => {
-        if (!startDate || !endDate) return 0;
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        const diffTime = Math.abs(end.getTime() - start.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-        return diffDays;
+    const onInvalid = (errors: any) => {
+        console.error('Form validation failed:', errors);
     };
 
     return (
-        <div className="max-w-2xl mx-auto animate-fadeIn">
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold mb-1">Nuova Richiesta</h1>
-                <p className="text-secondary">Compila il modulo per richiedere ferie o permessi.</p>
+        <div className="max-w-2xl mx-auto animate-fadeIn py-8">
+            <div className="mb-8">
+                <h1 className="text-2xl font-bold text-gray-900 mb-2">Nuova Richiesta</h1>
+                <p className="text-gray-500">Compila il modulo per richiedere ferie o permessi.</p>
             </div>
 
-            <div className="card">
-                <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-6">
 
                     {/* Leave Type Selection */}
-                    <div className="form-group">
-                        <label className="input-label block mb-2">Tipo di Richiesta</label>
+                    <div>
+                        <label htmlFor="leave_type_id" className="block text-sm font-medium text-gray-700 mb-1">Tipo di Richiesta</label>
                         {loadingTypes ? (
-                            <div className="skeleton h-10 w-full" />
+                            <div className="animate-pulse h-10 w-full bg-gray-100 rounded-lg" />
                         ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {leaveTypes.map((type) => (
-                                    <label
-                                        key={type.id}
-                                        className={`
-                      type-selector p-3 border rounded-lg cursor-pointer transition-all
-                      ${watch('leave_type_id') === type.id ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border hover:border-primary/50'}
-                    `}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <input
-                                                type="radio"
-                                                value={type.id}
-                                                {...register('leave_type_id', { required: true })}
-                                                className="hidden"
-                                            />
-                                            <div
-                                                className="w-3 h-3 rounded-full flex-shrink-0"
-                                                style={{ backgroundColor: type.color }}
-                                            />
-                                            <div>
-                                                <div className="font-semibold text-sm">{(type.name === 'Permesso' || type.name === 'Permessi') ? 'Ex-Festività / Altri' : type.name}</div>
-                                                {type.max_consecutive_days && (
-                                                    <div className="text-xs text-secondary mt-0.5">Max {type.max_consecutive_days} gg</div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </label>
-                                ))}
+                            <div className="relative">
+                                <select
+                                    id="leave_type_id"
+                                    {...register('leave_type_id', { required: 'Seleziona un tipo' })}
+                                    className={`block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm appearance-none pr-10 ${errors.leave_type_id ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}`}
+                                >
+                                    {leaveTypes.map((type) => (
+                                        <option key={type.id} value={type.id}>
+                                            {type.name}
+                                            {type.max_consecutive_days ? ` (Max ${type.max_consecutive_days} gg)` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                                    <ChevronDown size={16} />
+                                </div>
                             </div>
                         )}
-                        {errors.leave_type_id && <span className="text-danger text-xs mt-1">Seleziona un tipo</span>}
+                        {errors.leave_type_id && <span className="text-red-600 text-xs mt-1 flex items-center gap-1"><AlertCircle size={12} /> {errors.leave_type_id?.message || 'Seleziona un tipo'}</span>}
                     </div>
 
                     {/* Date Selection */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="form-group">
-                            <label className="input-label block mb-2">Dal giorno</label>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Dal giorno</label>
                             <div className="relative">
-                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" />
+                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                 <input
                                     type="date"
                                     {...register('start_date', { required: 'Data inizio obbligatoria' })}
-                                    className="input w-full pl-10"
+                                    className={`block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm pl-10 ${errors.start_date ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}`}
                                 />
                             </div>
-                            <div className="mt-2 flex items-center gap-2">
-                                <input
-                                    type="checkbox"
-                                    id="start_half_day"
-                                    {...register('start_half_day')}
-                                    className="rounded border-gray-300 text-primary focus:ring-primary"
-                                />
-                                <label htmlFor="start_half_day" className="text-sm text-secondary">
-                                    Mezza giornata (Pomeriggio)
-                                </label>
-                            </div>
-                            {errors.start_date && <span className="text-danger text-xs">{errors.start_date.message}</span>}
+
+                            {errors.start_date && <span className="text-red-600 text-xs mt-1 flex items-center gap-1"><AlertCircle size={12} /> {errors.start_date?.message}</span>}
                         </div>
 
-                        <div className="form-group">
-                            <label className="input-label block mb-2">Al giorno</label>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Al giorno</label>
                             <div className="relative">
-                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" />
+                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                 <input
                                     type="date"
                                     {...register('end_date', {
@@ -156,52 +186,58 @@ export function LeaveRequestForm() {
                                         validate: value =>
                                             !startDate || new Date(value) >= new Date(startDate) || 'La data fine deve essere successiva alla data inizio'
                                     })}
-                                    className="input w-full pl-10"
+                                    className={`block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm pl-10 ${errors.end_date ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}`}
                                 />
                             </div>
-                            <div className="mt-2 flex items-center gap-2">
-                                <input
-                                    type="checkbox"
-                                    id="end_half_day"
-                                    {...register('end_half_day')}
-                                    className="rounded border-gray-300 text-primary focus:ring-primary"
-                                />
-                                <label htmlFor="end_half_day" className="text-sm text-secondary">
-                                    Mezza giornata (Mattina)
-                                </label>
-                            </div>
-                            {errors.end_date && <span className="text-danger text-xs">{errors.end_date.message}</span>}
+
+                            {errors.end_date && <span className="text-red-600 text-xs mt-1 flex items-center gap-1"><AlertCircle size={12} /> {errors.end_date?.message}</span>}
                         </div>
                     </div>
 
                     {/* Duration Preview */}
-                    <div className="bg-bg-tertiary rounded-lg p-4 flex items-center gap-3">
-                        <CalendarIcon className="text-primary" size={20} />
+                    <div className="bg-indigo-50 rounded-lg p-4 flex items-center gap-4 border border-indigo-100">
+                        <div className="bg-white p-2.5 rounded-lg shadow-sm border border-indigo-100">
+                            {isCalculating ? (
+                                <div className="w-5 h-5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+                            ) : (
+                                <CalendarIcon className="text-indigo-600" size={20} />
+                            )}
+                        </div>
                         <div>
-                            <div className="text-sm font-medium">Durata stimata</div>
-                            <div className="text-2xl font-bold font-mono">
-                                {calculateDaysPreview()} <span className="text-sm font-normal text-secondary">giorni</span>
+                            <div className="text-xs font-semibold text-indigo-800 uppercase tracking-wider mb-0.5">Durata effettiva</div>
+                            <div className="flex items-baseline gap-2">
+                                <span className={`text-2xl font-bold font-mono ${calculatedDays !== null ? 'text-indigo-900' : 'text-gray-400'}`}>
+                                    {calculatedDays !== null ? calculatedDays : '-'}
+                                </span>
+                                <span className="text-sm font-medium text-indigo-700/70">
+                                    giorni lavorativi
+                                </span>
                             </div>
+                            {startDate && endDate && calculatedDays !== null && (
+                                <div className="text-xs text-indigo-600/80 mt-1">
+                                    Escluse festività e weekend
+                                </div>
+                            )}
                         </div>
                     </div>
 
                     {/* Notes */}
-                    <div className="form-group">
-                        <label className="input-label block mb-2">Note (Opzionale)</label>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Note (Opzionale)</label>
                         <textarea
                             {...register('employee_notes')}
-                            className="input w-full min-h-[100px] resize-y"
+                            className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm min-h-[100px] resize-y"
                             placeholder="Inserisci eventuali note per l'approvatore..."
                         />
                     </div>
 
                     {/* Error Message */}
                     {createMutation.isError && (
-                        <div className="p-4 bg-danger/10 border border-danger/20 rounded-lg flex items-start gap-3 text-danger">
+                        <div className="p-4 bg-red-50 border border-red-100 rounded-lg flex items-start gap-3 text-red-700">
                             <AlertCircle size={20} className="mt-0.5 flex-shrink-0" />
                             <div>
                                 <div className="font-semibold text-sm">Errore durante l'invio</div>
-                                <div className="text-sm opacity-90">
+                                <div className="text-sm opacity-90 mt-1">
                                     {formatApiError(createMutation.error)}
                                 </div>
                             </div>
@@ -209,11 +245,11 @@ export function LeaveRequestForm() {
                     )}
 
                     {/* Actions */}
-                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
+                    <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-100 mt-6">
                         <button
                             type="button"
                             onClick={() => navigate('/leaves')}
-                            className="btn btn-ghost"
+                            className="btn btn-ghost text-gray-600 hover:text-gray-900"
                         >
                             <X size={18} />
                             Annulla
@@ -221,11 +257,11 @@ export function LeaveRequestForm() {
                         <button
                             type="submit"
                             disabled={createMutation.isPending}
-                            className="btn btn-primary"
+                            className="btn btn-primary shadow-sm"
                         >
                             {createMutation.isPending ? (
                                 <>
-                                    <div className="spinner w-4 h-4 border-2 border-white/30 border-t-white mr-2" />
+                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
                                     Invio in corso...
                                 </>
                             ) : (
@@ -238,69 +274,6 @@ export function LeaveRequestForm() {
                     </div>
                 </form>
             </div>
-
-            {/* Tailwind Utility Helper Styles for this form - inline for simplicity in this artifact */}
-            <style>{`
-        .grid { display: grid; }
-        .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
-        .gap-3 { gap: 0.75rem; }
-        .gap-6 { gap: 1.5rem; }
-        .mb-1 { margin-bottom: 0.25rem; }
-        .mb-2 { margin-bottom: 0.5rem; }
-        .mb-6 { margin-bottom: 1.5rem; }
-        .mt-1 { margin-top: 0.25rem; }
-        .mt-2 { margin-top: 0.5rem; }
-        .mt-0.5 { margin-top: 0.125rem; }
-        .p-3 { padding: 0.75rem; }
-        .p-4 { padding: 1rem; }
-        .pt-4 { padding-top: 1rem; }
-        .pl-10 { padding-left: 2.5rem; }
-        .w-full { width: 100%; }
-        .w-3 { width: 0.75rem; }
-        .h-3 { height: 0.75rem; }
-        .h-10 { height: 2.5rem; }
-        .rounded-lg { border-radius: var(--radius-lg); }
-        .rounded-full { border-radius: 9999px; }
-        .border { border-width: 1px; }
-        .border-t { border-top-width: 1px; }
-        .border-border { border-color: var(--color-border); }
-        .border-primary { border-color: var(--color-primary); }
-        .bg-primary\\/5 { background-color: rgba(var(--color-primary-rgb), 0.05); }
-        .bg-danger\\/10 { background-color: rgba(239, 68, 68, 0.1); }
-        .bg-bg-tertiary { background-color: var(--color-bg-tertiary); }
-        .text-sm { font-size: var(--font-size-sm); }
-        .text-xs { font-size: var(--font-size-xs); }
-        .text-2xl { font-size: var(--font-size-2xl); }
-        .text-secondary { color: var(--color-text-secondary); }
-        .text-danger { color: var(--color-danger); }
-        .text-primary { color: var(--color-primary); }
-        .font-bold { font-weight: 700; }
-        .font-semibold { font-weight: 600; }
-        .font-medium { font-weight: 500; }
-        .font-mono { font-family: var(--font-family-mono); }
-        .block { display: block; }
-        .hidden { display: none; }
-        .flex { display: flex; }
-        .items-center { align-items: center; }
-        .items-start { align-items: flex-start; }
-        .justify-end { justify-content: flex-end; }
-        .flex-shrink-0 { flex-shrink: 0; }
-        .relative { position: relative; }
-        .absolute { position: absolute; }
-        .left-3 { left: 0.75rem; }
-        .top-1\\/2 { top: 50%; }
-        .-translate-y-1\\/2 { transform: translateY(-50%); }
-        .cursor-pointer { cursor: pointer; }
-        .resize-y { resize: vertical; }
-        .space-y-6 > * + * { margin-top: 1.5rem; }
-        
-        @media (min-width: 640px) {
-          .sm\\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        }
-        @media (min-width: 768px) {
-          .md\\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        }
-      `}</style>
         </div>
     );
 }

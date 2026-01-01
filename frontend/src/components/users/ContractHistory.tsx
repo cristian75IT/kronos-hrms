@@ -94,39 +94,45 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
     const pastContracts = contracts.filter(c => c.end_date);
 
     const formatDate = (dateStr: string) => {
-        return new Date(dateStr).toLocaleDateString('it-IT', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-        });
+        try {
+            const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return '-';
+            return date.toLocaleDateString('it-IT', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+            });
+        } catch (e) {
+            return '-';
+        }
     };
 
     return (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-            <div className="modal-container animate-scaleIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4" onClick={e => e.target === e.currentTarget && onClose()}>
+            <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-xl shadow-2xl flex flex-col overflow-hidden animate-scaleIn">
                 {/* Header */}
-                <div className="modal-header">
-                    <div className="modal-header-content">
-                        <div className="modal-icon">
+                <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-blue-50/50 to-transparent">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-slate-700 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
                             <Briefcase size={24} />
                         </div>
                         <div>
-                            <h2>Gestione Contratti</h2>
-                            {userName && <p className="modal-subtitle">{userName}</p>}
+                            <h2 className="text-xl font-bold text-gray-900 leading-tight">Gestione Contratti</h2>
+                            {userName && <p className="text-sm text-gray-500">{userName}</p>}
                         </div>
                     </div>
-                    <button onClick={onClose} className="btn btn-ghost btn-icon">
+                    <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
                         <X size={20} />
                     </button>
                 </div>
 
                 {/* Content */}
-                <div className="modal-body">
+                <div className="flex-1 p-6 overflow-y-auto">
                     {error && (
-                        <div className="alert alert-error">
-                            <AlertCircle size={16} />
-                            <span>{error}</span>
-                            <button onClick={() => setError(null)} className="btn btn-ghost btn-icon btn-sm">
+                        <div className="flex items-center gap-3 p-4 bg-red-50 text-red-700 border border-red-100 rounded-lg mb-4">
+                            <AlertCircle size={16} className="shrink-0" />
+                            <span className="flex-1 text-sm font-medium">{error}</span>
+                            <button onClick={() => setError(null)} className="p-1 hover:bg-red-100 rounded text-red-500">
                                 <X size={14} />
                             </button>
                         </div>
@@ -135,9 +141,8 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
                     {/* Add Contract Button */}
                     {!isAdding && (
                         <button
-                            className="btn btn-primary"
+                            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 mb-6"
                             onClick={() => setIsAdding(true)}
-                            style={{ marginBottom: 'var(--space-4)' }}
                         >
                             <Plus size={18} />
                             Nuovo Contratto
@@ -146,19 +151,21 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
 
                     {/* Add Contract Form */}
                     {isAdding && (
-                        <div className="add-contract-form card animate-fadeInUp">
-                            <div className="form-header">
-                                <h3>
+                        <div className="bg-white border border-gray-200 rounded-xl shadow-sm mb-6 overflow-hidden animate-fadeInUp">
+                            <div className="px-5 py-4 bg-gray-50 border-b border-gray-200">
+                                <h3 className="flex items-center gap-2 text-base font-semibold text-blue-700">
                                     <FileText size={18} />
                                     Nuovo Contratto
                                 </h3>
                             </div>
-                            <div className="form-body">
-                                <div className="form-row">
-                                    <div className="form-group">
-                                        <label className="input-label input-label-required">Tipo Contratto</label>
+                            <div className="p-5 space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-medium text-gray-700 flex items-center gap-1">
+                                            Tipo Contratto <span className="text-red-500">*</span>
+                                        </label>
                                         <select
-                                            className="input"
+                                            className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
                                             value={newContract.contract_type_id || ''}
                                             onChange={e => {
                                                 const typeId = e.target.value;
@@ -181,11 +188,13 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
                                             ))}
                                         </select>
                                     </div>
-                                    <div className="form-group">
-                                        <label className="input-label input-label-required">Ore Settimanali</label>
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-medium text-gray-700 flex items-center gap-1">
+                                            Ore Settimanali <span className="text-red-500">*</span>
+                                        </label>
                                         <input
                                             type="number"
-                                            className="input"
+                                            className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
                                             value={newContract.weekly_hours}
                                             onChange={e => setNewContract({ ...newContract, weekly_hours: parseInt(e.target.value) })}
                                             min={1}
@@ -194,54 +203,56 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
                                     </div>
                                 </div>
 
-                                <div className="form-row">
-                                    <div className="form-group">
-                                        <label className="input-label input-label-required">Data Inizio</label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-medium text-gray-700 flex items-center gap-1">
+                                            Data Inizio <span className="text-red-500">*</span>
+                                        </label>
                                         <input
                                             type="date"
-                                            className="input"
+                                            className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
                                             value={newContract.start_date}
                                             onChange={e => setNewContract({ ...newContract, start_date: e.target.value })}
                                         />
                                     </div>
-                                    <div className="form-group">
-                                        <label className="input-label">Data Fine (opzionale)</label>
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-medium text-gray-700">Data Fine (opzionale)</label>
                                         <input
                                             type="date"
-                                            className="input"
+                                            className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
                                             value={newContract.end_date || ''}
                                             onChange={e => setNewContract({ ...newContract, end_date: e.target.value || undefined })}
                                         />
                                     </div>
                                 </div>
 
-                                <div className="form-group">
-                                    <label className="input-label">Mansione</label>
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-medium text-gray-700">Mansione</label>
                                     <input
                                         type="text"
-                                        className="input"
+                                        className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
                                         value={newContract.job_title || ''}
                                         onChange={e => setNewContract({ ...newContract, job_title: e.target.value })}
                                         placeholder="es. Software Engineer Senior"
                                     />
                                 </div>
 
-                                <div className="form-group">
-                                    <label className="input-label">Livello / Inquadramento</label>
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-medium text-gray-700">Livello / Inquadramento</label>
                                     <input
                                         type="text"
-                                        className="input"
+                                        className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
                                         value={newContract.level || ''}
                                         onChange={e => setNewContract({ ...newContract, level: e.target.value })}
                                         placeholder="es. Quadro, Impiegato III Livello"
                                     />
                                 </div>
 
-                                <div className="form-actions">
-                                    <button className="btn btn-ghost" onClick={() => setIsAdding(false)}>
+                                <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 mt-4">
+                                    <button className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" onClick={() => setIsAdding(false)}>
                                         Annulla
                                     </button>
-                                    <button className="btn btn-primary" onClick={handleSave}>
+                                    <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-sm transition-colors" onClick={handleSave}>
                                         <CheckCircle size={16} />
                                         Salva Contratto
                                     </button>
@@ -252,68 +263,68 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
 
                     {/* Loading State */}
                     {isLoading && (
-                        <div className="loading-state">
-                            <div className="spinner" />
-                            <p>Caricamento contratti...</p>
+                        <div className="flex flex-col items-center justify-center py-12 text-gray-400 gap-3">
+                            <div className="w-8 h-8 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
+                            <p className="text-sm">Caricamento contratti...</p>
                         </div>
                     )}
 
                     {/* Contracts List */}
                     {!isLoading && (
-                        <div className="contracts-list">
+                        <div className="space-y-6">
                             {/* Active Contract */}
                             {activeContract && (
-                                <div className="contract-section">
-                                    <h4 className="section-label">
-                                        <CheckCircle size={14} />
+                                <div className="space-y-3">
+                                    <h4 className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                                        <CheckCircle size={14} className="text-emerald-500" />
                                         Contratto Attivo
                                     </h4>
-                                    <div className="contract-card active">
-                                        <div className="contract-header">
-                                            <div className="contract-type-badge active">
+                                    <div className="bg-white border border-emerald-200 rounded-xl p-4 shadow-sm ring-1 ring-emerald-500/10 transition-all">
+                                        <div className="flex items-start gap-3 mb-3">
+                                            <div className="px-2.5 py-1.5 bg-emerald-50 text-emerald-700 rounded-md text-xs font-bold uppercase border border-emerald-200">
                                                 {getTypeCode(activeContract.contract_type_id)}
                                             </div>
-                                            <div className="contract-main-info">
-                                                <h4>{getTypeName(activeContract.contract_type_id)}</h4>
+                                            <div className="flex-1">
+                                                <h4 className="font-semibold text-gray-900 mb-1">{getTypeName(activeContract.contract_type_id)}</h4>
                                                 {activeContract.job_title && (
-                                                    <p className="contract-job-title">{activeContract.job_title}</p>
+                                                    <p className="text-sm text-gray-500">{activeContract.job_title}</p>
                                                 )}
                                             </div>
                                             <button
-                                                className="btn btn-ghost btn-icon btn-sm"
+                                                className="p-1 hover:bg-gray-100 rounded text-gray-400 transition-colors"
                                                 onClick={() => setExpandedId(expandedId === activeContract.id ? null : activeContract.id)}
                                             >
                                                 {expandedId === activeContract.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                             </button>
                                         </div>
 
-                                        <div className="contract-meta">
-                                            <span className="meta-item">
-                                                <Calendar size={14} />
+                                        <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+                                            <span className="flex items-center gap-1.5">
+                                                <Calendar size={14} className="text-gray-400" />
                                                 Dal {formatDate(activeContract.start_date)}
                                             </span>
-                                            <span className="meta-item">
-                                                <Clock size={14} />
+                                            <span className="flex items-center gap-1.5">
+                                                <Clock size={14} className="text-gray-400" />
                                                 {activeContract.weekly_hours}h/settimana
                                             </span>
                                         </div>
 
                                         {expandedId === activeContract.id && (
-                                            <div className="contract-expanded animate-fadeInUp">
-                                                <div className="expanded-grid">
+                                            <div className="mt-4 pt-4 border-t border-gray-100 animate-fadeInUp">
+                                                <div className="grid grid-cols-3 gap-4 mb-4">
                                                     {activeContract.level && (
-                                                        <div className="expanded-item">
-                                                            <span className="expanded-label">Livello</span>
-                                                            <span className="expanded-value">{activeContract.level}</span>
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Livello</span>
+                                                            <span className="font-semibold text-gray-900">{activeContract.level}</span>
                                                         </div>
                                                     )}
-                                                    <div className="expanded-item">
-                                                        <span className="expanded-label">Ore Settimanali</span>
-                                                        <span className="expanded-value">{activeContract.weekly_hours}</span>
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Ore Settimanali</span>
+                                                        <span className="font-semibold text-gray-900">{activeContract.weekly_hours}</span>
                                                     </div>
                                                 </div>
-                                                <div className="expanded-actions">
-                                                    <button className="btn btn-secondary btn-sm">
+                                                <div className="flex gap-2">
+                                                    <button className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium transition-colors">
                                                         <Edit size={14} />
                                                         Modifica
                                                     </button>
@@ -326,39 +337,41 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
 
                             {/* Past Contracts */}
                             {pastContracts.length > 0 && (
-                                <div className="contract-section">
-                                    <h4 className="section-label">
+                                <div className="space-y-3">
+                                    <h4 className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
                                         <Clock size={14} />
                                         Storico Contratti ({pastContracts.length})
                                     </h4>
-                                    <div className="timeline">
+                                    <div className="relative pl-2">
                                         {pastContracts.map((contract, index) => (
-                                            <div key={contract.id} className="contract-card past">
-                                                <div className="timeline-connector">
-                                                    <div className="timeline-dot" />
-                                                    {index < pastContracts.length - 1 && <div className="timeline-line" />}
+                                            <div key={contract.id} className="flex gap-4 group">
+                                                <div className="flex flex-col items-center pt-2">
+                                                    <div className="w-3 h-3 bg-gray-300 rounded-full shrink-0 group-hover:bg-gray-400 transition-colors" />
+                                                    {index < pastContracts.length - 1 && <div className="w-0.5 flex-1 bg-gray-200 mt-2" />}
                                                 </div>
-                                                <div className="contract-content">
-                                                    <div className="contract-header">
-                                                        <div className="contract-type-badge">
-                                                            {getTypeCode(contract.contract_type_id)}
+                                                <div className="flex-1 pb-6">
+                                                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 transition-all hover:bg-white hover:shadow-sm">
+                                                        <div className="flex items-start gap-3 mb-3">
+                                                            <div className="px-2.5 py-1.5 bg-gray-200 text-gray-600 rounded-md text-xs font-bold uppercase">
+                                                                {getTypeCode(contract.contract_type_id)}
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <h4 className="font-semibold text-gray-900 mb-1">{getTypeName(contract.contract_type_id)}</h4>
+                                                                {contract.job_title && (
+                                                                    <p className="text-sm text-gray-500">{contract.job_title}</p>
+                                                                )}
+                                                            </div>
                                                         </div>
-                                                        <div className="contract-main-info">
-                                                            <h4>{getTypeName(contract.contract_type_id)}</h4>
-                                                            {contract.job_title && (
-                                                                <p className="contract-job-title">{contract.job_title}</p>
-                                                            )}
+                                                        <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+                                                            <span className="flex items-center gap-1.5">
+                                                                <Calendar size={14} />
+                                                                {formatDate(contract.start_date)} - {formatDate(contract.end_date!)}
+                                                            </span>
+                                                            <span className="flex items-center gap-1.5">
+                                                                <Clock size={14} />
+                                                                {contract.weekly_hours}h/settimana
+                                                            </span>
                                                         </div>
-                                                    </div>
-                                                    <div className="contract-meta">
-                                                        <span className="meta-item">
-                                                            <Calendar size={14} />
-                                                            {formatDate(contract.start_date)} - {formatDate(contract.end_date!)}
-                                                        </span>
-                                                        <span className="meta-item">
-                                                            <Clock size={14} />
-                                                            {contract.weekly_hours}h/settimana
-                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -369,13 +382,13 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
 
                             {/* Empty State */}
                             {contracts.length === 0 && (
-                                <div className="empty-state">
-                                    <div className="empty-state-icon">
+                                <div className="flex flex-col items-center justify-center py-12 text-center">
+                                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 mb-4">
                                         <FileText size={32} />
                                     </div>
-                                    <h3 className="empty-state-title">Nessun contratto</h3>
-                                    <p className="empty-state-description">
-                                        Non ci sono contratti registrati per questo dipendente.
+                                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Nessun contratto</h3>
+                                    <p className="text-sm text-gray-500 max-w-xs">
+                                        Non ci sono contratti registrati per questo dipendente. Aggiungine uno per iniziare.
                                     </p>
                                 </div>
                             )}
@@ -383,320 +396,7 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
                     )}
                 </div>
             </div>
-
-            <style>{`
-        .modal-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(15, 23, 42, 0.6);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: var(--z-modal);
-          backdrop-filter: blur(8px);
-          padding: var(--space-4);
-        }
-
-        .modal-container {
-          background: var(--color-bg-primary);
-          width: 100%;
-          max-width: 680px;
-          max-height: 90vh;
-          border-radius: var(--radius-2xl);
-          box-shadow: var(--shadow-2xl);
-          display: flex;
-          flex-direction: column;
-          overflow: hidden;
-        }
-
-        .modal-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: var(--space-5) var(--space-6);
-          border-bottom: 1px solid var(--color-border-light);
-          background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.05) 0%, transparent 100%);
-        }
-
-        .modal-header-content {
-          display: flex;
-          align-items: center;
-          gap: var(--space-4);
-        }
-
-        .modal-icon {
-          width: 48px;
-          height: 48px;
-          background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
-          border-radius: var(--radius-xl);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-        }
-
-        .modal-header h2 {
-          font-size: var(--font-size-xl);
-          font-weight: var(--font-weight-bold);
-          margin-bottom: var(--space-1);
-        }
-
-        .modal-subtitle {
-          font-size: var(--font-size-sm);
-          color: var(--color-text-muted);
-        }
-
-        .modal-body {
-          flex: 1;
-          padding: var(--space-6);
-          overflow-y: auto;
-        }
-
-        .alert {
-          display: flex;
-          align-items: center;
-          gap: var(--space-3);
-          padding: var(--space-3) var(--space-4);
-          border-radius: var(--radius-lg);
-          margin-bottom: var(--space-4);
-        }
-
-        .alert-error {
-          background: var(--color-danger-bg);
-          color: var(--color-danger);
-          border: 1px solid rgba(239, 68, 68, 0.2);
-        }
-
-        .alert span {
-          flex: 1;
-        }
-
-        .add-contract-form {
-          margin-bottom: var(--space-6);
-          overflow: hidden;
-        }
-
-        .form-header {
-          padding: var(--space-4) var(--space-5);
-          background: var(--color-bg-tertiary);
-          border-bottom: 1px solid var(--color-border-light);
-        }
-
-        .form-header h3 {
-          display: flex;
-          align-items: center;
-          gap: var(--space-2);
-          font-size: var(--font-size-md);
-          font-weight: var(--font-weight-semibold);
-          color: var(--color-primary);
-        }
-
-        .form-body {
-          padding: var(--space-5);
-        }
-
-        .form-row {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: var(--space-4);
-          margin-bottom: var(--space-4);
-        }
-
-        .form-group {
-          margin-bottom: var(--space-4);
-        }
-
-        .form-group:last-child {
-          margin-bottom: 0;
-        }
-
-        .form-actions {
-          display: flex;
-          justify-content: flex-end;
-          gap: var(--space-3);
-          margin-top: var(--space-4);
-          padding-top: var(--space-4);
-          border-top: 1px solid var(--color-border-light);
-        }
-
-        .loading-state {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: var(--space-3);
-          padding: var(--space-8);
-          color: var(--color-text-muted);
-        }
-
-        .contracts-list {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-6);
-        }
-
-        .contract-section {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-3);
-        }
-
-        .section-label {
-          display: flex;
-          align-items: center;
-          gap: var(--space-2);
-          font-size: var(--font-size-xs);
-          font-weight: var(--font-weight-semibold);
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          color: var(--color-text-muted);
-        }
-
-        .contract-card {
-          background: var(--color-bg-secondary);
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-xl);
-          padding: var(--space-4);
-          transition: all var(--transition-fast);
-        }
-
-        .contract-card.active {
-          background: var(--color-bg-primary);
-          border-color: var(--color-success);
-          box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
-        }
-
-        .contract-card.past {
-          background: transparent;
-          border: none;
-          padding: 0;
-          display: flex;
-          gap: var(--space-4);
-        }
-
-        .timeline-connector {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          padding-top: var(--space-2);
-        }
-
-        .timeline-dot {
-          width: 12px;
-          height: 12px;
-          background: var(--color-border-strong);
-          border-radius: var(--radius-full);
-          flex-shrink: 0;
-        }
-
-        .timeline-line {
-          width: 2px;
-          flex: 1;
-          background: var(--color-border);
-          margin-top: var(--space-2);
-        }
-
-        .contract-content {
-          flex: 1;
-          padding: var(--space-4);
-          background: var(--color-bg-secondary);
-          border: 1px solid var(--color-border-light);
-          border-radius: var(--radius-lg);
-        }
-
-        .contract-header {
-          display: flex;
-          align-items: flex-start;
-          gap: var(--space-3);
-          margin-bottom: var(--space-3);
-        }
-
-        .contract-type-badge {
-          padding: var(--space-1-5) var(--space-2-5);
-          background: var(--color-bg-tertiary);
-          border-radius: var(--radius-md);
-          font-size: var(--font-size-xs);
-          font-weight: var(--font-weight-bold);
-          color: var(--color-text-secondary);
-          text-transform: uppercase;
-        }
-
-        .contract-type-badge.active {
-          background: var(--color-success-bg);
-          color: var(--color-success);
-        }
-
-        .contract-main-info {
-          flex: 1;
-        }
-
-        .contract-main-info h4 {
-          font-size: var(--font-size-md);
-          font-weight: var(--font-weight-semibold);
-          margin-bottom: var(--space-1);
-        }
-
-        .contract-job-title {
-          font-size: var(--font-size-sm);
-          color: var(--color-text-muted);
-        }
-
-        .contract-meta {
-          display: flex;
-          flex-wrap: wrap;
-          gap: var(--space-4);
-        }
-
-        .meta-item {
-          display: flex;
-          align-items: center;
-          gap: var(--space-1-5);
-          font-size: var(--font-size-sm);
-          color: var(--color-text-secondary);
-        }
-
-        .meta-item svg {
-          color: var(--color-text-muted);
-        }
-
-        .contract-expanded {
-          margin-top: var(--space-4);
-          padding-top: var(--space-4);
-          border-top: 1px solid var(--color-border-light);
-        }
-
-        .expanded-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: var(--space-4);
-          margin-bottom: var(--space-4);
-        }
-
-        .expanded-item {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-1);
-        }
-
-        .expanded-label {
-          font-size: var(--font-size-xs);
-          color: var(--color-text-muted);
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-
-        .expanded-value {
-          font-weight: var(--font-weight-semibold);
-          color: var(--color-text-primary);
-        }
-
-        .expanded-actions {
-          display: flex;
-          gap: var(--space-2);
-        }
-      `}</style>
         </div>
     );
 }
+

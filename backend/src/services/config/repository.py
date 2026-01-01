@@ -210,6 +210,20 @@ class HolidayRepository:
         await self._session.flush()
         return count
 
+    async def delete_national_by_year(self, year: int) -> int:
+        """Delete only national holidays for a year."""
+        result = await self._session.execute(
+            select(Holiday).where(Holiday.year == year, Holiday.is_national == True)
+        )
+        holidays = result.scalars().all()
+        count = len(holidays)
+        
+        for holiday in holidays:
+            await self._session.delete(holiday)
+        
+        await self._session.flush()
+        return count
+
 
 class CompanyClosureRepository:
     """Repository for company closures."""

@@ -1,4 +1,5 @@
 """KRONOS Config Service - API Router."""
+from datetime import date
 from typing import Optional
 from uuid import UUID
 
@@ -24,6 +25,7 @@ from src.services.config.schemas import (
     HolidayResponse,
     HolidayListResponse,
     HolidayCreate,
+    HolidayUpdate,
     GenerateHolidaysRequest,
     CompanyClosureResponse,
     CompanyClosureListResponse,
@@ -241,6 +243,20 @@ async def delete_holiday(
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@router.put("/holidays/{id}", response_model=HolidayResponse)
+async def update_holiday(
+    id: UUID,
+    data: HolidayUpdate,
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Update holiday (including confirmation). Admin only."""
+    try:
+        return await service.update_holiday(id, data)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.post("/holidays/generate", response_model=list[HolidayResponse])
 async def generate_holidays(
     data: GenerateHolidaysRequest,
@@ -372,3 +388,197 @@ async def create_allowance_rule(
         return await service.create_allowance_rule(data)
     except ConflictError as e:
         raise HTTPException(status_code=409, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════
+# National Contracts (CCNL) Endpoints
+# ═══════════════════════════════════════════════════════════
+
+from src.services.config.schemas import (
+    NationalContractResponse,
+    NationalContractListResponse,
+    NationalContractCreate,
+    NationalContractUpdate,
+    NationalContractVersionResponse,
+    NationalContractVersionListResponse,
+    NationalContractVersionCreate,
+    NationalContractVersionUpdate,
+    NationalContractTypeConfigResponse,
+    NationalContractTypeConfigUpdate,
+)
+
+
+@router.get("/national-contracts", response_model=NationalContractListResponse)
+async def list_national_contracts(
+    active_only: bool = True,
+    token: TokenPayload = Depends(get_current_token),
+    service: ConfigService = Depends(get_config_service),
+):
+    """List all National Contracts (CCNL)."""
+    contracts = await service.get_national_contracts(active_only)
+    return NationalContractListResponse(items=contracts, total=len(contracts))
+
+
+@router.get("/national-contracts/{id}", response_model=NationalContractResponse)
+async def get_national_contract(
+    id: UUID,
+    token: TokenPayload = Depends(get_current_token),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Get National Contract by ID."""
+    try:
+        return await service.get_national_contract(id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/national-contracts", response_model=NationalContractResponse, status_code=201)
+async def create_national_contract(
+    data: NationalContractCreate,
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Create new National Contract (CCNL). Admin only."""
+    try:
+        return await service.create_national_contract(data)
+    except ConflictError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@router.put("/national-contracts/{id}", response_model=NationalContractResponse)
+async def update_national_contract(
+    id: UUID,
+    data: NationalContractUpdate,
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Update National Contract. Admin only."""
+    try:
+        return await service.update_national_contract(id, data)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/national-contracts/{id}", response_model=MessageResponse)
+async def delete_national_contract(
+    id: UUID,
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Deactivate National Contract. Admin only."""
+    try:
+        await service.delete_national_contract(id)
+        return MessageResponse(message="National Contract deactivated")
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════
+# National Contract Versions (CCNL Versions) Endpoints
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/national-contracts/{contract_id}/versions", response_model=NationalContractVersionListResponse)
+async def list_contract_versions(
+    contract_id: UUID,
+    token: TokenPayload = Depends(get_current_token),
+    service: ConfigService = Depends(get_config_service),
+):
+    """List all versions of a National Contract."""
+    versions = await service.get_contract_versions(contract_id)
+    return NationalContractVersionListResponse(items=versions, total=len(versions))
+
+
+@router.get("/national-contracts/{contract_id}/versions/current", response_model=NationalContractVersionResponse)
+async def get_current_contract_version(
+    contract_id: UUID,
+    reference_date: Optional[date] = None,
+    token: TokenPayload = Depends(get_current_token),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Get the version valid at a specific date (defaults to today)."""
+    from datetime import date as date_type
+    ref_date = reference_date or date_type.today()
+    try:
+        return await service.get_contract_version_at_date(contract_id, ref_date)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/national-contracts/versions/{version_id}", response_model=NationalContractVersionResponse)
+async def get_contract_version(
+    version_id: UUID,
+    token: TokenPayload = Depends(get_current_token),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Get a specific version by ID."""
+    try:
+        return await service.get_contract_version(version_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/national-contracts/versions", response_model=NationalContractVersionResponse, status_code=201)
+async def create_contract_version(
+    data: NationalContractVersionCreate,
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Create new version for a National Contract. Admin only.
+    
+    This creates a historical snapshot of parameters valid from the specified date.
+    Previous versions will have their valid_to date automatically updated.
+    """
+    try:
+        return await service.create_contract_version(data, created_by=token.sub)
+    except ConflictError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.put("/national-contracts/versions/{version_id}", response_model=NationalContractVersionResponse)
+async def update_contract_version(
+    version_id: UUID,
+    data: NationalContractVersionUpdate,
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Update a version. Admin only.
+    
+    Warning: Modifying historical versions may affect past calculations.
+    """
+    try:
+        return await service.update_contract_version(version_id, data)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/national-contracts/versions/{version_id}", response_model=MessageResponse)
+async def delete_contract_version(
+    version_id: UUID,
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Delete a version. Admin only.
+    
+    Warning: This is a hard delete. Use with caution.
+    """
+    try:
+        await service.delete_contract_version(version_id)
+        return MessageResponse(message="Version deleted")
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.put("/national-contracts/type-configs/{config_id}", response_model=NationalContractTypeConfigResponse)
+async def update_contract_type_config(
+    config_id: UUID,
+    data: NationalContractTypeConfigUpdate,
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Update contract type specific parameters."""
+    try:
+        return await service.update_contract_type_config(config_id, data)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))

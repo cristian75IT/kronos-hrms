@@ -37,11 +37,14 @@ services:
       - ./nginx/default.conf:/etc/nginx/templates/conf.d/default.conf.template
       - ./nginx/conf.d:/etc/nginx/conf.d
       - nginx_logs:/var/log/nginx
+      - ./nginx/modsecurity_custom.conf:/etc/modsecurity.d/modsecurity_custom.conf
     networks:
       - kronos-internal
     depends_on:
       auth-service:
         condition: service_started
+    environment:
+      - ALLOWED_METHODS=GET HEAD POST PUT DELETE OPTIONS PATCH
     restart: unless-stopped
 
   # ═══════════════════════════════════════════════════════════

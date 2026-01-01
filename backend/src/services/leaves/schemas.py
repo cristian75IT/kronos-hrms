@@ -132,10 +132,38 @@ class CancelRequest(BaseModel):
     reason: Optional[str] = None
 
 
+
 class RecallRequest(BaseModel):
     """Schema for recalling an approved request (by HR/Manager)."""
     
     reason: str = Field(..., min_length=10)
+
+
+class DaysCalculationRequest(BaseModel):
+    """Request to calculate working days."""
+    
+    start_date: date
+    end_date: date
+    start_half_day: bool = False
+    end_half_day: bool = False
+    leave_type_id: Optional[UUID] = None
+
+    @field_validator("end_date")
+    @classmethod
+    def end_after_start(cls, v: date, info) -> date:
+        start = info.data.get("start_date")
+        if start and v < start:
+            raise ValueError("end_date must be >= start_date")
+        return v
+
+
+class DaysCalculationResponse(BaseModel):
+    """Response for days calculation."""
+    
+    days: Decimal
+    hours: Decimal
+    message: Optional[str] = None
+
 
 
 # ═══════════════════════════════════════════════════════════
@@ -243,6 +271,7 @@ class CalendarResponse(BaseModel):
     
     events: list[CalendarEvent]
     holidays: list[CalendarEvent] = []
+    closures: list[CalendarEvent] = []
 
 
 # ═══════════════════════════════════════════════════════════

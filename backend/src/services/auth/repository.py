@@ -13,6 +13,7 @@ from src.services.auth.models import (
     ContractType,
     WorkSchedule,
     EmployeeContract,
+    UserProfile,
 )
 from src.shared.schemas import DataTableRequest
 
@@ -33,6 +34,7 @@ class UserRepository:
                 selectinload(User.location),
                 selectinload(User.manager),
                 selectinload(User.areas),
+                selectinload(User.profile),
             )
             .where(User.id == id)
         )

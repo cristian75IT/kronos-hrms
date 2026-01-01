@@ -1,0 +1,28 @@
+{
+  "name": "app-gestione-presenze",
+  "version": "1.0.0",
+  "description": "> **Κρόνος** - Sistema Enterprise per Gestione Presenze, Assenze e Rimborsi",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cristian75IT/kronos-hrms.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/cristian75IT/kronos-hrms/issues"
+  },
+  "homepage": "https://github.com/cristian75IT/kronos-hrms#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.1",
+    "eventsource": "^4.1.0"
+  }
+}

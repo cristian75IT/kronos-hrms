@@ -131,42 +131,36 @@ export function TripDetailPage() {
     }
 
     const getStatusConfig = (status: string) => {
-        const configs: Record<string, { color: string; icon: React.ReactNode; label: string; bg: string }> = {
+        const configs: Record<string, { className: string; icon: React.ReactNode; label: string }> = {
             draft: {
-                color: 'var(--color-text-muted)',
-                icon: <FileText size={20} />,
-                label: 'Bozza',
-                bg: 'var(--color-bg-tertiary)'
+                className: 'bg-gray-100 text-gray-600 border-gray-200',
+                icon: <FileText size={16} />,
+                label: 'Bozza'
             },
             submitted: {
-                color: 'var(--color-warning)',
-                icon: <Clock size={20} />,
-                label: 'In Approvazione',
-                bg: 'var(--color-warning-bg)'
+                className: 'bg-amber-50 text-amber-700 border-amber-200',
+                icon: <Clock size={16} />,
+                label: 'In Approvazione'
             },
             approved: {
-                color: 'var(--color-success)',
-                icon: <CheckCircle size={20} />,
-                label: 'Approvata',
-                bg: 'var(--color-success-bg)'
+                className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                icon: <CheckCircle size={16} />,
+                label: 'Approvata'
             },
             rejected: {
-                color: 'var(--color-danger)',
-                icon: <XCircle size={20} />,
-                label: 'Rifiutata',
-                bg: 'var(--color-danger-bg)'
+                className: 'bg-red-50 text-red-700 border-red-200',
+                icon: <XCircle size={16} />,
+                label: 'Rifiutata'
             },
             completed: {
-                color: 'var(--color-info)',
-                icon: <CheckCircle size={20} />,
-                label: 'Completata',
-                bg: 'var(--color-info-bg)'
+                className: 'bg-blue-50 text-blue-700 border-blue-200',
+                icon: <CheckCircle size={16} />,
+                label: 'Completata'
             },
             cancelled: {
-                color: 'var(--color-text-muted)',
-                icon: <XCircle size={20} />,
-                label: 'Annullata',
-                bg: 'var(--color-bg-tertiary)'
+                className: 'bg-gray-100 text-gray-500 border-gray-200',
+                icon: <XCircle size={16} />,
+                label: 'Annullata'
             },
         };
         return configs[status] || configs.draft;
@@ -194,30 +188,27 @@ export function TripDetailPage() {
     const tripDays = differenceInDays(new Date(trip.end_date), new Date(trip.start_date)) + 1;
 
     return (
-        <div className="detail-page animate-fadeIn">
+        <div className="max-w-7xl mx-auto space-y-6 pb-8 animate-fadeIn px-4 sm:px-6 lg:px-8 pt-6">
             {/* Header */}
-            <header className="detail-header">
-                <div className="detail-header-left">
-                    <button onClick={() => navigate(-1)} className="btn btn-ghost btn-icon">
+            <header className="flex flex-col md:flex-row justify-between items-start gap-4">
+                <div className="flex items-start gap-4">
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-900"
+                    >
                         <ArrowLeft size={20} />
                     </button>
                     <div>
-                        <div className="detail-breadcrumb">
-                            <Link to="/trips">Trasferte</Link>
+                        <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+                            <Link to="/trips" className="hover:text-indigo-600 transition-colors">Trasferte</Link>
                             <span>/</span>
                             <span>Dettaglio</span>
                         </div>
-                        <h1 className="detail-title">{trip.title || trip.destination}</h1>
+                        <h1 className="text-2xl font-bold text-gray-900">{trip.title || trip.destination}</h1>
                     </div>
                 </div>
-                <div className="detail-header-right">
-                    <div
-                        className="detail-status-badge"
-                        style={{
-                            background: statusConfig.bg,
-                            color: statusConfig.color
-                        }}
-                    >
+                <div>
+                    <div className={`px-4 py-2 rounded-full border flex items-center gap-2 text-sm font-semibold ${statusConfig.className}`}>
                         {statusConfig.icon}
                         <span>{statusConfig.label}</span>
                     </div>
@@ -225,47 +216,49 @@ export function TripDetailPage() {
             </header>
 
             {/* Hero Card */}
-            <div className="trip-hero glass-card">
-                <div className="trip-hero-content">
-                    <div className="trip-hero-destination">
-                        <div className="destination-icon">
-                            {getDestinationIcon(trip.destination_type)}
-                        </div>
-                        <div>
-                            <h2>{trip.destination}</h2>
-                            <span className="destination-type">{getDestinationLabel(trip.destination_type)}</span>
-                        </div>
+            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+                <div className="flex items-center gap-6 w-full md:w-auto">
+                    <div className="w-14 h-14 flex items-center justify-center bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-xl text-white shrink-0 shadow-lg shadow-indigo-200">
+                        {getDestinationIcon(trip.destination_type)}
                     </div>
-                    <div className="trip-hero-stats">
-                        <div className="hero-stat">
+                    <div>
+                        <h2 className="text-xl font-bold text-gray-900 mb-1">{trip.destination}</h2>
+                        <span className="text-sm text-gray-500">{getDestinationLabel(trip.destination_type)}</span>
+                    </div>
+
+                    <div className="h-10 w-px bg-gray-200 mx-2 hidden md:block"></div>
+
+                    <div className="flex gap-6 hidden md:flex">
+                        <div className="flex items-center gap-2 text-indigo-600">
                             <Calendar size={18} />
-                            <div>
-                                <span className="hero-stat-value">{tripDays}</span>
-                                <span className="hero-stat-label">giorni</span>
+                            <div className="flex flex-col">
+                                <span className="text-lg font-bold text-gray-900 leading-none">{tripDays}</span>
+                                <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">giorni</span>
                             </div>
                         </div>
                         {trip.estimated_budget && (
-                            <div className="hero-stat">
+                            <div className="flex items-center gap-2 text-indigo-600">
                                 <DollarSign size={18} />
-                                <div>
-                                    <span className="hero-stat-value">€{Number(trip.estimated_budget).toFixed(0)}</span>
-                                    <span className="hero-stat-label">budget</span>
+                                <div className="flex flex-col">
+                                    <span className="text-lg font-bold text-gray-900 leading-none">€{Number(trip.estimated_budget).toFixed(0)}</span>
+                                    <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">budget</span>
                                 </div>
                             </div>
                         )}
                     </div>
                 </div>
-                <div className="trip-hero-dates">
-                    <div className="hero-date">
-                        <span className="hero-date-label">Partenza</span>
-                        <span className="hero-date-value">
+
+                <div className="flex items-center gap-6 pt-4 border-t border-gray-100 w-full md:w-auto md:pt-0 md:border-0 justify-center">
+                    <div className="flex flex-col gap-1 items-center md:items-start">
+                        <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">Partenza</span>
+                        <span className="font-semibold text-gray-900">
                             {format(new Date(trip.start_date), 'd MMM yyyy', { locale: it })}
                         </span>
                     </div>
-                    <div className="hero-date-arrow">→</div>
-                    <div className="hero-date">
-                        <span className="hero-date-label">Ritorno</span>
-                        <span className="hero-date-value">
+                    <div className="text-xl text-indigo-500">→</div>
+                    <div className="flex flex-col gap-1 items-center md:items-end">
+                        <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">Ritorno</span>
+                        <span className="font-semibold text-gray-900">
                             {format(new Date(trip.end_date), 'd MMM yyyy', { locale: it })}
                         </span>
                     </div>
@@ -273,27 +266,36 @@ export function TripDetailPage() {
             </div>
 
             {/* Main Content */}
-            <div className="detail-content">
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-8 items-start">
                 {/* Left Column - Main Info */}
-                <div className="detail-main">
+                <div>
                     {/* Tabs */}
-                    <div className="detail-tabs">
+                    <div className="flex p-1 space-x-1 bg-gray-100/80 rounded-xl mb-6 border border-gray-200">
                         <button
-                            className={`detail-tab ${activeTab === 'details' ? 'active' : ''}`}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${activeTab === 'details'
+                                    ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5'
+                                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                                }`}
                             onClick={() => setActiveTab('details')}
                         >
                             <FileText size={16} />
                             Dettagli
                         </button>
                         <button
-                            className={`detail-tab ${activeTab === 'expenses' ? 'active' : ''}`}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${activeTab === 'expenses'
+                                    ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5'
+                                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                                }`}
                             onClick={() => setActiveTab('expenses')}
                         >
                             <Receipt size={16} />
                             Spese
                         </button>
                         <button
-                            className={`detail-tab ${activeTab === 'allowances' ? 'active' : ''}`}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${activeTab === 'allowances'
+                                    ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5'
+                                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                                }`}
                             onClick={() => setActiveTab('allowances')}
                         >
                             <DollarSign size={16} />
@@ -302,36 +304,38 @@ export function TripDetailPage() {
                     </div>
 
                     {activeTab === 'details' && (
-                        <div className="detail-card card animate-fadeInUp">
+                        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm animate-fadeInUp">
                             {/* Purpose */}
                             {trip.purpose && (
-                                <div className="detail-section">
-                                    <h3 className="detail-section-title">
+                                <div className="p-6 border-b border-gray-100">
+                                    <h3 className="flex items-center gap-2 text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">
                                         <FileText size={18} />
                                         Scopo della Trasferta
                                     </h3>
-                                    <p className="detail-notes">{trip.purpose}</p>
+                                    <p className="text-gray-700 leading-relaxed bg-gray-50 p-4 rounded-lg border border-gray-100 text-sm">
+                                        {trip.purpose}
+                                    </p>
                                 </div>
                             )}
 
                             {/* Project Info */}
                             {(trip.project_code || trip.client_name) && (
-                                <div className="detail-section">
-                                    <h3 className="detail-section-title">
+                                <div className="p-6 border-b border-gray-100">
+                                    <h3 className="flex items-center gap-2 text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">
                                         <Building size={18} />
                                         Informazioni Progetto
                                     </h3>
-                                    <div className="info-grid">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {trip.project_code && (
-                                            <div className="info-item">
-                                                <span className="info-label">Codice Progetto</span>
-                                                <span className="info-value">{trip.project_code}</span>
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-xs text-gray-500 uppercase font-medium">Codice Progetto</span>
+                                                <span className="font-medium text-gray-900">{trip.project_code}</span>
                                             </div>
                                         )}
                                         {trip.client_name && (
-                                            <div className="info-item">
-                                                <span className="info-label">Cliente</span>
-                                                <span className="info-value">{trip.client_name}</span>
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-xs text-gray-500 uppercase font-medium">Cliente</span>
+                                                <span className="font-medium text-gray-900">{trip.client_name}</span>
                                             </div>
                                         )}
                                     </div>
@@ -340,12 +344,12 @@ export function TripDetailPage() {
 
                             {/* Attachment */}
                             {trip.attachment_path && (
-                                <div className="detail-section">
-                                    <h3 className="detail-section-title">
+                                <div className="p-6">
+                                    <h3 className="flex items-center gap-2 text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">
                                         <FileText size={18} />
                                         Allegati
                                     </h3>
-                                    <button className="btn btn-secondary">
+                                    <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                                         <Download size={16} />
                                         Scarica Documento
                                     </button>
@@ -355,16 +359,16 @@ export function TripDetailPage() {
                     )}
 
                     {activeTab === 'expenses' && (
-                        <div className="detail-card card animate-fadeInUp">
-                            <div className="empty-state">
-                                <div className="empty-state-icon">
+                        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm animate-fadeInUp min-h-[300px] flex items-center justify-center text-center">
+                            <div className="max-w-xs">
+                                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-gray-400 mx-auto mb-4">
                                     <Receipt size={32} />
                                 </div>
-                                <h3 className="empty-state-title">Nessuna spesa registrata</h3>
-                                <p className="empty-state-description">
+                                <h3 className="text-lg font-semibold text-gray-900 mb-2">Nessuna spesa registrata</h3>
+                                <p className="text-gray-500 text-sm mb-6">
                                     Le spese per questa trasferta appariranno qui una volta aggiunte alla nota spese.
                                 </p>
-                                <Link to="/expenses/new" className="btn btn-primary">
+                                <Link to="/expenses/new" className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors">
                                     <Plus size={18} />
                                     Crea Nota Spese
                                 </Link>
@@ -373,13 +377,13 @@ export function TripDetailPage() {
                     )}
 
                     {activeTab === 'allowances' && (
-                        <div className="detail-card card animate-fadeInUp">
-                            <div className="empty-state">
-                                <div className="empty-state-icon">
+                        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm animate-fadeInUp min-h-[300px] flex items-center justify-center text-center">
+                            <div className="max-w-xs">
+                                <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 mx-auto mb-4">
                                     <DollarSign size={32} />
                                 </div>
-                                <h3 className="empty-state-title">Diarie non calcolate</h3>
-                                <p className="empty-state-description">
+                                <h3 className="text-lg font-semibold text-gray-900 mb-2">Diarie non calcolate</h3>
+                                <p className="text-gray-500 text-sm">
                                     Le diarie verranno calcolate automaticamente al completamento della trasferta.
                                 </p>
                             </div>
@@ -388,23 +392,22 @@ export function TripDetailPage() {
                 </div>
 
                 {/* Right Column - Actions & Summary */}
-                <div className="detail-sidebar">
+                <div className="space-y-6">
                     {/* Actions Card */}
-                    <div className="card">
-                        <h3 className="card-title" style={{ marginBottom: 'var(--space-4)' }}>Azioni</h3>
-                        <div className="detail-actions">
+                    <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+                        <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-4">Azioni</h3>
+                        <div className="space-y-3">
                             {trip.status === 'draft' && (
                                 <>
                                     <button
-                                        className="btn btn-primary btn-lg"
-                                        style={{ width: '100%' }}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
                                         onClick={handleSubmit}
                                         disabled={actionLoading !== null}
                                     >
                                         {actionLoading === 'submit' ? <Loader size={18} className="animate-spin" /> : <Send size={18} />}
                                         Invia per Approvazione
                                     </button>
-                                    <Link to={`/trips/${id}/edit`} className="btn btn-secondary" style={{ width: '100%' }}>
+                                    <Link to={`/trips/${id}/edit`} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition-colors">
                                         <Edit size={18} />
                                         Modifica
                                     </Link>
@@ -413,8 +416,7 @@ export function TripDetailPage() {
                             {(trip.status === 'submitted' || trip.status === 'pending') && isApprover && (
                                 <>
                                     <button
-                                        className="btn btn-success btn-lg"
-                                        style={{ width: '100%' }}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
                                         onClick={handleApprove}
                                         disabled={actionLoading !== null}
                                     >
@@ -422,8 +424,7 @@ export function TripDetailPage() {
                                         Approva
                                     </button>
                                     <button
-                                        className="btn btn-danger"
-                                        style={{ width: '100%' }}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
                                         onClick={() => setShowRejectModal(true)}
                                         disabled={actionLoading !== null}
                                     >
@@ -434,13 +435,12 @@ export function TripDetailPage() {
                             )}
                             {trip.status === 'approved' && (
                                 <>
-                                    <Link to={`/expenses/new?trip_id=${id}`} className="btn btn-primary btn-lg" style={{ width: '100%' }}>
+                                    <Link to={`/expenses/new?trip_id=${id}`} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors">
                                         <Receipt size={18} />
                                         Crea Nota Spese
                                     </Link>
                                     <button
-                                        className="btn btn-secondary"
-                                        style={{ width: '100%' }}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition-colors disabled:opacity-50"
                                         onClick={handleComplete}
                                         disabled={actionLoading !== null}
                                     >
@@ -450,7 +450,7 @@ export function TripDetailPage() {
                                 </>
                             )}
                             {(trip.status === 'completed' || trip.status === 'rejected' || trip.status === 'cancelled') && (
-                                <p className="text-muted text-sm" style={{ textAlign: 'center' }}>
+                                <p className="text-center text-sm text-gray-500 italic">
                                     Nessuna azione disponibile per questa trasferta.
                                 </p>
                             )}
@@ -458,25 +458,25 @@ export function TripDetailPage() {
                     </div>
 
                     {/* Summary Card */}
-                    <div className="card">
-                        <h3 className="card-title" style={{ marginBottom: 'var(--space-4)' }}>Riepilogo</h3>
-                        <div className="summary-list">
-                            <div className="summary-item">
-                                <span className="summary-label">Destinazione</span>
-                                <span className="summary-value">{trip.destination}</span>
+                    <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+                        <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-4">Riepilogo</h3>
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                                <span className="text-sm text-gray-500">Destinazione</span>
+                                <span className="text-sm font-medium text-gray-900">{trip.destination}</span>
                             </div>
-                            <div className="summary-item">
-                                <span className="summary-label">Tipo</span>
-                                <span className="summary-value">{getDestinationLabel(trip.destination_type)}</span>
+                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                                <span className="text-sm text-gray-500">Tipo</span>
+                                <span className="text-sm font-medium text-gray-900">{getDestinationLabel(trip.destination_type)}</span>
                             </div>
-                            <div className="summary-item">
-                                <span className="summary-label">Durata</span>
-                                <span className="summary-value font-semibold">{tripDays} giorni</span>
+                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                                <span className="text-sm text-gray-500">Durata</span>
+                                <span className="text-sm font-bold text-gray-900">{tripDays} giorni</span>
                             </div>
                             {trip.estimated_budget && (
-                                <div className="summary-item">
-                                    <span className="summary-label">Budget</span>
-                                    <span className="summary-value font-semibold">€{Number(trip.estimated_budget).toFixed(2)}</span>
+                                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                                    <span className="text-sm text-gray-500">Budget</span>
+                                    <span className="text-sm font-bold text-gray-900">€{Number(trip.estimated_budget).toFixed(2)}</span>
                                 </div>
                             )}
                         </div>
@@ -486,19 +486,19 @@ export function TripDetailPage() {
 
             {/* Reject Modal */}
             {showRejectModal && (
-                <div className="modal-overlay" onClick={() => setShowRejectModal(false)}>
-                    <div className="modal-container animate-scaleIn" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h3>Rifiuta Trasferta</h3>
-                            <button className="btn btn-ghost btn-icon" onClick={() => setShowRejectModal(false)}>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn" onClick={() => setShowRejectModal(false)}>
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-scaleIn" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50/50">
+                            <h3 className="font-bold text-gray-900">Rifiuta Trasferta</h3>
+                            <button className="text-gray-400 hover:text-gray-600 p-1" onClick={() => setShowRejectModal(false)}>
                                 <XCircle size={20} />
                             </button>
                         </div>
-                        <div className="modal-body">
-                            <div className="form-group">
-                                <label className="input-label input-label-required">Motivo del Rifiuto</label>
+                        <div className="p-6">
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-gray-700">Motivo del Rifiuto <span className="text-red-500">*</span></label>
                                 <textarea
-                                    className="input"
+                                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm min-h-[100px] resize-y"
                                     placeholder="Inserisci il motivo del rifiuto..."
                                     value={rejectReason}
                                     onChange={(e) => setRejectReason(e.target.value)}
@@ -506,12 +506,12 @@ export function TripDetailPage() {
                                 />
                             </div>
                         </div>
-                        <div className="modal-footer">
-                            <button className="btn btn-ghost" onClick={() => setShowRejectModal(false)}>
+                        <div className="flex justify-end gap-3 p-4 bg-gray-50 border-t border-gray-100">
+                            <button className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" onClick={() => setShowRejectModal(false)}>
                                 Annulla
                             </button>
                             <button
-                                className="btn btn-danger"
+                                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
                                 onClick={handleReject}
                                 disabled={!rejectReason.trim() || actionLoading === 'reject'}
                             >
@@ -522,315 +522,6 @@ export function TripDetailPage() {
                     </div>
                 </div>
             )}
-
-            <style>{`
-        .detail-page {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-6);
-        }
-
-        .detail-loading,
-        .detail-empty {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          min-height: 400px;
-          gap: var(--space-4);
-          text-align: center;
-          color: var(--color-text-muted);
-        }
-
-        .detail-empty h2 {
-          color: var(--color-text-primary);
-        }
-
-        .detail-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          gap: var(--space-4);
-        }
-
-        .detail-header-left {
-          display: flex;
-          align-items: flex-start;
-          gap: var(--space-4);
-        }
-
-        .detail-breadcrumb {
-          display: flex;
-          align-items: center;
-          gap: var(--space-2);
-          font-size: var(--font-size-sm);
-          color: var(--color-text-muted);
-          margin-bottom: var(--space-1);
-        }
-
-        .detail-breadcrumb a:hover {
-          color: var(--color-primary);
-        }
-
-        .detail-title {
-          font-size: var(--font-size-2xl);
-          font-weight: var(--font-weight-bold);
-        }
-
-        .detail-status-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: var(--space-2);
-          padding: var(--space-2) var(--space-4);
-          border-radius: var(--radius-full);
-          font-weight: var(--font-weight-medium);
-          font-size: var(--font-size-sm);
-        }
-
-        .trip-hero {
-          padding: var(--space-6);
-        }
-
-        .trip-hero-content {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: var(--space-6);
-        }
-
-        .trip-hero-destination {
-          display: flex;
-          align-items: center;
-          gap: var(--space-4);
-        }
-
-        .destination-icon {
-          width: 56px;
-          height: 56px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
-          border-radius: var(--radius-xl);
-          color: white;
-        }
-
-        .trip-hero-destination h2 {
-          font-size: var(--font-size-xl);
-          margin-bottom: var(--space-1);
-        }
-
-        .destination-type {
-          font-size: var(--font-size-sm);
-          color: var(--color-text-muted);
-        }
-
-        .trip-hero-stats {
-          display: flex;
-          gap: var(--space-6);
-        }
-
-        .hero-stat {
-          display: flex;
-          align-items: center;
-          gap: var(--space-2);
-          color: var(--color-primary);
-        }
-
-        .hero-stat > div {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .hero-stat-value {
-          font-size: var(--font-size-xl);
-          font-weight: var(--font-weight-bold);
-          color: var(--color-text-primary);
-        }
-
-        .hero-stat-label {
-          font-size: var(--font-size-xs);
-          color: var(--color-text-muted);
-        }
-
-        .trip-hero-dates {
-          display: flex;
-          align-items: center;
-          gap: var(--space-6);
-          padding-top: var(--space-4);
-          border-top: 1px solid var(--color-border-light);
-        }
-
-        .hero-date {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-1);
-        }
-
-        .hero-date-label {
-          font-size: var(--font-size-xs);
-          color: var(--color-text-muted);
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-
-        .hero-date-value {
-          font-weight: var(--font-weight-semibold);
-          color: var(--color-text-primary);
-        }
-
-        .hero-date-arrow {
-          font-size: var(--font-size-xl);
-          color: var(--color-primary);
-        }
-
-        .detail-content {
-          display: grid;
-          grid-template-columns: 1fr 320px;
-          gap: var(--space-6);
-        }
-
-        @media (max-width: 1024px) {
-          .detail-content {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        .detail-tabs {
-          display: flex;
-          gap: var(--space-1);
-          margin-bottom: var(--space-4);
-          padding: var(--space-1);
-          background: var(--color-bg-tertiary);
-          border-radius: var(--radius-lg);
-        }
-
-        .detail-tab {
-          flex: 1;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: var(--space-2);
-          padding: var(--space-2) var(--space-4);
-          background: transparent;
-          border: none;
-          border-radius: var(--radius-md);
-          font-size: var(--font-size-sm);
-          font-weight: var(--font-weight-medium);
-          color: var(--color-text-muted);
-          cursor: pointer;
-          transition: all var(--transition-fast);
-        }
-
-        .detail-tab:hover {
-          color: var(--color-text-primary);
-        }
-
-        .detail-tab.active {
-          background: var(--color-bg-primary);
-          color: var(--color-primary);
-          box-shadow: var(--shadow-sm);
-        }
-
-        .detail-card {
-          padding: var(--space-6);
-        }
-
-        .detail-section {
-          padding: var(--space-4) 0;
-          border-bottom: 1px solid var(--color-border-light);
-        }
-
-        .detail-section:last-child {
-          border-bottom: none;
-          padding-bottom: 0;
-        }
-
-        .detail-section:first-child {
-          padding-top: 0;
-        }
-
-        .detail-section-title {
-          display: flex;
-          align-items: center;
-          gap: var(--space-2);
-          font-size: var(--font-size-sm);
-          font-weight: var(--font-weight-semibold);
-          color: var(--color-text-secondary);
-          margin-bottom: var(--space-3);
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-
-        .detail-notes {
-          color: var(--color-text-secondary);
-          line-height: var(--line-height-relaxed);
-        }
-
-        .info-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: var(--space-4);
-        }
-
-        .info-item {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-1);
-        }
-
-        .info-label {
-          font-size: var(--font-size-xs);
-          color: var(--color-text-muted);
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-
-        .info-value {
-          font-weight: var(--font-weight-medium);
-          color: var(--color-text-primary);
-        }
-
-        .detail-sidebar {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-4);
-        }
-
-        .detail-actions {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-3);
-        }
-
-        .summary-list {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-3);
-        }
-
-        .summary-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: var(--space-2) 0;
-          border-bottom: 1px solid var(--color-border-light);
-        }
-
-        .summary-item:last-child {
-          border-bottom: none;
-        }
-
-        .summary-label {
-          font-size: var(--font-size-sm);
-          color: var(--color-text-muted);
-        }
-
-        .summary-value {
-          font-size: var(--font-size-sm);
-          color: var(--color-text-primary);
-        }
-      `}</style>
         </div>
     );
 }

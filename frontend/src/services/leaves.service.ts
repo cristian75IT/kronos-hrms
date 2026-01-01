@@ -63,6 +63,23 @@ export const leavesService = {
         return response.data;
     },
 
+    calculateDays: async (
+        startDate: string,
+        endDate: string,
+        startHalfDay = false,
+        endHalfDay = false,
+        leaveTypeId?: string
+    ): Promise<{ days: number; hours: number; message?: string }> => {
+        const response = await leavesApi.post(`${ENDPOINT}/calculate-days`, {
+            start_date: startDate,
+            end_date: endDate,
+            start_half_day: startHalfDay,
+            end_half_day: endHalfDay,
+            leave_type_id: leaveTypeId,
+        });
+        return response.data;
+    },
+
     // ═══════════════════════════════════════════════════════════════════
     // Approver Actions
     // ═══════════════════════════════════════════════════════════════════
@@ -118,7 +135,7 @@ export const leavesService = {
         endDate: string,
         includeTeam?: boolean,
         includeHolidays?: boolean,
-    ): Promise<{ events: CalendarEvent[]; holidays: CalendarEvent[] }> => {
+    ): Promise<{ events: CalendarEvent[]; holidays: CalendarEvent[]; closures: CalendarEvent[] }> => {
         const response = await leavesApi.post('/leaves/calendar', {
             start_date: startDate,
             end_date: endDate,

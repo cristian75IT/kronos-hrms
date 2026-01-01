@@ -32,6 +32,7 @@ export interface User {
     first_name: string;
     last_name: string;
     is_active: boolean;
+    is_superuser?: boolean;
     last_login?: string;
     created_at: string;
 }
@@ -362,7 +363,7 @@ export interface CalendarEvent {
 export interface CalendarData {
     events: CalendarEvent[];
     holidays: CalendarEvent[];
-    closures?: CompanyClosure[];
+    closures?: CalendarEvent[];
     teamEvents?: CalendarEvent[];
 }
 export interface Holiday {

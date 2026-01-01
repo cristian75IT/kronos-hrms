@@ -31,6 +31,8 @@ from src.services.leaves.schemas import (
     CalendarRequest,
     CalendarResponse,
     PolicyValidationResult,
+    DaysCalculationRequest,
+    DaysCalculationResponse,
 )
 
 
@@ -285,6 +287,23 @@ async def recall_request(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.delete("/leaves/{id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_request(
+    id: UUID,
+    token: TokenPayload = Depends(get_current_token),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Delete a draft request."""
+    user_id = UUID(token.keycloak_id)
+    
+    try:
+        await service.delete_request(id, user_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except BusinessRuleError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # ═══════════════════════════════════════════════════════════
 # Balance Endpoints
 # ═══════════════════════════════════════════════════════════
@@ -380,6 +399,16 @@ async def get_calendar(
 # ═══════════════════════════════════════════════════════════
 # Validation Endpoints
 # ═══════════════════════════════════════════════════════════
+
+@router.post("/leaves/calculate-days", response_model=DaysCalculationResponse)
+async def calculate_days(
+    request: DaysCalculationRequest,
+    token: TokenPayload = Depends(get_current_token),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Calculate working days for preview."""
+    return await service.calculate_preview(request)
+
 
 @router.post("/leaves/validate", response_model=PolicyValidationResult)
 async def validate_request(

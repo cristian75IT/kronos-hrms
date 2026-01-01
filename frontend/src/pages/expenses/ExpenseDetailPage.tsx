@@ -39,36 +39,31 @@ export function ExpenseDetailPage() {
     const report = reports?.find(r => r.id === id);
 
     const getStatusConfig = (status: string) => {
-        const configs: Record<string, { color: string; icon: React.ReactNode; label: string; bg: string }> = {
+        const configs: Record<string, { className: string; icon: React.ReactNode; label: string }> = {
             draft: {
-                color: 'var(--color-text-muted)',
-                icon: <FileText size={20} />,
-                label: 'Bozza',
-                bg: 'var(--color-bg-tertiary)'
+                className: 'bg-gray-100 text-gray-600 border-gray-200',
+                icon: <FileText size={18} />,
+                label: 'Bozza'
             },
             submitted: {
-                color: 'var(--color-warning)',
-                icon: <Send size={20} />,
-                label: 'In Approvazione',
-                bg: 'var(--color-warning-bg)'
+                className: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+                icon: <Send size={18} />,
+                label: 'In Approvazione'
             },
             approved: {
-                color: 'var(--color-success)',
-                icon: <CheckCircle size={20} />,
-                label: 'Approvata',
-                bg: 'var(--color-success-bg)'
+                className: 'bg-green-50 text-green-700 border-green-200',
+                icon: <CheckCircle size={18} />,
+                label: 'Approvata'
             },
             rejected: {
-                color: 'var(--color-danger)',
-                icon: <XCircle size={20} />,
-                label: 'Rifiutata',
-                bg: 'var(--color-danger-bg)'
+                className: 'bg-red-50 text-red-700 border-red-200',
+                icon: <XCircle size={18} />,
+                label: 'Rifiutata'
             },
             paid: {
-                color: 'var(--color-info)',
-                icon: <CreditCard size={20} />,
-                label: 'Pagata',
-                bg: 'var(--color-info-bg)'
+                className: 'bg-blue-50 text-blue-700 border-blue-200',
+                icon: <CreditCard size={18} />,
+                label: 'Pagata'
             }
         };
         return configs[status] || configs.draft;
@@ -135,9 +130,9 @@ export function ExpenseDetailPage() {
 
     if (isLoading) {
         return (
-            <div className="detail-page animate-fadeIn">
-                <div className="detail-loading">
-                    <Loader size={32} className="animate-spin" />
+            <div className="flex items-center justify-center min-h-[400px]">
+                <div className="flex flex-col items-center gap-4 text-gray-500">
+                    <Loader size={32} className="animate-spin text-indigo-600" />
                     <p>Caricamento nota spese...</p>
                 </div>
             </div>
@@ -146,15 +141,15 @@ export function ExpenseDetailPage() {
 
     if (!report) {
         return (
-            <div className="detail-page animate-fadeIn">
-                <div className="detail-empty">
-                    <AlertCircle size={48} />
-                    <h2>Nota spesa non trovata</h2>
-                    <p>La nota spese che stai cercando non esiste o è stata eliminata.</p>
-                    <Link to="/expenses" className="btn btn-primary">
-                        Torna alle Note Spese
-                    </Link>
+            <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8">
+                <div className="bg-gray-100 p-4 rounded-full mb-4">
+                    <AlertCircle size={48} className="text-gray-400" />
                 </div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Nota spesa non trovata</h2>
+                <p className="text-gray-500 mb-6 max-w-md">La nota spese che stai cercando non esiste o è stata eliminata. Controlla l'URL o torna all'elenco.</p>
+                <Link to="/expenses" className="btn btn-primary">
+                    Torna alle Note Spese
+                </Link>
             </div>
         );
     }
@@ -162,48 +157,42 @@ export function ExpenseDetailPage() {
     const statusConfig = getStatusConfig(report.status);
 
     return (
-        <div className="detail-page animate-fadeIn">
+        <div className="space-y-8 animate-fadeIn pb-12">
             {/* Header */}
-            <header className="detail-header">
-                <div className="detail-header-left">
-                    <button onClick={() => navigate(-1)} className="btn btn-ghost btn-icon">
-                        <ArrowLeft size={20} />
+            <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="flex items-center gap-4">
+                    <button onClick={() => navigate(-1)} className="btn btn-ghost p-2 rounded-full hover:bg-gray-100">
+                        <ArrowLeft size={20} className="text-gray-500" />
                     </button>
                     <div>
-                        <div className="detail-breadcrumb">
-                            <Link to="/expenses">Note Spese</Link>
+                        <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+                            <Link to="/expenses" className="hover:text-primary transition-colors">Note Spese</Link>
                             <span>/</span>
                             <span>{report.report_number}</span>
                         </div>
-                        <h1 className="detail-title">{report.title}</h1>
+                        <h1 className="text-2xl font-bold text-gray-900">{report.title}</h1>
                     </div>
                 </div>
-                <div className="detail-header-right">
-                    <div
-                        className="detail-status-badge"
-                        style={{
-                            background: statusConfig.bg,
-                            color: statusConfig.color
-                        }}
-                    >
+                <div>
+                    <div className={`px-4 py-2 rounded-full border flex items-center gap-2 text-sm font-medium ${statusConfig.className}`}>
                         {statusConfig.icon}
                         <span>{statusConfig.label}</span>
                     </div>
                 </div>
             </header>
 
-            <div className="detail-content">
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-8 items-start">
                 {/* Main Column */}
-                <div className="detail-main">
+                <div className="space-y-6">
                     {/* Items Card */}
-                    <div className="detail-card card animate-fadeInUp">
-                        <div className="card-header-actions">
-                            <h3 className="detail-section-title">
-                                <Receipt size={18} />
-                                Voci di Spesa
-                            </h3>
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                        <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100">
+                            <div className="flex items-center gap-2 text-gray-900 font-semibold">
+                                <Receipt size={18} className="text-indigo-600" />
+                                <h3>Voci di Spesa</h3>
+                            </div>
                             {report.status === 'draft' && (
-                                <button className="btn btn-primary btn-sm">
+                                <button className="btn btn-primary btn-sm flex items-center gap-2">
                                     <Plus size={16} />
                                     Aggiungi Voce
                                 </button>
@@ -211,37 +200,47 @@ export function ExpenseDetailPage() {
                         </div>
 
                         {(!report.items || report.items.length === 0) ? (
-                            <div className="empty-state">
-                                <div className="empty-state-icon">
-                                    <Receipt size={32} />
+                            <div className="flex flex-col items-center justify-center py-12 text-center bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                                <div className="bg-white p-3 rounded-full shadow-sm mb-3">
+                                    <Receipt size={24} className="text-gray-400" />
                                 </div>
-                                <h3 className="empty-state-title">Nessuna voce presente</h3>
-                                <p className="empty-state-description">
+                                <h3 className="text-gray-900 font-medium mb-1">Nessuna voce presente</h3>
+                                <p className="text-sm text-gray-500">
                                     Aggiungi le voci di spesa per completare la nota.
                                 </p>
                             </div>
                         ) : (
-                            <div className="expense-items-list">
+                            <div className="space-y-3">
                                 {report.items.map(item => (
-                                    <div key={item.id} className="expense-item-row">
-                                        <div className="item-date">
-                                            {format(new Date(item.date), 'dd MMM', { locale: it })}
+                                    <div key={item.id} className="flex flex-col sm:flex-row sm:items-center p-4 rounded-lg bg-white border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all gap-4">
+                                        <div className="flex flex-col items-center justify-center min-w-[60px] p-2 bg-gray-50 rounded-lg border border-gray-100">
+                                            <span className="text-xs text-gray-500 uppercase font-semibold">{format(new Date(item.date), 'MMM', { locale: it })}</span>
+                                            <span className="text-xl font-bold text-gray-900">{format(new Date(item.date), 'dd', { locale: it })}</span>
                                         </div>
-                                        <div className="item-info">
-                                            <div className="item-title">{item.description}</div>
-                                            <div className="item-meta">
-                                                {item.merchant_name && <span>{item.merchant_name}</span>}
-                                                <span className="badge badge-sm">{item.expense_type_code}</span>
+
+                                        <div className="flex-1 min-w-0">
+                                            <div className="font-medium text-gray-900 truncate mb-1">{item.description}</div>
+                                            <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+                                                {item.merchant_name && (
+                                                    <span className="flex items-center gap-1">
+                                                        <span>{item.merchant_name}</span>
+                                                        <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                                                    </span>
+                                                )}
+                                                <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200 font-medium">{item.expense_type_code}</span>
                                             </div>
                                         </div>
-                                        <div className="item-amount">
-                                            € {item.amount.toFixed(2)}
+
+                                        <div className="flex items-center gap-4 justify-between sm:justify-end w-full sm:w-auto mt-2 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100">
+                                            <div className="font-bold text-lg text-gray-900">
+                                                € {item.amount.toFixed(2)}
+                                            </div>
+                                            {report.status === 'draft' && (
+                                                <button className="btn btn-ghost p-2 text-red-500 hover:bg-red-50 hover:text-red-700 rounded-lg">
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            )}
                                         </div>
-                                        {report.status === 'draft' && (
-                                            <button className="btn btn-ghost btn-sm btn-icon text-danger">
-                                                <Trash2 size={16} />
-                                            </button>
-                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -250,35 +249,34 @@ export function ExpenseDetailPage() {
 
                     {/* Notes */}
                     {report.employee_notes && (
-                        <div className="detail-card card animate-fadeInUp">
-                            <h3 className="detail-section-title">Note</h3>
-                            <p className="detail-notes">{report.employee_notes}</p>
+                        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 border-b border-gray-100 pb-2">Note</h3>
+                            <p className="text-gray-700 leading-relaxed text-sm bg-yellow-50/50 p-4 rounded-lg border border-yellow-100">{report.employee_notes}</p>
                         </div>
                     )}
                 </div>
 
                 {/* Sidebar */}
-                <div className="detail-sidebar">
+                <div className="space-y-6">
                     {/* Actions */}
-                    <div className="card">
-                        <h3 className="card-title" style={{ marginBottom: 'var(--space-4)' }}>Azioni</h3>
-                        <div className="detail-actions">
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                        <h3 className="text-lg font-bold text-gray-900 mb-4">Azioni</h3>
+                        <div className="space-y-3">
                             {report.status === 'draft' && (
                                 <>
                                     <button
-                                        className="btn btn-primary btn-lg"
-                                        style={{ width: '100%' }}
+                                        className="btn btn-primary w-full flex justify-center items-center gap-2 py-2.5"
                                         onClick={handleSubmit}
                                         disabled={actionLoading !== null}
                                     >
                                         {actionLoading === 'submit' ? <Loader size={18} className="animate-spin" /> : <Send size={18} />}
                                         Invia Richiesta
                                     </button>
-                                    <Link to={`/expenses/${id}/edit`} className="btn btn-secondary" style={{ width: '100%' }}>
+                                    <Link to={`/expenses/${id}/edit`} className="btn btn-white border border-gray-300 text-gray-700 hover:bg-gray-50 w-full flex justify-center items-center gap-2 py-2.5">
                                         <Edit size={18} />
                                         Modifica
                                     </Link>
-                                    <button className="btn btn-ghost text-danger" style={{ width: '100%' }}>
+                                    <button className="btn btn-white border border-red-200 text-red-600 hover:bg-red-50 w-full flex justify-center items-center gap-2 py-2.5">
                                         <Trash2 size={18} />
                                         Elimina
                                     </button>
@@ -287,8 +285,7 @@ export function ExpenseDetailPage() {
                             {report.status === 'submitted' && isApprover && (
                                 <>
                                     <button
-                                        className="btn btn-success btn-lg"
-                                        style={{ width: '100%' }}
+                                        className="btn bg-emerald-600 hover:bg-emerald-700 text-white w-full flex justify-center items-center gap-2 py-2.5 shadow-sm"
                                         onClick={handleApprove}
                                         disabled={actionLoading !== null}
                                     >
@@ -296,8 +293,7 @@ export function ExpenseDetailPage() {
                                         Approva
                                     </button>
                                     <button
-                                        className="btn btn-danger"
-                                        style={{ width: '100%' }}
+                                        className="btn bg-white border border-red-200 text-red-600 hover:bg-red-50 w-full flex justify-center items-center gap-2 py-2.5"
                                         onClick={() => setShowRejectModal(true)}
                                         disabled={actionLoading !== null}
                                     >
@@ -308,8 +304,7 @@ export function ExpenseDetailPage() {
                             )}
                             {report.status === 'approved' && ( // Assuming HR or Admin can mark as paid
                                 <button
-                                    className="btn btn-primary btn-lg"
-                                    style={{ width: '100%' }}
+                                    className="btn btn-primary w-full flex justify-center items-center gap-2 py-2.5"
                                     onClick={handleMarkPaid}
                                     disabled={actionLoading !== null}
                                 >
@@ -321,28 +316,28 @@ export function ExpenseDetailPage() {
                     </div>
 
                     {/* Summary */}
-                    <div className="card">
-                        <h3 className="card-title" style={{ marginBottom: 'var(--space-4)' }}>Riepilogo</h3>
-                        <div className="summary-list">
-                            <div className="summary-item">
-                                <span className="summary-label">Totale</span>
-                                <span className="summary-value font-bold text-lg">€ {report.total_amount.toFixed(2)}</span>
+                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                        <h3 className="text-lg font-bold text-gray-900 mb-4">Riepilogo</h3>
+                        <div className="space-y-3">
+                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                                <span className="text-sm text-gray-500">Totale</span>
+                                <span className="font-bold text-xl text-gray-900">€ {report.total_amount.toFixed(2)}</span>
                             </div>
                             {report.approved_amount !== undefined && (
-                                <div className="summary-item">
-                                    <span className="summary-label">Approvato</span>
-                                    <span className="summary-value text-success font-semibold">€ {report.approved_amount.toFixed(2)}</span>
+                                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                                    <span className="text-sm text-gray-500">Approvato</span>
+                                    <span className="font-bold text-lg text-emerald-600">€ {report.approved_amount.toFixed(2)}</span>
                                 </div>
                             )}
-                            <div className="summary-item">
-                                <span className="summary-label">Periodo</span>
-                                <span className="summary-value text-sm text-right">
+                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                                <span className="text-sm text-gray-500">Periodo</span>
+                                <span className="text-sm font-medium text-gray-900 text-right">
                                     {format(new Date(report.period_start), 'd MMM', { locale: it })} - {format(new Date(report.period_end), 'd MMM yyyy', { locale: it })}
                                 </span>
                             </div>
-                            <div className="summary-item">
-                                <span className="summary-label">N. Voci</span>
-                                <span className="summary-value">{report.items?.length || 0}</span>
+                            <div className="flex justify-between items-center py-2">
+                                <span className="text-sm text-gray-500">N. Voci</span>
+                                <span className="text-sm font-medium text-gray-900">{report.items?.length || 0}</span>
                             </div>
                         </div>
                     </div>
@@ -351,32 +346,31 @@ export function ExpenseDetailPage() {
 
             {/* Reject Modal */}
             {showRejectModal && (
-                <div className="modal-overlay" onClick={() => setShowRejectModal(false)}>
-                    <div className="modal-container animate-scaleIn" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h3>Rifiuta Nota Spese</h3>
-                            <button className="btn btn-ghost btn-icon" onClick={() => setShowRejectModal(false)}>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md animate-scaleIn overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50">
+                            <h3 className="font-bold text-gray-900">Rifiuta Nota Spese</h3>
+                            <button className="text-gray-400 hover:text-gray-600" onClick={() => setShowRejectModal(false)}>
                                 <XCircle size={20} />
                             </button>
                         </div>
-                        <div className="modal-body">
-                            <div className="form-group">
-                                <label className="input-label input-label-required">Motivo del Rifiuto</label>
+                        <div className="p-6">
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-gray-700">Motivo del Rifiuto <span className="text-red-500">*</span></label>
                                 <textarea
-                                    className="input"
+                                    className="w-full rounded-lg border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 min-h-[100px]"
                                     placeholder="Inserisci il motivo del rifiuto..."
                                     value={rejectReason}
                                     onChange={(e) => setRejectReason(e.target.value)}
-                                    rows={4}
                                 />
                             </div>
                         </div>
-                        <div className="modal-footer">
-                            <button className="btn btn-ghost" onClick={() => setShowRejectModal(false)}>
+                        <div className="flex justify-end gap-3 p-4 bg-gray-50/50 border-t border-gray-100">
+                            <button className="btn btn-ghost text-gray-600 hover:bg-white border border-transparent hover:border-gray-200" onClick={() => setShowRejectModal(false)}>
                                 Annulla
                             </button>
                             <button
-                                className="btn btn-danger"
+                                className="btn bg-red-600 hover:bg-red-700 text-white shadow-sm flex items-center gap-2"
                                 onClick={handleReject}
                                 disabled={!rejectReason.trim() || actionLoading === 'reject'}
                             >
@@ -387,235 +381,9 @@ export function ExpenseDetailPage() {
                     </div>
                 </div>
             )}
-
-            <style>{`
-                .detail-page {
-                    display: flex;
-                    flex-direction: column;
-                    gap: var(--space-6);
-                }
-
-                .detail-loading,
-                .detail-empty {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    min-height: 400px;
-                    gap: var(--space-4);
-                    text-align: center;
-                    color: var(--color-text-muted);
-                }
-
-                .detail-empty h2 {
-                    color: var(--color-text-primary);
-                }
-
-                .detail-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-start;
-                    gap: var(--space-4);
-                }
-
-                .detail-header-left {
-                    display: flex;
-                    align-items: flex-start;
-                    gap: var(--space-4);
-                }
-
-                .detail-breadcrumb {
-                    display: flex;
-                    align-items: center;
-                    gap: var(--space-2);
-                    font-size: var(--font-size-sm);
-                    color: var(--color-text-muted);
-                    margin-bottom: var(--space-1);
-                }
-
-                .detail-breadcrumb a:hover {
-                    color: var(--color-primary);
-                }
-
-                .detail-title {
-                    font-size: var(--font-size-2xl);
-                    font-weight: var(--font-weight-bold);
-                }
-
-                .detail-status-badge {
-                    display: inline-flex;
-                    align-items: center;
-                    gap: var(--space-2);
-                    padding: var(--space-2) var(--space-4);
-                    border-radius: var(--radius-full);
-                    font-weight: var(--font-weight-medium);
-                    font-size: var(--font-size-sm);
-                }
-
-                .detail-content {
-                    display: grid;
-                    grid-template-columns: 1fr 320px;
-                    gap: var(--space-6);
-                }
-
-                @media (max-width: 1024px) {
-                    .detail-content {
-                        grid-template-columns: 1fr;
-                    }
-                }
-
-                .detail-card {
-                    padding: var(--space-6);
-                }
-
-                .detail-section-title {
-                    display: flex;
-                    align-items: center;
-                    gap: var(--space-2);
-                    font-size: var(--font-size-sm);
-                    font-weight: var(--font-weight-semibold);
-                    color: var(--color-text-secondary);
-                    margin-bottom: var(--space-4);
-                    text-transform: uppercase;
-                    letter-spacing: 0.05em;
-                }
-
-                .detail-notes {
-                    color: var(--color-text-secondary);
-                    line-height: var(--line-height-relaxed);
-                }
-
-                .card-header-actions {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: var(--space-4);
-                }
-
-                .card-header-actions .detail-section-title {
-                    margin-bottom: 0;
-                }
-
-                .empty-state {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    padding: var(--space-8);
-                    text-align: center;
-                    color: var(--color-text-muted);
-                    background: var(--color-bg-tertiary);
-                    border-radius: var(--radius-lg);
-                    border: 1px dashed var(--color-border);
-                }
-
-                .empty-state-icon {
-                    width: 48px;
-                    height: 48px;
-                    background: var(--color-bg-secondary);
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    margin-bottom: var(--space-3);
-                    color: var(--color-text-muted);
-                }
-
-                .expense-items-list {
-                    display: flex;
-                    flex-direction: column;
-                    gap: var(--space-2);
-                }
-
-                .expense-item-row {
-                    display: flex;
-                    align-items: center;
-                    gap: var(--space-4);
-                    padding: var(--space-3);
-                    background: var(--color-bg-tertiary);
-                    border-radius: var(--radius-lg);
-                    transition: all var(--transition-fast);
-                }
-
-                .expense-item-row:hover {
-                    background: var(--color-bg-secondary);
-                }
-
-                .item-date {
-                    font-size: var(--font-size-sm);
-                    font-weight: var(--font-weight-medium);
-                    color: var(--color-text-secondary);
-                    min-width: 60px;
-                    text-align: center;
-                    line-height: 1.2;
-                }
-
-                .item-info {
-                    flex: 1;
-                    min-width: 0;
-                }
-
-                .item-title {
-                    font-weight: var(--font-weight-medium);
-                    color: var(--color-text-primary);
-                    margin-bottom: 2px;
-                }
-
-                .item-meta {
-                    display: flex;
-                    gap: var(--space-2);
-                    font-size: var(--font-size-xs);
-                    color: var(--color-text-muted);
-                }
-
-                .item-amount {
-                    font-weight: var(--font-weight-bold);
-                    color: var(--color-text-primary);
-                    font-size: var(--font-size-lg);
-                }
-
-                .detail-sidebar {
-                    display: flex;
-                    flex-direction: column;
-                    gap: var(--space-4);
-                }
-
-                .detail-actions {
-                    display: flex;
-                    flex-direction: column;
-                    gap: var(--space-3);
-                }
-
-                .summary-list {
-                    display: flex;
-                    flex-direction: column;
-                    gap: var(--space-3);
-                }
-
-                .summary-item {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: var(--space-2) 0;
-                    border-bottom: 1px solid var(--color-border-light);
-                }
-
-                .summary-item:last-child {
-                    border-bottom: none;
-                }
-
-                .summary-label {
-                    font-size: var(--font-size-sm);
-                    color: var(--color-text-muted);
-                }
-
-                .summary-value {
-                    font-size: var(--font-size-sm);
-                    color: var(--color-text-primary);
-                }
-            `}</style>
         </div>
     );
 }
+
 
 export default ExpenseDetailPage;

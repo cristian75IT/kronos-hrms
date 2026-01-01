@@ -3,7 +3,7 @@ from datetime import date, datetime
 from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from src.shared.schemas import BaseSchema, TimestampMixin, IDMixin
 
@@ -131,6 +131,8 @@ class HolidayBase(BaseModel):
     name: str = Field(..., max_length=100)
     location_id: Optional[UUID] = None
     is_national: bool = True
+    is_regional: bool = False
+    region_code: Optional[str] = Field(None, max_length=10)
 
 
 class HolidayCreate(HolidayBase):
@@ -138,10 +140,21 @@ class HolidayCreate(HolidayBase):
     pass
 
 
+class HolidayUpdate(BaseModel):
+    """Schema for updating holiday."""
+    
+    name: Optional[str] = Field(None, max_length=100)
+    is_national: Optional[bool] = None
+    is_regional: Optional[bool] = None
+    region_code: Optional[str] = Field(None, max_length=10)
+    is_confirmed: Optional[bool] = None
+
+
 class HolidayResponse(HolidayBase, IDMixin, BaseSchema):
     """Response schema for holiday."""
     
     year: int
+    is_confirmed: bool = True
 
 
 class HolidayListResponse(BaseModel):
@@ -266,3 +279,222 @@ class DailyAllowanceRuleResponse(DailyAllowanceRuleBase, IDMixin, BaseSchema):
     """Response schema for daily allowance rule."""
     
     is_active: bool
+
+
+# ═══════════════════════════════════════════════════════════
+# National Contracts (CCNL)
+# ═══════════════════════════════════════════════════════════
+
+class NationalContractBase(BaseModel):
+    """Base schema for National Contract (CCNL)."""
+    
+    code: str = Field(..., max_length=20)
+    name: str = Field(..., max_length=200)
+    sector: Optional[str] = Field(None, max_length=100)
+    description: Optional[str] = None
+    source_url: Optional[str] = None
+
+
+class NationalContractCreate(NationalContractBase):
+    """Schema for creating National Contract."""
+    pass
+
+
+class NationalContractUpdate(BaseModel):
+    """Schema for updating National Contract."""
+    
+    name: Optional[str] = Field(None, max_length=200)
+    sector: Optional[str] = Field(None, max_length=100)
+    description: Optional[str] = None
+    source_url: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+
+class NationalContractLevelBase(BaseModel):
+    """Base schema for National Contract Level."""
+    
+    level_name: str = Field(..., max_length=50)
+    description: Optional[str] = Field(None, max_length=200)
+    sort_order: int = Field(default=0)
+
+
+class NationalContractLevelCreate(NationalContractLevelBase):
+    """Schema for creating National Contract Level."""
+    
+    national_contract_id: UUID
+
+
+class NationalContractLevelUpdate(BaseModel):
+    """Schema for updating National Contract Level."""
+    
+    level_name: Optional[str] = Field(None, max_length=50)
+    description: Optional[str] = Field(None, max_length=200)
+    sort_order: Optional[int] = None
+
+
+class NationalContractLevelResponse(NationalContractLevelBase, IDMixin, BaseSchema):
+    """Response schema for National Contract Level."""
+    
+    national_contract_id: UUID
+    created_at: datetime
+
+
+
+class NationalContractTypeConfigBase(BaseModel):
+    """Base schema for Contract Type Configuration."""
+    
+    contract_type_id: UUID
+    weekly_hours: float
+    annual_vacation_days: int
+    annual_rol_hours: int
+    annual_ex_festivita_hours: int
+    description: Optional[str] = None
+
+
+class NationalContractTypeConfigUpdate(BaseModel):
+    """Schema for updating Contract Type Configuration."""
+    
+    weekly_hours: Optional[float] = None
+    annual_vacation_days: Optional[int] = None
+    annual_rol_hours: Optional[int] = None
+    annual_ex_festivita_hours: Optional[int] = None
+    description: Optional[str] = None
+
+
+class ContractTypeMinimalResponse(BaseModel):
+    """Minimal schema for Contract Type."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: UUID
+    name: str
+    code: str
+
+
+class NationalContractTypeConfigResponse(NationalContractTypeConfigBase, IDMixin, TimestampMixin, BaseSchema):
+    """Response schema for Contract Type Configuration."""
+    
+    national_contract_version_id: UUID
+    contract_type: ContractTypeMinimalResponse
+
+
+class NationalContractVersionBase(BaseModel):
+    """Base schema for CCNL Version parameters."""
+    
+    version_name: str = Field(..., max_length=100)
+    valid_from: date
+    valid_to: Optional[date] = None
+    
+    # Working Hours
+    weekly_hours_full_time: float = Field(default=40.0, ge=20, le=50)
+    working_days_per_week: int = Field(default=5, ge=4, le=7)
+    daily_hours: float = Field(default=8.0, ge=4, le=12)
+    
+    # Vacation Parameters
+    annual_vacation_days: int = Field(default=26, ge=0, le=50)
+    vacation_accrual_method: str = Field(default="monthly", pattern="^(monthly|yearly)$")
+    vacation_carryover_months: int = Field(default=18, ge=0, le=36)
+    vacation_carryover_deadline_month: int = Field(default=6, ge=1, le=12)
+    vacation_carryover_deadline_day: int = Field(default=30, ge=1, le=31)
+    
+    # ROL Parameters
+    annual_rol_hours: int = Field(default=72, ge=0, le=200)
+    rol_accrual_method: str = Field(default="monthly", pattern="^(monthly|yearly)$")
+    rol_carryover_months: int = Field(default=24, ge=0, le=36)
+    
+    # Ex-Festività
+    annual_ex_festivita_hours: int = Field(default=32, ge=0, le=100)
+    ex_festivita_accrual_method: str = Field(default="yearly", pattern="^(monthly|yearly)$")
+    
+    # Other Leave
+    annual_study_leave_hours: Optional[int] = Field(None, ge=0)
+    blood_donation_paid_hours: Optional[int] = Field(None, ge=0)
+    marriage_leave_days: Optional[int] = Field(None, ge=0)
+    bereavement_leave_days: Optional[int] = Field(None, ge=0)
+    l104_monthly_days: Optional[int] = Field(None, ge=0)
+    
+    # Sick Leave
+    sick_leave_carenza_days: int = Field(default=3, ge=0, le=10)
+    sick_leave_max_days_year: Optional[int] = Field(None, ge=0)
+    
+    # Seniority Bonuses (JSON)
+    seniority_vacation_bonus: Optional[list[dict]] = None
+    seniority_rol_bonus: Optional[list[dict]] = None
+    
+    # Notes
+    notes: Optional[str] = None
+
+
+class NationalContractVersionCreate(NationalContractVersionBase):
+    """Schema for creating CCNL Version."""
+    
+    national_contract_id: UUID
+
+
+class NationalContractVersionUpdate(BaseModel):
+    """Schema for updating CCNL Version."""
+    
+    version_name: Optional[str] = Field(None, max_length=100)
+    valid_from: Optional[date] = None
+    valid_to: Optional[date] = None
+    
+    weekly_hours_full_time: Optional[float] = Field(None, ge=20, le=50)
+    working_days_per_week: Optional[int] = Field(None, ge=4, le=7)
+    daily_hours: Optional[float] = Field(None, ge=4, le=12)
+    
+    annual_vacation_days: Optional[int] = Field(None, ge=0, le=50)
+    vacation_accrual_method: Optional[str] = None
+    vacation_carryover_months: Optional[int] = Field(None, ge=0, le=36)
+    vacation_carryover_deadline_month: Optional[int] = Field(None, ge=1, le=12)
+    vacation_carryover_deadline_day: Optional[int] = Field(None, ge=1, le=31)
+    
+    annual_rol_hours: Optional[int] = Field(None, ge=0, le=200)
+    rol_accrual_method: Optional[str] = None
+    rol_carryover_months: Optional[int] = Field(None, ge=0, le=36)
+    
+    annual_ex_festivita_hours: Optional[int] = Field(None, ge=0, le=100)
+    ex_festivita_accrual_method: Optional[str] = None
+    
+    annual_study_leave_hours: Optional[int] = Field(None, ge=0)
+    blood_donation_paid_hours: Optional[int] = Field(None, ge=0)
+    marriage_leave_days: Optional[int] = Field(None, ge=0)
+    bereavement_leave_days: Optional[int] = Field(None, ge=0)
+    l104_monthly_days: Optional[int] = Field(None, ge=0)
+    
+    sick_leave_carenza_days: Optional[int] = Field(None, ge=0, le=10)
+    sick_leave_max_days_year: Optional[int] = Field(None, ge=0)
+    
+    seniority_vacation_bonus: Optional[list[dict]] = None
+    seniority_rol_bonus: Optional[list[dict]] = None
+    
+    notes: Optional[str] = None
+
+
+class NationalContractVersionResponse(NationalContractVersionBase, IDMixin, TimestampMixin, BaseSchema):
+    """Response schema for CCNL Version."""
+    
+    national_contract_id: UUID
+    created_by: Optional[UUID] = None
+    contract_type_configs: list[NationalContractTypeConfigResponse] = []
+
+
+class NationalContractResponse(NationalContractBase, IDMixin, TimestampMixin, BaseSchema):
+    """Response schema for National Contract."""
+    
+    is_active: bool
+    versions: list[NationalContractVersionResponse] = []
+    levels: list[NationalContractLevelResponse] = []
+
+
+class NationalContractListResponse(BaseModel):
+    """List response for National Contracts."""
+    
+    items: list[NationalContractResponse]
+    total: int
+
+
+class NationalContractVersionListResponse(BaseModel):
+    """List response for CCNL Versions."""
+    
+    items: list[NationalContractVersionResponse]
+    total: int

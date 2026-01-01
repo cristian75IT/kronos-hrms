@@ -116,9 +116,21 @@ async def show_summary():
         ))
         holidays = result.scalar()
         
+        result = await conn.execute(text(
+            "SELECT COUNT(*) FROM config.national_contracts"
+        ))
+        national_contracts = result.scalar()
+        
+        result = await conn.execute(text(
+            "SELECT COUNT(*) FROM config.company_closures"
+        ))
+        closures = result.scalar()
+        
         print(f"\n📋 Seed Data:")
         print(f"   Leave Types: {leave_types}")
         print(f"   Holidays: {holidays}")
+        print(f"   National Contracts (CCNL): {national_contracts}")
+        print(f"   Company Closures: {closures}")
     
     await engine.dispose()
     print("\n" + "=" * 50)

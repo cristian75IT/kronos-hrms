@@ -34,7 +34,10 @@ echo "Waiting 15 seconds for DB and Services initialization..."
 sleep 15
 
 # 5. Seed Database
-echo -e "\n${YELLOW}🌱 Seeding database (Migrations + Init Data)...${NC}"
+echo -e "\n${YELLOW}🌱 Seeding database...${NC}"
+echo "   - Creating schemas (auth, leaves, expenses, config, notifications, audit)"
+echo "   - Running Alembic migrations"
+echo "   - Seeding leave types, holidays, national contracts (CCNL)"
 # Eseguiamo lo script python dentro il container auth-service che ha accesso al codice e DB
 if docker exec kronos-auth python scripts/init_db.py; then
     echo -e "${GREEN}✓ Database initialized and seeded successfully!${NC}"

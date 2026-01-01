@@ -167,6 +167,7 @@ class LeaveRequestRepository:
                 LeaveRequest.status.not_in([
                     LeaveRequestStatus.REJECTED,
                     LeaveRequestStatus.CANCELLED,
+                    LeaveRequestStatus.DRAFT,  # Drafts shouldn't block submissions
                 ]),
             )
         )
@@ -196,6 +197,19 @@ class LeaveRequestRepository:
         
         await self._session.flush()
         return request
+
+    async def delete(self, id: UUID) -> bool:
+        """Delete leave request."""
+        result = await self._session.execute(
+            select(LeaveRequest).where(LeaveRequest.id == id)
+        )
+        request = result.scalar_one_or_none()
+        
+        if request:
+            await self._session.delete(request)
+            await self._session.flush()
+            return True
+        return False
 
     async def add_history(
         self,

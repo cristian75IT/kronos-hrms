@@ -15,11 +15,11 @@ from src.shared.schemas import BaseSchema, IDMixin, TimestampMixin, DataTableReq
 class UserBase(BaseModel):
     """Base user schema."""
     
-    email: EmailStr
+    email: str  # Using str instead of EmailStr to allow .local domains
     username: str = Field(..., max_length=100)
     first_name: str = Field(..., max_length=100)
     last_name: str = Field(..., max_length=100)
-    badge_number: Optional[str] = Field(None, max_length=20)
+    badge_number: Optional[str] = Field(None, max_length=50)
     fiscal_code: Optional[str] = Field(None, max_length=16)
     hire_date: Optional[date] = None
     termination_date: Optional[date] = None
@@ -50,6 +50,25 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
+class UserProfileBase(BaseModel):
+    """Base user profile schema."""
+    
+    phone: Optional[str] = None
+    department: Optional[str] = None
+    position: Optional[str] = None
+    employee_number: Optional[str] = None
+    avatar_url: Optional[str] = None
+    hire_date: Optional[date] = None
+    contract_type: Optional[str] = None
+    weekly_hours: float = 40.0
+    location: Optional[str] = None
+
+
+class UserProfileResponse(UserProfileBase, IDMixin, BaseSchema):
+    """Response schema for user profile."""
+    pass
+
+
 class UserResponse(UserBase, IDMixin, BaseSchema):
     """Response schema for user."""
     
@@ -64,6 +83,7 @@ class UserResponse(UserBase, IDMixin, BaseSchema):
     location_id: Optional[UUID] = None
     manager_id: Optional[UUID] = None
     last_sync_at: Optional[datetime] = None
+    profile: Optional[UserProfileResponse] = None
     created_at: datetime
     updated_at: datetime
 
