@@ -17,10 +17,13 @@ import {
     CheckCircle,
     XCircle,
     Plus,
+    Wallet,
 } from 'lucide-react';
 import { userService } from '../../services/userService';
 import { useToast } from '../../context/ToastContext';
 import { ContractHistory } from '../../components/users/ContractHistory';
+import { WalletManagement } from '../../components/users/WalletManagement';
+import { configService } from '../../services/config.service';
 import type { UserWithProfile, EmployeeContract } from '../../types';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -32,16 +35,27 @@ export function UserDetailPage() {
     const toast = useToast();
     const [user, setUser] = useState<UserWithProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'overview' | 'contracts'>((searchParams.get('tab') as 'overview' | 'contracts') || 'overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'contracts' | 'wallet'>((searchParams.get('tab') as 'overview' | 'contracts' | 'wallet') || 'overview');
     const [showContractModal, setShowContractModal] = useState(false);
     const [contracts, setContracts] = useState<EmployeeContract[]>([]);
+    const [nationalContracts, setNationalContracts] = useState<any[]>([]);
 
     useEffect(() => {
         if (id) {
             loadUser();
             loadContracts();
+            loadNationalContracts();
         }
     }, [id]);
+
+    const loadNationalContracts = async () => {
+        try {
+            const data = await configService.getNationalContracts();
+            setNationalContracts(data);
+        } catch (error) {
+            console.error('Failed to load CCNL', error);
+        }
+    };
 
     const loadUser = async () => {
         if (!id) return;
@@ -190,21 +204,45 @@ export function UserDetailPage() {
                     </div>
 
                     {/* Quick Stats or Status */}
-                    <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Stato Contratto</h3>
+                    <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm overflow-hidden relative group">
+                        <div className="absolute top-0 right-0 p-3 text-emerald-500 opacity-10 group-hover:scale-110 transition-transform">
+                            <CheckCircle size={80} />
+                        </div>
+                        <h3 className="text-[0.65rem] font-bold text-gray-400 uppercase tracking-[0.2em] mb-4">Stato Contrattuale</h3>
                         {activeContract ? (
-                            <div className="flex items-start gap-3">
-                                <CheckCircle size={20} className="text-emerald-500 mt-0.5" />
-                                <div>
-                                    <div className="font-bold text-emerald-700">Attivo</div>
-                                    <div className="text-sm text-gray-900">{activeContract.weekly_hours}h / settimana</div>
-                                    <div className="text-xs text-gray-500 mt-0.5">Dal {safeFormatDate(activeContract.start_date.toString())}</div>
+                            <div className="relative z-10 space-y-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-sm border border-emerald-100">
+                                        <CheckCircle size={20} />
+                                    </div>
+                                    <div>
+                                        <div className="font-black text-gray-900 leading-tight">Attivo</div>
+                                        <div className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">In Forza</div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3 pt-2">
+                                    <div>
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Modello</p>
+                                        <p className="text-sm font-bold text-gray-800 truncate">{activeContract.contract_type?.name || 'Standard'}</p>
+                                    </div>
+                                    <div className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                        <div>
+                                            <p className="text-[10px] font-bold text-gray-400 uppercase">Impegno</p>
+                                            <p className="text-sm font-black text-indigo-600">{activeContract.weekly_hours}h <span className="text-[10px] font-medium text-gray-400 italic">/sett</span></p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-bold text-gray-400 uppercase">Dal</p>
+                                            <p className="text-sm font-bold text-gray-800">{safeFormatDate(activeContract.start_date.toString())}</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         ) : (
-                            <div className="flex items-center gap-3">
-                                <XCircle size={20} className="text-red-500" />
-                                <span className="text-red-600 font-medium text-sm">Nessun contratto attivo</span>
+                            <div className="flex flex-col items-center py-4 text-center">
+                                <XCircle size={40} className="text-red-200 mb-2" />
+                                <span className="text-red-600 font-bold text-sm">Nessun contratto attivo</span>
+                                <p className="text-[10px] text-gray-400 mt-1">L'utente non può maturare ferie senza contratto.</p>
                             </div>
                         )}
                     </div>
@@ -231,33 +269,136 @@ export function UserDetailPage() {
                         >
                             <FileText size={16} /> Contratti
                         </button>
+                        <button
+                            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'wallet'
+                                ? 'border-indigo-600 text-indigo-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                            onClick={() => setActiveTab('wallet')}
+                        >
+                            <Wallet size={16} /> Wallet
+                        </button>
                     </div>
 
                     <div className="min-h-[400px]">
                         {activeTab === 'overview' && (
                             <div className="animate-fadeIn space-y-6">
-                                {/* General Info Section */}
-                                <section className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                                    <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Informazioni Generali</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        <div>
-                                            <label className="block text-xs text-gray-500 uppercase mb-1">Data Assunzione</label>
-                                            <div className="text-base font-medium text-gray-900">
-                                                {profile?.hire_date ? safeFormatDate(profile.hire_date.toString(), 'd MMMM yyyy') : '-'}
+                                {/* Contract Detail Section */}
+                                <section className="bg-white p-8 rounded-[2rem] border border-gray-200 shadow-sm relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/50 rounded-full blur-3xl -mr-32 -mt-32" />
+                                    <div className="relative z-10">
+                                        <div className="flex items-center gap-3 mb-8">
+                                            <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                                                <Briefcase size={20} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black text-gray-900">Inquadramento Aziendale</h3>
+                                                <p className="text-xs text-gray-500">Dettagli legali e normativi del rapporto di lavoro.</p>
                                             </div>
                                         </div>
-                                        <div>
-                                            <label className="block text-xs text-gray-500 uppercase mb-1">Sede di Lavoro</label>
-                                            <div className="text-base font-medium text-gray-900">{profile?.location || '-'}</div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-10 gap-x-8">
+                                            <div>
+                                                <label className="text-[0.6rem] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Contratto Nazionale (CCNL)</label>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center">
+                                                        <FileText size={16} className="text-indigo-600" />
+                                                    </div>
+                                                    <span className="text-base font-bold text-gray-900">
+                                                        {activeContract && nationalContracts.find(c => c.id === activeContract.national_contract_id)?.name || 'Non Assegnato'}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="text-[0.6rem] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Livello Contrattuale</label>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-black border border-indigo-100 uppercase">
+                                                        {(() => {
+                                                            if (!activeContract?.national_contract_id || !activeContract?.level_id) return '-';
+                                                            const ccnl = nationalContracts.find(c => c.id === activeContract.national_contract_id);
+                                                            const lvl = ccnl?.levels?.find((l: any) => l.id === activeContract.level_id);
+                                                            return lvl?.level_name || '-';
+                                                        })()}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="text-[0.6rem] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Mansione Specialistica</label>
+                                                <div className="text-base font-bold text-gray-900">{activeContract?.job_title || profile?.position || '-'}</div>
+                                            </div>
+
+                                            <div className="pt-4 border-t border-gray-50">
+                                                <label className="text-[0.6rem] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Data Assunzione</label>
+                                                <div className="flex items-center gap-2">
+                                                    <Calendar size={16} className="text-gray-400" />
+                                                    <span className="text-base font-bold text-gray-900">
+                                                        {profile?.hire_date ? safeFormatDate(profile.hire_date.toString(), 'd MMMM yyyy') : '-'}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-4 border-t border-gray-50">
+                                                <label className="text-[0.6rem] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Sede Operativa</label>
+                                                <div className="text-base font-bold text-gray-900 flex items-center gap-2">
+                                                    <Building size={16} className="text-gray-400" />
+                                                    {profile?.location || '-'}
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-4 border-t border-gray-50">
+                                                <label className="text-[0.6rem] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Responsabile Diretto</label>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold">M</div>
+                                                    <span className="text-base font-bold text-gray-900">{profile?.manager_id || '-'}</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="block text-xs text-gray-500 uppercase mb-1">Manager</label>
-                                            <div className="text-base font-medium text-gray-900">{profile?.manager_id || '-'}</div>
-                                        </div>
+
+                                        {activeContract?.department && (
+                                            <div className="mt-8 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                                <label className="text-[0.6rem] font-black text-gray-400 uppercase tracking-widest block mb-1">Dipartimento Specifico del Contratto</label>
+                                                <p className="text-sm font-medium text-gray-700">{activeContract.department}</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </section>
+
+                                {/* Additional Professional Info */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="bg-white p-6 rounded-[2rem] border border-gray-200 shadow-sm">
+                                        <h4 className="text-[0.65rem] font-black text-gray-400 uppercase tracking-widest mb-4">Contatti e Riferimenti</h4>
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between py-2 border-b border-gray-50">
+                                                <span className="text-sm text-gray-500">Email Aziendale</span>
+                                                <span className="text-sm font-bold text-gray-900">{user.email}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between py-2 border-b border-gray-50">
+                                                <span className="text-sm text-gray-500">Telefono</span>
+                                                <span className="text-sm font-bold text-gray-900">{profile?.phone || '-'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white p-6 rounded-[2rem] border border-gray-200 shadow-sm">
+                                        <h4 className="text-[0.65rem] font-black text-gray-400 uppercase tracking-widest mb-4">Identificativi HR</h4>
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between py-2 border-b border-gray-50">
+                                                <span className="text-sm text-gray-500">Matricola Dipendente</span>
+                                                <span className="font-mono text-xs font-bold bg-gray-100 px-2 py-1 rounded text-gray-700">{profile?.employee_number || 'N/D'}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between py-2 border-b border-gray-50">
+                                                <span className="text-sm text-gray-500">Status Account</span>
+                                                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${user.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                                                    {user.is_active ? 'Attivo' : 'Disattivato'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                        )}
+                        ) || null}
 
                         {activeTab === 'contracts' && (
                             <div className="animate-fadeIn">
@@ -302,6 +443,12 @@ export function UserDetailPage() {
                                         ))}
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {activeTab === 'wallet' && id && (
+                            <div className="animate-fadeIn">
+                                <WalletManagement userId={id} userName={`${user.first_name} ${user.last_name}`} />
                             </div>
                         )}
                     </div>

@@ -74,11 +74,12 @@ export interface EmployeeContract {
     id: string;
     user_id: string;
     contract_type_id: string;
+    national_contract_id?: string;
+    level_id?: string;
     start_date: string;
     end_date?: string;
     weekly_hours?: number;
     job_title?: string;
-    level?: string;
     department?: string;
     document_path?: string;
     created_at: string;
@@ -86,13 +87,102 @@ export interface EmployeeContract {
     contract_type?: ContractType;
 }
 
+
+// ═══════════════════════════════════════════════════════════════════
+// National Contracts (CCNL)
+// ═══════════════════════════════════════════════════════════════════
+
+export interface NationalContract {
+    id: string;
+    code: string;
+    name: string;
+    sector?: string;
+    description?: string;
+    source_url?: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+    levels?: NationalContractLevel[];
+}
+
+export interface NationalContractTypeConfig {
+    id: string;
+    national_contract_version_id: string;
+    contract_type_id: string;
+    weekly_hours: number;
+    annual_vacation_days: number;
+    annual_rol_hours: number;
+    annual_ex_festivita_hours: number;
+    contract_type?: ContractType;
+}
+
+export interface CalculationMode {
+    id: string;
+    name: string;
+    code: string;
+    description?: string;
+    function_name: string;
+    default_parameters?: Record<string, any>;
+    is_active: boolean;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface NationalContractVersion {
+    id: string;
+    national_contract_id: string;
+    version_name: string;
+    valid_from: string;
+    valid_to?: string;
+
+    weekly_hours_full_time: number;
+    working_days_per_week: number;
+    daily_hours: number;
+
+    annual_vacation_days: number;
+    vacation_accrual_method: string;
+    vacation_carryover_months: number;
+
+    annual_rol_hours: number;
+    rol_accrual_method: string;
+    rol_carryover_months: number;
+
+    annual_ex_festivita_hours: number;
+
+    sick_leave_carenza_days: number;
+    sick_leave_max_days_year?: number;
+
+    notes?: string;
+
+    // Dynamic Calculation Modes
+    vacation_calc_mode_id?: string;
+    rol_calc_mode_id?: string;
+    vacation_calc_params?: Record<string, any>;
+    rol_calc_params?: Record<string, any>;
+
+    vacation_calc_mode?: CalculationMode;
+    rol_calc_mode?: CalculationMode;
+
+    contract_type_configs?: NationalContractTypeConfig[];
+    created_at: string;
+}
+
+export interface NationalContractLevel {
+    id: string;
+    national_contract_id: string;
+    level_name: string;
+    description?: string;
+    sort_order: number;
+}
+
 export interface EmployeeContractCreate {
     contract_type_id: string;
+    national_contract_id?: string;
+    level_id?: string;
     start_date: string;
     end_date?: string;
     weekly_hours?: number;
     job_title?: string;
-    level?: string;
     department?: string;
     document_path?: string;
 }
@@ -179,15 +269,27 @@ export interface LeaveBalance {
     id: string;
     user_id: string;
     year: number;
-    vacation_total_ap: number;
-    vacation_used_ap: number;
-    vacation_total_ac: number;
-    vacation_used_ac: number;
-    rol_total: number;
+
+    vacation_previous_year: number;
+    vacation_current_year: number;
+    vacation_accrued: number;
+    vacation_used: number;
+    vacation_available_ap: number;
+    vacation_available_ac: number;
+    vacation_available_total: number;
+
+    rol_previous_year: number;
+    rol_current_year: number;
+    rol_accrued: number;
     rol_used: number;
+    rol_available: number;
+
     permits_total: number;
     permits_used: number;
+    permits_available: number;
+
     ap_expiry_date?: string;
+    last_accrual_date?: string;
 }
 
 export interface LeaveBalanceSummary {

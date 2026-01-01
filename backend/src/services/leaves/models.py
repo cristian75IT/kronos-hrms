@@ -268,12 +268,14 @@ class BalanceTransaction(Base):
     
     # Amount (positive = add, negative = subtract)
     amount: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False)
+    remaining_amount: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=0)
     
     # Balance after transaction
-    balance_after: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False)
+    balance_after: Mapped[Decimal] = mapped_column(Numeric(7, 2), nullable=False)
     
     # Metadata
     reason: Mapped[Optional[str]] = mapped_column(Text)
+    expiry_date: Mapped[Optional[date]] = mapped_column(Date)
     created_by: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))
     
     created_at: Mapped[datetime] = mapped_column(

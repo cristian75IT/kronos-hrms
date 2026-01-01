@@ -325,6 +325,41 @@ class ContractType(Base):
     )
 
 
+
+class CalculationMode(Base):
+    """Defines flexible calculation logic for accruals."""
+    
+    __tablename__ = "calculation_modes"
+    __table_args__ = {"schema": "config"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    
+    # The algo identifier (mapped to code logic)
+    function_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    
+    # Default parameters for this mode
+    default_parameters: Mapped[dict] = mapped_column(JSONB, default={})
+    
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
 class NationalContract(Base):
     """National Collective Labor Agreement (CCNL).
     
@@ -416,6 +451,26 @@ class NationalContractVersion(Base):
     # Ex-Festività (in hours per year, typically 32h = 4 days)
     annual_ex_festivita_hours: Mapped[int] = mapped_column(Integer, default=32)
     ex_festivita_accrual_method: Mapped[str] = mapped_column(String(20), default="yearly")
+
+    # Calculation Modes (Dynamic)
+    vacation_calc_mode_id: Mapped[Optional[UUID]] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("config.calculation_modes.id"),
+        nullable=True
+    )
+    rol_calc_mode_id: Mapped[Optional[UUID]] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("config.calculation_modes.id"),
+        nullable=True
+    )
+    
+    # Parameter overrides for the selected mode
+    vacation_calc_params: Mapped[Optional[dict]] = mapped_column(JSONB)
+    rol_calc_params: Mapped[Optional[dict]] = mapped_column(JSONB)
+    
+    # Relationships to Modes
+    vacation_calc_mode: Mapped["CalculationMode"] = relationship(foreign_keys=[vacation_calc_mode_id])
+    rol_calc_mode: Mapped["CalculationMode"] = relationship(foreign_keys=[rol_calc_mode_id])
     
     # Other Paid Leave
     annual_study_leave_hours: Mapped[Optional[int]] = mapped_column(Integer)

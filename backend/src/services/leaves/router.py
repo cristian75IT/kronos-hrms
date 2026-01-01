@@ -33,6 +33,10 @@ from src.services.leaves.schemas import (
     PolicyValidationResult,
     DaysCalculationRequest,
     DaysCalculationResponse,
+    RecalculatePreviewResponse,
+    RolloverPreviewResponse,
+    ApplyChangesRequest,
+    EmployeePreviewItem,
 )
 
 
@@ -114,6 +118,22 @@ async def get_pending_approval(
     """Get requests pending approval. Approver only."""
     requests = await service.get_pending_approval()
     return [LeaveRequestListItem.model_validate(r) for r in requests]
+
+
+@router.get("/leaves/excluded-days")
+async def get_excluded_days(
+    start_date: str = Query(..., description="Start date in YYYY-MM-DD format"),
+    end_date: str = Query(..., description="End date in YYYY-MM-DD format"),
+    token: TokenPayload = Depends(get_current_token),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Get list of excluded days (weekends, holidays, closures) in a date range."""
+    try:
+        start = date.fromisoformat(start_date)
+        end = date.fromisoformat(end_date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+    return await service.get_excluded_days(start, end)
 
 
 @router.get("/leaves/{id}", response_model=LeaveRequestResponse)
@@ -358,6 +378,16 @@ async def adjust_balance(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.get("/balances/transactions/{balance_id}")
+async def get_balance_transactions(
+    balance_id: UUID,
+    token: TokenPayload = Depends(require_admin),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Get transactions for a balance. Admin only."""
+    return await service._balance_repo.get_transactions(balance_id)
+
+
 @router.post("/balances/accrual/recalculate", status_code=status.HTTP_204_NO_CONTENT)
 async def recalculate_accruals(
     year: int = Query(default_factory=lambda: date.today().year),
@@ -377,6 +407,54 @@ async def recalculate_user_accruals(
 ):
     """Admin only: Recalculate accruals for a specific user."""
     await service.recalculate_user_accrual(user_id, year)
+
+
+@router.get("/balances/accrual/preview", response_model=RecalculatePreviewResponse)
+async def preview_recalculate(
+    year: int = Query(default_factory=lambda: date.today().year),
+    token: TokenPayload = Depends(require_admin),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Admin only: Preview recalculation changes before applying."""
+    previews = await service.preview_recalculate(year)
+    employees = [EmployeePreviewItem(**p) for p in previews]
+    return RecalculatePreviewResponse(year=year, employees=employees, total_count=len(employees))
+
+
+@router.post("/balances/accrual/apply-selected", response_model=MessageResponse)
+async def apply_recalculate_selected(
+    data: ApplyChangesRequest,
+    year: int = Query(default_factory=lambda: date.today().year),
+    token: TokenPayload = Depends(require_admin),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Admin only: Apply recalculation to selected users only."""
+    await service.apply_recalculate_selected(year, data.user_ids)
+    return MessageResponse(message=f"Ricalcolo applicato a {len(data.user_ids)} dipendenti.")
+
+
+@router.get("/balances/rollover/preview", response_model=RolloverPreviewResponse)
+async def preview_rollover(
+    year: int = Query(..., description="Year to close (e.g. 2024)"),
+    token: TokenPayload = Depends(require_admin),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Admin only: Preview rollover changes before applying."""
+    previews = await service.preview_rollover(year)
+    employees = [EmployeePreviewItem(**p) for p in previews]
+    return RolloverPreviewResponse(from_year=year, to_year=year+1, employees=employees, total_count=len(employees))
+
+
+@router.post("/balances/rollover/apply-selected", response_model=MessageResponse)
+async def apply_rollover_selected(
+    data: ApplyChangesRequest,
+    year: int = Query(..., description="Year to close (e.g. 2024)"),
+    token: TokenPayload = Depends(require_admin),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Admin only: Apply rollover to selected users only."""
+    count = await service.apply_rollover_selected(year, data.user_ids)
+    return MessageResponse(message=f"Rollover applicato a {count} dipendenti.")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -410,6 +488,8 @@ async def calculate_days(
     return await service.calculate_preview(request)
 
 
+
+
 @router.post("/leaves/validate", response_model=PolicyValidationResult)
 async def validate_request(
     data: LeaveRequestCreate,
@@ -435,3 +515,38 @@ async def validate_request(
         end_date=data.end_date,
         days_requested=days,
     )
+
+
+# ═══════════════════════════════════════════════════════════
+# Automated Management
+# ═══════════════════════════════════════════════════════════
+
+@router.post("/balances/process-accruals", response_model=MessageResponse, dependencies=[Depends(require_admin)])
+async def process_monthly_accruals(
+    year: int = Query(..., description="Year to process"),
+    month: int = Query(..., description="Month to process"),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Trigger monthly accrual calculation for all active employees. (Admin only)"""
+    count = await service.run_monthly_accruals(year, month)
+    return MessageResponse(message=f"Elaborazione completata per {count} dipendenti.")
+
+
+@router.post("/balances/process-expirations", response_model=MessageResponse, dependencies=[Depends(require_admin)])
+async def process_expirations(
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Find and expire leave/ROL buckets that have passed their expiry date. (Admin only)"""
+    count = await service.process_expirations()
+    return MessageResponse(message=f"Elaborazione completata. Scaduti {count} pacchetti di ore/giorni.")
+
+
+@router.post("/balances/process-rollover", response_model=MessageResponse, dependencies=[Depends(require_admin)])
+async def process_rollover(
+    year: int = Query(..., description="Year to close (e.g. 2024)"),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Close a year and transfer remaining balances to the next year. (Admin only)"""
+    count = await service.run_year_end_rollover(year)
+    return MessageResponse(message=f"Chiusura anno {year} completata per {count} dipendenti. I residui sono stati trasferiti al {year+1}.")
+

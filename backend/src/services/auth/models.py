@@ -20,6 +20,7 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.database import Base
+from src.services.config.models import ContractType, NationalContract, NationalContractLevel
 
 
 # Association table: User <-> Area (Many-to-Many)
@@ -105,7 +106,7 @@ class User(Base):
     )
     
     # Relationships
-    contract_type: Mapped[Optional["ContractType"]] = relationship(back_populates="users")
+    contract_type: Mapped[Optional["ContractType"]] = relationship()
     work_schedule: Mapped[Optional["WorkSchedule"]] = relationship(back_populates="users")
     location: Mapped[Optional["Location"]] = relationship(back_populates="users")
     manager: Mapped[Optional["User"]] = relationship(
@@ -262,38 +263,6 @@ class Location(Base):
     users: Mapped[list["User"]] = relationship(back_populates="location")
 
 
-class ContractType(Base):
-    """Employment contract type."""
-    
-    __tablename__ = "contract_types"
-    __table_args__ = {"schema": "config"}
-    
-    id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid4,
-    )
-    code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    
-    # Part-time configuration
-    is_part_time: Mapped[bool] = mapped_column(Boolean, default=False)
-    part_time_percentage: Mapped[int] = mapped_column(Integer, default=100)  # 50%, 75%, etc.
-    
-    # Leave accrual
-    annual_vacation_days: Mapped[int] = mapped_column(Integer, default=26)
-    annual_rol_hours: Mapped[int] = mapped_column(Integer, default=104)
-    annual_permit_hours: Mapped[int] = mapped_column(Integer, default=32)
-    
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-    )
-    
-    # Relationships
-    users: Mapped[list["User"]] = relationship(back_populates="contract_type")
 
 
 class WorkSchedule(Base):
@@ -366,6 +335,16 @@ class EmployeeContract(Base):
         ForeignKey("config.contract_types.id"),
         nullable=False
     )
+    national_contract_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("config.national_contracts.id"),
+        nullable=True
+    )
+    level_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("config.national_contract_levels.id"),
+        nullable=True
+    )
     
     start_date: Mapped[datetime] = mapped_column(Date, nullable=False)
     end_date: Mapped[Optional[datetime]] = mapped_column(Date)
@@ -373,13 +352,10 @@ class EmployeeContract(Base):
     # Contract details
     weekly_hours: Mapped[Optional[int]] = mapped_column(Integer, comment="Ore settimanali effettive")
     job_title: Mapped[Optional[str]] = mapped_column(String(100))
-    level: Mapped[Optional[str]] = mapped_column(String(50))
     department: Mapped[Optional[str]] = mapped_column(String(100))
     
     wage_data: Mapped[Optional[dict]] = mapped_column(
-        Text, # JSONB not available directly in this file imports easily without refactor, using generic Type or just skip for now. 
-              # Actually Text is safer for now if we don't need complex queries. Or just skip wage for MVP.
-              # Let's verify imports first. JSONB is not imported.
+        Text, 
     )
     document_path: Mapped[Optional[str]] = mapped_column(Text)
     
@@ -396,3 +372,5 @@ class EmployeeContract(Base):
     # Relationships
     user: Mapped["User"] = relationship(back_populates="contracts")
     contract_type: Mapped["ContractType"] = relationship()
+    national_contract: Mapped["NationalContract"] = relationship()
+    level: Mapped["NationalContractLevel"] = relationship()

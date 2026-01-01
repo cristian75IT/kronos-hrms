@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { userService } from '../../services/userService';
 import { leavesService } from '../../services/leaves.service';
+import { configService } from '../../services/config.service';
 import type { EmployeeContract, ContractType, EmployeeContractCreate } from '../../types';
 import {
     Plus,
@@ -29,6 +30,7 @@ interface ContractHistoryProps {
 export function ContractHistory({ userId, userName, onClose }: ContractHistoryProps) {
     const [contracts, setContracts] = useState<EmployeeContract[]>([]);
     const [contractTypes, setContractTypes] = useState<ContractType[]>([]);
+    const [nationalContracts, setNationalContracts] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isAdding, setIsAdding] = useState(false);
     const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -48,12 +50,14 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
         setIsLoading(true);
         setError(null);
         try {
-            const [contractsData, typesData] = await Promise.all([
+            const [contractsData, typesData, ccnlData] = await Promise.all([
                 userService.getContracts(userId),
                 userService.getContractTypes(),
+                configService.getNationalContracts(),
             ]);
             setContracts(contractsData);
             setContractTypes(typesData);
+            setNationalContracts(ccnlData);
         } catch (err: any) {
             setError('Errore nel caricamento dei contratti');
             console.error(err);
@@ -89,6 +93,13 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
 
     const getTypeName = (id: string) => contractTypes.find(t => t.id === id)?.name || id;
     const getTypeCode = (id: string) => contractTypes.find(t => t.id === id)?.code || '';
+
+    const getLevelName = (contract: EmployeeContract) => {
+        if (!contract.national_contract_id || !contract.level_id) return '-';
+        const ccnl = nationalContracts.find(c => c.id === contract.national_contract_id);
+        const lvl = ccnl?.levels?.find((l: any) => l.id === contract.level_id);
+        return lvl ? `${lvl.level_name} (${ccnl.code})` : '-';
+    };
 
     const activeContract = contracts.find(c => !c.end_date);
     const pastContracts = contracts.filter(c => c.end_date);
@@ -161,6 +172,40 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
                             <div className="p-5 space-y-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-2">
+                                        <label className="block text-sm font-medium text-gray-700">
+                                            Contratto Nazionale <span className="text-red-500">*</span>
+                                        </label>
+                                        <select
+                                            className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
+                                            value={newContract.national_contract_id || ''}
+                                            onChange={e => setNewContract({ ...newContract, national_contract_id: e.target.value, level_id: undefined })}
+                                        >
+                                            <option value="">Seleziona CCNL...</option>
+                                            {nationalContracts.map(c => (
+                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-medium text-gray-700">
+                                            Livello <span className="text-red-500">*</span>
+                                        </label>
+                                        <select
+                                            className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
+                                            value={newContract.level_id || ''}
+                                            onChange={e => setNewContract({ ...newContract, level_id: e.target.value })}
+                                            disabled={!newContract.national_contract_id}
+                                        >
+                                            <option value="">Seleziona Livello...</option>
+                                            {newContract.national_contract_id && nationalContracts.find(c => c.id === newContract.national_contract_id)?.levels?.map((l: any) => (
+                                                <option key={l.id} value={l.id}>{l.level_name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
                                         <label className="block text-sm font-medium text-gray-700 flex items-center gap-1">
                                             Tipo Contratto <span className="text-red-500">*</span>
                                         </label>
@@ -170,7 +215,6 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
                                             onChange={e => {
                                                 const typeId = e.target.value;
                                                 const type = contractTypes.find(t => t.id === typeId);
-                                                // Default 40h base, adjusted by part-time percentage
                                                 const defaultHours = type ? Math.round(40 * ((type.part_time_percentage || 100) / 100)) : 40;
 
                                                 setNewContract({
@@ -196,7 +240,7 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
                                             type="number"
                                             className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
                                             value={newContract.weekly_hours}
-                                            onChange={e => setNewContract({ ...newContract, weekly_hours: parseInt(e.target.value) })}
+                                            onChange={e => setNewContract({ ...newContract, weekly_hours: parseInt(e.target.value) || 0 })}
                                             min={1}
                                             max={48}
                                         />
@@ -234,17 +278,6 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
                                         value={newContract.job_title || ''}
                                         onChange={e => setNewContract({ ...newContract, job_title: e.target.value })}
                                         placeholder="es. Software Engineer Senior"
-                                    />
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="block text-sm font-medium text-gray-700">Livello / Inquadramento</label>
-                                    <input
-                                        type="text"
-                                        className="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
-                                        value={newContract.level || ''}
-                                        onChange={e => setNewContract({ ...newContract, level: e.target.value })}
-                                        placeholder="es. Quadro, Impiegato III Livello"
                                     />
                                 </div>
 
@@ -312,10 +345,10 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
                                         {expandedId === activeContract.id && (
                                             <div className="mt-4 pt-4 border-t border-gray-100 animate-fadeInUp">
                                                 <div className="grid grid-cols-3 gap-4 mb-4">
-                                                    {activeContract.level && (
+                                                    {activeContract.level_id && (
                                                         <div className="flex flex-col gap-1">
                                                             <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Livello</span>
-                                                            <span className="font-semibold text-gray-900">{activeContract.level}</span>
+                                                            <span className="font-semibold text-gray-900">{getLevelName(activeContract)}</span>
                                                         </div>
                                                     )}
                                                     <div className="flex flex-col gap-1">

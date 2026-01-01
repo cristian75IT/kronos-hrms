@@ -22,10 +22,15 @@ import { ExpenseDetailPage } from './pages/expenses/ExpenseDetailPage';
 import { ApprovalsPage } from './pages/ApprovalsPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { UserFormPage } from './pages/admin/UserFormPage';
-import { ConfigPage } from './pages/admin/ConfigPage';
+import { AdminToolsPage } from './pages/admin/AdminToolsPage';
 import { UserDetailPage } from './pages/admin/UserDetailPage';
 import { NationalContractsPage } from './pages/admin/NationalContractsPage';
+import { NationalContractDetailPage } from './pages/admin/NationalContractDetailPage';
 import { HolidaysClosuresPage } from './pages/admin/HolidaysClosuresPage';
+import { WikiIndex } from './pages/wiki/WikiIndex';
+import { WikiCalculations } from './pages/wiki/WikiCalculations';
+import { WikiManagement } from './pages/wiki/WikiManagement';
+import { WikiConfig } from './pages/wiki/WikiConfig';
 
 function App() {
   return (
@@ -69,8 +74,18 @@ function App() {
               <Route path="/admin/users/:id" element={<ProtectedRoute roles={['admin', 'hr']}><UserDetailPage /></ProtectedRoute>} />
               <Route path="/admin/users/:id/edit" element={<ProtectedRoute roles={['admin', 'hr']}><UserFormPage /></ProtectedRoute>} />
               <Route path="/admin/holidays" element={<ProtectedRoute roles={['admin', 'hr']}><HolidaysClosuresPage /></ProtectedRoute>} />
-              <Route path="/admin/contracts" element={<ProtectedRoute roles={['admin', 'hr']}><NationalContractsPage /></ProtectedRoute>} />
-              <Route path="/admin/config" element={<ProtectedRoute roles={['admin']}><ConfigPage /></ProtectedRoute>} />
+              <Route path="/admin/holidays" element={<ProtectedRoute roles={['admin', 'hr']}><HolidaysClosuresPage /></ProtectedRoute>} />
+              <Route path="/admin/national-contracts" element={<ProtectedRoute roles={['admin', 'hr']}><NationalContractsPage /></ProtectedRoute>} />
+              <Route path="/admin/national-contracts/:id" element={<ProtectedRoute roles={['admin', 'hr']}><NationalContractDetailPage /></ProtectedRoute>} />
+              <Route path="/admin/tools" element={<ProtectedRoute roles={['admin']}><AdminToolsPage /></ProtectedRoute>} />
+
+              {/* Wiki & Knowledge Base */}
+              <Route path="/wiki" element={<WikiIndex />} />
+              <Route path="/wiki/calculations" element={<WikiCalculations />} />
+              <Route path="/wiki/management" element={<WikiManagement />} />
+              <Route path="/wiki/config" element={<WikiConfig />} />
+              <Route path="/wiki/contracts" element={<WikiCalculations />} /> {/* Shared logic for now */}
+
 
             </Route>
 

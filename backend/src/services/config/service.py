@@ -456,6 +456,10 @@ class ConfigService:
             selectinload(NationalContract.versions)
             .selectinload(NationalContractVersion.contract_type_configs)
             .selectinload(NationalContractTypeConfig.contract_type),
+            selectinload(NationalContract.versions)
+            .selectinload(NationalContractVersion.vacation_calc_mode),
+            selectinload(NationalContract.versions)
+            .selectinload(NationalContractVersion.rol_calc_mode),
             selectinload(NationalContract.levels)
         )
         if active_only:
@@ -475,6 +479,10 @@ class ConfigService:
             selectinload(NationalContract.versions)
             .selectinload(NationalContractVersion.contract_type_configs)
             .selectinload(NationalContractTypeConfig.contract_type),
+            selectinload(NationalContract.versions)
+            .selectinload(NationalContractVersion.vacation_calc_mode),
+            selectinload(NationalContract.versions)
+            .selectinload(NationalContractVersion.rol_calc_mode),
             selectinload(NationalContract.levels)
         ).where(NationalContract.id == id)
         
@@ -549,10 +557,16 @@ class ConfigService:
 
     async def get_contract_versions(self, contract_id: UUID) -> list:
         """Get all versions for a national contract."""
-        from src.services.config.models import NationalContractVersion
+        from src.services.config.models import NationalContractVersion, NationalContractTypeConfig
         from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
         
-        query = select(NationalContractVersion).where(
+        query = select(NationalContractVersion).options(
+            selectinload(NationalContractVersion.contract_type_configs)
+            .selectinload(NationalContractTypeConfig.contract_type),
+            selectinload(NationalContractVersion.vacation_calc_mode),
+            selectinload(NationalContractVersion.rol_calc_mode)
+        ).where(
             NationalContractVersion.national_contract_id == contract_id
         ).order_by(NationalContractVersion.valid_from.desc())
         
@@ -561,10 +575,16 @@ class ConfigService:
 
     async def get_contract_version(self, version_id: UUID):
         """Get a specific version by ID."""
-        from src.services.config.models import NationalContractVersion
+        from src.services.config.models import NationalContractVersion, NationalContractTypeConfig
         from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
         
-        query = select(NationalContractVersion).where(NationalContractVersion.id == version_id)
+        query = select(NationalContractVersion).options(
+            selectinload(NationalContractVersion.contract_type_configs)
+            .selectinload(NationalContractTypeConfig.contract_type),
+            selectinload(NationalContractVersion.vacation_calc_mode),
+            selectinload(NationalContractVersion.rol_calc_mode)
+        ).where(NationalContractVersion.id == version_id)
         result = await self._session.execute(query)
         version = result.scalar_one_or_none()
         
@@ -578,10 +598,16 @@ class ConfigService:
         This is the core method for historical calculations.
         Returns the version where valid_from <= reference_date AND (valid_to is NULL OR valid_to >= reference_date).
         """
-        from src.services.config.models import NationalContractVersion
+        from src.services.config.models import NationalContractVersion, NationalContractTypeConfig
         from sqlalchemy import select, and_, or_
+        from sqlalchemy.orm import selectinload
         
-        query = select(NationalContractVersion).where(
+        query = select(NationalContractVersion).options(
+            selectinload(NationalContractVersion.contract_type_configs)
+            .selectinload(NationalContractTypeConfig.contract_type),
+            selectinload(NationalContractVersion.vacation_calc_mode),
+            selectinload(NationalContractVersion.rol_calc_mode)
+        ).where(
             and_(
                 NationalContractVersion.national_contract_id == contract_id,
                 NationalContractVersion.valid_from <= reference_date,
@@ -682,6 +708,42 @@ class ConfigService:
         await self._session.commit()
         return True
 
+
+    async def get_contract_types(self):
+        """Get all available contract types."""
+        from src.services.config.models import ContractType
+        from sqlalchemy import select
+        
+        stmt = select(ContractType).where(ContractType.is_active == True)
+        result = await self._session.execute(stmt)
+        return result.scalars().all()
+
+    async def create_contract_type_config(self, data):
+        """Create contract type parameter configuration."""
+        from src.services.config.models import NationalContractTypeConfig
+        
+        config = NationalContractTypeConfig(**data.model_dump())
+        self._session.add(config)
+        await self._session.commit()
+        await self._session.refresh(config)
+        return config
+
+    async def delete_contract_type_config(self, config_id: UUID) -> bool:
+        """Delete contract type parameter configuration."""
+        from src.services.config.models import NationalContractTypeConfig
+        from sqlalchemy import select
+        
+        stmt = select(NationalContractTypeConfig).where(NationalContractTypeConfig.id == config_id)
+        result = await self._session.execute(stmt)
+        config = result.scalar_one_or_none()
+        
+        if not config:
+            raise NotFoundError("Config not found", entity_type="NationalContractTypeConfig", entity_id=str(config_id))
+            
+        await self._session.delete(config)
+        await self._session.commit()
+        return True
+
     async def update_contract_type_config(self, config_id: UUID, data):
         """Update contract type parameter configuration."""
         from src.services.config.models import NationalContractTypeConfig
@@ -705,3 +767,133 @@ class ConfigService:
         await self._session.commit()
         await self._session.refresh(config)
         return config
+
+    # ═══════════════════════════════════════════════════════════
+    # National Contract Levels
+    # ═══════════════════════════════════════════════════════════
+
+    async def create_national_contract_level(self, data):
+        """Create new level for a national contract."""
+        from src.services.config.models import NationalContractLevel
+        
+        level = NationalContractLevel(**data.model_dump())
+        self._session.add(level)
+        await self._session.commit()
+        await self._session.refresh(level)
+        return level
+
+    async def update_national_contract_level(self, level_id: UUID, data):
+        """Update a contract level."""
+        from src.services.config.models import NationalContractLevel
+        from sqlalchemy import select
+        
+        query = select(NationalContractLevel).where(NationalContractLevel.id == level_id)
+        result = await self._session.execute(query)
+        level = result.scalar_one_or_none()
+        
+        if not level:
+            raise NotFoundError("Contract level not found", entity_type="NationalContractLevel", entity_id=str(level_id))
+        
+        update_data = data.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(level, key, value)
+        
+        await self._session.commit()
+        await self._session.refresh(level)
+        return level
+
+    async def delete_national_contract_level(self, level_id: UUID) -> bool:
+        """Delete a contract level."""
+        from src.services.config.models import NationalContractLevel
+        from sqlalchemy import select
+        
+        query = select(NationalContractLevel).where(NationalContractLevel.id == level_id)
+        result = await self._session.execute(query)
+        level = result.scalar_one_or_none()
+        
+        if not level:
+            raise NotFoundError("Contract level not found", entity_type="NationalContractLevel", entity_id=str(level_id))
+        
+        await self._session.delete(level)
+        await self._session.commit()
+        return True
+
+    # ═══════════════════════════════════════════════════════════
+    # Calculation Modes
+    # ═══════════════════════════════════════════════════════════
+
+    async def get_calculation_modes(self) -> list:
+        """Get all calculation modes."""
+        from src.services.config.models import CalculationMode
+        from sqlalchemy import select
+        
+        query = select(CalculationMode).where(CalculationMode.is_active == True)
+        result = await self._session.execute(query)
+        return result.scalars().all()
+
+    async def get_calculation_mode(self, id: UUID):
+        """Get calculation mode by ID."""
+        from src.services.config.models import CalculationMode
+        from sqlalchemy import select
+        
+        query = select(CalculationMode).where(CalculationMode.id == id)
+        result = await self._session.execute(query)
+        mode = result.scalar_one_or_none()
+        
+        if not mode:
+            raise NotFoundError("Calculation mode not found", entity_type="CalculationMode", entity_id=str(id))
+        return mode
+
+    async def create_calculation_mode(self, data):
+        """Create new calculation mode."""
+        from src.services.config.models import CalculationMode
+        from sqlalchemy import select
+        
+        # Check code uniqueness
+        query = select(CalculationMode).where(CalculationMode.code == data.code)
+        result = await self._session.execute(query)
+        existing = result.scalar_one_or_none()
+        if existing:
+            raise ConflictError(f"Calculation mode code already exists: {data.code}")
+            
+        mode = CalculationMode(**data.model_dump())
+        self._session.add(mode)
+        await self._session.commit()
+        await self._session.refresh(mode)
+        return mode
+
+    async def update_calculation_mode(self, id: UUID, data):
+        """Update calculation mode."""
+        from src.services.config.models import CalculationMode
+        from sqlalchemy import select
+        
+        query = select(CalculationMode).where(CalculationMode.id == id)
+        result = await self._session.execute(query)
+        mode = result.scalar_one_or_none()
+        
+        if not mode:
+            raise NotFoundError("Calculation mode not found", entity_type="CalculationMode", entity_id=str(id))
+            
+        update_data = data.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(mode, key, value)
+            
+        await self._session.commit()
+        await self._session.refresh(mode)
+        return mode
+
+    async def delete_calculation_mode(self, id: UUID) -> bool:
+        """Deactivate calculation mode (soft delete)."""
+        from src.services.config.models import CalculationMode
+        from sqlalchemy import select
+        
+        query = select(CalculationMode).where(CalculationMode.id == id)
+        result = await self._session.execute(query)
+        mode = result.scalar_one_or_none()
+        
+        if not mode:
+            raise NotFoundError("Calculation mode not found", entity_type="CalculationMode", entity_id=str(id))
+            
+        mode.is_active = False
+        await self._session.commit()
+        return True

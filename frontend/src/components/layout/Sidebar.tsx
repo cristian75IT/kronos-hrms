@@ -15,6 +15,7 @@ import {
   LogOut,
   Sun,
   Moon,
+  Book,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { clsx } from 'clsx';
@@ -32,6 +33,7 @@ const navItems: NavItem[] = [
   { label: 'Calendario', path: '/calendar', icon: <Calendar size={20} /> },
   { label: 'Trasferte', path: '/trips', icon: <Briefcase size={20} /> },
   { label: 'Note Spese', path: '/expenses', icon: <FileText size={20} /> },
+  { label: 'Wiki & Help', path: '/wiki', icon: <Book size={20} /> },
 ];
 
 const approverItems: NavItem[] = [
@@ -41,8 +43,8 @@ const approverItems: NavItem[] = [
 const adminItems: NavItem[] = [
   { label: 'Gestione Utenti', path: '/admin/users', icon: <Users size={20} />, roles: ['admin', 'hr'] },
   { label: 'Festività e Chiusure', path: '/admin/holidays', icon: <Calendar size={20} />, roles: ['admin', 'hr'] },
-  { label: 'Contratti CCNL', path: '/admin/contracts', icon: <FileText size={20} />, roles: ['admin', 'hr'] },
-  { label: 'Configurazione', path: '/admin/config', icon: <Settings size={20} />, roles: ['admin'] },
+  { label: 'Contratti CCNL', path: '/admin/national-contracts', icon: <FileText size={20} />, roles: ['admin', 'hr'] },
+  { label: 'Strumenti Admin', path: '/admin/tools', icon: <Settings size={20} />, roles: ['admin'] },
 ];
 
 export function Sidebar() {

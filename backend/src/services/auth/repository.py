@@ -356,4 +356,12 @@ class EmployeeContractRepository:
         contract = EmployeeContract(**kwargs)
         self._session.add(contract)
         await self._session.flush()
-        return contract
+        
+        # Reload with relationships to avoid MissingGreenlet error in Pydantic serialization
+        query = (
+            select(EmployeeContract)
+            .options(selectinload(EmployeeContract.contract_type))
+            .where(EmployeeContract.id == contract.id)
+        )
+        result = await self._session.execute(query)
+        return result.scalar_one()

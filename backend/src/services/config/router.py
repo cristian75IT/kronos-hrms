@@ -35,6 +35,25 @@ from src.services.config.schemas import (
     ExpenseTypeCreate,
     DailyAllowanceRuleResponse,
     DailyAllowanceRuleCreate,
+    NationalContractLevelCreate,
+    NationalContractLevelUpdate,
+    NationalContractLevelResponse,
+    NationalContractResponse,
+    NationalContractCreate,
+    NationalContractUpdate,
+    NationalContractListResponse,
+    NationalContractVersionResponse,
+    NationalContractVersionCreate,
+    NationalContractVersionUpdate,
+    NationalContractVersionListResponse,
+    NationalContractTypeConfigResponse,
+    NationalContractTypeConfigUpdate,
+    ContractTypeResponse,
+    NationalContractTypeConfigCreate,
+    CalculationModeResponse,
+    CalculationModeListResponse,
+    CalculationModeCreate,
+    CalculationModeUpdate,
 )
 
 
@@ -391,6 +410,72 @@ async def create_allowance_rule(
 
 
 # ═══════════════════════════════════════════════════════════
+# Calculation Modes Endpoints
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/calculation-modes", response_model=CalculationModeListResponse)
+async def list_calculation_modes(
+    service: ConfigService = Depends(get_config_service),
+):
+    """List all calculation modes."""
+    modes = await service.get_calculation_modes()
+    return CalculationModeListResponse(items=modes, total=len(modes))
+
+
+@router.get("/calculation-modes/{id}", response_model=CalculationModeResponse)
+async def get_calculation_mode(
+    id: UUID,
+    service: ConfigService = Depends(get_config_service),
+):
+    """Get calculation mode by ID."""
+    try:
+        return await service.get_calculation_mode(id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/calculation-modes", response_model=CalculationModeResponse, status_code=201)
+async def create_calculation_mode(
+    data: CalculationModeCreate,
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Create new calculation mode. Admin only."""
+    try:
+        return await service.create_calculation_mode(data)
+    except ConflictError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+
+@router.put("/calculation-modes/{id}", response_model=CalculationModeResponse)
+async def update_calculation_mode(
+    id: UUID,
+    data: CalculationModeUpdate,
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Update calculation mode. Admin only."""
+    try:
+        return await service.update_calculation_mode(id, data)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/calculation-modes/{id}", response_model=MessageResponse)
+async def delete_calculation_mode(
+    id: UUID,
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Deactivate calculation mode. Admin only."""
+    try:
+        await service.delete_calculation_mode(id)
+        return MessageResponse(message="Calculation mode deactivated")
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════
 # National Contracts (CCNL) Endpoints
 # ═══════════════════════════════════════════════════════════
 
@@ -570,6 +655,40 @@ async def delete_contract_version(
         raise HTTPException(status_code=404, detail=str(e))
 
 
+
+@router.get("/contract-types", response_model=list[ContractTypeResponse])
+async def list_contract_types(
+    token: TokenPayload = Depends(get_current_token),
+    service: ConfigService = Depends(get_config_service),
+):
+    """List all available contract types."""
+    return await service.get_contract_types()
+
+
+@router.post("/national-contracts/type-configs", response_model=NationalContractTypeConfigResponse)
+async def create_contract_type_config(
+    data: NationalContractTypeConfigCreate,
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Create a contract type configuration override."""
+    return await service.create_contract_type_config(data)
+
+
+@router.delete("/national-contracts/type-configs/{id}", response_model=MessageResponse)
+async def delete_contract_type_config(
+    id: UUID,
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Delete a contract type configuration override."""
+    try:
+        await service.delete_contract_type_config(id)
+        return MessageResponse(message="Configuration deleted")
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.put("/national-contracts/type-configs/{config_id}", response_model=NationalContractTypeConfigResponse)
 async def update_contract_type_config(
     config_id: UUID,
@@ -580,5 +699,47 @@ async def update_contract_type_config(
     """Update contract type specific parameters."""
     try:
         return await service.update_contract_type_config(config_id, data)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/national-contracts/levels", response_model=NationalContractLevelResponse, status_code=201)
+async def create_contract_level(
+    data: NationalContractLevelCreate,
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Create new contract level."""
+    try:
+        return await service.create_national_contract_level(data)
+    except Exception as e:
+        # Generic error handling as service methods might raise DB errors
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.put("/national-contracts/levels/{level_id}", response_model=NationalContractLevelResponse)
+async def update_contract_level(
+    level_id: UUID,
+    data: NationalContractLevelUpdate,
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Update contract level."""
+    try:
+        return await service.update_national_contract_level(level_id, data)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/national-contracts/levels/{level_id}", response_model=MessageResponse)
+async def delete_contract_level(
+    level_id: UUID,
+    token: TokenPayload = Depends(require_admin),
+    service: ConfigService = Depends(get_config_service),
+):
+    """Delete contract level."""
+    try:
+        await service.delete_national_contract_level(level_id)
+        return MessageResponse(message="Level deleted")
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

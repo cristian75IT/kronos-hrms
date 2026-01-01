@@ -1,5 +1,5 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     ArrowLeft,
     Calendar,
@@ -15,6 +15,9 @@ import {
     Trash2,
     Send,
     Loader,
+    Ban,
+    Sunrise,
+    Building,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -29,6 +32,108 @@ import { useToast } from '../../context/ToastContext';
 import { leavesService } from '../../services/leaves.service';
 import { formatApiError } from '../../utils/errorUtils';
 import { useQueryClient } from '@tanstack/react-query';
+
+interface ExcludedDay {
+    date: string;
+    reason: 'weekend' | 'holiday' | 'closure';
+    name: string;
+}
+
+function ExcludedDaysSection({ startDate, endDate }: { startDate: string; endDate: string }) {
+    const [excludedDays, setExcludedDays] = useState<ExcludedDay[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
+
+    useEffect(() => {
+        const fetchExcludedDays = async () => {
+            try {
+                setLoading(true);
+                const response = await leavesService.getExcludedDays(startDate, endDate);
+                setExcludedDays(response.excluded_days);
+            } catch (err) {
+                console.error('Failed to load excluded days:', err);
+                setError(true);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchExcludedDays();
+    }, [startDate, endDate]);
+
+    if (loading) {
+        return (
+            <div className="mt-6 pt-6 border-t border-gray-100">
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <Loader size={14} className="animate-spin" />
+                    Caricamento giorni esclusi...
+                </div>
+            </div>
+        );
+    }
+
+    if (error || excludedDays.length === 0) {
+        return null;
+    }
+
+    const getReasonIcon = (reason: string) => {
+        switch (reason) {
+            case 'weekend':
+                return <Ban size={14} className="text-gray-400" />;
+            case 'holiday':
+                return <Sunrise size={14} className="text-amber-500" />;
+            case 'closure':
+                return <Building size={14} className="text-blue-500" />;
+            default:
+                return <Ban size={14} className="text-gray-400" />;
+        }
+    };
+
+    const getReasonLabel = (reason: string) => {
+        switch (reason) {
+            case 'weekend':
+                return 'Weekend';
+            case 'holiday':
+                return 'Festività';
+            case 'closure':
+                return 'Chiusura';
+            default:
+                return reason;
+        }
+    };
+
+    return (
+        <div className="mt-6 pt-6 border-t border-gray-100">
+            <h4 className="text-xs uppercase font-semibold text-gray-400 mb-3 tracking-wide flex items-center gap-2">
+                <Ban size={14} />
+                Giorni non conteggiati ({excludedDays.length})
+            </h4>
+            <div className="space-y-2">
+                {excludedDays.map((day, index) => (
+                    <div
+                        key={index}
+                        className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg text-sm"
+                    >
+                        <div className="flex items-center gap-3">
+                            {getReasonIcon(day.reason)}
+                            <span className="text-gray-700 capitalize">
+                                {format(new Date(day.date), 'EEEE d MMM', { locale: it })}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-gray-500">{day.name}</span>
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${day.reason === 'weekend' ? 'bg-gray-200 text-gray-600' :
+                                    day.reason === 'holiday' ? 'bg-amber-100 text-amber-700' :
+                                        'bg-blue-100 text-blue-700'
+                                }`}>
+                                {getReasonLabel(day.reason)}
+                            </span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
 
 export function LeaveDetailPage() {
     const { id } = useParams<{ id: string }>();
@@ -252,8 +357,8 @@ export function LeaveDetailPage() {
                     <div className="flex p-1 space-x-1 bg-gray-100/80 rounded-xl mb-6 border border-gray-200">
                         <button
                             className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${activeTab === 'details'
-                                    ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5'
-                                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5'
+                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
                                 }`}
                             onClick={() => setActiveTab('details')}
                         >
@@ -262,8 +367,8 @@ export function LeaveDetailPage() {
                         </button>
                         <button
                             className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${activeTab === 'history'
-                                    ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5'
-                                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5'
+                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
                                 }`}
                             onClick={() => setActiveTab('history')}
                         >
@@ -324,6 +429,9 @@ export function LeaveDetailPage() {
 
                                     </div>
                                 </div>
+
+                                {/* Excluded Days Section */}
+                                <ExcludedDaysSection startDate={leave.start_date} endDate={leave.end_date} />
                             </div>
 
                             {/* Notes */}

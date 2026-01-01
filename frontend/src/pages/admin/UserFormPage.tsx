@@ -1,6 +1,6 @@
 /**
  * KRONOS - User Create/Edit Form
- * Enterprise-grade user management form
+ * Enterprise-grade user management with integrated contract creation
  */
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
@@ -17,23 +17,41 @@ import {
     Save,
     AlertCircle,
     FileText,
+    CheckCircle,
+    Clock
 } from 'lucide-react';
 import { userService } from '../../services/userService';
+import { configService } from '../../services/config.service';
 import { useToast } from '../../context/ToastContext';
+import type { ContractType, EmployeeContractCreate } from '../../types';
 
 interface UserFormValues {
+    // User Info
     username: string;
     email: string;
     first_name: string;
     last_name: string;
     phone?: string;
+
+    // Profile Info
     hire_date?: string;
     department?: string;
     position?: string;
     employee_code?: string;
+
+    // Roles
     is_admin: boolean;
     is_manager: boolean;
     is_approver: boolean;
+
+    // First Contract (Only for creation)
+    has_contract?: boolean;
+    national_contract_id?: string;
+    level_id?: string;
+    contract_type_id?: string;
+    weekly_hours?: number;
+    contract_start_date?: string;
+    job_title?: string;
 }
 
 export function UserFormPage() {
@@ -43,26 +61,65 @@ export function UserFormPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
+    // Contract Data dependencies
+    const [contractTypes, setContractTypes] = useState<ContractType[]>([]);
+    const [nationalContracts, setNationalContracts] = useState<any[]>([]);
+
     const isEditing = !!id;
 
     const {
         register,
         handleSubmit,
         reset,
+        watch,
+        setValue,
         formState: { errors },
     } = useForm<UserFormValues>({
         defaultValues: {
             is_admin: false,
             is_manager: false,
             is_approver: false,
+            has_contract: true, // Default checked for new users
+            weekly_hours: 40,
+            contract_start_date: new Date().toISOString().split('T')[0],
         },
     });
 
+    const watchHasContract = watch('has_contract');
+    const watchNationalContract = watch('national_contract_id');
+    const watchContractType = watch('contract_type_id');
+
     useEffect(() => {
+        loadDependencies();
         if (isEditing && id) {
             loadUser(id);
         }
     }, [isEditing, id]);
+
+    // When contract type changes, auto-set hours
+    useEffect(() => {
+        if (watchContractType) {
+            const type = contractTypes.find(t => t.id === watchContractType);
+            if (type) {
+                const defaultHours = Math.round(40 * ((type.part_time_percentage || 100) / 100));
+                setValue('weekly_hours', defaultHours);
+            }
+        }
+    }, [watchContractType, contractTypes, setValue]);
+
+    const loadDependencies = async () => {
+        try {
+            const [types, ccnls] = await Promise.all([
+                userService.getContractTypes(),
+                configService.getNationalContracts()
+            ]);
+            setContractTypes(types);
+            setNationalContracts(ccnls);
+        } catch (error) {
+            console.error('Failed to load form dependencies', error);
+            toast.error('Errore caricamento dati contrattuali');
+        }
+    };
 
     const loadUser = async (userId: string) => {
         setIsLoading(true);
@@ -87,6 +144,9 @@ export function UserFormPage() {
                 is_admin: (user.roles || []).includes('admin'),
                 is_manager: (user.roles || []).includes('manager') || (user.roles || []).includes('hr'),
                 is_approver: (user.roles || []).includes('approver'),
+
+                // Disable contract fields in edit mode (handled separately)
+                has_contract: false
             };
 
             reset(formValues);
@@ -102,44 +162,72 @@ export function UserFormPage() {
     const onSubmit = async (data: UserFormValues) => {
         setIsSubmitting(true);
         try {
-            // Transform form data to API payload
+            // 1. Prepare User Payload
             const roles: string[] = [];
             if (data.is_admin) roles.push('admin');
             if (data.is_manager) roles.push('manager');
             if (data.is_approver) roles.push('approver');
-            // If user had other roles not managed here, careful not to lose them in a real app, 
-            // but here we control roles strictly via UI.
 
             const payload: any = {
                 username: data.username,
                 email: data.email,
                 first_name: data.first_name,
                 last_name: data.last_name,
-                role: roles[0] || 'employee', // Fallback for backend that might expect 'role' string field
+                role: roles[0] || 'employee',
                 roles: roles,
                 profile: {
                     phone: data.phone,
                     department: data.department,
-                    position: data.position,
-                    hire_date: data.hire_date || null,
+                    position: data.has_contract ? data.job_title : data.position, // Use job title if contract set
+                    hire_date: data.has_contract ? data.contract_start_date : (data.hire_date || null),
                     employee_number: data.employee_code,
                 }
             };
 
+            let userId = id;
+
+            // 2. Create or Update User
             if (isEditing && id) {
                 await userService.updateUser(id, payload);
                 toast.success('Utente aggiornato con successo');
             } else {
-                await userService.createUser(payload);
+                const newUser = await userService.createUser(payload);
+                userId = newUser.id;
                 toast.success('Utente creato con successo');
             }
+
+            // 3. Create Contract (Only for new users with checked flag)
+            if (!isEditing && data.has_contract && userId) {
+                try {
+                    const contractPayload: EmployeeContractCreate = {
+                        contract_type_id: data.contract_type_id!,
+                        national_contract_id: data.national_contract_id || undefined,
+                        level_id: data.level_id || undefined,
+                        start_date: data.contract_start_date!,
+                        end_date: undefined,
+                        weekly_hours: Number(data.weekly_hours),
+                        job_title: data.job_title,
+                    };
+
+                    await userService.addContract(userId, contractPayload);
+                    toast.success('Contratto associato correttamente');
+                } catch (contractError: any) {
+                    console.error('Failed to add contract', contractError);
+                    toast.error('Utente creato, ma errore salvataggio contratto: ' + (contractError.response?.data?.detail || contractError.message));
+                    // Navigate to user detail anyway so they can retry
+                }
+            }
+
             navigate('/admin/users');
         } catch (error: any) {
+            console.error(error);
             toast.error(error.message || `Errore durante ${isEditing ? 'l\'aggiornamento' : 'la creazione'} dell'utente`);
         } finally {
             setIsSubmitting(false);
         }
     };
+
+    const selectedCCNL = nationalContracts.find(c => c.id === watchNationalContract);
 
     if (isLoading) {
         return (
@@ -163,7 +251,7 @@ export function UserFormPage() {
                             <span>/</span>
                             <span>{isEditing ? 'Modifica Utente' : 'Nuovo Utente'}</span>
                         </div>
-                        <h1 className="text-2xl font-bold text-gray-900">{isEditing ? `Modifica ${isEditing ? '' : 'Nuovo'} Utente` : 'Nuovo Utente'}</h1>
+                        <h1 className="text-2xl font-bold text-gray-900">{isEditing ? `Modifica ${isEditing ? '' : 'Nuovo'} Utente` : 'Nuovo Dipendente'}</h1>
                     </div>
                 </div>
             </header>
@@ -173,7 +261,8 @@ export function UserFormPage() {
                     {/* Main Column */}
                     <div className="space-y-6">
                         {/* Personal Info */}
-                        <section className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                        <section className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
                             <div className="flex items-center gap-3 pb-4 mb-4 border-b border-gray-100 text-indigo-600">
                                 <User size={20} />
                                 <h2 className="text-lg font-semibold text-gray-900">Informazioni Personali</h2>
@@ -188,13 +277,9 @@ export function UserFormPage() {
                                         {...register('first_name', { required: 'Nome richiesto' })}
                                     />
                                     {errors.first_name && (
-                                        <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-                                            <AlertCircle size={12} />
-                                            {errors.first_name?.message}
-                                        </p>
+                                        <p className="mt-1 text-sm text-red-600 flex items-center gap-1"><AlertCircle size={12} /> {errors.first_name?.message}</p>
                                     )}
                                 </div>
-
                                 <div className="space-y-1.5">
                                     <label className="block text-sm font-medium text-gray-700">Cognome <span className="text-red-500">*</span></label>
                                     <input
@@ -204,13 +289,9 @@ export function UserFormPage() {
                                         {...register('last_name', { required: 'Cognome richiesto' })}
                                     />
                                     {errors.last_name && (
-                                        <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-                                            <AlertCircle size={12} />
-                                            {errors.last_name?.message}
-                                        </p>
+                                        <p className="mt-1 text-sm text-red-600 flex items-center gap-1"><AlertCircle size={12} /> {errors.last_name?.message}</p>
                                     )}
                                 </div>
-
                                 <div className="space-y-1.5">
                                     <label className="block text-sm font-medium text-gray-700">Email <span className="text-red-500">*</span></label>
                                     <div className="relative rounded-md shadow-sm">
@@ -221,43 +302,29 @@ export function UserFormPage() {
                                             type="email"
                                             className={`block w-full rounded-lg border-gray-300 pl-10 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${errors.email ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}`}
                                             placeholder="mario.rossi@azienda.it"
-                                            {...register('email', {
-                                                required: 'Email richiesta',
-                                                pattern: {
-                                                    value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                                                    message: 'Email non valida',
-                                                },
-                                            })}
+                                            {...register('email', { required: 'Email richiesta', pattern: { value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i, message: 'Email non valida' } })}
                                         />
                                     </div>
                                     {errors.email && (
-                                        <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-                                            <AlertCircle size={12} />
-                                            {errors.email?.message}
-                                        </p>
+                                        <p className="mt-1 text-sm text-red-600 flex items-center gap-1"><AlertCircle size={12} /> {errors.email?.message}</p>
                                     )}
                                 </div>
-
                                 <div className="space-y-1.5">
                                     <label className="block text-sm font-medium text-gray-700">Telefono</label>
                                     <div className="relative rounded-md shadow-sm">
                                         <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                                             <Phone size={16} className="text-gray-400" />
                                         </div>
-                                        <input
-                                            type="tel"
-                                            className="block w-full rounded-lg border-gray-300 pl-10 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                            placeholder="+39 123 456 7890"
-                                            {...register('phone')}
-                                        />
+                                        <input type="tel" className="block w-full rounded-lg border-gray-300 pl-10 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="+39 123 456 7890" {...register('phone')} />
                                     </div>
                                 </div>
                             </div>
                         </section>
 
                         {/* Work Info */}
-                        <section className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                            <div className="flex items-center gap-3 pb-4 mb-4 border-b border-gray-100 text-indigo-600">
+                        <section className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+                            <div className="flex items-center gap-3 pb-4 mb-4 border-b border-gray-100 text-blue-600">
                                 <Briefcase size={20} />
                                 <h2 className="text-lg font-semibold text-gray-900">Informazioni Lavorative</h2>
                             </div>
@@ -271,127 +338,177 @@ export function UserFormPage() {
                                         {...register('username', { required: 'Username richiesto' })}
                                     />
                                     {errors.username && (
-                                        <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-                                            <AlertCircle size={12} />
-                                            {errors.username?.message}
-                                        </p>
+                                        <p className="mt-1 text-sm text-red-600 flex items-center gap-1"><AlertCircle size={12} /> {errors.username?.message}</p>
                                     )}
                                 </div>
-
                                 <div className="space-y-1.5">
                                     <label className="block text-sm font-medium text-gray-700">Codice Dipendente</label>
-                                    <input
-                                        type="text"
-                                        className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                        placeholder="EMP001"
-                                        {...register('employee_code')}
-                                    />
+                                    <input type="text" className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="EMP001" {...register('employee_code')} />
                                 </div>
-
                                 <div className="space-y-1.5">
                                     <label className="block text-sm font-medium text-gray-700">Dipartimento</label>
                                     <div className="relative rounded-md shadow-sm">
                                         <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                                             <Building size={16} className="text-gray-400" />
                                         </div>
-                                        <input
-                                            type="text"
-                                            className="block w-full rounded-lg border-gray-300 pl-10 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                            placeholder="IT"
-                                            {...register('department')}
-                                        />
+                                        <input type="text" className="block w-full rounded-lg border-gray-300 pl-10 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="IT" {...register('department')} />
                                     </div>
                                 </div>
 
-                                <div className="space-y-1.5">
-                                    <label className="block text-sm font-medium text-gray-700">Posizione</label>
-                                    <input
-                                        type="text"
-                                        className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                        placeholder="Software Developer"
-                                        {...register('position')}
-                                    />
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <label className="block text-sm font-medium text-gray-700">Data Assunzione</label>
-                                    <div className="relative rounded-md shadow-sm">
-                                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                                            <Calendar size={16} className="text-gray-400" />
+                                {/* Visible only when NOT registering a contract (edit mode or manual opt-out) */}
+                                {(!watchHasContract || isEditing) && (
+                                    <>
+                                        <div className="space-y-1.5">
+                                            <label className="block text-sm font-medium text-gray-700">Posizione</label>
+                                            <input type="text" className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Software Developer" {...register('position')} />
                                         </div>
-                                        <input
-                                            type="date"
-                                            className="block w-full rounded-lg border-gray-300 pl-10 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                            {...register('hire_date')}
-                                        />
-                                    </div>
-                                </div>
+                                        <div className="space-y-1.5">
+                                            <label className="block text-sm font-medium text-gray-700">Data Assunzione</label>
+                                            <div className="relative rounded-md shadow-sm">
+                                                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                                    <Calendar size={16} className="text-gray-400" />
+                                                </div>
+                                                <input type="date" className="block w-full rounded-lg border-gray-300 pl-10 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" {...register('hire_date')} />
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </section>
+
+                        {/* First Contract Section - ONLY FOR NEW USERS */}
+                        {!isEditing && (
+                            <section className={`bg-white p-6 rounded-xl border transition-all duration-300 ${watchHasContract ? 'border-emerald-200 shadow-md ring-1 ring-emerald-500/10' : 'border-gray-200'}`}>
+                                <div className="flex items-center justify-between pb-4 mb-4 border-b border-gray-100">
+                                    <div className="flex items-center gap-3 text-emerald-700">
+                                        <FileText size={20} />
+                                        <h2 className="text-lg font-semibold">Primo Contratto</h2>
+                                    </div>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <span className="text-sm font-medium text-gray-600">Registra Contratto Iniziale</span>
+                                        <div className="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" className="sr-only peer" {...register('has_contract')} />
+                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                {watchHasContract ? (
+                                    <div className="space-y-5 animate-fadeIn">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-1.5">
+                                                <label className="block text-sm font-medium text-gray-700">Tipo Contratto <span className="text-red-500">*</span></label>
+                                                <select
+                                                    className={`block w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm ${errors.contract_type_id ? 'border-red-300' : ''}`}
+                                                    {...register('contract_type_id', { required: watchHasContract ? 'Tipo contratto richiesto' : false })}
+                                                >
+                                                    <option value="">Seleziona...</option>
+                                                    {contractTypes.map(t => (
+                                                        <option key={t.id} value={t.id}>{t.name} ({t.code})</option>
+                                                    ))}
+                                                </select>
+                                                {errors.contract_type_id && <p className="text-xs text-red-500">{errors.contract_type_id.message}</p>}
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <label className="block text-sm font-medium text-gray-700">CCNL di Riferimento</label>
+                                                <select
+                                                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm"
+                                                    {...register('national_contract_id')}
+                                                >
+                                                    <option value="">Nessuno / Altro</option>
+                                                    {nationalContracts.map(c => (
+                                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-1.5">
+                                                <label className="block text-sm font-medium text-gray-700">Qualifica / Livello</label>
+                                                <select
+                                                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm"
+                                                    {...register('level_id')}
+                                                    disabled={!watchNationalContract}
+                                                >
+                                                    <option value="">Seleziona livello...</option>
+                                                    {selectedCCNL?.levels?.map((l: any) => (
+                                                        <option key={l.id} value={l.id}>{l.level_name}</option>
+                                                    ))}
+                                                </select>
+                                                {!watchNationalContract && <p className="text-xs text-gray-400">Seleziona prima un CCNL</p>}
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="block text-sm font-medium text-gray-700">Posizione / Mansione</label>
+                                                <input
+                                                    type="text"
+                                                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm"
+                                                    placeholder="Software Engineer"
+                                                    {...register('job_title', { required: watchHasContract ? 'Posizione richiesta' : false })}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-1.5">
+                                                <label className="block text-sm font-medium text-gray-700">Data Inizio Contratto <span className="text-red-500">*</span></label>
+                                                <input
+                                                    type="date"
+                                                    className={`block w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm ${errors.contract_start_date ? 'border-red-300' : ''}`}
+                                                    {...register('contract_start_date', { required: watchHasContract ? 'Data inizio richiesta' : false })}
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="block text-sm font-medium text-gray-700">Ore Settimanali <span className="text-red-500">*</span></label>
+                                                <div className="relative rounded-md shadow-sm">
+                                                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                                        <Clock size={16} className="text-gray-400" />
+                                                    </div>
+                                                    <input
+                                                        type="number"
+                                                        className="block w-full rounded-lg border-gray-300 pl-10 focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm font-bold text-gray-900"
+                                                        {...register('weekly_hours', { required: watchHasContract ? 'Ore richieste' : false, min: 1, max: 168 })}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="bg-gray-50 border border-gray-100 rounded-lg p-4 text-center">
+                                        <p className="text-sm text-gray-500">I dati contrattuali potranno essere aggiunti successivamente dal profilo utente.</p>
+                                    </div>
+                                )}
+                            </section>
+                        )}
                     </div>
 
                     {/* Sidebar */}
                     <div className="space-y-6">
-                        {/* Contract Management Link - Only in Edit Mode */}
-                        {isEditing && (
-                            <section className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                                <div className="flex items-center gap-3 pb-4 mb-4 border-b border-gray-100 text-indigo-600">
-                                    <FileText size={20} />
-                                    <h2 className="text-lg font-semibold text-gray-900">Contratti</h2>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500 mb-4 leading-relaxed">
-                                        Per gestire lo storico contratti, le promozioni e i livelli, accedi alla scheda contratto.
-                                    </p>
-                                    <button
-                                        type="button"
-                                        className="w-full btn btn-white border border-gray-300 text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2"
-                                        onClick={() => navigate(`/admin/users/${id}?tab=contracts`)}
-                                    >
-                                        <Briefcase size={16} />
-                                        Gestisci Contratti
-                                    </button>
-                                </div>
-                            </section>
-                        )}
-
                         {/* Permissions */}
-                        <section className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                        <section className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
                             <div className="flex items-center gap-3 pb-4 mb-4 border-b border-gray-100 text-indigo-600">
                                 <Shield size={20} />
-                                <h2 className="text-lg font-semibold text-gray-900">Permessi</h2>
+                                <h2 className="text-lg font-semibold text-gray-900">Ruoli & Permessi</h2>
                             </div>
                             <div className="space-y-3">
                                 <label className="flex items-start gap-4 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group">
-                                    <input
-                                        type="checkbox"
-                                        className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                        {...register('is_admin')}
-                                    />
+                                    <input type="checkbox" className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" {...register('is_admin')} />
                                     <div>
                                         <span className="block text-sm font-medium text-gray-900 group-hover:text-indigo-700">Amministratore</span>
                                         <span className="block text-xs text-gray-500 group-hover:text-indigo-600/70">Accesso completo al sistema</span>
                                     </div>
                                 </label>
-
                                 <label className="flex items-start gap-4 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group">
-                                    <input
-                                        type="checkbox"
-                                        className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                        {...register('is_manager')}
-                                    />
+                                    <input type="checkbox" className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" {...register('is_manager')} />
                                     <div>
                                         <span className="block text-sm font-medium text-gray-900 group-hover:text-indigo-700">Manager</span>
                                         <span className="block text-xs text-gray-500 group-hover:text-indigo-600/70">Gestione team e report</span>
                                     </div>
                                 </label>
-
                                 <label className="flex items-start gap-4 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group">
-                                    <input
-                                        type="checkbox"
-                                        className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                        {...register('is_approver')}
-                                    />
+                                    <input type="checkbox" className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" {...register('is_approver')} />
                                     <div>
                                         <span className="block text-sm font-medium text-gray-900 group-hover:text-indigo-700">Approvatore</span>
                                         <span className="block text-xs text-gray-500 group-hover:text-indigo-600/70">Approva ferie e richieste</span>
@@ -404,7 +521,7 @@ export function UserFormPage() {
                         <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-inner flex flex-col gap-3">
                             <button
                                 type="submit"
-                                className="btn btn-primary w-full flex justify-center items-center gap-2 shadow-sm"
+                                className="w-full flex justify-center items-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 transition-all hover:scale-[1.02] disabled:opacity-70 disabled:hover:scale-100"
                                 disabled={isSubmitting}
                             >
                                 {isSubmitting ? (
@@ -412,18 +529,29 @@ export function UserFormPage() {
                                 ) : (
                                     <>
                                         <Save size={18} />
-                                        {isEditing ? 'Salva Modifiche' : 'Crea Utente'}
+                                        {isEditing ? 'Salva Modifiche' : (watchHasContract ? 'Crea Dipendente e Contratto' : 'Crea Utente')}
                                     </>
                                 )}
                             </button>
                             <button
                                 type="button"
-                                className="btn btn-ghost w-full text-gray-600 hover:bg-white hover:border-gray-300 border border-transparent"
+                                className="w-full px-4 py-3 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl font-medium transition-all"
                                 onClick={() => navigate(-1)}
                             >
                                 Annulla
                             </button>
                         </div>
+
+                        {/* Helper Box */}
+                        {!isEditing && watchHasContract && (
+                            <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex gap-3">
+                                <CheckCircle size={20} className="text-emerald-600 shrink-0 mt-0.5" />
+                                <div className="text-sm text-emerald-800">
+                                    <p className="font-bold mb-1">Tutto in uno step!</p>
+                                    <p className="opacity-90">Verrà creato l'utente e automaticamente registrato il primo contratto attivo. Il wallet ferie sarà inizializzato a zero.</p>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </form>

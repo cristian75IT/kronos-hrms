@@ -214,7 +214,7 @@ class ContractTypeBase(BaseModel):
     code: str = Field(..., max_length=20)
     name: str = Field(..., max_length=100)
     is_part_time: bool = False
-    part_time_percentage: int = Field(default=100, ge=1, le=100)
+    part_time_percentage: int = Field(default=100, ge=0, le=100)
     annual_vacation_days: int = Field(default=26, ge=0)
     annual_rol_hours: int = Field(default=104, ge=0)
     annual_permit_hours: int = Field(default=32, ge=0)
@@ -230,7 +230,7 @@ class ContractTypeUpdate(BaseModel):
     
     name: Optional[str] = Field(None, max_length=100)
     is_part_time: Optional[bool] = None
-    part_time_percentage: Optional[int] = Field(None, ge=1, le=100)
+    part_time_percentage: Optional[int] = Field(None, ge=0, le=100)
     annual_vacation_days: Optional[int] = Field(None, ge=0)
     annual_rol_hours: Optional[int] = Field(None, ge=0)
     annual_permit_hours: Optional[int] = Field(None, ge=0)
@@ -281,11 +281,12 @@ class EmployeeContractBase(BaseModel):
     """Base employee contract schema."""
     
     contract_type_id: UUID
+    national_contract_id: Optional[UUID] = None
+    level_id: Optional[UUID] = None
     start_date: date
     end_date: Optional[date] = None
     weekly_hours: Optional[int] = Field(None, ge=0)
     job_title: Optional[str] = Field(None, max_length=100)
-    level: Optional[str] = Field(None, max_length=50)
     department: Optional[str] = Field(None, max_length=100)
     document_path: Optional[str] = None
 
@@ -299,11 +300,12 @@ class EmployeeContractUpdate(BaseModel):
     """Schema for updating employee contract."""
     
     contract_type_id: Optional[UUID] = None
+    national_contract_id: Optional[UUID] = None
+    level_id: Optional[UUID] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     weekly_hours: Optional[int] = Field(None, ge=0)
     job_title: Optional[str] = None
-    level: Optional[str] = None
     department: Optional[str] = None
     document_path: Optional[str] = None
 

@@ -102,6 +102,18 @@ export function LeavesPage() {
         </div>
       </div>
 
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 text-xs text-gray-500">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-amber-600">AP</span>
+          <span>= Anni Precedenti (residuo dall'anno scorso)</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-emerald-600">AC</span>
+          <span>= Anno Corrente (maturato quest'anno)</span>
+        </div>
+      </div>
+
       {/* Requests List */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
         <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200 bg-gray-50/50">

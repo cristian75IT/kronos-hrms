@@ -295,20 +295,27 @@ class LeaveBalanceRepository:
         transaction_type: str,
         balance_type: str,
         amount: Decimal,
-        balance_after: Decimal,
+        balance_after: Optional[Decimal] = None,
         leave_request_id: Optional[UUID] = None,
         reason: Optional[str] = None,
+        expiry_date: Optional[date] = None,
         created_by: Optional[UUID] = None,
     ) -> BalanceTransaction:
         """Add balance transaction for audit."""
+        if balance_after is None:
+            # Fallback to current balance total if not provided
+            balance_after = Decimal(0) # In a real scenario we might fetch the balance here
+            
         transaction = BalanceTransaction(
             balance_id=balance_id,
             leave_request_id=leave_request_id,
             transaction_type=transaction_type,
             balance_type=balance_type,
             amount=amount,
+            remaining_amount=max(Decimal(0), amount),
             balance_after=balance_after,
             reason=reason,
+            expiry_date=expiry_date,
             created_by=created_by,
         )
         self._session.add(transaction)

@@ -1,7 +1,11 @@
+/**
+ * KRONOS - Contract Types Manager
+ */
 import { useState } from 'react';
 import { useContractTypes, useCreateContractType, useUpdateContractType } from '../../hooks/useApi';
-import { Loader, Plus, Save, X, Edit2, TrendingUp, Calendar, Zap, Users, Calculator } from 'lucide-react';
+import { Loader, Plus, Save, X, Edit, Clock, Calendar } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
+import { Button } from '../../components/common';
 import type { ContractType } from '../../types';
 
 export function ContractTypesManager() {
@@ -18,7 +22,7 @@ export function ContractTypesManager() {
         is_part_time: false,
         part_time_percentage: 100,
         annual_vacation_days: 26,
-        annual_rol_hours: 104,
+        annual_rol_hours: 72,
         annual_permit_hours: 32,
         is_active: true
     });
@@ -34,7 +38,7 @@ export function ContractTypesManager() {
             await updateMutation.mutateAsync({ id: editingId, data: editForm });
             toast.success('Dati contrattuali sincronizzati');
             setEditingId(null);
-        } catch (error) {
+        } catch {
             toast.error('Errore durante l\'aggiornamento');
         }
     };
@@ -49,124 +53,145 @@ export function ContractTypesManager() {
                 is_part_time: false,
                 part_time_percentage: 100,
                 annual_vacation_days: 26,
-                annual_rol_hours: 104,
+                annual_rol_hours: 72,
                 annual_permit_hours: 32,
                 is_active: true
             });
-        } catch (error) {
+        } catch {
             toast.error('Errore durante la creazione');
         }
     };
 
-    if (isLoading) return (
-        <div className="flex flex-col items-center justify-center p-12 gap-3 opacity-50">
-            <Loader className="animate-spin text-primary" size={32} />
-            <span className="text-xs font-black uppercase tracking-widest">Inizializzazione Modelli Contratto...</span>
-        </div>
-    );
+    if (isLoading) {
+        return (
+            <div className="flex flex-col items-center justify-center p-12 gap-3">
+                <Loader className="animate-spin text-indigo-600" size={32} />
+                <span className="text-sm text-gray-500">Caricamento modelli...</span>
+            </div>
+        );
+    }
 
     return (
-        <div className="space-y-8 animate-fadeIn">
-            {/* Context Header */}
-            <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4">
-                <div className="space-y-1">
-                    <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-secondary/10 border border-secondary/20 text-secondary text-[0.6rem] font-black uppercase tracking-widest">
-                        Legal Entity Rules
-                    </div>
-                    <h3 className="text-2xl font-black text-white flex items-center gap-3">
-                        <Users className="text-secondary" size={24} /> Template Contrattuali
-                    </h3>
+        <div className="space-y-6">
+            {/* Create Button */}
+            {!isCreating && (
+                <div className="flex justify-end">
+                    <Button onClick={() => setIsCreating(true)} variant="primary" icon={<Plus size={18} />}>
+                        Crea Modello
+                    </Button>
                 </div>
-                {!isCreating && (
-                    <button
-                        className="btn btn-primary rounded-2xl px-6 shadow-xl shadow-primary/20 hover:scale-105 transition-transform"
-                        onClick={() => setIsCreating(true)}
-                    >
-                        <Plus size={18} strokeWidth={3} /> Crea Modello
-                    </button>
-                )}
-            </div>
+            )}
 
+            {/* Create Form */}
             {isCreating && (
-                <div className="relative overflow-hidden p-8 rounded-[2rem] bg-neutral-900 border border-white/5 shadow-2xl animate-fadeInUp">
-                    <div className="absolute top-0 right-0 p-8 opacity-5">
-                        <Plus size={120} />
-                    </div>
-                    <div className="relative z-10 space-y-8">
+                <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-4">Nuovo Modello Contrattuale</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="lg:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Nome Modello</label>
+                            <input
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                placeholder="Es. Metalmeccanico Full Time"
+                                value={newForm.name}
+                                onChange={e => setNewForm({ ...newForm, name: e.target.value })}
+                            />
+                        </div>
                         <div>
-                            <h4 className="text-xl font-black text-white">Nuovo Template Contrattuale</h4>
-                            <p className="text-sm text-white/40">Definisci i parametri di maturazione ferie e permessi per una nuova categoria.</p>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Tipo Orario</label>
+                            <select
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                value={newForm.is_part_time ? 'true' : 'false'}
+                                onChange={e => setNewForm({ ...newForm, is_part_time: e.target.value === 'true', part_time_percentage: e.target.value === 'true' ? 50 : 100 })}
+                            >
+                                <option value="false">Full Time</option>
+                                <option value="true">Part Time</option>
+                            </select>
                         </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
-                            <div className="lg:col-span-3 space-y-2">
-                                <label className="text-[0.65rem] font-black uppercase tracking-widest text-white/30">Nome Modello</label>
-                                <input className="input w-full bg-white/5 border-white/10 text-white rounded-xl focus:border-primary focus:ring-primary h-12" value={newForm.name} onChange={e => setNewForm({ ...newForm, name: e.target.value })} placeholder="Es. Metalmeccanico Full Time" />
+                        {newForm.is_part_time && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">% Carico</label>
+                                <input
+                                    type="number"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    value={newForm.part_time_percentage}
+                                    onChange={e => setNewForm({ ...newForm, part_time_percentage: parseInt(e.target.value) })}
+                                />
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-[0.65rem] font-black uppercase tracking-widest text-white/30">Tipo Orario</label>
-                                <select className="select w-full bg-white/5 border-white/10 text-white rounded-xl focus:border-primary h-12"
-                                    value={newForm.is_part_time ? 'true' : 'false'}
-                                    onChange={e => setNewForm({ ...newForm, is_part_time: e.target.value === 'true', part_time_percentage: e.target.value === 'true' ? 50 : 100 })}
-                                >
-                                    <option value="false" className="bg-neutral-900">Full Time</option>
-                                    <option value="true" className="bg-neutral-900">Part Time</option>
-                                </select>
-                            </div>
-                            {newForm.is_part_time && (
-                                <div className="space-y-2">
-                                    <label className="text-[0.65rem] font-black uppercase tracking-widest text-white/30">% Carico</label>
-                                    <input type="number" className="input w-full bg-white/5 border-white/10 text-white rounded-xl focus:border-primary h-12" value={newForm.part_time_percentage} onChange={e => setNewForm({ ...newForm, part_time_percentage: parseInt(e.target.value) })} />
-                                </div>
-                            )}
-                            <div className="space-y-2">
-                                <label className="text-[0.65rem] font-black uppercase tracking-widest text-white/30 truncate">Ferie Annuali (gg)</label>
-                                <input type="number" className="input w-full bg-white/5 border-white/10 text-white rounded-xl focus:border-primary h-12" value={newForm.annual_vacation_days} onChange={e => setNewForm({ ...newForm, annual_vacation_days: parseInt(e.target.value) })} />
-                            </div>
+                        )}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Ferie Annuali (gg)</label>
+                            <input
+                                type="number"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                value={newForm.annual_vacation_days}
+                                onChange={e => setNewForm({ ...newForm, annual_vacation_days: parseInt(e.target.value) })}
+                            />
                         </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="space-y-2">
-                                <label className="text-[0.65rem] font-black uppercase tracking-widest text-white/30">ROL Annuali (h)</label>
-                                <input type="number" className="input w-full bg-white/5 border-white/10 text-white rounded-xl focus:border-primary h-12" value={newForm.annual_rol_hours} onChange={e => setNewForm({ ...newForm, annual_rol_hours: parseInt(e.target.value) })} />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-[0.65rem] font-black uppercase tracking-widest text-white/30">Ex-Festività Annuali (h)</label>
-                                <input type="number" className="input w-full bg-white/5 border-white/10 text-white rounded-xl focus:border-primary h-12" value={newForm.annual_permit_hours} onChange={e => setNewForm({ ...newForm, annual_permit_hours: parseInt(e.target.value) })} />
-                            </div>
-                            <div className="flex items-end gap-3">
-                                <button className="btn btn-ghost flex-1 rounded-xl text-white/50" onClick={() => setIsCreating(false)}>Annulla</button>
-                                <button className="btn btn-primary flex-1 rounded-xl shadow-lg shadow-primary/20" onClick={handleCreate}>Crea Template</button>
-                            </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">ROL Annuali (h)</label>
+                            <input
+                                type="number"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                value={newForm.annual_rol_hours}
+                                onChange={e => setNewForm({ ...newForm, annual_rol_hours: parseInt(e.target.value) })}
+                            />
                         </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Permessi (h)</label>
+                            <input
+                                type="number"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                value={newForm.annual_permit_hours}
+                                onChange={e => setNewForm({ ...newForm, annual_permit_hours: parseInt(e.target.value) })}
+                            />
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-3 mt-6">
+                        <Button variant="secondary" onClick={() => setIsCreating(false)}>Annulla</Button>
+                        <Button variant="primary" onClick={handleCreate}>Crea Modello</Button>
                     </div>
                 </div>
             )}
 
-            {/* Premium Table Container */}
-            <div className="group relative overflow-hidden rounded-[2.5rem] bg-base-100 border border-base-200 shadow-[0_20px_50px_-10px_rgba(0,0,0,0.05)] transition-all duration-700 hover:shadow-2xl">
+            {/* Table */}
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex items-center justify-between">
+                    <div>
+                        <h3 className="font-semibold text-gray-900">Modelli Contrattuali</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">I valori di Ferie, ROL e Permessi sono espressi su base annuale</p>
+                    </div>
+                </div>
                 <div className="overflow-x-auto">
-                    <table className="table w-full border-collapse">
+                    <table className="w-full">
                         <thead>
-                            <tr className="bg-base-200/30">
-                                <th className="px-8 py-6 text-[0.65rem] font-black uppercase tracking-widest text-base-content/40 border-none">Informazioni Contratto</th>
-                                <th className="px-8 py-6 text-[0.65rem] font-black uppercase tracking-widest text-base-content/40 border-none">Configurazione Orario</th>
-                                <th className="px-8 py-6 text-[0.65rem] font-black uppercase tracking-widest text-base-content/40 border-none text-center">Ferie (gg)</th>
-                                <th className="px-8 py-6 text-[0.65rem] font-black uppercase tracking-widest text-base-content/40 border-none text-center">ROL (h)</th>
-                                <th className="px-8 py-6 text-[0.65rem] font-black uppercase tracking-widest text-base-content/40 border-none text-center">Permessi (h)</th>
-                                <th className="px-8 py-6 text-[0.65rem] font-black uppercase tracking-widest text-base-content/40 border-none text-center">Status</th>
-                                <th className="px-8 py-6 text-[0.65rem] font-black uppercase tracking-widest text-base-content/40 border-none text-right">Azioni</th>
+                            <tr className="bg-gray-50/50 border-b border-gray-200">
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contratto</th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Orario</th>
+                                <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Ferie</th>
+                                <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">ROL</th>
+                                <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Permessi</th>
+                                <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Stato</th>
+                                <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Azioni</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-base-200">
+                        <tbody className="divide-y divide-gray-100">
                             {types?.map(type => (
-                                <tr key={type.id} className="group/row transition-all duration-300 hover:bg-primary/[0.02]">
+                                <tr key={type.id} className="hover:bg-gray-50 transition-colors group">
                                     {editingId === type.id ? (
                                         <>
-                                            <td className="px-8 py-6"><input className="input input-sm input-primary w-full font-bold h-10 rounded-xl" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></td>
-                                            <td className="px-8 py-6">
+                                            <td className="px-6 py-4">
+                                                <input
+                                                    className="w-full px-2 py-1 border border-gray-300 rounded-md text-sm"
+                                                    value={editForm.name}
+                                                    onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                                                />
+                                            </td>
+                                            <td className="px-6 py-4">
                                                 <div className="flex gap-2">
-                                                    <select className="select select-sm select-bordered rounded-xl h-10"
+                                                    <select
+                                                        className="px-2 py-1 border border-gray-300 rounded-md text-sm"
                                                         value={editForm.is_part_time ? 'true' : 'false'}
                                                         onChange={e => setEditForm({ ...editForm, is_part_time: e.target.value === 'true' })}
                                                     >
@@ -174,73 +199,67 @@ export function ContractTypesManager() {
                                                         <option value="true">PT</option>
                                                     </select>
                                                     {editForm.is_part_time && (
-                                                        <input type="number" className="input input-sm input-bordered w-16 h-10 rounded-xl" value={editForm.part_time_percentage} onChange={e => setEditForm({ ...editForm, part_time_percentage: parseInt(e.target.value) })} />
+                                                        <input
+                                                            type="number"
+                                                            className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm"
+                                                            value={editForm.part_time_percentage}
+                                                            onChange={e => setEditForm({ ...editForm, part_time_percentage: parseInt(e.target.value) })}
+                                                        />
                                                     )}
                                                 </div>
                                             </td>
-                                            <td className="px-8 py-6"><input type="number" className="input input-sm input-bordered w-20 mx-auto block h-10 rounded-xl" value={editForm.annual_vacation_days} onChange={e => setEditForm({ ...editForm, annual_vacation_days: parseInt(e.target.value) })} /></td>
-                                            <td className="px-8 py-6"><input type="number" className="input input-sm input-bordered w-20 mx-auto block h-10 rounded-xl" value={editForm.annual_rol_hours} onChange={e => setEditForm({ ...editForm, annual_rol_hours: parseInt(e.target.value) })} /></td>
-                                            <td className="px-8 py-6"><input type="number" className="input input-sm input-bordered w-20 mx-auto block h-10 rounded-xl" value={editForm.annual_permit_hours} onChange={e => setEditForm({ ...editForm, annual_permit_hours: parseInt(e.target.value) })} /></td>
-                                            <td className="px-8 py-6 text-center">
-                                                <input type="checkbox" className="toggle toggle-success" checked={editForm.is_active} onChange={e => setEditForm({ ...editForm, is_active: e.target.checked })} />
+                                            <td className="px-6 py-4 text-center">
+                                                <input type="number" className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm text-center" value={editForm.annual_vacation_days} onChange={e => setEditForm({ ...editForm, annual_vacation_days: parseInt(e.target.value) })} />
                                             </td>
-                                            <td className="px-8 py-6">
+                                            <td className="px-6 py-4 text-center">
+                                                <input type="number" className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm text-center" value={editForm.annual_rol_hours} onChange={e => setEditForm({ ...editForm, annual_rol_hours: parseInt(e.target.value) })} />
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <input type="number" className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm text-center" value={editForm.annual_permit_hours} onChange={e => setEditForm({ ...editForm, annual_permit_hours: parseInt(e.target.value) })} />
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" checked={editForm.is_active} onChange={e => setEditForm({ ...editForm, is_active: e.target.checked })} />
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
                                                 <div className="flex justify-end gap-2">
-                                                    <button className="btn btn-sm btn-square btn-success rounded-xl shadow-lg shadow-success/20" onClick={handleSave}><Save size={16} /></button>
-                                                    <button className="btn btn-sm btn-square btn-ghost rounded-xl" onClick={() => setEditingId(null)}><X size={16} /></button>
+                                                    <button className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg" onClick={handleSave}><Save size={16} /></button>
+                                                    <button className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg" onClick={() => setEditingId(null)}><X size={16} /></button>
                                                 </div>
                                             </td>
                                         </>
                                     ) : (
                                         <>
-                                            <td className="px-8 py-6">
-                                                <div className="flex flex-col">
-                                                    <span className="font-black text-base text-base-content group-hover/row:text-primary transition-colors">{type.name}</span>
-                                                    <span className="text-[0.65rem] text-base-content/30 font-mono italic">UUID: {type.id.substring(0, 8)}...</span>
-                                                </div>
+                                            <td className="px-6 py-4">
+                                                <div className="font-medium text-gray-900">{type.name}</div>
+                                                <div className="text-xs text-gray-400 font-mono">{type.code || type.id.substring(0, 8)}</div>
                                             </td>
-                                            <td className="px-8 py-6">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[0.65rem] font-black uppercase tracking-widest ${type.is_part_time ? 'bg-secondary/10 text-secondary border border-secondary/20' : 'bg-primary/10 text-primary border border-primary/20'}`}>
-                                                        {type.is_part_time ? (
-                                                            <>
-                                                                <TrendingUp size={12} /> Part Time <strong>{type.part_time_percentage}%</strong>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <Zap size={12} /> Full Time
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </div>
+                                            <td className="px-6 py-4">
+                                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${type.is_part_time ? 'bg-purple-50 text-purple-700 border border-purple-100' : 'bg-indigo-50 text-indigo-700 border border-indigo-100'}`}>
+                                                    <Clock size={12} />
+                                                    {type.is_part_time ? `PT ${type.part_time_percentage}%` : 'Full Time'}
+                                                </span>
                                             </td>
-                                            <td className="px-8 py-6">
-                                                <div className="flex flex-col items-center">
-                                                    <span className="text-lg font-black text-base-content/80">{type.annual_vacation_days}</span>
-                                                    <span className="text-[0.6rem] font-bold text-base-content/20 uppercase tracking-tighter">Accrued Day/Y</span>
-                                                </div>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className="text-lg font-semibold text-gray-900">{type.annual_vacation_days}</span>
+                                                <span className="text-xs text-gray-400 ml-1">gg</span>
                                             </td>
-                                            <td className="px-8 py-6 text-center">
-                                                <div className="flex flex-col items-center">
-                                                    <span className="text-lg font-black text-base-content/80">{type.annual_rol_hours}</span>
-                                                    <span className="text-[0.6rem] font-bold text-base-content/20 uppercase tracking-tighter">Hours / Y</span>
-                                                </div>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className="text-lg font-semibold text-gray-900">{type.annual_rol_hours}</span>
+                                                <span className="text-xs text-gray-400 ml-1">h</span>
                                             </td>
-                                            <td className="px-8 py-6 text-center">
-                                                <div className="flex flex-col items-center">
-                                                    <span className="text-lg font-black text-base-content/80">{type.annual_permit_hours}</span>
-                                                    <span className="text-[0.6rem] font-bold text-base-content/20 uppercase tracking-tighter">Hours / Y</span>
-                                                </div>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className="text-lg font-semibold text-gray-900">{type.annual_permit_hours}</span>
+                                                <span className="text-xs text-gray-400 ml-1">h</span>
                                             </td>
-                                            <td className="px-8 py-6 text-center">
-                                                <div className={`w-3 h-3 rounded-full mx-auto shadow-sm ${type.is_active ? 'bg-success shadow-success/30 ring-4 ring-success/10' : 'bg-base-300'}`} />
+                                            <td className="px-6 py-4 text-center">
+                                                <div className={`w-3 h-3 rounded-full mx-auto ${type.is_active ? 'bg-emerald-500' : 'bg-gray-300'}`} />
                                             </td>
-                                            <td className="px-8 py-6 text-right">
+                                            <td className="px-6 py-4 text-right">
                                                 <button
-                                                    className="btn btn-ghost btn-circle btn-sm opacity-0 group-hover/row:opacity-100 transition-all hover:bg-primary/10 hover:text-primary"
+                                                    className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                                                     onClick={() => handleEdit(type)}
                                                 >
-                                                    <Edit2 size={16} />
+                                                    <Edit size={16} />
                                                 </button>
                                             </td>
                                         </>
@@ -252,21 +271,18 @@ export function ContractTypesManager() {
                 </div>
             </div>
 
-            {/* Compliance Banner */}
-            <div className="p-8 rounded-[2rem] bg-amber-500/5 border border-amber-500/20 text-amber-600/80 flex flex-col md:flex-row items-center gap-6">
-                <div className="p-4 bg-amber-500/10 rounded-2xl">
-                    <Calendar size={32} strokeWidth={2.5} />
-                </div>
-                <div className="flex-1 space-y-1">
-                    <h5 className="font-black text-lg text-amber-700">Audit Contrattuale Importante</h5>
-                    <p className="text-sm font-medium leading-relaxed">
-                        I modelli definiti in questa sezione fungono da **Blueprint** per tutti i nuovi contratti dipendente.
-                        Qualsiasi modifica ai parametri di maturazione (Ferie/ROL) non è retroattiva a meno che non si utilizzi la funzione
-                        <span className="px-2 py-0.5 bg-amber-500/10 rounded font-black mx-1 inline-flex items-center gap-1 leading-none"><Calculator size={12} /> Ricalcola Ratei</span>
-                        nella Master Console precedente.
+            {/* Info Banner */}
+            <div className="flex items-start gap-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <Calendar className="text-amber-600 shrink-0" size={20} />
+                <div>
+                    <h5 className="font-medium text-amber-800">Audit Contrattuale</h5>
+                    <p className="text-sm text-amber-700 mt-0.5">
+                        I modelli definiti fungono da template per tutti i nuovi contratti dipendente. Le modifiche ai parametri di maturazione non sono retroattive.
                     </p>
                 </div>
             </div>
         </div>
     );
 }
+
+export default ContractTypesManager;

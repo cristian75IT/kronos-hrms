@@ -5,7 +5,7 @@ from typing import Optional
 from uuid import UUID
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import select, or_, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,9 +17,11 @@ from src.core.exceptions import (
     ValidationError,
 )
 from src.services.auth.models import EmployeeContract, ContractType
+from src.services.config.models import NationalContract, NationalContractVersion, NationalContractTypeConfig
 from src.services.leaves.models import LeaveRequest, LeaveRequestStatus, ConditionType, LeaveBalance
 from src.services.leaves.repository import LeaveRequestRepository, LeaveBalanceRepository
 from src.services.leaves.policy_engine import PolicyEngine
+from src.services.leaves.strategies import StrategyFactory
 from src.services.leaves.schemas import (
     LeaveRequestCreate,
     LeaveRequestUpdate,
@@ -62,6 +64,215 @@ class LeaveService:
 
         for user_id in user_ids:
             await self.recalculate_user_accrual(user_id, year)
+
+    async def preview_recalculate(self, year: int) -> list[dict]:
+        """Preview recalculation without persisting changes."""
+        from src.services.auth.models import User
+        
+        previews = []
+        
+        # Get all users with contracts
+        query = select(EmployeeContract.user_id).distinct()
+        result = await self._session.execute(query)
+        user_ids = result.scalars().all()
+        
+        for user_id in user_ids:
+            # Get current balance
+            balance = await self._balance_repo.get_by_user_year(user_id, year)
+            current_vacation = float(balance.vacation_accrued) if balance else 0
+            current_rol = float(balance.rol_accrued) if balance else 0
+            current_permits = float(balance.permits_total) if balance else 0
+            
+            # Calculate new values without persisting
+            new_vacation, new_rol, new_permits = await self._calculate_accrual_preview(user_id, year)
+            
+            # Get user name
+            user_query = select(User).where(User.keycloak_id == str(user_id))
+            user_result = await self._session.execute(user_query)
+            user = user_result.scalar_one_or_none()
+            name = f"{user.first_name} {user.last_name}" if user else str(user_id)
+            
+            previews.append({
+                "user_id": user_id,
+                "name": name,
+                "current_vacation": current_vacation,
+                "new_vacation": new_vacation,
+                "current_rol": current_rol,
+                "new_rol": new_rol,
+                "current_permits": current_permits,
+                "new_permits": new_permits
+            })
+        
+        return previews
+
+    async def preview_rollover(self, from_year: int) -> list[dict]:
+        """Preview rollover without persisting changes."""
+        from src.services.auth.models import User
+        
+        previews = []
+        to_year = from_year + 1
+        
+        # Get all balances for the source year
+        query = select(LeaveBalance).where(LeaveBalance.year == from_year)
+        result = await self._session.execute(query)
+        source_balances = result.scalars().all()
+        
+        for src in source_balances:
+            # Get current values
+            vacation_rem = float(src.vacation_available_total)
+            rol_rem = float(src.rol_available)
+            permits_rem = float(src.permits_available)
+            
+            # Get destination balance if exists
+            dst = await self._balance_repo.get_by_user_year(src.user_id, to_year)
+            current_vacation_ap = float(dst.vacation_previous_year) if dst else 0
+            current_rol_ap = float(dst.rol_previous_year) if dst else 0
+            
+            # Get user name
+            user_query = select(User).where(User.keycloak_id == str(src.user_id))
+            user_result = await self._session.execute(user_query)
+            user = user_result.scalar_one_or_none()
+            name = f"{user.first_name} {user.last_name}" if user else str(src.user_id)
+            
+            previews.append({
+                "user_id": src.user_id,
+                "name": name,
+                "current_vacation": current_vacation_ap,
+                "new_vacation": current_vacation_ap + vacation_rem,
+                "current_rol": current_rol_ap,
+                "new_rol": current_rol_ap + rol_rem,
+                "current_permits": 0,
+                "new_permits": permits_rem
+            })
+        
+        return previews
+
+    async def apply_recalculate_selected(self, year: int, user_ids: list[UUID]):
+        """Apply recalculation only to selected users."""
+        for user_id in user_ids:
+            await self.recalculate_user_accrual(user_id, year)
+
+    async def apply_rollover_selected(self, from_year: int, user_ids: list[UUID]):
+        """Apply rollover only to selected users."""
+        to_year = from_year + 1
+        
+        for user_id in user_ids:
+            # Get source balance
+            query = select(LeaveBalance).where(
+                LeaveBalance.user_id == user_id,
+                LeaveBalance.year == from_year
+            )
+            result = await self._session.execute(query)
+            src = result.scalar_one_or_none()
+            
+            if not src:
+                continue
+                
+            vacation_rem = src.vacation_available_total
+            rol_rem = src.rol_available
+            permits_rem = src.permits_available
+            
+            # Get/create destination balance
+            dst = await self._balance_repo.get_or_create(user_id, to_year)
+            
+            vacation_expiry = date(to_year + 1, 6, 30)
+            rol_expiry = date(to_year + 2, 12, 31)
+            
+            await self._balance_repo.update(
+                dst.id,
+                vacation_previous_year=vacation_rem,
+                rol_previous_year=rol_rem,
+                permits_total=permits_rem,
+                ap_expiry_date=vacation_expiry
+            )
+            
+            if vacation_rem > 0:
+                await self._balance_repo.add_transaction(
+                    balance_id=dst.id,
+                    transaction_type="carry_over",
+                    balance_type="vacation_ap",
+                    amount=vacation_rem,
+                    balance_after=vacation_rem,
+                    reason=f"Recupero ferie residue anno {from_year}",
+                    expiry_date=vacation_expiry
+                )
+            
+            if rol_rem > 0:
+                await self._balance_repo.add_transaction(
+                    balance_id=dst.id,
+                    transaction_type="carry_over",
+                    balance_type="rol",
+                    amount=rol_rem,
+                    balance_after=rol_rem,
+                    reason=f"Recupero ROL residui anno {from_year}",
+                    expiry_date=rol_expiry
+                )
+        
+        await self._session.commit()
+        return len(user_ids)
+
+    async def _calculate_accrual_preview(self, user_id: UUID, year: int) -> tuple[float, float, float]:
+        """Calculate accrual values without persisting."""
+        query = (
+            select(EmployeeContract)
+            .options(selectinload(EmployeeContract.contract_type))
+            .where(EmployeeContract.user_id == user_id)
+            .order_by(EmployeeContract.start_date)
+        )
+        result = await self._session.execute(query)
+        contracts = result.scalars().all()
+
+        if not contracts:
+            return (0, 0, 0)
+
+        total_vacation = Decimal(0)
+        total_rol = Decimal(0)
+        total_permits = Decimal(0)
+        
+        today = date.today()
+        
+        for month in range(1, 13):
+            month_start = date(year, month, 1)
+            _, last_day = monthrange(year, month)
+            month_end = date(year, month, last_day)
+            
+            if month_start > today:
+                break
+                
+            active_contract = None
+            for contract in contracts:
+                c_start = contract.start_date
+                c_end = contract.end_date or date(9999, 12, 31)
+                
+                if c_start <= month_end and c_end >= month_start:
+                    active_contract = contract
+                    if c_start <= month_start:
+                        break
+            
+            if active_contract:
+                params = await self._get_monthly_accrual_params(active_contract, month_start)
+                
+                if params:
+                    monthly_vacation = params["vacation"] / 12
+                    monthly_rol = params["rol"] / 12
+                    monthly_permits = params["permits"] / 12
+                    full_time_base = params["full_time_hours"]
+                    
+                    if active_contract.weekly_hours is not None:
+                        ratio = Decimal(active_contract.weekly_hours) / full_time_base
+                    else:
+                        ratio = Decimal(1.0)
+                    
+                    if ratio != Decimal(1.0):
+                        monthly_vacation *= ratio
+                        monthly_rol *= ratio
+                        monthly_permits *= ratio
+                    
+                    total_vacation += monthly_vacation
+                    total_rol += monthly_rol
+                    total_permits += monthly_permits
+
+        return (float(total_vacation), float(total_rol), float(total_permits))
 
     async def recalculate_user_accrual(self, user_id: UUID, year: int):
         """Recalculate annual accrual based on contracts history."""
@@ -107,31 +318,55 @@ class LeaveService:
                     if c_start <= month_start:
                         break
             
-            if active_contract and active_contract.contract_type:
-                ctype = active_contract.contract_type
+            if active_contract:
+                params = await self._get_monthly_accrual_params(active_contract, month_start)
                 
-                # Monthly rates
-                monthly_vacation = Decimal(ctype.annual_vacation_days) / 12
-                monthly_rol = Decimal(ctype.annual_rol_hours) / 12
-                monthly_permits = Decimal(ctype.annual_permit_hours) / 12
-                
-                # Adjust for Part-Time or Effective Weekly Hours
-                # We assume 40h as standard weekly base for 100% accrual
-                if active_contract.weekly_hours is not None:
-                    ratio = Decimal(active_contract.weekly_hours) / 40
-                elif ctype.is_part_time:
-                    ratio = Decimal(ctype.part_time_percentage) / 100
-                else:
-                    ratio = Decimal(1.0)
-                
-                if ratio != Decimal(1.0):
-                    monthly_vacation *= ratio
-                    monthly_rol *= ratio
-                    monthly_permits *= ratio
-                
-                total_vacation += monthly_vacation
-                total_rol += monthly_rol
-                total_permits += monthly_permits
+                if params:
+                    # Resolve Strategies
+                    vac_mode = params.get("vacation_mode")
+                    rol_mode = params.get("rol_mode")
+                    
+                    vac_strategy = StrategyFactory.get(vac_mode.function_name if vac_mode else "")
+                    rol_strategy = StrategyFactory.get(rol_mode.function_name if rol_mode else "")
+                    
+                    # Prepare Params (handle 'divisors' mapping for MonthlyStandard)
+                    vac_params = vac_mode.default_parameters.copy() if vac_mode and vac_mode.default_parameters else {}
+                    rol_params = rol_mode.default_parameters.copy() if rol_mode and rol_mode.default_parameters else {}
+                    
+                    if "divisors" in vac_params and isinstance(vac_params["divisors"], dict):
+                        vac_params["divisor"] = vac_params["divisors"].get("vacation", 12)
+                        
+                    if "divisors" in rol_params and isinstance(rol_params["divisors"], dict):
+                        rol_params["divisor"] = rol_params["divisors"].get("rol", 12)
+
+                    # Calculate
+                    monthly_vacation = vac_strategy.calculate(
+                        params["vacation"], active_contract, month_start, month_end, vac_params
+                    )
+                    monthly_rol = rol_strategy.calculate(
+                        params["rol"], active_contract, month_start, month_end, rol_params
+                    )
+                    # Permits typically follow ROL strategy
+                    monthly_permits = rol_strategy.calculate(
+                        params["permits"], active_contract, month_start, month_end, rol_params
+                    )
+                    
+                    full_time_base = params["full_time_hours"]
+                    
+                    # Adjust for Part-Time ratio
+                    if active_contract.weekly_hours is not None:
+                        ratio = Decimal(active_contract.weekly_hours) / full_time_base
+                    else:
+                        ratio = Decimal(1.0)
+                    
+                    if ratio != Decimal(1.0):
+                        monthly_vacation *= ratio
+                        monthly_rol *= ratio
+                        monthly_permits *= ratio
+                    
+                    total_vacation += monthly_vacation
+                    total_rol += monthly_rol
+                    total_permits += monthly_permits
 
         # Update balance
         balance = await self._balance_repo.get_or_create(user_id, year)
@@ -143,6 +378,70 @@ class LeaveService:
             permits_total=total_permits,
             last_accrual_date=today
         )
+
+    async def _get_monthly_accrual_params(self, contract: EmployeeContract, reference_date: date):
+        """Resolve accrual parameters from CCNL config or legacy fallback."""
+        # 1. Try CCNL config
+        if contract.national_contract_id:
+            query = (
+                select(NationalContractVersion)
+                .where(
+                    NationalContractVersion.national_contract_id == contract.national_contract_id,
+                    NationalContractVersion.valid_from <= reference_date,
+                    or_(
+                        NationalContractVersion.valid_to >= reference_date,
+                        NationalContractVersion.valid_to == None
+                    )
+                )
+                .options(
+                selectinload(NationalContractVersion.contract_type_configs),
+                selectinload(NationalContractVersion.vacation_calc_mode),
+                selectinload(NationalContractVersion.rol_calc_mode)
+            )
+                .order_by(NationalContractVersion.valid_from.desc())
+                .limit(1)
+            )
+            result = await self._session.execute(query)
+            version = result.scalar_one_or_none()
+            
+            if version:
+                # Find type config override
+                type_config = next(
+                    (c for c in version.contract_type_configs if c.contract_type_id == contract.contract_type_id),
+                    None
+                )
+                
+                if type_config:
+                    return {
+                        "vacation": Decimal(type_config.annual_vacation_days),
+                        "rol": Decimal(type_config.annual_rol_hours),
+                        "permits": Decimal(type_config.annual_ex_festivita_hours),
+                        "full_time_hours": Decimal(type_config.weekly_hours if type_config.weekly_hours > 0 else version.weekly_hours_full_time),
+                        "vacation_mode": version.vacation_calc_mode,
+                        "rol_mode": version.rol_calc_mode
+                    }
+                
+                # Fallback to version defaults
+                return {
+                    "vacation": Decimal(version.annual_vacation_days),
+                    "rol": Decimal(version.annual_rol_hours),
+                    "permits": Decimal(version.annual_ex_festivita_hours),
+                    "full_time_hours": Decimal(version.weekly_hours_full_time),
+                    "vacation_mode": version.vacation_calc_mode,
+                    "rol_mode": version.rol_calc_mode
+                }
+
+        # 2. Legacy fallback to ContractType
+        if contract.contract_type:
+            ctype = contract.contract_type
+            return {
+                "vacation": Decimal(ctype.annual_vacation_days),
+                "rol": Decimal(ctype.annual_rol_hours),
+                "permits": Decimal(ctype.annual_permit_hours),
+                "full_time_hours": Decimal(40.0)
+            }
+            
+        return None
 
     # ═══════════════════════════════════════════════════════════
     # Leave Request Operations
@@ -621,6 +920,89 @@ class LeaveService:
             message=f"Calcolati {days} giorni lavorativi escludendo festività e chiusure."
         )
 
+    async def get_excluded_days(self, start_date: date, end_date: date) -> dict:
+        """Get detailed list of excluded days (weekends, holidays, closures) in a date range."""
+        from datetime import timedelta
+        
+        excluded = []
+        
+        # Get holidays for the period
+        holidays = await self._get_holidays(start_date.year, start_date, end_date)
+        holiday_map = {}
+        for h in holidays:
+            h_date = h.get("date")
+            if h_date:
+                holiday_map[h_date] = h.get("name", "Festività")
+        
+        # Get company closures for the period
+        closures = await self._get_company_closures(start_date, end_date)
+        closure_map = {}
+        for closure in closures:
+            if closure.get("closure_type") == "total":
+                closure_start = closure.get("start_date")
+                closure_end = closure.get("end_date")
+                closure_name = closure.get("name", "Chiusura Aziendale")
+                if closure_start and closure_end:
+                    try:
+                        c_start = date.fromisoformat(closure_start) if isinstance(closure_start, str) else closure_start
+                        c_end = date.fromisoformat(closure_end) if isinstance(closure_end, str) else closure_end
+                        current_closure = c_start
+                        while current_closure <= c_end:
+                            closure_map[current_closure.isoformat()] = closure_name
+                            current_closure += timedelta(days=1)
+                    except (ValueError, TypeError):
+                        pass
+        
+        # Get working days config (default 5: Mon-Fri)
+        working_days_limit = await self._get_system_config("work_week_days", 5)
+        try:
+            working_days_limit = int(working_days_limit)
+        except (ValueError, TypeError):
+            working_days_limit = 5
+        
+        # Day names in Italian
+        day_names = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+        
+        # Iterate through date range
+        working_days = 0
+        current = start_date
+        while current <= end_date:
+            current_iso = current.isoformat()
+            weekday = current.weekday()
+            
+            # Check if weekend (based on config)
+            if weekday >= working_days_limit:
+                excluded.append({
+                    "date": current,
+                    "reason": "weekend",
+                    "name": day_names[weekday]
+                })
+            # Check if holiday
+            elif current_iso in holiday_map:
+                excluded.append({
+                    "date": current,
+                    "reason": "holiday",
+                    "name": holiday_map[current_iso]
+                })
+            # Check if closure
+            elif current_iso in closure_map:
+                excluded.append({
+                    "date": current,
+                    "reason": "closure",
+                    "name": closure_map[current_iso]
+                })
+            else:
+                working_days += 1
+            
+            current += timedelta(days=1)
+        
+        return {
+            "start_date": start_date,
+            "end_date": end_date,
+            "working_days": working_days,
+            "excluded_days": excluded
+        }
+
     # ═══════════════════════════════════════════════════════════
     # Balance Operations
     # ═══════════════════════════════════════════════════════════
@@ -708,6 +1090,7 @@ class LeaveService:
             amount=data.amount,
             balance_after=new_value,
             reason=data.reason,
+            expiry_date=data.expiry_date,
             created_by=admin_id,
         )
         
@@ -850,7 +1233,7 @@ class LeaveService:
         end_date: date,
         start_half: bool,
         end_half: bool,
-        user_id: UUID,
+        user_id: Optional[UUID] = None,
     ) -> Decimal:
         """Calculate working days between dates.
         
@@ -932,72 +1315,317 @@ class LeaveService:
         )
         
         for balance_type, amount in breakdown.items():
-            if amount <= 0:
+            amount_dec = Decimal(str(amount))
+            if amount_dec <= 0:
                 continue
             
+            new_value = Decimal(0)
             if balance_type == "vacation_ap":
-                new_value = balance.vacation_used_ap + Decimal(str(amount))
+                new_value = balance.vacation_used_ap + amount_dec
                 await self._balance_repo.update(balance.id, vacation_used_ap=new_value)
             elif balance_type == "vacation_ac":
-                new_value = balance.vacation_used_ac + Decimal(str(amount))
+                new_value = balance.vacation_used_ac + amount_dec
                 await self._balance_repo.update(balance.id, vacation_used_ac=new_value)
             elif balance_type == "rol":
-                new_value = balance.rol_used + Decimal(str(amount))
+                new_value = balance.rol_used + amount_dec
                 await self._balance_repo.update(balance.id, rol_used=new_value)
             elif balance_type == "permits":
-                new_value = balance.permits_used + Decimal(str(amount))
+                new_value = balance.permits_used + amount_dec
                 await self._balance_repo.update(balance.id, permits_used=new_value)
             
+            # Consume from specific buckets (FIFO)
+            await self._consume_from_buckets(balance.id, balance_type, amount_dec)
+            
+            # Add transaction
             await self._balance_repo.add_transaction(
                 balance_id=balance.id,
                 leave_request_id=request.id,
                 transaction_type="deduction",
                 balance_type=balance_type,
-                amount=-Decimal(str(amount)),
-                balance_after=new_value,
+                amount=-amount_dec,
+                balance_after=new_value, # Simplified
             )
         
         await self._request_repo.update(request.id, balance_deducted=True)
 
+    async def _consume_from_buckets(self, balance_id: UUID, balance_type: str, amount: Decimal):
+        """FIFO consumption of leave amounts from individual transaction buckets."""
+        query = (
+            select(BalanceTransaction)
+            .where(
+                BalanceTransaction.balance_id == balance_id,
+                BalanceTransaction.balance_type == balance_type,
+                BalanceTransaction.remaining_amount > 0
+            )
+            .order_by(
+                BalanceTransaction.expiry_date.nulls_last(),
+                BalanceTransaction.created_at.asc()
+            )
+        )
+        result = await self._session.execute(query)
+        buckets = result.scalars().all()
+        
+        remaining = amount
+        for bucket in buckets:
+            if remaining <= 0:
+                break
+            consume = min(bucket.remaining_amount, remaining)
+            bucket.remaining_amount -= consume
+            remaining -= consume
+        
+        await self._session.flush()
+
+    async def process_expirations(self):
+        """Identify and process expired leave/ROL buckets."""
+        today = date.today()
+        query = (
+            select(BalanceTransaction)
+            .where(
+                BalanceTransaction.expiry_date != None,
+                BalanceTransaction.expiry_date < today,
+                BalanceTransaction.remaining_amount > 0
+            )
+        )
+        result = await self._session.execute(query)
+        expired_buckets = result.scalars().all()
+        
+        field_map = {
+            "vacation_ap": "vacation_previous_year",
+            "vacation_ac": "vacation_accrued",
+            "rol": "rol_accrued",
+            "permits": "permits_total",
+        }
+        
+        for bucket in expired_buckets:
+            expired_amount = bucket.remaining_amount
+            bucket.remaining_amount = Decimal(0)
+            
+            balance = await self._balance_repo.get(bucket.balance_id)
+            if balance:
+                field = field_map.get(bucket.balance_type)
+                new_balance_val = Decimal(0)
+                if field:
+                    current = getattr(balance, field)
+                    new_balance_val = max(Decimal(0), current - expired_amount)
+                    await self._balance_repo.update(balance.id, **{field: new_balance_val})
+                
+                # Record expiration transaction
+                await self._balance_repo.add_transaction(
+                    balance_id=balance.id,
+                    transaction_type="expiry",
+                    balance_type=bucket.balance_type,
+                    amount=-expired_amount,
+                    balance_after=new_balance_val,
+                    reason=f"Scadenza automatica carica del {bucket.created_at.date()}",
+                )
+        
+        return len(expired_buckets)
+
+    async def run_monthly_accruals(self, year: int, month: int):
+        """Processes monthly accruals for all active employees.
+        
+        Rule: If an employee has an active contract for >= 15 days in the month, 
+        they get 1/12th of their annual allowance.
+        """
+        # Get all users with contracts
+        query = select(EmployeeContract.user_id).distinct()
+        result = await self._session.execute(query)
+        user_ids = result.scalars().all()
+        
+        accrual_date = date(year, month, 1)
+        _, days_in_month = monthrange(year, month)
+        month_end = date(year, month, days_in_month)
+        
+        processed_count = 0
+        for user_id in user_ids:
+            # Get contracts for this user that overlap with the month
+            query = (
+                select(EmployeeContract)
+                .where(
+                    EmployeeContract.user_id == user_id,
+                    EmployeeContract.start_date <= month_end,
+                    or_(EmployeeContract.end_date >= accrual_date, EmployeeContract.end_date == None)
+                )
+                .order_by(EmployeeContract.start_date.desc())
+            )
+            res = await self._session.execute(query)
+            contracts = res.scalars().all()
+            
+            if not contracts:
+                continue
+                
+            # Find the contract that covers at least 15 days
+            active_contract = None
+            for contract in contracts:
+                overlap_start = max(contract.start_date, accrual_date)
+                overlap_end = min(contract.end_date or date(9999, 12, 31), month_end)
+                overlap_days = (overlap_end - overlap_start).days + 1
+                
+                if overlap_days >= 15:
+                    active_contract = contract
+                    break
+            
+            if active_contract:
+                params = await self._get_monthly_accrual_params(active_contract, accrual_date)
+                if params:
+                    full_time_base = params["full_time_hours"]
+                    ratio = Decimal(active_contract.weekly_hours or full_time_base) / full_time_base
+                    
+                    m_vacation = (params["vacation"] / 12) * ratio
+                    m_rol = (params["rol"] / 12) * ratio
+                    
+                    balance = await self._balance_repo.get_or_create(user_id, year)
+                    
+                    if m_vacation > 0:
+                        new_accrued = balance.vacation_accrued + m_vacation
+                        await self._balance_repo.update(balance.id, vacation_accrued=new_accrued)
+                        await self._balance_repo.add_transaction(
+                            balance_id=balance.id,
+                            transaction_type="accrual",
+                            balance_type="vacation_ac",
+                            amount=m_vacation,
+                            balance_after=balance.vacation_available_total + m_vacation,
+                            reason=f"Maturazione mensile {month}/{year}",
+                            expiry_date=date(year + 1, 6, 30)
+                        )
+
+                    if m_rol > 0:
+                        new_rol = balance.rol_accrued + m_rol
+                        await self._balance_repo.update(balance.id, rol_accrued=new_rol)
+                        await self._balance_repo.add_transaction(
+                            balance_id=balance.id,
+                            transaction_type="accrual",
+                            balance_type="rol",
+                            amount=m_rol,
+                            balance_after=balance.rol_available + m_rol,
+                            reason=f"Maturazione mensile ROL {month}/{year}",
+                            expiry_date=date(year + 2, 12, 31)
+                        )
+                    processed_count += 1
+        return processed_count
+
+    async def run_year_end_rollover(self, from_year: int):
+        """Processes year-end rollover from from_year to from_year + 1.
+        
+        Transfers remaining AC and AP balances to the new year's AP buckets.
+        """
+        to_year = from_year + 1
+        
+        # Get all balances for the source year
+        query = select(LeaveBalance).where(LeaveBalance.year == from_year)
+        result = await self._session.execute(query)
+        source_balances = result.scalars().all()
+        
+        processed_count = 0
+        for src in source_balances:
+            # Calculate remaining totals
+            vacation_rem = src.vacation_available_total
+            rol_rem = src.rol_available
+            permits_rem = src.permits_available
+            
+            # Create/Get new year balance
+            dst = await self._balance_repo.get_or_create(src.user_id, to_year)
+            
+            # Use CCNL rules for expiry dates if possible
+            # We fetch the contract active at the end of the year
+            last_day = date(from_year, 12, 31)
+            query = (
+                select(EmployeeContract)
+                .where(
+                    EmployeeContract.user_id == src.user_id,
+                    EmployeeContract.start_date <= last_day,
+                    or_(EmployeeContract.end_date >= last_day, EmployeeContract.end_date == None)
+                )
+                .limit(1)
+            )
+            res = await self._session.execute(query)
+            contract = res.scalar_one_or_none()
+            
+            vacation_expiry = date(to_year + 1, 6, 30) # Default 18 months
+            rol_expiry = date(to_year + 2, 12, 31)    # Default 24 months
+            
+            if contract and contract.national_contract_id:
+                # We can refine this using _get_monthly_accrual_params helper if extended
+                # but for simplicity we use defaults or fetch the version once
+                pass 
+
+            # Update Destination Balance
+            await self._balance_repo.update(
+                dst.id,
+                vacation_previous_year=vacation_rem,
+                rol_previous_year=rol_rem,
+                permits_total=permits_rem, # Permits usually just roll over as total
+                ap_expiry_date=vacation_expiry # This often reflects the Vacation AP deadline
+            )
+            
+            # Record Transactions in the NEW year with expiry dates
+            if vacation_rem > 0:
+                await self._balance_repo.add_transaction(
+                    balance_id=dst.id,
+                    transaction_type="carry_over",
+                    balance_type="vacation_ap",
+                    amount=vacation_rem,
+                    balance_after=vacation_rem,
+                    reason=f"Recupero ferie residue anno {from_year}",
+                    expiry_date=vacation_expiry
+                )
+            
+            if rol_rem > 0:
+                await self._balance_repo.add_transaction(
+                    balance_id=dst.id,
+                    transaction_type="carry_over",
+                    balance_type="rol",
+                    amount=rol_rem,
+                    balance_after=rol_rem,
+                    reason=f"Recupero ROL residui anno {from_year}",
+                    expiry_date=rol_expiry
+                )
+            
+            processed_count += 1
+            
+        await self._session.commit()
+        return processed_count
+
     async def _restore_balance(self, request: LeaveRequest) -> None:
         """Restore balance when request is cancelled/recalled."""
         breakdown = request.deduction_details or {}
-        
-        balance = await self._balance_repo.get_by_user_year(
-            request.user_id,
-            request.start_date.year,
-        )
+        balance = await self._balance_repo.get_by_user_year(request.user_id, request.start_date.year)
         
         if not balance:
             return
         
         for balance_type, amount in breakdown.items():
-            if amount <= 0:
+            amount_dec = Decimal(str(amount))
+            if amount_dec <= 0:
                 continue
-            
+                
+            new_val = Decimal(0)
             if balance_type == "vacation_ap":
-                new_value = balance.vacation_used_ap - Decimal(str(amount))
-                await self._balance_repo.update(balance.id, vacation_used_ap=new_value)
+                new_val = max(Decimal(0), balance.vacation_used_ap - amount_dec)
+                await self._balance_repo.update(balance.id, vacation_used_ap=new_val)
             elif balance_type == "vacation_ac":
-                new_value = balance.vacation_used_ac - Decimal(str(amount))
-                await self._balance_repo.update(balance.id, vacation_used_ac=new_value)
+                new_val = max(Decimal(0), balance.vacation_used_ac - amount_dec)
+                await self._balance_repo.update(balance.id, vacation_used_ac=new_val)
             elif balance_type == "rol":
-                new_value = balance.rol_used - Decimal(str(amount))
-                await self._balance_repo.update(balance.id, rol_used=new_value)
+                new_val = max(Decimal(0), balance.rol_used - amount_dec)
+                await self._balance_repo.update(balance.id, rol_used=new_val)
             elif balance_type == "permits":
-                new_value = balance.permits_used - Decimal(str(amount))
-                await self._balance_repo.update(balance.id, permits_used=new_value)
+                new_val = max(Decimal(0), balance.permits_used - amount_dec)
+                await self._balance_repo.update(balance.id, permits_used=new_val)
             
+            # Simple restoration as a positive transaction with no expiry
             await self._balance_repo.add_transaction(
                 balance_id=balance.id,
-                leave_request_id=request.id,
-                transaction_type="restore",
+                transaction_type="adjustment",
                 balance_type=balance_type,
-                amount=Decimal(str(amount)),
-                balance_after=new_value,
+                amount=amount_dec,
+                balance_after=0, # placeholder
+                reason=f"Ripristino per cancellazione richiesta {request.id}",
+                leave_request_id=request.id
             )
         
         await self._request_repo.update(request.id, balance_deducted=False)
+
 
     def _get_event_color(self, status: LeaveRequestStatus, leave_type: str) -> str:
         """Get color for calendar event."""

@@ -67,6 +67,8 @@ async def verify_tables():
         ("leaves", "leave_requests"),
         ("expenses", "business_trips"),
         ("config", "leave_types"),
+        ("config", "calculation_modes"),
+        ("config", "national_contract_versions"),
         ("notifications", "notifications"),
         ("audit", "audit_logs"),
     ]
@@ -125,11 +127,22 @@ async def show_summary():
             "SELECT COUNT(*) FROM config.company_closures"
         ))
         closures = result.scalar()
+
+        result = await conn.execute(text(
+            "SELECT COUNT(*) FROM config.calculation_modes"
+        ))
+        calc_modes = result.scalar()
+        
+        result = await conn.execute(text(
+            "SELECT COUNT(*) FROM config.national_contract_versions"
+        ))
+        contract_versions = result.scalar()
         
         print(f"\n📋 Seed Data:")
         print(f"   Leave Types: {leave_types}")
         print(f"   Holidays: {holidays}")
-        print(f"   National Contracts (CCNL): {national_contracts}")
+        print(f"   National Contracts (CCNL): {national_contracts} ({contract_versions} versions)")
+        print(f"   Calculation Modes: {calc_modes}")
         print(f"   Company Closures: {closures}")
     
     await engine.dispose()

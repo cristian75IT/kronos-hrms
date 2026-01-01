@@ -352,6 +352,12 @@ class NationalContractTypeConfigBase(BaseModel):
     description: Optional[str] = None
 
 
+class NationalContractTypeConfigCreate(NationalContractTypeConfigBase):
+    """Schema for creating Contract Type Configuration."""
+    national_contract_version_id: UUID
+
+
+
 class NationalContractTypeConfigUpdate(BaseModel):
     """Schema for updating Contract Type Configuration."""
     
@@ -369,6 +375,55 @@ class ContractTypeMinimalResponse(BaseModel):
     id: UUID
     name: str
     code: str
+
+
+class ContractTypeResponse(ContractTypeMinimalResponse, IDMixin, TimestampMixin, BaseSchema):
+    """Full response for Contract Type."""
+    description: Optional[str] = None
+    is_part_time: bool = False
+    part_time_percentage: float = 100.0
+    is_active: bool = True
+
+
+# ═══════════════════════════════════════════════════════════
+# Calculation Modes
+# ═══════════════════════════════════════════════════════════
+
+class CalculationModeBase(BaseModel):
+    """Base schema for Calculation Mode."""
+    
+    name: str = Field(..., max_length=100)
+    code: str = Field(..., max_length=50)
+    description: Optional[str] = None
+    function_name: str = Field(..., max_length=50)
+    default_parameters: Optional[dict] = Field(default_factory=dict)
+    is_active: bool = True
+
+
+class CalculationModeCreate(CalculationModeBase):
+    """Schema for creating Calculation Mode."""
+    pass
+
+
+class CalculationModeUpdate(BaseModel):
+    """Schema for updating Calculation Mode."""
+    
+    name: Optional[str] = Field(None, max_length=100)
+    description: Optional[str] = None
+    default_parameters: Optional[dict] = None
+    is_active: Optional[bool] = None
+
+
+class CalculationModeResponse(CalculationModeBase, IDMixin, TimestampMixin, BaseSchema):
+    """Response schema for Calculation Mode."""
+    pass
+
+
+class CalculationModeListResponse(BaseModel):
+    """List response for Calculation Modes."""
+    items: list[CalculationModeResponse]
+    total: int
+
 
 
 class NationalContractTypeConfigResponse(NationalContractTypeConfigBase, IDMixin, TimestampMixin, BaseSchema):
@@ -421,6 +476,12 @@ class NationalContractVersionBase(BaseModel):
     seniority_vacation_bonus: Optional[list[dict]] = None
     seniority_rol_bonus: Optional[list[dict]] = None
     
+    # Calculation Modes (Dynamic)
+    vacation_calc_mode_id: Optional[UUID] = None
+    rol_calc_mode_id: Optional[UUID] = None
+    vacation_calc_params: Optional[dict] = None
+    rol_calc_params: Optional[dict] = None
+    
     # Notes
     notes: Optional[str] = None
 
@@ -467,6 +528,11 @@ class NationalContractVersionUpdate(BaseModel):
     seniority_vacation_bonus: Optional[list[dict]] = None
     seniority_rol_bonus: Optional[list[dict]] = None
     
+    vacation_calc_mode_id: Optional[UUID] = None
+    rol_calc_mode_id: Optional[UUID] = None
+    vacation_calc_params: Optional[dict] = None
+    rol_calc_params: Optional[dict] = None
+    
     notes: Optional[str] = None
 
 
@@ -476,6 +542,9 @@ class NationalContractVersionResponse(NationalContractVersionBase, IDMixin, Time
     national_contract_id: UUID
     created_by: Optional[UUID] = None
     contract_type_configs: list[NationalContractTypeConfigResponse] = []
+    
+    vacation_calc_mode: Optional[CalculationModeResponse] = None
+    rol_calc_mode: Optional[CalculationModeResponse] = None
 
 
 class NationalContractResponse(NationalContractBase, IDMixin, TimestampMixin, BaseSchema):

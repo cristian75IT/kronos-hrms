@@ -230,6 +230,7 @@ class BalanceAdjustment(BaseModel):
     balance_type: str = Field(..., pattern="^(vacation_ap|vacation_ac|rol|permits)$")
     amount: Decimal
     reason: str = Field(..., min_length=10)
+    expiry_date: Optional[date] = None
 
 
 class AccrualRequest(BaseModel):
@@ -239,6 +240,22 @@ class AccrualRequest(BaseModel):
     month: int = Field(..., ge=1, le=12)
     user_id: Optional[UUID] = None  # None = all users
 
+
+class ExcludedDay(BaseModel):
+    """A single excluded day."""
+    
+    date: date
+    reason: str  # "weekend", "holiday", "closure"
+    name: Optional[str] = None  # Holiday/closure name
+
+
+class ExcludedDaysResponse(BaseModel):
+    """Response with excluded days detail."""
+    
+    start_date: date
+    end_date: date
+    working_days: int
+    excluded_days: list[ExcludedDay]
 
 # ═══════════════════════════════════════════════════════════
 # Calendar Schemas
@@ -287,3 +304,43 @@ class PolicyValidationResult(BaseModel):
     requires_approval: bool = True
     balance_sufficient: bool = True
     balance_breakdown: dict = {}  # AP/AC breakdown for deduction
+
+
+# ═══════════════════════════════════════════════════════════
+# Preview Schemas for Admin Operations
+# ═══════════════════════════════════════════════════════════
+
+class EmployeePreviewItem(BaseModel):
+    """Preview item for a single employee."""
+    
+    user_id: UUID
+    name: str
+    current_vacation: float = 0
+    new_vacation: float = 0
+    current_rol: float = 0
+    new_rol: float = 0
+    current_permits: float = 0
+    new_permits: float = 0
+
+
+class RecalculatePreviewResponse(BaseModel):
+    """Response for recalculate preview."""
+    
+    year: int
+    employees: list[EmployeePreviewItem]
+    total_count: int
+
+
+class RolloverPreviewResponse(BaseModel):
+    """Response for rollover preview."""
+    
+    from_year: int
+    to_year: int
+    employees: list[EmployeePreviewItem]
+    total_count: int
+
+
+class ApplyChangesRequest(BaseModel):
+    """Request to apply changes to selected employees."""
+    
+    user_ids: list[UUID]
