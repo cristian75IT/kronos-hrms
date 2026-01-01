@@ -34,7 +34,7 @@ server {
     }
 
     # Config Service
-    location ~ ^/api/v1/(config|leave-types|holidays|expense-types|allowance-rules|national-contracts|closures) {
+    location ~ ^/api/v1/(config|leave-types|holidays|expense-types|allowance-rules|national-contracts|closures|calculation-modes) {
         proxy_pass http://config-service:8004;
         include /etc/nginx/proxy_params;
     }
@@ -108,7 +108,7 @@ server {
     }
 
     # Config Service
-    location ~ ^/api/v1/(config|leave-types|holidays|expense-types|allowance-rules|national-contracts|closures) {
+    location ~ ^/api/v1/(config|leave-types|holidays|expense-types|allowance-rules|national-contracts|closures|calculation-modes) {
         proxy_pass http://config-service:8004;
         include /etc/nginx/proxy_params;
     }

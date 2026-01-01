@@ -7,7 +7,8 @@ import {
     AlertCircle,
     Calendar,
     Clock,
-    ArrowLeft
+    ArrowLeft,
+    Wrench
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '../../components/common';
@@ -82,6 +83,49 @@ export function WikiCalculations() {
                                 <h4 className="font-medium text-gray-900">Scadenza e Residui</h4>
                                 <p className="text-sm text-gray-500 mt-0.5">Il sistema gestisce automaticamente il riporto "Anni Precedenti" (AP) e la loro eventuale scadenza (18 o 24 mesi).</p>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Strategy & Customization */}
+            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex items-center gap-3">
+                    <Wrench className="text-purple-600" size={20} />
+                    <h3 className="font-semibold text-gray-900">Strategie e Personalizzazione Calcolo</h3>
+                </div>
+                <div className="p-6 space-y-4">
+                    <p className="text-gray-600">
+                        KRONOS utilizza un'architettura a <strong>Strategie (Strategy Pattern)</strong> per adattarsi a qualsiasi CCNL complesso. Le regole matematiche non sono scolpite nel database ma risiedono in "motori di calcolo" (Funzioni Backend) selezionabili dall'interfaccia.
+                    </p>
+                    <div className="mt-4">
+                        <h4 className="font-medium text-gray-900 mb-2">Funzioni Supportate</h4>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full text-sm">
+                                <thead className="bg-gray-50 text-gray-500">
+                                    <tr>
+                                        <th className="px-4 py-2 text-left">Funzione Backend</th>
+                                        <th className="px-4 py-2 text-left">Descrizione</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    <tr>
+                                        <td className="px-4 py-2 font-mono text-purple-600">calculate_accrual_monthly_std</td>
+                                        <td className="px-4 py-2 text-gray-600">Standard Mensile (1/12). Include controllo soglia minima giorni lavorati (default 15).</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="px-4 py-2 font-mono text-purple-600">calculate_accrual_daily_365</td>
+                                        <td className="px-4 py-2 text-gray-600">Giornaliero Base Annua (Totale / 365). Matura in proporzione esatta ai giorni di contratto.</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="px-4 py-2 font-mono text-purple-600">calculate_accrual_hourly_worked</td>
+                                        <td className="px-4 py-2 text-gray-600">Su Ore Lavorate (Per contratti a chiamata o particolari edili). In sviluppo.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="mt-4 p-4 bg-purple-50 rounded-lg border border-purple-100 text-sm text-purple-800">
+                            <strong>Nota Tecnica:</strong> Queste funzioni sono definite in <code>backend/src/services/leaves/strategies.py</code>. Quando configuri una "Modalità di Calcolo" nel portale, la stringa "Funzione Backend" deve corrispondere esattamente al nome nel codice.
                         </div>
                     </div>
                 </div>
