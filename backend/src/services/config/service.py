@@ -108,8 +108,11 @@ class ConfigService:
         }
 
     async def get_all(self) -> list:
-        """Get all configs."""
-        return await self._config_repo.get_all()
+        """Get all configs with parsed values."""
+        configs = await self._config_repo.get_all()
+        for config in configs:
+            config.value = self._parse_value(config.value, config.value_type)
+        return configs
 
     async def create_config(self, data: SystemConfigCreate):
         """Create new config entry."""
@@ -133,6 +136,8 @@ class ConfigService:
         elif value_type == "float":
             return float(value)
         elif value_type == "boolean":
+            if isinstance(value, str):
+                return value.lower() == "true"
             return bool(value)
         elif value_type == "json":
             return value

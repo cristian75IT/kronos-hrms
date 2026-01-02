@@ -36,6 +36,11 @@
 | `leave.min_notice_days.rol` | `2` | leave_policy |
 | `leave.min_notice_days.vacation` | `5` | leave_policy |
 | `leave.max_consecutive_days` | `15` | leave_policy |
+| `leaves.block_insufficient_balance` | `true` | leave_policy |
+| `notify_leave_request` | `true` | notifications |
+| `notify_leave_approval` | `true` | notifications |
+| `notify_wallet_expiry` | `false` | notifications |
+| `push_approvals` | `true` | notifications |
 | `expense.km_rate` | `0.30` | expense_policy |
 | `expense.max_hotel_night` | `120.00` | expense_policy |
 | `compliance.vacation_min_days_year` | `20` | compliance |

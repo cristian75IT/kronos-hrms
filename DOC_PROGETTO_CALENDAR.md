@@ -67,50 +67,29 @@ La migrazione `021_create_calendar_schema.py` copia automaticamente i dati esist
 
 ---
 
-## 4. Funzionalità Chiave
+## 7. Interfaccia Amministrativa (Restyling ✅)
 
-### Calcolo Giorni Lavorativi
-Il servizio calcola i giorni lavorativi considerando:
-1. **Weekend** - Configurabile (5 o 6 giorni/settimana)
-2. **Festività** - Nazionali, regionali, locali
-3. **Chiusure aziendali** - Totali o parziali
-4. **Eccezioni** - Giorni speciali (recuperi, emergenze)
+La pagina `/admin/system-calendars` è stata completamente ridisegnata per un'esperienza "Enterprise":
 
-### Vista Aggregata
-L'endpoint `/api/v1/calendar/range` restituisce una vista unificata che include:
-- Festività
-- Chiusure aziendali
-- Eventi personali
-- Informazione su working day per ogni giorno
+### Dashboard Statistica
+Quattro card superiori mostrano il riepilogo annuale:
+- **Festività Nazionali**: Conteggio dei giorni istituzionali.
+- **Festività Locali**: Conteggio dei santi patroni e ferie regionali configurate.
+- **Chiusure Aziendali**: Totale delle chiusure collettive pianificate.
+- **Eccezioni**: Conteggio dei giorni con operatività invertita.
 
----
+### Modalità di Visualizzazione
+- **Vista Lista**: Card dettagliate con icone e badge (Rosso per Nazionali, Arancione per Locali).
+- **Vista Griglia (Month-by-month)**: Visualizzazione sintetica di tutto l'anno per identificare rapidamente i periodi "caldi".
 
-## 5. Configurazione Docker
-
-```yaml
-calendar-service:
-  container_name: kronos-calendar
-  environment:
-    - SERVICE_NAME=calendar-service
-    - DATABASE_SCHEMA=calendar
-    - REDIS_URL=redis://redis:6379/7
-  ports:
-    - "8009:8009"
-```
+### Funzionalità Avanzate
+- **Auto-Generazione**: Creazione automatica delle festività nazionali italiane tramite algoritmo di Pasqua.
+- **Copia da Anno Precedente**: Clonazione rapida della configurazione dell'anno scorso per evitare data-entry ridondante.
+- **Gestione iCal**: Dropdown per il download o l'abbonamento ai calendari esterni.
 
 ---
 
-## 6. Integrazione con Altri Servizi
-
-| Servizio | Uso del Calendar Service |
-|----------|--------------------------|
-| Leave Service | Calcolo giorni lavorativi per richieste ferie |
-| Expense Service | Verifica date trasferte vs chiusure |
-| Frontend | Visualizzazione calendario unificato |
-
----
-
-## 7. iCal Export (Implementato ✅)
+## 8. iCal Export (Implementato ✅)
 
 ### Endpoint Export
 
@@ -170,7 +149,26 @@ La pagina `/admin/holidays` include un dropdown "Esporta iCal" con:
 
 ---
 
-## 8. Estensioni Future
+## 9. Logica Eccezioni Lavorative
+
+Il sistema supporta due tipi di eccezioni che sovrascrivono il calendario standard:
+
+1. **Giorno Lavorativo (Working)**:
+   - Trasforma un giorno normalmente festivo (es. Sabato) in lavorativo.
+   - Le richieste di ferie in questo giorno **scalano** il saldo.
+
+2. **Giorno Non Lavorativo (Non Working)**:
+   - Trasforma un giorno lavorativo (es. Lunedì di ponte) in festivo.
+   - Le richieste di ferie che includono questo giorno **non scalano** il saldo.
+
+### Priorità di Calcolo
+1. **Festività Nazionali**: Hanno sempre la precedenza (non possono essere rese lavorative per errore).
+2. **Eccezioni**: Sovrascrivono lo stato del weekend.
+3. **Chiusure Aziendali**: Hanno precedenza sui giorni lavorativi standard.
+
+---
+
+## 10. Estensioni Future
 
 1. **Token-based Subscriptions** - URL personalizzati con token per abbonamenti sicuri
 2. **Recurring Events** - Supporto RRULE per eventi ricorrenti

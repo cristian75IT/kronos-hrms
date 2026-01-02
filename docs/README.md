@@ -64,6 +64,7 @@ Documentazione tecnica per agenti AI (Antigravity) per implementare il sistema i
 
 | Data | Versione | Descrizione |
 |------|----------|-------------|
+| 2026-01-02 | v1.2.0 | [System Calendars UI & Config Fixes](./CHANGELOG-2026-01-02.md) |
 | 2026-01-01 | v1.1.0 | [Identity Resolution, Bug Fixes](./CHANGELOG-2026-01-01.md) |
 
 ## ⚡ Quick Start per Agenti

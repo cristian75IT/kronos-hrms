@@ -23,6 +23,12 @@ import {
     Sparkles,
     Download,
     Link,
+    LayoutGrid,
+    List,
+    Briefcase,
+    Globe,
+    Info,
+    ArrowUpRight,
 } from 'lucide-react';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -59,6 +65,7 @@ export function SystemCalendarsPage() {
     const [editingClosure, setEditingClosure] = useState<Closure | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
     // Confirm states
     const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'holiday' | 'closure' | 'exception', id: string } | null>(null);
@@ -433,311 +440,461 @@ export function SystemCalendarsPage() {
                 </div>
             </div>
 
-            {/* Tabs */}
-            <div className="flex gap-2 border-b border-gray-200">
-                <button
-                    onClick={() => setActiveTab('holidays')}
-                    className={`px-4 py-3 font-medium text-sm border-b-2 transition-colors ${activeTab === 'holidays'
-                        ? 'border-indigo-600 text-indigo-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-900'
-                        }`}
-                >
-                    <div className="flex items-center gap-2">
-                        <Flag size={16} />
-                        Festività
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">{holidays.length}</span>
+            {/* Summary Dashboard */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all group">
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="p-2 bg-red-50 text-red-600 rounded-xl group-hover:scale-110 transition-transform">
+                            <Flag size={20} />
+                        </div>
+                        <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-1 rounded-full">
+                            Nazionali
+                        </span>
+                    </div>
+                    <div className="text-2xl font-bold text-gray-900">{holidays.filter(h => h.scope === 'national').length}</div>
+                    <div className="text-xs text-gray-500 font-medium uppercase tracking-wider mt-1">Festività Nazionali</div>
+                </div>
+
+                <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all group">
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="p-2 bg-orange-50 text-orange-600 rounded-xl group-hover:scale-110 transition-transform">
+                            <MapPin size={20} />
+                        </div>
+                        <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-1 rounded-full">
+                            Locali
+                        </span>
+                    </div>
+                    <div className="text-2xl font-bold text-gray-900">{holidays.filter(h => h.scope === 'local' || h.scope === 'regional').length}</div>
+                    <div className="text-xs text-gray-500 font-medium uppercase tracking-wider mt-1">Festività Locali</div>
+                </div>
+
+                <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all group">
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="p-2 bg-purple-50 text-purple-600 rounded-xl group-hover:scale-110 transition-transform">
+                            <Building size={20} />
+                        </div>
+                        <span className="text-xs font-semibold text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
+                            Pianificate
+                        </span>
+                    </div>
+                    <div className="text-2xl font-bold text-gray-900">{closures.length}</div>
+                    <div className="text-xs text-gray-500 font-medium uppercase tracking-wider mt-1">Chiusure Aziendali</div>
+                </div>
+
+                <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all group">
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="p-2 bg-amber-50 text-amber-600 rounded-xl group-hover:scale-110 transition-transform">
+                            <AlertCircle size={20} />
+                        </div>
+                        <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+                            Eccezioni
+                        </span>
+                    </div>
+                    <div className="text-2xl font-bold text-gray-900">{exceptions.length}</div>
+                    <div className="text-xs text-gray-500 font-medium uppercase tracking-wider mt-1">Eccezioni Calendario</div>
+                </div>
+            </div>
+
+            {/* Tabs & View Modes */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200">
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => setActiveTab('holidays')}
+                        className={`px-4 py-4 font-semibold text-sm border-b-2 transition-all flex items-center gap-2 ${activeTab === 'holidays'
+                            ? 'border-indigo-600 text-indigo-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-900'
+                            }`}
+                    >
+                        <Flag size={18} />
+                        <span>Festività</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${activeTab === 'holidays' ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-500'}`}>
+                            {holidays.length}
+                        </span>
                         {unconfirmedCount > 0 && (
-                            <span className="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-700">{unconfirmedCount} da confermare</span>
+                            <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
                         )}
-                    </div>
-                </button>
-                <button
-                    onClick={() => setActiveTab('closures')}
-                    className={`px-4 py-3 font-medium text-sm border-b-2 transition-colors ${activeTab === 'closures'
-                        ? 'border-indigo-600 text-indigo-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-900'
-                        }`}
-                >
-                    <div className="flex items-center gap-2">
-                        <Building size={16} />
-                        Chiusure Aziendali
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">{closures.length}</span>
-                    </div>
-                </button>
-                <button
-                    onClick={() => setActiveTab('exceptions')}
-                    className={`px-4 py-3 font-medium text-sm border-b-2 transition-colors ${activeTab === 'exceptions'
-                        ? 'border-indigo-600 text-indigo-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-900'
-                        }`}
-                >
-                    <div className="flex items-center gap-2">
-                        <AlertCircle size={16} />
-                        Eccezioni Lavorative
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">{exceptions.length}</span>
-                    </div>
-                </button>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('closures')}
+                        className={`px-4 py-4 font-semibold text-sm border-b-2 transition-all flex items-center gap-2 ${activeTab === 'closures'
+                            ? 'border-indigo-600 text-indigo-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-900'
+                            }`}
+                    >
+                        <Building size={18} />
+                        <span>Chiusure</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${activeTab === 'closures' ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-500'}`}>
+                            {closures.length}
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('exceptions')}
+                        className={`px-4 py-4 font-semibold text-sm border-b-2 transition-all flex items-center gap-2 ${activeTab === 'exceptions'
+                            ? 'border-indigo-600 text-indigo-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-900'
+                            }`}
+                    >
+                        <AlertCircle size={18} />
+                        <span>Eccezioni</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${activeTab === 'exceptions' ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-500'}`}>
+                            {exceptions.length}
+                        </span>
+                    </button>
+                </div>
+
+                <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-xl mb-2 md:mb-0">
+                    <button
+                        onClick={() => setViewMode('list')}
+                        className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <List size={18} />
+                    </button>
+                    <button
+                        onClick={() => setViewMode('grid')}
+                        className={`p-1.5 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <LayoutGrid size={18} />
+                    </button>
+                </div>
             </div>
 
 
-            {/* Holidays Tab */}
-            {
-                activeTab === 'holidays' && (
-                    <div className="space-y-4">
-                        {/* Actions Bar */}
-                        <div className="flex flex-wrap gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                            <button
-                                onClick={generateNationalHolidays}
-                                disabled={isGenerating}
-                                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-                                title="Ripristina le festività nazionali ufficiali (mantiene le locali esistenti)"
-                            >
-                                {isGenerating ? <Loader size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                                Rigenera Festività Nazionali
-                            </button>
-                            <button
-                                onClick={handleCopyRequest}
-                                disabled={isGenerating}
-                                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-                                title={`Copia tutte le festività dal ${year - 1} al ${year}`}
-                            >
-                                <Copy size={16} />
-                                Copia da anno precedente
-                            </button>
-                            <div className="flex-1" />
-                            <button
-                                onClick={openNewHoliday}
-                                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors"
-                            >
-                                <Plus size={16} />
-                                Aggiungi Festività
-                            </button>
-                        </div>
+            {/* Content Area */}
+            <div className="min-h-[400px]">
+                {/* Holidays Tab */}
+                {activeTab === 'holidays' && (
+                    <div className="space-y-6">
+                        {/* Actions Toolbar */}
+                        <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
+                                {(['all', 'national', 'local'] as HolidayFilter[]).map(filter => (
+                                    <button
+                                        key={filter}
+                                        onClick={() => setHolidayFilter(filter)}
+                                        className={`px-4 py-2 text-sm font-medium rounded-xl transition-all whitespace-nowrap ${holidayFilter === filter
+                                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+                                            : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                                            }`}
+                                    >
+                                        {filter === 'all' && 'Tutti i giorni'}
+                                        {filter === 'national' && 'Istituzionali'}
+                                        {filter === 'local' && 'Territoriali'}
+                                    </button>
+                                ))}
+                            </div>
 
-                        {/* Filters */}
-                        <div className="flex gap-2">
-                            {(['all', 'national', 'local'] as HolidayFilter[]).map(filter => (
+                            <div className="flex items-center gap-2">
                                 <button
-                                    key={filter}
-                                    onClick={() => setHolidayFilter(filter)}
-                                    className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${holidayFilter === filter
-                                        ? 'bg-indigo-100 text-indigo-700 font-medium'
-                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                        }`}
+                                    onClick={handleCopyRequest}
+                                    className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-50 font-medium text-sm rounded-xl transition-all"
                                 >
-                                    {filter === 'all' && 'Tutte'}
-                                    {filter === 'national' && '🇮🇹 Nazionali'}
-                                    {filter === 'local' && '📍 Locali'}
+                                    <Copy size={16} />
+                                    Copia da {year - 1}
                                 </button>
-                            ))}
+                                <button
+                                    onClick={generateNationalHolidays}
+                                    disabled={isGenerating}
+                                    className="flex items-center gap-2 px-4 py-2 text-indigo-600 hover:bg-indigo-50 font-medium text-sm rounded-xl transition-all"
+                                >
+                                    {isGenerating ? <Loader size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                                    Auto-Genera
+                                </button>
+                                <div className="w-px h-6 bg-gray-200 mx-1 hidden md:block" />
+                                <button
+                                    onClick={openNewHoliday}
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-indigo-100"
+                                >
+                                    <Plus size={18} />
+                                    Aggiungi
+                                </button>
+                            </div>
                         </div>
 
-                        {/* Holidays List */}
-                        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                            <div className="divide-y divide-gray-100">
+                        {/* List/Grid View */}
+                        {viewMode === 'list' ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {filteredHolidays.map(holiday => (
-                                    <div key={holiday.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors">
-                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${holiday.scope === 'national'
-                                            ? 'bg-red-100 text-red-600'
-                                            : 'bg-orange-100 text-orange-600'
-                                            }`}>
-                                            {holiday.scope === 'national' ? <Flag size={20} /> : <MapPin size={20} />}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-semibold text-gray-900">{holiday.name}</span>
-                                                {holiday.scope === 'national' && <span className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded">Nazionale</span>}
-                                                {holiday.scope === 'regional' && <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">Regionale</span>}
-                                                {(holiday.scope === 'local' || holiday.scope === 'company') && <span className="px-2 py-0.5 text-xs bg-orange-100 text-orange-700 rounded">Locale</span>}
+                                    <div
+                                        key={holiday.id}
+                                        className={`bg-white border rounded-2xl p-5 transition-all hover:shadow-lg group relative ${!holiday.is_confirmed ? 'border-amber-200 bg-amber-50/10' : 'border-gray-200'}`}
+                                    >
+                                        <div className="flex items-start justify-between mb-4">
+                                            <div className={`p-3 rounded-2xl ${holiday.scope === 'national'
+                                                ? 'bg-red-50 text-red-600'
+                                                : 'bg-orange-50 text-orange-600'
+                                                }`}>
+                                                {holiday.scope === 'national' ? <Globe size={20} /> : <MapPin size={20} />}
+                                            </div>
+                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 {!holiday.is_confirmed && (
-                                                    <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded flex items-center gap-1">
-                                                        <AlertCircle size={10} />
-                                                        Da confermare
-                                                    </span>
+                                                    <button
+                                                        onClick={() => confirmHoliday(holiday)}
+                                                        className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
+                                                        title="Conferma"
+                                                    >
+                                                        <Check size={18} />
+                                                    </button>
                                                 )}
-                                            </div>
-                                            <div className="text-sm text-gray-500 mt-0.5">
-                                                {format(parseISO(holiday.date), 'EEEE d MMMM yyyy', { locale: it })}
+                                                <button
+                                                    onClick={() => openEditHoliday(holiday)}
+                                                    className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                                                >
+                                                    <Edit size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteRequest(holiday.id, 'holiday')}
+                                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            {!holiday.is_confirmed && (
-                                                <button
-                                                    onClick={() => confirmHoliday(holiday)}
-                                                    className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                                    title="Conferma"
-                                                >
-                                                    <Check size={16} />
-                                                </button>
+
+                                        <div className="mb-1">
+                                            <h4 className="font-bold text-gray-900 line-clamp-1">{holiday.name}</h4>
+                                            <p className="text-sm font-medium text-gray-500 uppercase tracking-tighter mt-0.5">
+                                                {format(parseISO(holiday.date), 'EEEE d MMMM', { locale: it })}
+                                            </p>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 mt-4">
+                                            {holiday.scope === 'national' ? (
+                                                <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700 rounded-lg">Istituzionale</span>
+                                            ) : (
+                                                <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-orange-100 text-orange-700 rounded-lg">Territoriale</span>
                                             )}
-                                            <button
-                                                onClick={() => openEditHoliday(holiday)}
-                                                className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                            >
-                                                <Edit size={16} />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteRequest(holiday.id, 'holiday')}
-                                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
+
+                                            {!holiday.is_confirmed && (
+                                                <div className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 rounded-lg animate-pulse">
+                                                    <Info size={10} />
+                                                    Pending
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
 
                                 {filteredHolidays.length === 0 && (
-                                    <div className="text-center py-12 text-gray-400">
-                                        <Calendar size={48} className="mx-auto mb-4 opacity-50" />
-                                        <p className="font-medium">Nessuna festività per il {year}</p>
-                                        <p className="text-sm mt-1">Genera le festività nazionali o aggiungile manualmente.</p>
+                                    <div className="col-span-full py-20 text-center bg-white border border-gray-100 rounded-3xl">
+                                        <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <Calendar size={32} className="text-gray-300" />
+                                        </div>
+                                        <h3 className="text-lg font-bold text-gray-900">Nessuna festività trovata</h3>
+                                        <p className="text-sm text-gray-500 max-w-xs mx-auto mt-1">Non ci sono festività che corrispondono ai filtri selezionati per il {year}.</p>
                                     </div>
                                 )}
                             </div>
-                        </div>
-                    </div>
-                )
-            }
-
-            {/* Closures Tab */}
-            {
-                activeTab === 'closures' && (
-                    <div className="space-y-4">
-                        {/* Actions Bar */}
-                        <div className="flex justify-between items-center">
-                            <p className="text-sm text-gray-500">
-                                Pianifica le chiusure aziendali (es. ferie collettive, ponti, etc.)
-                            </p>
-                            <button
-                                onClick={openNewClosure}
-                                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
-                            >
-                                <Plus size={16} />
-                                Nuova Chiusura
-                            </button>
-                        </div>
-
-                        {/* Closures List */}
-                        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                            <div className="divide-y divide-gray-100">
-                                {closures.map(closure => {
-                                    const days = differenceInDays(parseISO(closure.end_date), parseISO(closure.start_date)) + 1;
+                        ) : (
+                            /* Grid Month by Month View */
+                            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                {Array.from({ length: 12 }).map((_, i) => {
+                                    const monthHolidays = filteredHolidays.filter(h => parseISO(h.date).getMonth() === i);
+                                    if (monthHolidays.length === 0) return null;
                                     return (
-                                        <div key={closure.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors">
-                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${closure.closure_type === 'total' ? 'bg-purple-100 text-purple-600' : 'bg-violet-100 text-violet-600'
-                                                }`}>
-                                                <Building size={20} />
+                                        <div key={i} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                                            <div className="bg-gray-50 px-4 py-3 border-b border-gray-100">
+                                                <h5 className="font-bold text-gray-900 capitalize">
+                                                    {format(new Date(year, i, 1), 'MMMM', { locale: it })}
+                                                </h5>
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-semibold text-gray-900">{closure.name}</span>
-                                                    <span className={`px-2 py-0.5 text-xs rounded ${closure.closure_type === 'total'
-                                                        ? 'bg-purple-100 text-purple-700'
-                                                        : 'bg-violet-100 text-violet-700'
-                                                        }`}>
-                                                        {closure.closure_type === 'total' ? 'Chiusura totale' : 'Parziale'}
-                                                    </span>
-                                                    {closure.is_paid && <span className="px-2 py-0.5 text-xs bg-emerald-100 text-emerald-700 rounded">Retribuita</span>}
-                                                    {closure.consumes_leave_balance && <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded">Scala ferie</span>}
-                                                </div>
-                                                <div className="text-sm text-gray-500 mt-0.5">
-                                                    {format(parseISO(closure.start_date), 'd MMM', { locale: it })} - {format(parseISO(closure.end_date), 'd MMM yyyy', { locale: it })}
-                                                    <span className="ml-2 text-gray-400">({days} {days === 1 ? 'giorno' : 'giorni'})</span>
-                                                </div>
-                                                {closure.description && (
-                                                    <div className="text-xs text-gray-400 mt-1">{closure.description}</div>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    onClick={() => openEditClosure(closure)}
-                                                    className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                                >
-                                                    <Edit size={16} />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteRequest(closure.id, 'closure')}
-                                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
+                                            <div className="p-2 space-y-1">
+                                                {monthHolidays.map(h => (
+                                                    <div
+                                                        key={h.id}
+                                                        onClick={() => openEditHoliday(h)}
+                                                        className="flex items-center gap-3 p-2 hover:bg-indigo-50 rounded-xl cursor-pointer transition-all group"
+                                                    >
+                                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${h.scope === 'national' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}>
+                                                            {format(parseISO(h.date), 'dd')}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="text-sm font-semibold text-gray-900 truncate">{h.name}</div>
+                                                            <div className="text-[10px] text-gray-500 uppercase font-bold tracking-tight">{h.scope === 'national' ? 'Naz' : 'Loc'}</div>
+                                                        </div>
+                                                        <ArrowUpRight size={14} className="text-gray-300 group-hover:text-indigo-500" />
+                                                    </div>
+                                                ))}
                                             </div>
                                         </div>
                                     );
                                 })}
-
-                                {closures.length === 0 && (
-                                    <div className="text-center py-12 text-gray-400">
-                                        <Building size={48} className="mx-auto mb-4 opacity-50" />
-                                        <p className="font-medium">Nessuna chiusura pianificata per il {year}</p>
-                                        <p className="text-sm mt-1">Pianifica le chiusure aziendali per questo anno.</p>
-                                    </div>
-                                )}
                             </div>
-                        </div>
+                        )}
                     </div>
-                )
-            }
+                )}
 
-            {/* Exceptions Tab */}
-            {
-                activeTab === 'exceptions' && (
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                            <p className="text-sm text-gray-500">
-                                Gestisci giorni lavorativi straordinari o festivi lavorati (es. sabati di recupero o festività lavorate)
+
+                {/* Closures Tab */}
+                {activeTab === 'closures' && (
+                    <div className="space-y-6">
+                        <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <p className="text-sm font-medium text-gray-500 flex items-center gap-2">
+                                <Info size={16} className="text-indigo-400" />
+                                Gestisci ponti e festività aziendali obbligatorie per tutti o parte dei dipendenti.
                             </p>
                             <button
-                                onClick={openNewException}
-                                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
+                                onClick={openNewClosure}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-indigo-100"
                             >
-                                <Plus size={16} />
-                                Nuova Eccezione
+                                <Plus size={18} />
+                                Pianifica Chiusura
                             </button>
                         </div>
 
-                        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                            <div className="divide-y divide-gray-100">
-                                {exceptions.map(exception => (
-                                    <div key={exception.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors">
-                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${exception.exception_type === 'working' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'
-                                            }`}>
-                                            <AlertCircle size={20} />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-semibold text-gray-900">
-                                                    {format(parseISO(exception.date), 'EEEE d MMMM yyyy', { locale: it })}
-                                                </span>
-                                                <span className={`px-2 py-0.5 text-xs rounded ${exception.exception_type === 'working' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-                                                    }`}>
-                                                    {exception.exception_type === 'working' ? 'Lavorativo' : 'Non lavorativo'}
-                                                </span>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {closures.map(closure => {
+                                const daysCount = differenceInDays(parseISO(closure.end_date), parseISO(closure.start_date)) + 1;
+                                return (
+                                    <div key={closure.id} className="bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all group">
+                                        <div className="p-6">
+                                            <div className="flex items-start justify-between mb-6">
+                                                <div className="flex items-center gap-4">
+                                                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner ${closure.closure_type === 'total' ? 'bg-purple-100 text-purple-600' : 'bg-violet-100 text-violet-600'}`}>
+                                                        <Briefcase size={24} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-lg font-bold text-gray-900">{closure.name}</h4>
+                                                        <p className="text-sm text-gray-500">
+                                                            {closure.closure_type === 'total' ? 'Sospensione Totale Attività' : 'Sospensione Parziale'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-1 opacity-10 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => openEditClosure(closure)} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
+                                                        <Edit size={20} />
+                                                    </button>
+                                                    <button onClick={() => handleDeleteRequest(closure.id, 'closure')} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all">
+                                                        <Trash2 size={20} />
+                                                    </button>
+                                                </div>
                                             </div>
-                                            {exception.reason && (
-                                                <div className="text-sm text-gray-500 mt-1">{exception.reason}</div>
-                                            )}
-                                        </div>
-                                        <button
-                                            onClick={() => handleDeleteRequest(exception.id, 'exception')}
-                                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </div>
-                                ))}
 
-                                {exceptions.length === 0 && (
-                                    <div className="text-center py-12 text-gray-400">
-                                        <AlertCircle size={48} className="mx-auto mb-4 opacity-50" />
-                                        <p className="font-medium">Nessuna eccezione pianificata per il {year}</p>
+                                            <div className="grid grid-cols-2 gap-4 mb-6">
+                                                <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Periodo</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <Calendar size={14} className="text-gray-400" />
+                                                        <span className="text-sm font-bold text-gray-900">
+                                                            {format(parseISO(closure.start_date), 'd MMM') === format(parseISO(closure.end_date), 'd MMM')
+                                                                ? format(parseISO(closure.start_date), 'd MMMM', { locale: it })
+                                                                : `${format(parseISO(closure.start_date), 'd MMM')} - ${format(parseISO(closure.end_date), 'd MMM')}`
+                                                            }
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Durata</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <Sparkles size={14} className="text-indigo-400" />
+                                                        <span className="text-sm font-bold text-gray-900">{daysCount} {daysCount === 1 ? 'giorno' : 'giorni'}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-wrap gap-2">
+                                                {closure.is_paid && (
+                                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-bold ring-1 ring-inset ring-emerald-100">
+                                                        <Check size={12} /> Azienda
+                                                    </span>
+                                                )}
+                                                {closure.consumes_leave_balance && (
+                                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-700 text-xs font-bold ring-1 ring-inset ring-amber-100">
+                                                        <ArrowUpRight size={12} /> Scala Ferie
+                                                    </span>
+                                                )}
+                                                <div className="flex-1" />
+                                                <div className="text-xs text-gray-400 pt-2">{closure.description}</div>
+                                            </div>
+                                        </div>
                                     </div>
-                                )}
-                            </div>
+                                );
+                            })}
+
+                            {closures.length === 0 && (
+                                <div className="col-span-full py-20 text-center bg-white border border-gray-100 rounded-3xl">
+                                    <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <Building size={32} className="text-gray-300" />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-gray-900">Nessuna chiusura pianificata</h3>
+                                    <p className="text-sm text-gray-500 max-w-xs mx-auto mt-1">Organizza ferie collettive o chiusure per manutenzione per l'intero staff.</p>
+                                </div>
+                            )}
                         </div>
                     </div>
-                )
-            }
+                )}
+
+
+                {/* Exceptions Tab */}
+                {activeTab === 'exceptions' && (
+                    <div className="space-y-6">
+                        <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <p className="text-sm font-medium text-gray-500 flex items-center gap-2">
+                                <AlertCircle size={16} className="text-amber-500" />
+                                Giorni in cui la normale operatività è invertita (es. Sabati lavorativi di recupero).
+                            </p>
+                            <button
+                                onClick={openNewException}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-indigo-100"
+                            >
+                                <Plus size={18} />
+                                Aggiungi Eccezione
+                            </button>
+                        </div>
+
+                        <div className="bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-sm">
+                            <table className="w-full border-collapse">
+                                <thead>
+                                    <tr className="bg-gray-50/50 border-b border-gray-100">
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Data</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Tipo</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Motivazione</th>
+                                        <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-widest">Azioni</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {exceptions.map(exception => (
+                                        <tr key={exception.id} className="hover:bg-gray-50/50 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <span className="font-bold text-gray-900">
+                                                    {format(parseISO(exception.date), 'EEEE d MMMM', { locale: it })}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${exception.exception_type === 'working'
+                                                    ? 'bg-emerald-100 text-emerald-700'
+                                                    : 'bg-red-100 text-red-700'
+                                                    }`}>
+                                                    {exception.exception_type === 'working' ? 'Lavorativo' : 'Non Lav.'}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className="text-sm text-gray-500 font-medium">{exception.reason || '-'}</span>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <button
+                                                    onClick={() => handleDeleteRequest(exception.id, 'exception')}
+                                                    className="p-2 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+
+                                    {exceptions.length === 0 && (
+                                        <tr>
+                                            <td colSpan={4} className="py-20 text-center">
+                                                <AlertCircle size={40} className="mx-auto text-gray-200 mb-3" />
+                                                <p className="text-sm font-bold text-gray-400">Nessuna eccezione pianificata</p>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+            </div>
 
 
             {/* Holiday Modal */}

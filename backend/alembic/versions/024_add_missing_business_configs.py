@@ -20,11 +20,12 @@ def upgrade() -> None:
     op.execute("""
         INSERT INTO config.system_config (id, category, key, value, value_type, description, is_sensitive)
         VALUES 
-            (gen_random_uuid(), 'leaves', 'leaves.block_insufficient_balance', 'true', 'boolean', 'Impedisce l''invio di richieste se il saldo disponibile non è sufficiente.', false),
+            (gen_random_uuid(), 'business', 'leaves.block_insufficient_balance', 'true', 'boolean', 'Impedisce l''invio di richieste se il saldo disponibile non è sufficiente.', false),
             (gen_random_uuid(), 'notifications', 'notify_leave_request', 'true', 'boolean', 'Invia email ai responsabili quando un dipendente richiede ferie.', false),
             (gen_random_uuid(), 'notifications', 'notify_leave_approval', 'true', 'boolean', 'Notifica il dipendente quando la sua richiesta viene approvata o rifiutata.', false),
             (gen_random_uuid(), 'notifications', 'notify_wallet_expiry', 'false', 'boolean', 'Avvisa i dipendenti un mese prima della scadenza delle ferie AP.', false),
-            (gen_random_uuid(), 'notifications', 'push_approvals', 'true', 'boolean', 'Abilita notifiche push per gli approvatori.', false)
+            (gen_random_uuid(), 'notifications', 'push_approvals', 'true', 'boolean', 'Abilita notifiche push per gli approvatori.', false),
+            (gen_random_uuid(), 'business', 'smart_deduction_enabled', 'false', 'boolean', 'Prioritizza lo scarico dei residui in scadenza.', false)
         ON CONFLICT (key) DO NOTHING;
     """)
 

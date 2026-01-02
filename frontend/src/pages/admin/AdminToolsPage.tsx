@@ -59,20 +59,20 @@ export function AdminToolsPage() {
     ]);
 
     useEffect(() => {
-        const loadConfig = async () => {
+        const loadConfigs = async () => {
             try {
-                // Try to load the specific config for blocking balance
-                const config = await configService.getConfig('leaves.block_insufficient_balance');
-                if (config) {
-                    setSettings(prev => prev.map(s =>
-                        s.key === 'leaves.block_insufficient_balance' ? { ...s, value: config.value } : s
-                    ));
+                const configs = await configService.getAllConfigs();
+                if (configs && configs.length > 0) {
+                    setSettings(prev => prev.map(s => {
+                        const dbConfig = configs.find(c => c.key === s.key);
+                        return dbConfig ? { ...s, value: dbConfig.value } : s;
+                    }));
                 }
             } catch (e) {
-                console.log('Config not found or error loading config, using default');
+                console.log('Error loading system configs, using defaults');
             }
         };
-        loadConfig();
+        loadConfigs();
     }, []);
 
     const handleToggleSetting = (key: string) => {
@@ -82,31 +82,36 @@ export function AdminToolsPage() {
     const handleSaveSettings = async () => {
         setIsSaving(true);
         try {
-            // Save business logic settings to backend
-            const blockSetting = settings.find(s => s.key === 'leaves.block_insufficient_balance');
-            if (blockSetting) {
+            // Save each setting to backend
+            await Promise.all(settings.map(async (setting) => {
                 try {
-                    await configService.updateConfig('leaves.block_insufficient_balance', blockSetting.value);
+                    await configService.updateConfig(setting.key, setting.value);
                 } catch (e: any) {
                     // If config doesn't exist (404), create it
                     if (e.response && e.response.status === 404) {
                         await configService.createConfig({
-                            key: blockSetting.key,
-                            value: blockSetting.value,
+                            key: setting.key,
+                            value: setting.value,
                             value_type: 'boolean',
-                            category: blockSetting.category,
-                            description: blockSetting.description
+                            category: setting.category,
+                            description: setting.description
                         });
                     } else {
                         throw e;
                     }
                 }
-            }
+            }));
 
-            // Simulate saving for others (or implement generic save loop if other keys are real)
-            await new Promise(resolve => setTimeout(resolve, 500));
             toast.success('Impostazioni salvate con successo');
-        } catch {
+
+            // Clear backend cache to ensure immediate effect
+            try {
+                await configService.clearCache();
+            } catch (err) {
+                console.warn('Failed to clear system cache after save');
+            }
+        } catch (error) {
+            console.error('Error saving settings:', error);
             toast.error('Errore nel salvataggio');
         } finally {
             setIsSaving(false);
