@@ -59,6 +59,36 @@ class NotificationService:
         """Get notifications for a user."""
         return await self._notification_repo.get_by_user(user_id, unread_only, limit)
 
+    async def get_sent_history(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        user_id: Optional[UUID] = None,
+        notification_type: Optional[str] = None,
+        status: Optional[str] = None,
+    ):
+        """Get history of sent notifications."""
+        return await self._notification_repo.get_history(
+            limit=limit,
+            offset=offset,
+            user_id=user_id,
+            notification_type=notification_type,
+            status=status,
+        )
+
+    async def count_history(
+        self,
+        user_id: Optional[UUID] = None,
+        notification_type: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> int:
+        """Count sent notifications history."""
+        return await self._notification_repo.count_history(
+            user_id=user_id,
+            notification_type=notification_type,
+            status=status,
+        )
+
     async def count_unread(self, user_id: UUID) -> int:
         """Count unread notifications."""
         return await self._notification_repo.count_unread(user_id)
@@ -92,6 +122,8 @@ class NotificationService:
         # Send immediately if email
         if data.channel == NotificationChannel.EMAIL:
             await self._send_email_notification(notification)
+        elif data.channel == NotificationChannel.PUSH:
+            await self._send_push_notification(notification)
         else:
             # Mark as sent for in-app
             await self._notification_repo.update(
@@ -159,6 +191,8 @@ class NotificationService:
             try:
                 if notification.channel == NotificationChannel.EMAIL:
                     await self._send_email_notification(notification)
+                elif notification.channel == NotificationChannel.PUSH:
+                    await self._send_push_notification(notification)
                 else:
                     # Mark as sent for other channels (e.g. In-App are 'sent' when created usually, but if queued here)
                     await self._notification_repo.update(
@@ -332,6 +366,90 @@ class NotificationService:
             response.raise_for_status()
             return response.json()
 
+    async def _send_push_notification(self, notification) -> None:
+        """Send web push notification using pywebpush."""
+        from pywebpush import webpush, WebPushException
+        from src.services.notifications.repository import PushSubscriptionRepository
+        
+        # Check if VAPID keys are configured
+        if not settings.vapid_private_key or not settings.vapid_public_key:
+            print(f"[PUSH] VAPID keys not configured, skipping push for {notification.user_id}")
+            await self._notification_repo.update(
+                notification.id,
+                status=NotificationStatus.SENT,
+                sent_at=datetime.utcnow(),
+            )
+            return
+        
+        # Get user's push subscriptions
+        push_repo = PushSubscriptionRepository(self._session)
+        subscriptions = await push_repo.get_by_user(notification.user_id)
+        
+        if not subscriptions:
+            print(f"[PUSH] No subscriptions for user {notification.user_id}")
+            await self._notification_repo.update(
+                notification.id,
+                status=NotificationStatus.SENT,
+                sent_at=datetime.utcnow(),
+            )
+            return
+        
+        # Prepare push payload
+        import json
+        push_data = json.dumps({
+            "title": notification.title,
+            "body": notification.message,
+            "icon": "/icons/notification-icon.png",
+            "badge": "/icons/badge-icon.png",
+            "tag": str(notification.id),
+            "data": {
+                "url": notification.action_url or "/notifications",
+                "notification_id": str(notification.id),
+            }
+        })
+        
+        vapid_claims = {
+            "sub": settings.vapid_subject,
+        }
+        
+        failed_endpoints = []
+        success_count = 0
+        
+        for subscription in subscriptions:
+            try:
+                webpush(
+                    subscription_info={
+                        "endpoint": subscription.endpoint,
+                        "keys": {
+                            "p256dh": subscription.p256dh,
+                            "auth": subscription.auth,
+                        }
+                    },
+                    data=push_data,
+                    vapid_private_key=settings.vapid_private_key,
+                    vapid_claims=vapid_claims,
+                )
+                success_count += 1
+            except WebPushException as e:
+                print(f"[PUSH] Failed to send to {subscription.endpoint}: {e}")
+                # If subscription is invalid (410 Gone), mark for deletion
+                if e.response and e.response.status_code == 410:
+                    failed_endpoints.append(subscription.endpoint)
+            except Exception as e:
+                print(f"[PUSH] Unexpected error sending push: {e}")
+        
+        # Deactivate failed subscriptions
+        for endpoint in failed_endpoints:
+            await push_repo.delete_by_endpoint(endpoint)
+        
+        print(f"[PUSH] Sent to {success_count}/{len(subscriptions)} devices for user {notification.user_id}")
+        
+        await self._notification_repo.update(
+            notification.id,
+            status=NotificationStatus.SENT,
+            sent_at=datetime.utcnow(),
+        )
+
     def _render_template(self, content: str, variables: dict) -> str:
         """Simple template rendering with {{variable}} syntax."""
         result = content
@@ -393,25 +511,37 @@ class NotificationService:
         notification_type: NotificationType,
         channel: NotificationChannel,
     ) -> bool:
-        """Check if user wants this notification."""
-        if channel == NotificationChannel.EMAIL:
-            if not prefs.email_enabled:
-                return False
+        """Check if user wants this notification based on granular matrix."""
+        # 1. Check global channel switches
+        if channel == NotificationChannel.EMAIL and not prefs.email_enabled:
+            return False
+        if channel == NotificationChannel.IN_APP and not prefs.in_app_enabled:
+            return False
+        if channel == NotificationChannel.PUSH and not prefs.push_enabled:
+            return False
             
-            # Check specific type
-            if notification_type.value.startswith("leave_"):
-                return prefs.email_leave_updates
-            elif notification_type.value.startswith(("trip_", "expense_")):
-                return prefs.email_expense_updates
-            elif notification_type == NotificationType.SYSTEM_ANNOUNCEMENT:
-                return prefs.email_system_announcements
-            elif notification_type == NotificationType.COMPLIANCE_ALERT:
-                return prefs.email_compliance_alerts
+        # 2. Check matrix preference
+        # preferences_matrix: {notification_type: {channel: bool}}
+        matrix = prefs.preferences_matrix or {}
+        type_prefs = matrix.get(notification_type.value, {})
         
-        elif channel == NotificationChannel.IN_APP:
-            return prefs.in_app_enabled
-        
-        return True
+        # If specific preference exists, return it
+        if channel.value in type_prefs:
+            return type_prefs[channel.value]
+            
+        # 3. Default fallback logic if not in matrix
+        # For enterprise, we usually want in-app notifications enabled by default
+        if channel == NotificationChannel.IN_APP:
+            return True
+            
+        # Email defaults
+        if channel == NotificationChannel.EMAIL:
+            # Critical alerts or leave updates usually default to True
+            if notification_type.value.startswith(("leave_", "compliance_", "system_")):
+                return True
+            return False
+            
+        return False
 
     async def _get_user_email(self, user_id: UUID) -> Optional[str]:
         """Get user email from auth service."""

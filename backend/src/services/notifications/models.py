@@ -24,8 +24,8 @@ class NotificationChannel(str, enum.Enum):
     """Notification delivery channel."""
     EMAIL = "email"
     IN_APP = "in_app"
-    SMS = "sms"  # Future use
-    PUSH = "push"  # Future use
+    PUSH = "push"
+    SMS = "sms"
 
 
 class NotificationStatus(str, enum.Enum):
@@ -56,8 +56,18 @@ class NotificationType(str, enum.Enum):
     EXPENSE_REJECTED = "expense_rejected"
     EXPENSE_PAID = "expense_paid"
     
+    CALENDAR_SYSTEM_DEADLINE = "calendar_system_deadline"
+    CALENDAR_PERSONAL_DEADLINE = "calendar_personal_deadline"
+    CALENDAR_SHARED_DEADLINE = "calendar_shared_deadline"
+    
     SYSTEM_ANNOUNCEMENT = "system_announcement"
     COMPLIANCE_ALERT = "compliance_alert"
+
+    # Generic Types
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+    SUCCESS = "success"
 
 
 class Notification(Base):
@@ -77,23 +87,23 @@ class Notification(Base):
     user_email: Mapped[str] = mapped_column(String(255), nullable=False)
     
     # Content
-    notification_type: Mapped[NotificationType] = mapped_column(
-        SQLEnum(NotificationType),
+    notification_type: Mapped[str] = mapped_column(
+        String(50),
         nullable=False,
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     
     # Channel
-    channel: Mapped[NotificationChannel] = mapped_column(
-        SQLEnum(NotificationChannel),
-        default=NotificationChannel.IN_APP,
+    channel: Mapped[str] = mapped_column(
+        String(20),
+        default="in_app",
     )
     
     # Status
-    status: Mapped[NotificationStatus] = mapped_column(
-        SQLEnum(NotificationStatus),
-        default=NotificationStatus.PENDING,
+    status: Mapped[str] = mapped_column(
+        String(20),
+        default="pending",
     )
     
     # Tracking
@@ -146,8 +156,8 @@ class EmailTemplate(Base):
     text_content: Mapped[Optional[str]] = mapped_column(Text)
     
     # Linked notification types
-    notification_type: Mapped[NotificationType] = mapped_column(
-        SQLEnum(NotificationType),
+    notification_type: Mapped[str] = mapped_column(
+        String(50),
         nullable=False,
     )
     
@@ -168,7 +178,7 @@ class EmailTemplate(Base):
 
 
 class UserNotificationPreference(Base):
-    """User preferences for notifications."""
+    """User preferences for notifications matrix."""
     
     __tablename__ = "user_notification_preferences"
     __table_args__ = {"schema": "notifications"}
@@ -180,21 +190,51 @@ class UserNotificationPreference(Base):
     )
     user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), unique=True, nullable=False)
     
-    # Email preferences
+    # Global switches
     email_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    email_leave_updates: Mapped[bool] = mapped_column(Boolean, default=True)
-    email_expense_updates: Mapped[bool] = mapped_column(Boolean, default=True)
-    email_system_announcements: Mapped[bool] = mapped_column(Boolean, default=True)
-    email_compliance_alerts: Mapped[bool] = mapped_column(Boolean, default=True)
-    
-    # In-app preferences
     in_app_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    push_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    # Matrix of preferences: {notification_type: {channel: bool}}
+    # e.g., {"leave_request_submitted": {"email": True, "push": False, "in_app": True}}
+    preferences_matrix: Mapped[dict] = mapped_column(JSONB, server_default='{}')
     
     # Digest settings
     digest_frequency: Mapped[str] = mapped_column(
         String(20),
         default="instant",  # instant, daily, weekly
     )
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class PushSubscription(Base):
+    """Web Push notification subscriptions."""
+    
+    __tablename__ = "push_subscriptions"
+    __table_args__ = {"schema": "notifications"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False, index=True)
+    
+    endpoint: Mapped[str] = mapped_column(Text, nullable=False)
+    p256dh: Mapped[str] = mapped_column(String(200), nullable=False)
+    auth: Mapped[str] = mapped_column(String(100), nullable=False)
+    
+    device_info: Mapped[Optional[dict]] = mapped_column(JSONB)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

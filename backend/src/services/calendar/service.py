@@ -114,7 +114,7 @@ class CalendarService:
             .where(and_(UserCalendar.id == calendar_id, UserCalendar.user_id == user_id))
         )
         result = await self.db.execute(query)
-        return result.scalar_one_or_none()
+        return result.unique().scalar_one_or_none()
 
     async def create_user_calendar(self, user_id: UUID, data: UserCalendarCreate) -> UserCalendar:
         """Create a new custom calendar."""

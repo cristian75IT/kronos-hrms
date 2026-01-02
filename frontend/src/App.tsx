@@ -12,6 +12,7 @@ import { LeavesPage } from './pages/leaves/LeavesPage';
 import { LeaveRequestForm } from './pages/leaves/LeaveRequestForm';
 import { LeaveDetailPage } from './pages/leaves/LeaveDetailPage';
 import { CalendarPage } from './pages/CalendarPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 
 import { TripsPage } from './pages/expenses/TripsPage';
 import { TripFormPage } from './pages/expenses/TripFormPage';
@@ -20,6 +21,7 @@ import { ExpensesPage } from './pages/expenses/ExpensesPage';
 import { ExpenseFormPage } from './pages/expenses/ExpenseFormPage';
 import { ExpenseDetailPage } from './pages/expenses/ExpenseDetailPage';
 import { ApprovalsPage } from './pages/ApprovalsPage';
+import { NotificationCenterPage } from './pages/admin/NotificationCenterPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { UserFormPage } from './pages/admin/UserFormPage';
 import { AdminToolsPage } from './pages/admin/AdminToolsPage';
@@ -57,6 +59,7 @@ function App() {
               <Route path="/leaves/:id" element={<LeaveDetailPage />} />
               <Route path="/leaves/:id/edit" element={<LeaveRequestForm />} />
               <Route path="/calendar" element={<CalendarPage />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
 
               {/* Trips */}
               <Route path="/trips" element={<TripsPage />} />
@@ -79,6 +82,12 @@ function App() {
               <Route path="/admin/system-calendars" element={<ProtectedRoute roles={['admin', 'hr']}><SystemCalendarsPage /></ProtectedRoute>} />
               <Route path="/admin/national-contracts" element={<ProtectedRoute roles={['admin', 'hr']}><NationalContractsPage /></ProtectedRoute>} />
               <Route path="/admin/national-contracts/:id" element={<ProtectedRoute roles={['admin', 'hr']}><NationalContractDetailPage /></ProtectedRoute>} />
+              <Route path="/admin/tools" element={<ProtectedRoute roles={['admin']}><AdminToolsPage /></ProtectedRoute>} />
+              <Route path="/admin/users/:id/edit" element={<ProtectedRoute roles={['admin', 'hr']}><UserFormPage /></ProtectedRoute>} />
+              <Route path="/admin/system-calendars" element={<ProtectedRoute roles={['admin', 'hr']}><SystemCalendarsPage /></ProtectedRoute>} />
+              <Route path="/admin/national-contracts" element={<ProtectedRoute roles={['admin', 'hr']}><NationalContractsPage /></ProtectedRoute>} />
+              <Route path="/admin/national-contracts/:id" element={<ProtectedRoute roles={['admin', 'hr']}><NationalContractDetailPage /></ProtectedRoute>} />
+              <Route path="/admin/notifications" element={<ProtectedRoute roles={['admin', 'hr']}><NotificationCenterPage /></ProtectedRoute>} />
               <Route path="/admin/tools" element={<ProtectedRoute roles={['admin']}><AdminToolsPage /></ProtectedRoute>} />
               <Route path="/admin/audit-logs" element={<ProtectedRoute roles={['admin']}><AuditLogPage /></ProtectedRoute>} />
 

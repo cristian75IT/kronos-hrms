@@ -133,11 +133,9 @@ class UserPreferencesBase(BaseModel):
     """Base user preferences schema."""
     
     email_enabled: bool = True
-    email_leave_updates: bool = True
-    email_expense_updates: bool = True
-    email_system_announcements: bool = True
-    email_compliance_alerts: bool = True
     in_app_enabled: bool = True
+    push_enabled: bool = True
+    preferences_matrix: dict[str, dict[str, bool]] = Field(default_factory=dict)
     digest_frequency: str = Field(default="instant", pattern="^(instant|daily|weekly)$")
 
 
@@ -145,11 +143,9 @@ class UserPreferencesUpdate(BaseModel):
     """Schema for updating user preferences."""
     
     email_enabled: Optional[bool] = None
-    email_leave_updates: Optional[bool] = None
-    email_expense_updates: Optional[bool] = None
-    email_system_announcements: Optional[bool] = None
-    email_compliance_alerts: Optional[bool] = None
     in_app_enabled: Optional[bool] = None
+    push_enabled: Optional[bool] = None
+    preferences_matrix: Optional[dict[str, dict[str, bool]]] = None
     digest_frequency: Optional[str] = None
 
 
@@ -202,3 +198,28 @@ class BulkNotificationResponse(BaseModel):
     sent: int
     failed: int
     errors: list[str] = []
+
+
+# ═══════════════════════════════════════════════════════════
+# Push Subscription Schemas
+# ═══════════════════════════════════════════════════════════
+
+class PushSubscriptionCreate(BaseModel):
+    """Schema for creating push subscription."""
+    
+    endpoint: str
+    p256dh: str
+    auth: str
+    device_info: Optional[dict] = None
+
+
+class PushSubscriptionResponse(IDMixin, BaseSchema):
+    """Response schema for push subscription."""
+    
+    user_id: UUID
+    endpoint: str
+    p256dh: str
+    auth: str
+    device_info: Optional[dict] = None
+    is_active: bool
+    created_at: datetime

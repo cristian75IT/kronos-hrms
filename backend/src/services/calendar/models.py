@@ -240,8 +240,12 @@ class CalendarEvent(Base):
     color: Mapped[str] = mapped_column(String(7), default="#3B82F6")
     event_metadata: Mapped[Optional[dict]] = mapped_column(JSONB)
     
+    # Alert timing (minutes before event to send notification, default 48h)
+    alert_before_minutes: Mapped[Optional[int]] = mapped_column(Integer, default=2880)
+    
     # Status
     status: Mapped[str] = mapped_column(String(20), default="confirmed")  # tentative, confirmed, cancelled
+
     
     # Audit
     created_by: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))

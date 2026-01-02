@@ -101,6 +101,13 @@ class Settings(BaseSettings):
         default="http://localhost:8009", alias="CALENDAR_SERVICE_URL"
     )
 
+    # ─────────────────────────────────────────────────────────────
+    # VAPID (Web Push Notifications)
+    # ─────────────────────────────────────────────────────────────
+    vapid_private_key: str = Field(default="", alias="VAPID_PRIVATE_KEY")
+    vapid_public_key: str = Field(default="", alias="VAPID_PUBLIC_KEY")
+    vapid_subject: str = Field(default="mailto:admin@kronos.local", alias="VAPID_SUBJECT")
+
     @computed_field
     @property
     def is_development(self) -> bool:

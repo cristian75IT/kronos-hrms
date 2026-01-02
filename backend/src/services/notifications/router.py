@@ -8,8 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.database import get_db
 from src.core.security import get_current_token, require_admin, TokenPayload
 from src.core.exceptions import NotFoundError
-from src.shared.schemas import MessageResponse
+from src.shared.schemas import MessageResponse, DataTableRequest, DataTableResponse
 from src.services.notifications.service import NotificationService
+from src.services.auth.service import UserService
 from src.services.notifications.schemas import (
     NotificationResponse,
     NotificationListItem,
@@ -25,7 +26,10 @@ from src.services.notifications.schemas import (
     SendEmailResponse,
     BulkNotificationRequest,
     BulkNotificationResponse,
+    PushSubscriptionCreate,
+    PushSubscriptionResponse,
 )
+from src.services.notifications.repository import PushSubscriptionRepository
 
 
 router = APIRouter()
@@ -38,6 +42,13 @@ async def get_notification_service(
     return NotificationService(session)
 
 
+async def get_user_service(
+    session: AsyncSession = Depends(get_db),
+) -> UserService:
+    """Dependency for UserService."""
+    return UserService(session)
+
+
 # ═══════════════════════════════════════════════════════════
 # Notification Endpoints
 # ═══════════════════════════════════════════════════════════
@@ -48,10 +59,11 @@ async def get_my_notifications(
     limit: int = 50,
     token: TokenPayload = Depends(get_current_token),
     service: NotificationService = Depends(get_notification_service),
+    user_service: UserService = Depends(get_user_service),
 ):
     """Get current user's notifications."""
-    user_id = UUID(token.keycloak_id)
-    notifications = await service.get_user_notifications(user_id, unread_only, limit)
+    user = await user_service.get_user_by_keycloak_id(token.keycloak_id)
+    notifications = await service.get_user_notifications(user.id, unread_only, limit)
     return [NotificationListItem.model_validate(n) for n in notifications]
 
 
@@ -59,11 +71,98 @@ async def get_my_notifications(
 async def get_unread_count(
     token: TokenPayload = Depends(get_current_token),
     service: NotificationService = Depends(get_notification_service),
+    user_service: UserService = Depends(get_user_service),
 ):
     """Get unread notification count."""
-    user_id = UUID(token.keycloak_id)
-    count = await service.count_unread(user_id)
+    user = await user_service.get_user_by_keycloak_id(token.keycloak_id)
+    count = await service.count_unread(user.id)
     return UnreadCountResponse(count=count)
+
+
+@router.get("/notifications/history", response_model=list[NotificationResponse])
+async def get_notification_history(
+    limit: int = 50,
+    offset: int = 0,
+    user_id: Optional[UUID] = None,
+    notification_type: Optional[str] = None,
+    status: Optional[str] = None,
+    token: TokenPayload = Depends(require_admin),
+    service: NotificationService = Depends(get_notification_service),
+):
+    """Get history of sent notifications. Admin only."""
+    return await service.get_sent_history(
+        limit=limit,
+        offset=offset,
+        user_id=user_id,
+        notification_type=notification_type,
+        status=status,
+    )
+
+
+@router.post("/notifications/history/datatable", response_model=DataTableResponse[NotificationResponse])
+async def get_notification_history_datatable(
+    data: DataTableRequest,
+    token: TokenPayload = Depends(require_admin),
+    service: NotificationService = Depends(get_notification_service),
+):
+    """Get history of sent notifications for DataTables."""
+    # 1. Total records (unfiltered)
+    total_records = await service.count_history()
+    
+    # 2. Filtered records
+    # Note: Currently we only support filtering by exact status/type if passed via extraData
+    # The global search 'data.search.value' is not yet implemented in repo
+    # If client passes extra filters (via data.search or separate payload? 
+    # ServerSideTable sends extraData merged into root, but DataTableRequest structure in schema matches standard DT)
+    # Actually ServerSideTable sends: { draw, start, length, search, order, ...extraData }
+    # Pydantic might complain if extra fields are present and not in schema?
+    # DataTableRequest allows extra fields if ConfigDict(extra='ignore')? 
+    # Let's assume standard DT fields for now.
+    
+    # Calculate filtered count (for now same as total if no search)
+    filtered_records = total_records
+    
+    # 3. Get page data
+    items = await service.get_sent_history(
+        limit=data.length,
+        offset=data.start,
+        # TODO: Map data.order to sort field if needed
+        # TODO: Map data.search to simple text search if needed
+    )
+    
+    return DataTableResponse(
+        draw=data.draw,
+        recordsTotal=total_records,
+        recordsFiltered=filtered_records,
+        data=[NotificationResponse.model_validate(item) for item in items],
+    )
+
+
+# ═══════════════════════════════════════════════════════════
+# Preferences Endpoints (MUST be before /notifications/{id})
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/notifications/preferences", response_model=UserPreferencesResponse)
+async def get_my_preferences(
+    token: TokenPayload = Depends(get_current_token),
+    service: NotificationService = Depends(get_notification_service),
+    user_service: UserService = Depends(get_user_service),
+):
+    """Get current user's notification preferences."""
+    user = await user_service.get_user_by_keycloak_id(token.keycloak_id)
+    return await service.get_preferences(user.id)
+
+
+@router.put("/notifications/preferences", response_model=UserPreferencesResponse)
+async def update_my_preferences(
+    data: UserPreferencesUpdate,
+    token: TokenPayload = Depends(get_current_token),
+    service: NotificationService = Depends(get_notification_service),
+    user_service: UserService = Depends(get_user_service),
+):
+    """Update current user's notification preferences."""
+    user = await user_service.get_user_by_keycloak_id(token.keycloak_id)
+    return await service.update_preferences(user.id, data)
 
 
 @router.get("/notifications/{id}", response_model=NotificationResponse)
@@ -96,10 +195,11 @@ async def mark_read(
     data: MarkReadRequest,
     token: TokenPayload = Depends(get_current_token),
     service: NotificationService = Depends(get_notification_service),
+    user_service: UserService = Depends(get_user_service),
 ):
     """Mark notifications as read."""
-    user_id = UUID(token.keycloak_id)
-    count = await service.mark_read(data.notification_ids, user_id)
+    user = await user_service.get_user_by_keycloak_id(token.keycloak_id)
+    count = await service.mark_read(data.notification_ids, user.id)
     return MessageResponse(message=f"Marked {count} notifications as read")
 
 
@@ -107,10 +207,11 @@ async def mark_read(
 async def mark_all_read(
     token: TokenPayload = Depends(get_current_token),
     service: NotificationService = Depends(get_notification_service),
+    user_service: UserService = Depends(get_user_service),
 ):
     """Mark all notifications as read."""
-    user_id = UUID(token.keycloak_id)
-    count = await service.mark_all_read(user_id)
+    user = await user_service.get_user_by_keycloak_id(token.keycloak_id)
+    count = await service.mark_all_read(user.id)
     return MessageResponse(message=f"Marked {count} notifications as read")
 
 
@@ -189,25 +290,50 @@ async def update_template(
 
 
 # ═══════════════════════════════════════════════════════════
-# Preferences Endpoints
+# Push Subscription Endpoints
 # ═══════════════════════════════════════════════════════════
 
-@router.get("/notifications/preferences", response_model=UserPreferencesResponse)
-async def get_my_preferences(
+@router.post("/notifications/push-subscriptions", response_model=PushSubscriptionResponse, status_code=201)
+async def subscribe_to_push(
+    data: PushSubscriptionCreate,
     token: TokenPayload = Depends(get_current_token),
-    service: NotificationService = Depends(get_notification_service),
+    session: AsyncSession = Depends(get_db),
+    user_service: UserService = Depends(get_user_service),
 ):
-    """Get current user's notification preferences."""
-    user_id = UUID(token.keycloak_id)
-    return await service.get_preferences(user_id)
+    """Subscribe to Web Push notifications."""
+    user = await user_service.get_user_by_keycloak_id(token.keycloak_id)
+    repo = PushSubscriptionRepository(session)
+    subscription = await repo.create(
+        user_id=user.id,
+        endpoint=data.endpoint,
+        p256dh=data.p256dh,
+        auth=data.auth,
+        device_info=data.device_info,
+    )
+    return subscription
 
 
-@router.put("/notifications/preferences", response_model=UserPreferencesResponse)
-async def update_my_preferences(
-    data: UserPreferencesUpdate,
+@router.get("/notifications/push-subscriptions", response_model=list[PushSubscriptionResponse])
+async def get_my_push_subscriptions(
     token: TokenPayload = Depends(get_current_token),
-    service: NotificationService = Depends(get_notification_service),
+    session: AsyncSession = Depends(get_db),
+    user_service: UserService = Depends(get_user_service),
 ):
-    """Update current user's notification preferences."""
-    user_id = UUID(token.keycloak_id)
-    return await service.update_preferences(user_id, data)
+    """Get current user's push subscriptions."""
+    user = await user_service.get_user_by_keycloak_id(token.keycloak_id)
+    repo = PushSubscriptionRepository(session)
+    return await repo.get_by_user(user.id)
+
+
+@router.delete("/notifications/push-subscriptions/{id}", response_model=MessageResponse)
+async def unsubscribe_from_push(
+    id: UUID,
+    token: TokenPayload = Depends(get_current_token),
+    session: AsyncSession = Depends(get_db),
+):
+    """Unsubscribe from Web Push notifications."""
+    repo = PushSubscriptionRepository(session)
+    success = await repo.deactivate(id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+    return MessageResponse(message="Unsubscribed from push notifications")

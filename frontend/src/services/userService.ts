@@ -17,6 +17,16 @@ export const userService = {
         return response.data;
     },
 
+    getAreas: async (activeOnly = true): Promise<any[]> => {
+        const response = await authApi.get('/areas', { params: { active_only: activeOnly } });
+        return response.data;
+    },
+
+    getArea: async (id: string): Promise<any> => {
+        const response = await authApi.get(`/areas/${id}`);
+        return response.data;
+    },
+
     getUser: async (id: string): Promise<UserWithProfile> => {
         const response = await authApi.get(`/users/${id}`);
         return response.data;

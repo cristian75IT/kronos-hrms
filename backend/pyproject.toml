@@ -45,6 +45,12 @@ dependencies = [
     
     # DataTables server-side
     "sqlalchemy-datatables>=2.0.0",
+    
+    # Push Notifications
+    "pywebpush>=1.14.0",
+    
+    # Calendar
+    "icalendar>=5.0.0",
 ]
 
 [project.optional-dependencies]

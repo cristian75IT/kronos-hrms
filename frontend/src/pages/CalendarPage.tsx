@@ -451,15 +451,32 @@ export function CalendarPage() {
                         <form onSubmit={async (e) => {
                             e.preventDefault();
                             const formData = new FormData(e.currentTarget);
+                            const startDate = formData.get('start_date') as string;
+
+                            // Calculate default alert: 48h, or 24h if event is within 48h from now
+                            const eventDate = new Date(startDate);
+                            const now = new Date();
+                            const hoursUntilEvent = (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+                            const defaultAlert = hoursUntilEvent < 48 ? 1440 : 2880; // 24h or 48h
+
+                            const alertValue = formData.get('alert_before');
+                            const alertMinutes = alertValue === '' ? null : (parseInt(alertValue as string) || defaultAlert);
+
+                            const isAllDay = formData.get('is_all_day') === 'on' || formData.get('is_all_day') === null;
+
                             const data = {
                                 title: formData.get('title') as string,
-                                start_date: formData.get('start_date') as string,
+                                description: formData.get('description') as string || undefined,
+                                start_date: startDate,
                                 end_date: formData.get('end_date') as string,
+                                start_time: !isAllDay ? formData.get('start_time') as string || undefined : undefined,
+                                end_time: !isAllDay ? formData.get('end_time') as string || undefined : undefined,
                                 event_type: formData.get('category') as string || 'General',
                                 color: formData.get('color') as string || '#4F46E5',
                                 calendar_id: formData.get('calendar_id') as string || undefined,
-                                visibility: 'private',
-                                is_all_day: true
+                                visibility: formData.get('visibility') as string || 'private',
+                                is_all_day: isAllDay,
+                                alert_before_minutes: alertMinutes,
                             };
 
                             try {
@@ -480,10 +497,35 @@ export function CalendarPage() {
                                 />
                             </div>
 
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Descrizione</label>
+                                <textarea
+                                    name="description"
+                                    rows={2}
+                                    className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all resize-none"
+                                    placeholder="Dettagli opzionali..."
+                                />
+                            </div>
+
+                            <div className="flex items-center gap-2 py-2">
+                                <input
+                                    type="checkbox"
+                                    name="is_all_day"
+                                    id="is_all_day"
+                                    defaultChecked={true}
+                                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                    onChange={(e) => {
+                                        const timeFields = document.querySelectorAll('.time-fields');
+                                        timeFields.forEach(f => (f as HTMLElement).style.display = e.target.checked ? 'none' : 'grid');
+                                    }}
+                                />
+                                <label htmlFor="is_all_day" className="text-sm font-medium text-gray-700">Tutto il giorno</label>
+                            </div>
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                                        <Clock size={14} /> Inizio
+                                        <Clock size={14} /> Data Inizio
                                     </label>
                                     <input
                                         type="date"
@@ -495,7 +537,7 @@ export function CalendarPage() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                                        <Clock size={14} /> Fine
+                                        <Clock size={14} /> Data Fine
                                     </label>
                                     <input
                                         type="date"
@@ -507,18 +549,75 @@ export function CalendarPage() {
                                 </div>
                             </div>
 
+                            <div className="time-fields grid grid-cols-2 gap-4" style={{ display: 'none' }}>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Ora Inizio</label>
+                                    <input
+                                        type="time"
+                                        name="start_time"
+                                        defaultValue="09:00"
+                                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Ora Fine</label>
+                                    <input
+                                        type="time"
+                                        name="end_time"
+                                        defaultValue="10:00"
+                                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                                    />
+                                </div>
+                            </div>
+
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                                        <Tag size={14} /> Calendario
+                                    </label>
+                                    <select
+                                        name="calendar_id"
+                                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                                    >
+                                        <option value="">Nessuno (Generale)</option>
+                                        {userCalendars.map(cal => (
+                                            <option key={cal.id} value={cal.id}>{cal.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                                        <Users size={14} /> Visibilità
+                                    </label>
+                                    <select
+                                        name="visibility"
+                                        defaultValue="private"
+                                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                                    >
+                                        <option value="private">🔒 Solo io</option>
+                                        <option value="team">👥 Team</option>
+                                        <option value="public">🌐 Pubblico</option>
+                                    </select>
+                                </div>
+                            </div>
+
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                                    <Tag size={14} /> Calendario
+                                    🔔 Promemoria
                                 </label>
                                 <select
-                                    name="calendar_id"
+                                    name="alert_before"
+                                    defaultValue="2880"
                                     className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
                                 >
-                                    <option value="">Nessuno (Generale)</option>
-                                    {userCalendars.map(cal => (
-                                        <option key={cal.id} value={cal.id}>{cal.name}</option>
-                                    ))}
+                                    <option value="">Nessun promemoria</option>
+                                    <option value="60">1 ora prima</option>
+                                    <option value="120">2 ore prima</option>
+                                    <option value="1440">1 giorno prima (24h)</option>
+                                    <option value="2880">2 giorni prima (48h)</option>
+                                    <option value="4320">3 giorni prima (72h)</option>
+                                    <option value="10080">1 settimana prima</option>
                                 </select>
                             </div>
 
@@ -533,6 +632,7 @@ export function CalendarPage() {
                                     ))}
                                 </div>
                             </div>
+
 
                             <div className="pt-4 flex gap-3">
                                 <Button

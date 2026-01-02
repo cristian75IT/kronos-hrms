@@ -172,6 +172,7 @@ class EventBase(BaseModel):
     recurrence_rule: Optional[str] = None
     color: str = Field(default="#3B82F6", pattern="^#[0-9A-Fa-f]{6}$")
     calendar_id: Optional[UUID] = None
+    alert_before_minutes: Optional[int] = Field(default=2880, ge=0, le=10080)  # Max 1 week
 
 
 class EventCreate(EventBase):
@@ -198,6 +199,7 @@ class EventUpdate(BaseModel):
     color: Optional[str] = None
     calendar_id: Optional[UUID] = None
     status: Optional[str] = None
+    alert_before_minutes: Optional[int] = Field(None, ge=0, le=10080)
 
 
 class ParticipantResponse(BaseModel):
@@ -224,6 +226,7 @@ class EventResponse(EventBase):
     created_at: datetime
     updated_at: datetime
     participants: List[ParticipantResponse] = []
+    alert_before_minutes: Optional[int] = 2880
 
 
 # ═══════════════════════════════════════════════════════════
