@@ -32,6 +32,11 @@ from src.services.notifications.schemas import (
 from src.services.notifications.repository import PushSubscriptionRepository
 
 
+class NotificationDataTableRequest(DataTableRequest):
+    """DataTable request including channel filter."""
+    channel: Optional[str] = None
+
+
 router = APIRouter()
 
 
@@ -57,13 +62,14 @@ async def get_user_service(
 async def get_my_notifications(
     unread_only: bool = False,
     limit: int = 50,
+    channel: Optional[str] = None,
     token: TokenPayload = Depends(get_current_token),
     service: NotificationService = Depends(get_notification_service),
     user_service: UserService = Depends(get_user_service),
 ):
     """Get current user's notifications."""
     user = await user_service.get_user_by_keycloak_id(token.keycloak_id)
-    notifications = await service.get_user_notifications(user.id, unread_only, limit)
+    notifications = await service.get_user_notifications(user.id, unread_only, limit, channel)
     return [NotificationListItem.model_validate(n) for n in notifications]
 
 
@@ -86,6 +92,7 @@ async def get_notification_history(
     user_id: Optional[UUID] = None,
     notification_type: Optional[str] = None,
     status: Optional[str] = None,
+    channel: Optional[str] = None,
     token: TokenPayload = Depends(require_admin),
     service: NotificationService = Depends(get_notification_service),
 ):
@@ -96,12 +103,13 @@ async def get_notification_history(
         user_id=user_id,
         notification_type=notification_type,
         status=status,
+        channel=channel,
     )
 
 
 @router.post("/notifications/history/datatable", response_model=DataTableResponse[NotificationResponse])
 async def get_notification_history_datatable(
-    data: DataTableRequest,
+    data: NotificationDataTableRequest,
     token: TokenPayload = Depends(require_admin),
     service: NotificationService = Depends(get_notification_service),
 ):
@@ -109,25 +117,18 @@ async def get_notification_history_datatable(
     # 1. Total records (unfiltered)
     total_records = await service.count_history()
     
-    # 2. Filtered records
-    # Note: Currently we only support filtering by exact status/type if passed via extraData
-    # The global search 'data.search.value' is not yet implemented in repo
-    # If client passes extra filters (via data.search or separate payload? 
-    # ServerSideTable sends extraData merged into root, but DataTableRequest structure in schema matches standard DT)
-    # Actually ServerSideTable sends: { draw, start, length, search, order, ...extraData }
-    # Pydantic might complain if extra fields are present and not in schema?
-    # DataTableRequest allows extra fields if ConfigDict(extra='ignore')? 
-    # Let's assume standard DT fields for now.
-    
-    # Calculate filtered count (for now same as total if no search)
-    filtered_records = total_records
+    # 2. Filtered records (basic search + channel)
+    filtered_records = await service.count_history(
+        channel=data.channel
+        # TODO: Add global search support if needed (data.search.value)
+    )
     
     # 3. Get page data
     items = await service.get_sent_history(
         limit=data.length,
         offset=data.start,
+        channel=data.channel
         # TODO: Map data.order to sort field if needed
-        # TODO: Map data.search to simple text search if needed
     )
     
     return DataTableResponse(

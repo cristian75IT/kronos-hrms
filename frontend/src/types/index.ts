@@ -565,10 +565,12 @@ export interface DataTableResponse<T> {
 
 export interface AuditLogListItem {
     id: string;
-    user_email?: string;
+    user_email: string | null;
+    user_name?: string | null;
     action: string;
     resource_type: string;
     resource_id?: string;
+    description?: string | null;
     status: 'SUCCESS' | 'FAILURE' | 'ERROR';
     service_name: string;
     created_at: string;

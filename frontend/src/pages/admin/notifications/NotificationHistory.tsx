@@ -8,6 +8,9 @@ interface NotificationHistoryProps {
 
 export const NotificationHistory: React.FC<NotificationHistoryProps> = ({ refreshTrigger = 0 }) => {
 
+    // State for channel filter
+    const [channelFilter, setChannelFilter] = React.useState<string>('in_app');
+
     // Determine the API endpoint
     // NOTE: ServerSideTable uses POST by default. Our endpoint is GET /notifications/history.
     // If we want to use ServerSideTable without modifying it, we need an adapter or a new endpoint.
@@ -26,6 +29,15 @@ export const NotificationHistory: React.FC<NotificationHistoryProps> = ({ refres
             accessorKey: 'created_at',
             header: 'DATA',
             cell: (info) => new Date(info.getValue() as string).toLocaleString()
+        },
+        {
+            accessorKey: 'recipient_name',
+            header: 'DESTINATARIO',
+            cell: (info) => (
+                <span className="font-medium text-slate-700">
+                    {info.getValue() as string || '-'}
+                </span>
+            )
         },
         {
             accessorKey: 'title',
@@ -86,7 +98,18 @@ export const NotificationHistory: React.FC<NotificationHistoryProps> = ({ refres
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                 <h3 className="font-semibold text-slate-700">Registro Attività</h3>
-                {/* Export buttons are handled by ServerSideTable if showExport is true */}
+                <div className="flex items-center gap-2">
+                    <select
+                        value={channelFilter}
+                        onChange={(e) => setChannelFilter(e.target.value)}
+                        className="text-sm border-slate-200 rounded-md focus:ring-primary focus:border-primary px-3 py-1.5 bg-white border outline-none"
+                    >
+                        <option value="in_app">In-App</option>
+                        <option value="email">Email</option>
+                        <option value="push">Push</option>
+                        <option value="all">Tutti</option>
+                    </select>
+                </div>
             </div>
             <ServerSideTable
                 apiEndpoint="/notifications/history/datatable"
@@ -96,6 +119,7 @@ export const NotificationHistory: React.FC<NotificationHistoryProps> = ({ refres
                 showExport={true}
                 className="kronos-table-clean"
                 refreshTrigger={refreshTrigger}
+                extraData={{ channel: channelFilter }}
             />
         </div>
     );

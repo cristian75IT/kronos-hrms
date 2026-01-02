@@ -7,6 +7,7 @@ from sqlalchemy import select, func, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.services.audit.models import AuditLog, AuditTrail
+from src.services.auth.models import User
 from src.services.audit.schemas import AuditLogFilter
 from src.shared.schemas import DataTableRequest
 
@@ -20,9 +21,21 @@ class AuditLogRepository:
     async def get(self, id: UUID) -> Optional[AuditLog]:
         """Get audit log by ID."""
         result = await self._session.execute(
-            select(AuditLog).where(AuditLog.id == id)
+            select(AuditLog, User.first_name, User.last_name)
+            .outerjoin(User, AuditLog.user_id == User.id)
+            .where(AuditLog.id == id)
         )
-        return result.scalar_one_or_none()
+        row = result.first()
+        if not row:
+            return None
+            
+        log, first_name, last_name = row
+        if first_name and last_name:
+            setattr(log, 'user_name', f"{first_name} {last_name}")
+        else:
+             setattr(log, 'user_name', None)
+             
+        return log
 
     async def get_by_filters(
         self,
@@ -45,6 +58,8 @@ class AuditLogRepository:
             query = query.where(AuditLog.resource_id == filters.resource_id)
         if filters.status:
             query = query.where(AuditLog.status == filters.status)
+        if filters.channel:
+            query = query.where(AuditLog.request_data.op("->>")("channel") == filters.channel)
         if filters.service_name:
             query = query.where(AuditLog.service_name == filters.service_name)
         if filters.start_date:
@@ -53,8 +68,27 @@ class AuditLogRepository:
             query = query.where(AuditLog.created_at <= filters.end_date)
         
         query = query.order_by(desc(AuditLog.created_at)).offset(offset).limit(limit)
-        result = await self._session.execute(query)
-        return list(result.scalars().all())
+        
+        # Execute with User join
+        stmt = (
+            select(AuditLog, User.first_name, User.last_name)
+            .outerjoin(User, AuditLog.user_id == User.id)
+            .where(AuditLog.id.in_(select(query.subquery().c.id)))
+            .order_by(desc(AuditLog.created_at))
+        )
+        
+        result = await self._session.execute(stmt)
+        rows = result.all()
+        
+        items = []
+        for log, first_name, last_name in rows:
+            if first_name and last_name:
+                setattr(log, 'user_name', f"{first_name} {last_name}")
+            else:
+                setattr(log, 'user_name', None)
+            items.append(log)
+            
+        return items
 
     async def get_datatable(
         self,
@@ -76,6 +110,9 @@ class AuditLogRepository:
             if filters.service_name:
                 query = query.where(AuditLog.service_name == filters.service_name)
                 count_query = count_query.where(AuditLog.service_name == filters.service_name)
+            if filters.channel:
+                query = query.where(AuditLog.request_data.op("->>")("channel") == filters.channel)
+                count_query = count_query.where(AuditLog.request_data.op("->>")("channel") == filters.channel)
         
         # Total count
         total_result = await self._session.execute(count_query)
@@ -104,8 +141,31 @@ class AuditLogRepository:
         # Pagination
         query = query.offset(request.start).limit(request.length)
         
-        result = await self._session.execute(query)
-        return list(result.scalars().all()), total, filtered
+        # Execute with User join for display
+        final_query = (
+            select(AuditLog, User.first_name, User.last_name)
+            .outerjoin(User, AuditLog.user_id == User.id)
+            .where(AuditLog.id.in_(select(query.subquery().c.id)))
+            .order_by(desc(AuditLog.created_at))
+        )
+        
+        # Note: The subquery approach is efficient for pagination + join
+        # Alternatively, we can just join the main query but we need to ensure unique ID selection if 1:N (here 1:1 so safe)
+        
+        result = await self._session.execute(final_query)
+        rows = result.all()
+        
+        items = []
+        for log, first_name, last_name in rows:
+            # Create a dict from the ORM object to inject user_name
+            # Since Pydantic from_attributes=True works on objects, we can set a dynamic attribute
+            if first_name and last_name:
+                setattr(log, 'user_name', f"{first_name} {last_name}")
+            else:
+                setattr(log, 'user_name', None)
+            items.append(log)
+            
+        return items, total, filtered
 
     async def create(self, **kwargs: Any) -> AuditLog:
         """Create audit log entry."""

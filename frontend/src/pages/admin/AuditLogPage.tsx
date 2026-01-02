@@ -126,7 +126,7 @@ export function AuditLogPage() {
                                 <th className="px-6 py-4 text-left">Utente</th>
                                 <th className="px-6 py-4 text-left">Servizio</th>
                                 <th className="px-6 py-4 text-left">Azione</th>
-                                <th className="px-6 py-4 text-left">Risorsa</th>
+                                <th className="px-6 py-4 text-left">Attività / Risorsa</th>
                                 <th className="px-6 py-4 text-left">Stato</th>
                                 <th className="px-6 py-4 text-right">Azioni</th>
                             </tr>
@@ -151,7 +151,7 @@ export function AuditLogPage() {
                                             {format(new Date(log.created_at), 'dd/MM/yyyy HH:mm:ss', { locale: it })}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                                            {log.user_email || <span className="text-gray-400 italic">Sistema</span>}
+                                            {log.user_name || log.user_email || <span className="text-gray-400 italic">Sistema</span>}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className="text-[11px] px-2 py-0.5 rounded bg-gray-100 text-gray-600 font-bold">
@@ -161,8 +161,15 @@ export function AuditLogPage() {
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                             {log.action}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
-                                            {log.resource_type} {log.resource_id && <span className="text-gray-300 ml-1">#{log.resource_id.substring(0, 8)}</span>}
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col">
+                                                <span className="text-sm text-gray-900 font-medium truncate max-w-[200px]" title={log.description || ''}>
+                                                    {log.description || <span className="text-gray-400 italic">Nessuna descrizione</span>}
+                                                </span>
+                                                <span className="text-[10px] text-gray-500 font-mono mt-0.5">
+                                                    {log.resource_type} {log.resource_id && `• #${log.resource_id.substring(0, 8)}`}
+                                                </span>
+                                            </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             {getStatusBadge(log.status)}
@@ -259,7 +266,7 @@ export function AuditLogPage() {
                                         </div>
                                         <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
                                             <p className="text-[10px] font-bold text-gray-400 uppercase mb-1 flex items-center gap-1">
-                                                Id Log
+                                                ID Evento
                                             </p>
                                             <p className="text-[11px] font-mono text-gray-500 break-all">{selectedLog.id}</p>
                                         </div>
@@ -288,11 +295,16 @@ export function AuditLogPage() {
 
                                     <div className="border-t border-gray-100 pt-6 grid grid-cols-2 gap-y-4">
                                         <div>
-                                            <p className="text-[10px] font-bold text-gray-400 uppercase">Endpoint</p>
-                                            <p className="text-xs font-mono text-gray-700">{selectedLog.http_method || 'N/D'} {selectedLog.endpoint || 'N/D'}</p>
+                                            <p className="text-[10px] font-bold text-gray-400 uppercase">Operazione Web</p>
+                                            <p className="text-xs font-mono text-gray-700">
+                                                {selectedLog.http_method ? (
+                                                    <span className="font-bold mr-1">{selectedLog.http_method}</span>
+                                                ) : null}
+                                                {selectedLog.endpoint || 'N/D'}
+                                            </p>
                                         </div>
                                         <div>
-                                            <p className="text-[10px] font-bold text-gray-400 uppercase">IP Address</p>
+                                            <p className="text-[10px] font-bold text-gray-400 uppercase">Indirizzo IP</p>
                                             <p className="text-xs font-mono text-gray-700">{selectedLog.ip_address || 'Locale'}</p>
                                         </div>
                                         <div className="col-span-2">
@@ -306,7 +318,7 @@ export function AuditLogPage() {
                                             <p className="text-xs font-bold text-gray-900 uppercase tracking-wide">Dati Tecnici (JSON)</p>
                                             {selectedLog.request_data && (
                                                 <div className="space-y-1">
-                                                    <p className="text-[10px] text-gray-400 font-bold uppercase ml-1">Request Body</p>
+                                                    <p className="text-[10px] text-gray-400 font-bold uppercase ml-1">Dati Richiesta</p>
                                                     <pre className="bg-gray-900 text-gray-300 p-4 rounded-xl text-[10px] overflow-x-auto max-h-40 font-mono">
                                                         {JSON.stringify(selectedLog.request_data, null, 2)}
                                                     </pre>

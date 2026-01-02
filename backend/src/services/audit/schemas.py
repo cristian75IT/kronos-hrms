@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.shared.schemas import BaseSchema, IDMixin, DataTableRequest, DataTableResponse
 
@@ -37,6 +37,7 @@ class AuditLogResponse(IDMixin, BaseSchema):
     
     user_id: Optional[UUID] = None
     user_email: Optional[str] = None
+    user_name: Optional[str] = None
     action: str
     resource_type: str
     resource_id: Optional[str] = None
@@ -49,15 +50,24 @@ class AuditLogResponse(IDMixin, BaseSchema):
     service_name: str
     created_at: datetime
 
+    @field_validator("ip_address", mode="before")
+    @classmethod
+    def serialize_ip(cls, v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        return str(v)
+
 
 class AuditLogListItem(BaseModel):
     """Simplified log for lists."""
     
     id: UUID
     user_email: Optional[str]
+    user_name: Optional[str] = None
     action: str
     resource_type: str
     resource_id: Optional[str]
+    description: Optional[str] = None
     status: str
     service_name: str
     created_at: datetime
@@ -80,6 +90,7 @@ class AuditLogFilter(BaseModel):
     resource_id: Optional[str] = None
     status: Optional[str] = None
     service_name: Optional[str] = None
+    channel: Optional[str] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
 

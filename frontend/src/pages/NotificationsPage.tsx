@@ -4,10 +4,27 @@
  * Full page view of all notifications with filters, bulk actions, and settings.
  */
 import { useState, useEffect } from 'react';
-import { Bell, Check, CheckCheck, RefreshCw, Settings, Mail, Smartphone, Monitor, Save } from 'lucide-react';
+import {
+  Bell,
+  Check,
+  CheckCheck,
+  RefreshCw,
+  Settings,
+  Mail,
+  Smartphone,
+  Monitor,
+  Save,
+  ClipboardList,
+  Calendar,
+  Receipt,
+  Megaphone,
+  ShieldAlert,
+  Info
+} from 'lucide-react';
 import notificationService, { NotificationStatus, NotificationType } from '../services/notification.service';
 import type { Notification, UserPreferences } from '../services/notification.service';
 import { useToast } from '../context/ToastContext';
+import { useNotification } from '../context/NotificationContext';
 
 
 type FilterType = 'all' | 'unread' | 'leave' | 'calendar' | 'system';
@@ -17,6 +34,7 @@ export function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>('all');
+  const [channelFilter, setChannelFilter] = useState<string>('in_app');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<PageTab>('notifications');
 
@@ -26,10 +44,11 @@ export function NotificationsPage() {
   const [savingPrefs, setSavingPrefs] = useState(false);
 
   const toast = useToast();
+  const { markAsRead, markAllAsRead } = useNotification();
 
   useEffect(() => {
     fetchNotifications();
-  }, [filter]);
+  }, [filter, channelFilter]);
 
   useEffect(() => {
     if (activeTab === 'settings' && !preferences) {
@@ -41,7 +60,7 @@ export function NotificationsPage() {
     setLoading(true);
     try {
       const unreadOnly = filter === 'unread';
-      const data = await notificationService.getNotifications(unreadOnly, 100);
+      const data = await notificationService.getNotifications(unreadOnly, 100, channelFilter);
 
       // Apply type filters
       let filtered = data;
@@ -104,9 +123,13 @@ export function NotificationsPage() {
     setPreferences({ ...preferences, [key]: value });
   };
 
+  /* Removed misplaced import */
+  // ...
+
   const handleMarkAsRead = async (ids: string[]) => {
     try {
-      await notificationService.markAsRead(ids);
+      await markAsRead(ids);
+      // Update local list
       setNotifications(prev =>
         prev.map(n =>
           ids.includes(n.id)
@@ -122,7 +145,7 @@ export function NotificationsPage() {
 
   const handleMarkAllAsRead = async () => {
     try {
-      await notificationService.markAllAsRead();
+      await markAllAsRead();
       setNotifications(prev =>
         prev.map(n => ({ ...n, status: NotificationStatus.READ, read_at: new Date().toISOString() }))
       );
@@ -149,13 +172,22 @@ export function NotificationsPage() {
     }
   };
 
-  const getNotificationIcon = (type: string): string => {
-    if (type.startsWith('leave_')) return '📋';
-    if (type.startsWith('calendar_')) return '📅';
-    if (type.startsWith('expense_') || type.startsWith('trip_')) return '💰';
-    if (type === NotificationType.SYSTEM_ANNOUNCEMENT) return '📢';
-    if (type === NotificationType.COMPLIANCE_ALERT) return '⚠️';
-    return '🔔';
+  const getNotificationIcon = (type: string) => {
+    if (type.startsWith('leave_')) return <ClipboardList size={22} className="text-blue-500" />;
+    if (type.startsWith('calendar_')) return <Calendar size={22} className="text-indigo-500" />;
+    if (type.startsWith('expense_') || type.startsWith('trip_')) return <Receipt size={22} className="text-purple-500" />;
+    if (type === NotificationType.SYSTEM_ANNOUNCEMENT) return <Megaphone size={22} className="text-amber-500" />;
+    if (type === NotificationType.COMPLIANCE_ALERT) return <ShieldAlert size={22} className="text-red-500" />;
+    return <Info size={22} className="text-gray-500" />;
+  };
+
+  const getIconBackground = (type: string) => {
+    if (type.startsWith('leave_')) return 'bg-blue-50';
+    if (type.startsWith('calendar_')) return 'bg-indigo-50';
+    if (type.startsWith('expense_') || type.startsWith('trip_')) return 'bg-purple-50';
+    if (type === NotificationType.SYSTEM_ANNOUNCEMENT) return 'bg-amber-50';
+    if (type === NotificationType.COMPLIANCE_ALERT) return 'bg-red-50';
+    return 'bg-gray-50';
   };
 
   const formatDate = (dateStr: string): string => {
@@ -226,17 +258,34 @@ export function NotificationsPage() {
       {activeTab === 'notifications' ? (
         <>
           <div className="notifications-actions-bar">
-            <div className="notifications-filters">
-              {filters.map(f => (
-                <button
-                  key={f.key}
-                  className={`filter-btn ${filter === f.key ? 'active' : ''}`}
-                  onClick={() => setFilter(f.key)}
+            <div className="notifications-filters-row">
+              <div className="notifications-filters">
+                {filters.map(f => (
+                  <button
+                    key={f.key}
+                    className={`filter-btn ${filter === f.key ? 'active' : ''}`}
+                    onClick={() => setFilter(f.key)}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="channel-filters">
+                <span className="filter-label">Canale:</span>
+                <select
+                  value={channelFilter}
+                  onChange={(e) => setChannelFilter(e.target.value)}
+                  className="channel-select"
                 >
-                  {f.label}
-                </button>
-              ))}
+                  <option value="in_app">In-App</option>
+                  <option value="email">Email</option>
+                  <option value="push">Push</option>
+                  <option value="all">Tutti</option>
+                </select>
+              </div>
             </div>
+
             <div className="notifications-actions">
               <button
                 className="action-btn"
@@ -302,7 +351,7 @@ export function NotificationsPage() {
                         onChange={() => toggleSelection(notification.id)}
                       />
                     </label>
-                    <div className="notification-icon">
+                    <div className={`notification-icon-wrapper ${getIconBackground(notification.notification_type)}`}>
                       {getNotificationIcon(notification.notification_type)}
                     </div>
                     <div className="notification-content">
@@ -311,9 +360,9 @@ export function NotificationsPage() {
                         <span className="notification-type-badge">
                           {getTypeLabel(notification.notification_type)}
                         </span>
+                        <span className="notification-time ml-auto">{formatDate(notification.created_at)}</span>
                       </div>
                       <p className="notification-message">{notification.message}</p>
-                      <span className="notification-time">{formatDate(notification.created_at)}</span>
                     </div>
                     <div className="notification-actions">
                       {notification.status !== NotificationStatus.READ && (
@@ -509,11 +558,46 @@ export function NotificationsPage() {
           margin-bottom: var(--space-4);
           padding-bottom: var(--space-4);
           border-bottom: 1px solid var(--color-border);
+          flex-wrap: wrap;
+          gap: var(--space-3);
+        }
+
+        .notifications-filters-row {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+            flex-wrap: wrap;
+        }
+
+        .channel-filters {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            padding-left: var(--space-4);
+            border-left: 1px solid var(--color-border);
+        }
+
+        .filter-label {
+            font-size: var(--font-size-sm);
+            color: var(--color-text-secondary);
+            font-weight: 500;
+        }
+
+        .channel-select {
+            padding: var(--space-1) var(--space-3) var(--space-1) var(--space-2);
+            font-size: var(--font-size-sm);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--color-border);
+            background: var(--color-bg-primary);
+            color: var(--color-text-primary);
+            outline: none;
+            cursor: pointer;
         }
 
         .notifications-actions {
           display: flex;
           gap: var(--space-2);
+          margin-left: auto;
         }
 
         .action-btn {
@@ -663,81 +747,69 @@ export function NotificationsPage() {
           cursor: pointer;
         }
 
-        .notification-icon {
-          font-size: 24px;
+        .notification-icon-wrapper {
+          width: 42px;
+          height: 42px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           flex-shrink: 0;
         }
 
         .notification-content {
           flex: 1;
           min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
         }
 
         .notification-top {
           display: flex;
           align-items: center;
           gap: var(--space-2);
-          margin-bottom: var(--space-1);
+          flex-wrap: wrap;
         }
 
         .notification-title {
-          font-weight: 500;
+          font-weight: 600;
           color: var(--color-text-primary);
+          font-size: 15px;
         }
-
-        .notification-type-badge {
-          font-size: var(--font-size-xs);
-          padding: 2px 8px;
-          background: var(--color-bg-tertiary);
-          border-radius: var(--radius-full);
-          color: var(--color-text-secondary);
-        }
-
+        
         .notification-message {
-          font-size: var(--font-size-sm);
+          font-size: 14px;
           color: var(--color-text-secondary);
-          margin: 0 0 var(--space-1);
+          margin: 0;
+          line-height: 1.5;
         }
 
         .notification-time {
           font-size: var(--font-size-xs);
           color: var(--color-text-muted);
+          margin-left: auto;
         }
 
-        .notification-actions {
-          display: flex;
-          gap: var(--space-1);
+        .ml-auto {
+          margin-left: auto;
         }
 
-        .icon-btn {
-          padding: var(--space-1);
-          background: transparent;
-          border: none;
-          border-radius: var(--radius-sm);
-          color: var(--color-text-muted);
-          cursor: pointer;
-          transition: all var(--transition-fast);
-        }
+        /* Utility classes for colors (Tailwind-like) */
+        .text-blue-500 { color: #3b82f6; }
+        .text-indigo-500 { color: #6366f1; }
+        .text-purple-500 { color: #a855f7; }
+        .text-amber-500 { color: #f59e0b; }
+        .text-red-500 { color: #ef4444; }
+        .text-gray-500 { color: #64748b; }
+        
+        .bg-blue-50 { background-color: #eff6ff; }
+        .bg-indigo-50 { background-color: #eef2ff; }
+        .bg-purple-50 { background-color: #faf5ff; }
+        .bg-amber-50 { background-color: #fffbeb; }
+        .bg-red-50 { background-color: #fef2f2; }
+        .bg-gray-50 { background-color: #f8fafc; }
 
-        .icon-btn:hover {
-          background: var(--color-bg-hover);
-          color: var(--color-primary);
-        }
-        
-        /* Settings Styles */
-        .settings-section {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-6);
-        }
-        
-        .settings-card {
-          background: var(--color-bg-primary);
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-lg);
-          padding: var(--space-6);
-        }
-        
         .settings-card h3 {
           margin: 0 0 var(--space-2);
           font-size: var(--font-size-lg);

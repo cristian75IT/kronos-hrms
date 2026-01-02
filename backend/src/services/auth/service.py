@@ -31,6 +31,7 @@ from src.services.auth.schemas import (
     KeycloakSyncResponse,
 )
 from src.shared.schemas import DataTableRequest
+from src.shared.audit_client import get_audit_logger
 
 
 class UserService:
@@ -43,7 +44,9 @@ class UserService:
         self._location_repo = LocationRepository(session)
         self._contract_repo = ContractTypeRepository(session)
         self._schedule_repo = WorkScheduleRepository(session)
+        self._schedule_repo = WorkScheduleRepository(session)
         self._emp_contract_repo = EmployeeContractRepository(session)
+        self._audit = get_audit_logger("auth-service")
 
 
     # ═══════════════════════════════════════════════════════════
@@ -137,6 +140,13 @@ class UserService:
         result = await self._user_repo.deactivate(id)
         if not result:
             raise NotFoundError("User not found", entity_type="User", entity_id=str(id))
+            
+        await self._audit.log_action(
+            action="DEACTIVATE",
+            resource_type="USER",
+            resource_id=str(id),
+            description=f"User deactivated: {id}",
+        )
         return True
 
     # ═══════════════════════════════════════════════════════════
@@ -205,7 +215,7 @@ class UserService:
                         updated += 1
                     else:
                         # Create new user
-                        await self._user_repo.create(
+                        new_user = await self._user_repo.create(
                             keycloak_id=kc_id,
                             email=kc_user.get("email", f"{kc_id}@unknown"),
                             username=kc_user.get("username") or kc_user.get("email", f"{kc_id}@unknown"),
@@ -218,6 +228,15 @@ class UserService:
                             last_sync_at=datetime.utcnow(),
                         )
                         created += 1
+                        
+                        # Log new user creation
+                        await self._audit.log_action(
+                            action="CREATE",
+                            resource_type="USER",
+                            resource_id=str(new_user.id),
+                            description=f"User synced from Keycloak: {new_user.email}",
+                            request_data={"keycloak_id": kc_id, "roles": role_names},
+                        )
                     
                     synced += 1
                     

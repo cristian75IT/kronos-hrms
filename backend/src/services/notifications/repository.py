@@ -15,6 +15,7 @@ from src.services.notifications.models import (
     UserNotificationPreference,
     PushSubscription,
 )
+from src.services.auth.models import User
 from src.shared.schemas import DataTableRequest
 
 
@@ -36,12 +37,16 @@ class NotificationRepository:
         user_id: UUID,
         unread_only: bool = False,
         limit: int = 50,
+        channel: Optional[str] = None,
     ) -> list[Notification]:
         """Get notifications for a user."""
         query = select(Notification).where(Notification.user_id == user_id)
         
         if unread_only:
             query = query.where(Notification.read_at.is_(None))
+            
+        if channel and channel != 'all':
+            query = query.where(Notification.channel == channel)
         
         query = query.order_by(Notification.created_at.desc()).limit(limit)
         result = await self._session.execute(query)
@@ -68,9 +73,14 @@ class NotificationRepository:
         user_id: Optional[UUID] = None,
         notification_type: Optional[str] = None,
         status: Optional[str] = None,
+        channel: Optional[str] = None,
     ) -> list[Notification]:
         """Get notification history with filters."""
-        query = select(Notification).order_by(Notification.created_at.desc())
+        query = (
+            select(Notification, User)
+            .join(User, Notification.user_id == User.id)
+            .order_by(Notification.created_at.desc())
+        )
         
         if user_id:
             query = query.where(Notification.user_id == user_id)
@@ -78,16 +88,25 @@ class NotificationRepository:
             query = query.where(Notification.notification_type == notification_type)
         if status:
             query = query.where(Notification.status == status)
+        if channel and channel != 'all':
+            query = query.where(Notification.channel == channel)
             
         query = query.limit(limit).offset(offset)
         result = await self._session.execute(query)
-        return list(result.scalars().all())
+        
+        items = []
+        for notification, user in result:
+            notification.recipient_name = f"{user.first_name} {user.last_name}"
+            items.append(notification)
+            
+        return items
 
     async def count_history(
         self,
         user_id: Optional[UUID] = None,
         notification_type: Optional[str] = None,
         status: Optional[str] = None,
+        channel: Optional[str] = None,
     ) -> int:
         """Count total notifications matching filters."""
         query = select(func.count(Notification.id))
@@ -98,6 +117,8 @@ class NotificationRepository:
             query = query.where(Notification.notification_type == notification_type)
         if status:
             query = query.where(Notification.status == status)
+        if channel and channel != 'all':
+            query = query.where(Notification.channel == channel)
             
         result = await self._session.execute(query)
         return result.scalar() or 0

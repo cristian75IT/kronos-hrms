@@ -82,6 +82,7 @@ export interface HistoryFilters {
     user_id?: string;
     notification_type?: string;
     status?: string;
+    channel?: string;
 }
 
 const notificationService = {
@@ -96,14 +97,15 @@ const notificationService = {
         if (filters.user_id) queryParams.append('user_id', filters.user_id);
         if (filters.notification_type) queryParams.append('notification_type', filters.notification_type);
         if (filters.status) queryParams.append('status', filters.status);
+        if (filters.channel) queryParams.append('channel', filters.channel);
 
         const response = await api.get<Notification[]>(`/notifications/history?${queryParams.toString()}`);
         return response.data;
     },
 
-    getNotifications: async (unreadOnly = false, limit = 50) => {
+    getNotifications: async (unreadOnly = false, limit = 50, channel?: string) => {
         const response = await api.get<Notification[]>('/notifications', {
-            params: { unread_only: unreadOnly, limit },
+            params: { unread_only: unreadOnly, limit, channel },
         });
         return response.data;
     },

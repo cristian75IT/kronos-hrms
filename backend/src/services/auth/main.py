@@ -38,6 +38,10 @@ app.add_middleware(
 
 app.include_router(router, prefix="/api/v1")
 
+# Add Request Context Middleware (must be after CORS)
+from src.core.middleware import RequestContextMiddleware
+app.add_middleware(RequestContextMiddleware)
+
 
 @app.get("/health")
 async def health_check():

@@ -197,6 +197,7 @@ export function useCreateLeaveRequest() {
         mutationFn: (data: LeaveRequestCreate) => leavesService.createRequest(data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.leaveRequests });
+            queryClient.invalidateQueries({ queryKey: queryKeys.balanceSummary });
         },
     });
 }
@@ -210,6 +211,7 @@ export function useUpdateLeaveRequest() {
         onSuccess: (_, { id }) => {
             queryClient.invalidateQueries({ queryKey: queryKeys.leaveRequest(id) });
             queryClient.invalidateQueries({ queryKey: queryKeys.leaveRequests });
+            queryClient.invalidateQueries({ queryKey: queryKeys.balanceSummary });
         },
     });
 }
@@ -294,6 +296,7 @@ export function useCreateTrip() {
         mutationFn: (data: Partial<BusinessTrip>) => tripsService.createTrip(data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.trips });
+            queryClient.invalidateQueries({ queryKey: queryKeys.pendingTrips });
         },
     });
 }

@@ -31,6 +31,7 @@ from .schemas import (
     CalendarRangeView,
     WorkingDaysResponse,
 )
+from src.shared.audit_client import get_audit_logger
 
 
 class CalendarService:
@@ -38,6 +39,7 @@ class CalendarService:
     
     def __init__(self, db: AsyncSession):
         self.db = db
+        self._audit = get_audit_logger("calendar-service")
     
     # ═══════════════════════════════════════════════════════════
     # USER CALENDARS CRUD
@@ -437,6 +439,14 @@ class CalendarService:
         
         event.status = "cancelled"
         await self.db.commit()
+        
+        await self._audit.log_action(
+            action="DELETE",
+            resource_type="CALENDAR_EVENT",
+            resource_id=str(event_id),
+            description=f"Deleted event {event.title}",
+        )
+        
         return True
     
     # ═══════════════════════════════════════════════════════════

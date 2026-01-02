@@ -38,6 +38,10 @@ app.add_middleware(
 
 app.include_router(router, prefix="/api/v1")
 
+# Add Request Context Middleware
+from src.core.middleware import RequestContextMiddleware
+app.add_middleware(RequestContextMiddleware)
+
 import logging
 import traceback
 from fastapi import Request

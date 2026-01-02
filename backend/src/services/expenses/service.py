@@ -134,6 +134,14 @@ class ExpenseService:
         
         await self._trip_repo.update(id, status=TripStatus.PENDING)
         
+        await self._audit.log_action(
+            user_id=user_id,
+            action="SUBMIT",
+            resource_type="BUSINESS_TRIP",
+            resource_id=str(id),
+            description=f"Submitted trip {trip.title}",
+        )
+        
         # Send notification to approvers
         await self._send_notification(
             user_id=user_id,
@@ -223,6 +231,15 @@ class ExpenseService:
             raise BusinessRuleError("Cannot complete another user's trip")
         
         await self._trip_repo.update(id, status=TripStatus.COMPLETED)
+        
+        await self._audit.log_action(
+            user_id=user_id,
+            action="COMPLETE",
+            resource_type="BUSINESS_TRIP",
+            resource_id=str(id),
+            description=f"Completed trip {trip.title}",
+        )
+        
         return await self.get_trip(id)
 
     async def update_trip_attachment(
@@ -445,6 +462,14 @@ class ExpenseService:
         
         await self._report_repo.update(id, status=ExpenseReportStatus.SUBMITTED)
         
+        await self._audit.log_action(
+            user_id=user_id,
+            action="SUBMIT",
+            resource_type="EXPENSE_REPORT",
+            resource_id=str(id),
+            description=f"Submitted report {report.report_number}",
+        )
+        
         return await self.get_report(id)
 
     async def approve_report(self, id: UUID, approver_id: UUID, data: ApproveReportRequest):
@@ -522,6 +547,14 @@ class ExpenseService:
             status=ExpenseReportStatus.PAID,
             paid_at=datetime.utcnow(),
             payment_reference=data.payment_reference,
+        )
+        
+        await self._audit.log_action(
+            action="MARK_PAID",
+            resource_type="EXPENSE_REPORT",
+            resource_id=str(id),
+            description=f"Marked report {report.report_number} as paid",
+            request_data=data.model_dump(mode="json"),
         )
         
         # Register payment in Wallet

@@ -27,12 +27,27 @@ class AuditLogger:
         request_data: Optional[dict[str, Any]] = None,
         status: str = "SUCCESS",
         error_message: Optional[str] = None,
+        endpoint: Optional[str] = None,
+        http_method: Optional[str] = None,
+        ip_address: Optional[str] = None,
     ) -> None:
         """Log an action to the audit service (fire and forget)."""
         if not self.url or "localhost" in self.url and not settings.is_development:
-             # Basic check, though in docker internal "localhost" is wrong inside containers too unless host mode.
-             # Assuming settings.audit_service_url is correctly set to http://audit-service:8007
              pass
+
+        # Try to fill missing data from context
+        try:
+            from src.core.context import get_request_context
+            ctx = get_request_context()
+            if ctx:
+                if not endpoint:
+                    endpoint = ctx.get("path")
+                if not http_method:
+                    http_method = ctx.get("method")
+                if not ip_address:
+                    ip_address = ctx.get("client_ip")
+        except ImportError:
+            pass
 
         try:
             payload = {
@@ -46,6 +61,9 @@ class AuditLogger:
                 "status": status,
                 "error_message": error_message,
                 "service_name": self.service_name,
+                "endpoint": endpoint,
+                "http_method": http_method,
+                "ip_address": ip_address,
             }
             
             # Using a short timeout to prevent blocking main flow

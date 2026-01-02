@@ -28,6 +28,7 @@ from src.services.notifications.schemas import (
     EmailTemplateCreate,
     EmailTemplateUpdate,
 )
+from src.shared.audit_client import get_audit_logger
 
 
 class NotificationService:
@@ -38,6 +39,7 @@ class NotificationService:
         self._notification_repo = NotificationRepository(session)
         self._template_repo = EmailTemplateRepository(session)
         self._preference_repo = UserPreferenceRepository(session)
+        self._audit_logger = get_audit_logger("notification-service")
 
     # ═══════════════════════════════════════════════════════════
     # Notification Operations
@@ -55,9 +57,10 @@ class NotificationService:
         user_id: UUID,
         unread_only: bool = False,
         limit: int = 50,
+        channel: Optional[str] = None,
     ):
         """Get notifications for a user."""
-        return await self._notification_repo.get_by_user(user_id, unread_only, limit)
+        return await self._notification_repo.get_by_user(user_id, unread_only, limit, channel)
 
     async def get_sent_history(
         self,
@@ -66,6 +69,7 @@ class NotificationService:
         user_id: Optional[UUID] = None,
         notification_type: Optional[str] = None,
         status: Optional[str] = None,
+        channel: Optional[str] = None,
     ):
         """Get history of sent notifications."""
         return await self._notification_repo.get_history(
@@ -74,6 +78,7 @@ class NotificationService:
             user_id=user_id,
             notification_type=notification_type,
             status=status,
+            channel=channel,
         )
 
     async def count_history(
@@ -81,12 +86,14 @@ class NotificationService:
         user_id: Optional[UUID] = None,
         notification_type: Optional[str] = None,
         status: Optional[str] = None,
+        channel: Optional[str] = None,
     ) -> int:
         """Count sent notifications history."""
         return await self._notification_repo.count_history(
             user_id=user_id,
             notification_type=notification_type,
             status=status,
+            channel=channel,
         )
 
     async def count_unread(self, user_id: UUID) -> int:
@@ -132,6 +139,22 @@ class NotificationService:
                 sent_at=datetime.utcnow(),
             )
         
+        # Log to Audit Service
+        await self._audit_logger.log_action(
+            user_id=data.user_id,
+            user_email=data.user_email,
+            action="NOTIFICATION_SENT",
+            resource_type="NOTIFICATION",
+            resource_id=str(notification.id),
+            description=f"Notification sent via {data.channel.value}",
+            request_data={
+                "channel": data.channel.value,
+                "type": data.notification_type.value,
+                "title": data.title
+            },
+            status="SUCCESS"
+        )
+
         return notification
 
     async def mark_read(self, notification_ids: list[UUID], user_id: UUID) -> int:
@@ -223,12 +246,40 @@ class NotificationService:
 
     async def send_email(self, data: SendEmailRequest) -> SendEmailResponse:
         """Send email using Brevo."""
+        # Check API Key first
+        if not settings.brevo_api_key:
+            error_msg = "Brevo API Key is not configured. Please check your settings."
+            
+            await self._audit_logger.log_action(
+                action="EMAIL_FAILED",
+                resource_type="EMAIL",
+                status="FAILURE",
+                error_message=error_msg,
+                description=f"Failed to send email to {data.to_email}: Missing API Key",
+                request_data={"to": data.to_email, "template": data.template_code}
+            )
+            
+            return SendEmailResponse(
+                success=False,
+                error=error_msg,
+            )
+
         # Get template
         template = await self._template_repo.get_by_code(data.template_code)
         if not template:
+            error_msg = f"Template not found: {data.template_code}"
+            
+            await self._audit_logger.log_action(
+                action="EMAIL_FAILED",
+                resource_type="EMAIL",
+                status="FAILURE",
+                error_message=error_msg,
+                description=f"Failed to send email to {data.to_email}: Template not found",
+            )
+            
             return SendEmailResponse(
                 success=False,
-                error=f"Template not found: {data.template_code}",
+                error=error_msg,
             )
         
         try:
@@ -247,6 +298,20 @@ class NotificationService:
                     status=NotificationStatus.SENT,
                     sent_at=datetime.utcnow(),
                 )
+
+            # Audit log success
+            await self._audit_logger.log_action(
+                action="EMAIL_SENT",
+                resource_type="EMAIL",
+                resource_id=result.get("messageId"),
+                status="SUCCESS",
+                description=f"Sent {data.template_code} email to {data.to_email}",
+                request_data={
+                    "to": data.to_email, 
+                    "template": data.template_code,
+                    "variables": data.variables
+                }
+            )
             
             return SendEmailResponse(
                 success=True,
@@ -262,6 +327,15 @@ class NotificationService:
                     error_message=str(e),
                     retry_count=(notification.retry_count or 0) + 1,
                 )
+            
+            # Audit log failure
+            await self._audit_logger.log_action(
+                action="EMAIL_FAILED",
+                resource_type="EMAIL",
+                status="FAILURE",
+                error_message=str(e),
+                description=f"Failed to send email to {data.to_email}",
+            )
             
             return SendEmailResponse(
                 success=False,

@@ -43,6 +43,7 @@ class NotificationResponse(IDMixin, BaseSchema):
     status: NotificationStatus
     sent_at: Optional[datetime] = None
     read_at: Optional[datetime] = None
+    recipient_name: Optional[str] = None
     entity_type: Optional[str] = None
     entity_id: Optional[str] = None
     action_url: Optional[str] = None
@@ -53,6 +54,7 @@ class NotificationListItem(BaseModel):
     """Simplified notification for lists."""
     
     id: UUID
+    recipient_name: Optional[str] = None
     notification_type: NotificationType
     title: str
     message: str
