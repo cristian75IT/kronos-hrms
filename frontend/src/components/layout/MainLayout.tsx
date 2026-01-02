@@ -6,17 +6,17 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 
 export function MainLayout() {
-    return (
-        <div className="app-layout">
-            <Sidebar />
-            <div className="main-content">
-                <Header />
-                <main className="page-content">
-                    <Outlet />
-                </main>
-            </div>
+  return (
+    <div className="app-layout">
+      <Sidebar />
+      <div className="main-content">
+        <Header />
+        <main className="page-content">
+          <Outlet />
+        </main>
+      </div>
 
-            <style>{`
+      <style>{`
         .app-layout {
           min-height: 100vh;
           display: flex;
@@ -36,6 +36,8 @@ export function MainLayout() {
           max-width: var(--content-max-width);
           margin: 0 auto;
           width: 100%;
+          position: relative; 
+          z-index: 1;
         }
 
         @media (max-width: 768px) {
@@ -44,8 +46,8 @@ export function MainLayout() {
           }
         }
       `}</style>
-        </div>
-    );
+    </div>
+  );
 }
 
 export default MainLayout;

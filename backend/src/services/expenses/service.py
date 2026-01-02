@@ -38,7 +38,7 @@ from src.services.expenses.schemas import (
 from src.shared.schemas import DataTableRequest
 from src.shared.storage import storage_manager
 from src.shared.audit_client import get_audit_logger
-from src.shared.clients import AuthClient, ConfigClient, NotificationClient
+from src.shared.clients import AuthClient, ConfigClient, NotificationClient, ExpensiveWalletClient as WalletClient
 
 
 class ExpenseService:
@@ -56,6 +56,7 @@ class ExpenseService:
         self._auth_client = AuthClient()
         self._config_client = ConfigClient()
         self._notifications = NotificationClient()
+        self._wallet_client = WalletClient()
 
     # ═══════════════════════════════════════════════════════════
     # Business Trip Operations
@@ -171,6 +172,17 @@ class ExpenseService:
         
         # Auto-generate daily allowances
         await self.generate_allowances(id)
+        
+        # Initialize Trip Wallet
+        budget = trip.estimated_budget or Decimal(0)
+        try:
+            async with httpx.AsyncClient() as client:
+                # WalletClient has initialize_wallet? No, I added the endpoint but I should add it to the client too.
+                # Actually I'll use the generic create_transaction or status check.
+                # I'll update WalletClient with initialize_wallet method in the next step.
+                await self._wallet_client.initialize_wallet(id, trip.user_id, float(budget))
+        except Exception as e:
+            self._audit.log_error(f"Failed to initialize wallet for trip {id}: {e}")
         
         # Send notification to employee
         await self._send_notification(
@@ -461,6 +473,21 @@ class ExpenseService:
             approver_notes=data.notes,
         )
         
+        # Register in Trip Wallet
+        try:
+            await self._wallet_client.create_transaction(
+                report.trip_id,
+                {
+                    "transaction_type": "expense_approval",
+                    "amount": float(approved_amount),
+                    "reference_id": str(id),
+                    "description": f"Approved expense report {report.report_number}",
+                    "created_by": str(approver_id)
+                }
+            )
+        except Exception as e:
+            self._audit.log_error(f"Failed to register expense in wallet for report {id}: {e}")
+        
         return await self.get_report(id)
 
     async def reject_report(self, id: UUID, approver_id: UUID, data: RejectReportRequest):
@@ -491,6 +518,23 @@ class ExpenseService:
             paid_at=datetime.utcnow(),
             payment_reference=data.payment_reference,
         )
+        
+        # Register payment in Wallet (optional, if we want to track payments)
+        try:
+            # Reimbursing the net amount to the employee
+            amount = report.approved_amount or report.total_amount
+            await self._wallet_client.create_transaction(
+                report.trip_id,
+                {
+                    "transaction_type": "reimbursement_payment",
+                    "amount": float(amount),
+                    "reference_id": str(id),
+                    "description": f"Payment for report {report.report_number}",
+                    "created_by": None # System or Admin
+                }
+            )
+        except Exception as e:
+             self._audit.log_error(f"Failed to register payment in wallet for report {id}: {e}")
         
         return await self.get_report(id)
 

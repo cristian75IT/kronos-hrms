@@ -91,6 +91,12 @@ class Settings(BaseSettings):
     audit_service_url: str = Field(
         default="http://localhost:8007", alias="AUDIT_SERVICE_URL"
     )
+    expensive_wallet_service_url: str = Field(
+        default="http://localhost:8006", alias="EXPENSIVE_WALLET_SERVICE_URL"
+    )
+    leaves_wallet_service_url: str = Field(
+        default="http://localhost:8008", alias="LEAVES_WALLET_SERVICE_URL"
+    )
 
     @computed_field
     @property
@@ -103,6 +109,12 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         """Check if running in production mode."""
         return self.environment == "production"
+
+    @computed_field
+    @property
+    def all_cors_origins(self) -> list[str]:
+        """Get CORS origins."""
+        return ["*"]
 
 
 @lru_cache

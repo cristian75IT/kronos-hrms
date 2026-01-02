@@ -193,3 +193,108 @@ class NotificationClient:
                 )
         except Exception as e:
              logger.error(f"NotificationClient error: {e}")
+
+class LeavesWalletClient:
+    """Client for Leaves Wallet Service (Ferie, ROL, Permessi)."""
+    
+    def __init__(self):
+        self.base_url = settings.leaves_wallet_service_url
+        
+    async def get_wallet(self, user_id: UUID, year: int = None) -> Optional[dict]:
+        """Get user leaves wallet."""
+        try:
+            params = {}
+            if year:
+                params["year"] = year
+            
+            async with httpx.AsyncClient() as client:
+                # Note: The endpoint path might still be /wallets/ for now unless changed in the microservice
+                response = await client.get(
+                    f"{self.base_url}/api/v1/leaves-wallets/{user_id}",
+                    params=params,
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"LeavesWalletClient error get_wallet: {e}")
+        return None
+
+    async def create_transaction(self, user_id: UUID, data: dict) -> Optional[dict]:
+        """Create a wallet transaction."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/leaves-wallets/{user_id}/transactions",
+                    json=data,
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"LeavesWalletClient error create_transaction: {e}")
+        return None
+
+    async def get_transactions(self, identifier: UUID) -> list:
+        """Get wallet transactions by wallet_id."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/leaves-wallets/transactions/{identifier}",
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"LeavesWalletClient error get_transactions: {e}")
+        return []
+
+class ExpensiveWalletClient:
+    """Client for NEW Trips Expense Wallet Service (Trasferte)."""
+    
+    def __init__(self):
+        self.base_url = settings.expensive_wallet_service_url
+        
+    async def get_status(self, trip_id: UUID) -> Optional[dict]:
+        """Get expensive wallet status for a trip."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/expensive-wallets/{trip_id}",
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"ExpensiveWalletClient error get_status: {e}")
+        return None
+
+    async def create_transaction(self, trip_id: UUID, data: dict) -> Optional[dict]:
+        """Create a travel wallet transaction (advance, expense, refund)."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/expensive-wallets/{trip_id}/transactions",
+                    json=data,
+                    timeout=5.0
+                )
+                if response.status_code == 201:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"ExpensiveWalletClient error create_transaction: {e}")
+        return None
+
+    async def initialize_wallet(self, trip_id: UUID, user_id: UUID, budget: float) -> Optional[dict]:
+        """Initialize wallet for a trip."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/expensive-wallets/initialize/{trip_id}",
+                    params={"user_id": str(user_id), "budget": budget},
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"ExpensiveWalletClient error initialize_wallet: {e}")
+        return None

@@ -4,7 +4,7 @@ from uuid import UUID
 
 from src.core.database import get_db
 from src.core.security import get_current_user, TokenPayload
-from src.shared.clients import ConfigClient
+from src.shared.clients import ConfigClient, LeavesWalletClient as WalletClient
 from src.services.leaves.calendar_utils import CalendarUtils
 
 from src.services.leaves.service import LeaveService
@@ -22,7 +22,7 @@ async def get_leave_service(
 async def get_balance_service(
     session: AsyncSession = Depends(get_db),
 ) -> LeaveBalanceService:
-    return LeaveBalanceService(session)
+    return LeaveBalanceService(session, WalletClient())
 
 async def get_calendar_service(
     session: AsyncSession = Depends(get_db),
@@ -37,7 +37,7 @@ async def get_report_service(
 async def get_accrual_service(
     session: AsyncSession = Depends(get_db),
 ) -> AccrualService:
-    return AccrualService(session)
+    return AccrualService(session, WalletClient())
 
 
 async def get_current_user_id(

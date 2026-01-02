@@ -61,20 +61,23 @@ class LeaveService:
         self._session = session
         self._request_repo = LeaveRequestRepository(session)
 
-        self._balance_repo = LeaveBalanceRepository(session)
+
         self._audit = get_audit_logger("leave-service")
         
         # Shared Clients
+        from src.shared.clients import AuthClient, ConfigClient, NotificationClient, LeavesWalletClient as WalletClient
         self._auth_client = AuthClient()
         self._config_client = ConfigClient()
+        self._wallet_client = WalletClient()
+
         self._notifier = LeaveNotificationHandler()
         self._calendar_utils = CalendarUtils(self._config_client)
-        self._balance_service = LeaveBalanceService(session)
+        self._balance_service = LeaveBalanceService(session, self._wallet_client)
         
         self._policy_engine = PolicyEngine(
             session,
             self._request_repo,
-            self._balance_repo,
+            self._balance_service,
             config_client=self._config_client,
         )
 

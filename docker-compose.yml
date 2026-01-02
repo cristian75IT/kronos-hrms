@@ -89,10 +89,9 @@ services:
       - REDIS_URL=redis://redis:6379/1
       - AUTH_SERVICE_URL=http://auth-service:8001
       - CONFIG_SERVICE_URL=http://config-service:8004
-      - AUTH_SERVICE_URL=http://auth-service:8001
       - AUDIT_SERVICE_URL=http://audit-service:8007
-      - CONFIG_SERVICE_URL=http://config-service:8004
       - NOTIFICATION_SERVICE_URL=http://notification-service:8005
+      - LEAVES_WALLET_SERVICE_URL=http://leaves-wallet-service:8008
       - KEYCLOAK_URL=http://keycloak:8080/
       - KEYCLOAK_REALM=kronos
       - KEYCLOAK_CLIENT_ID=kronos-backend
@@ -124,13 +123,11 @@ services:
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=kronos
       - MINIO_SECRET_KEY=kronos_dev
-      - MINIO_SECRET_KEY=kronos_dev
       - AUTH_SERVICE_URL=http://auth-service:8001
       - CONFIG_SERVICE_URL=http://config-service:8004
-      - AUTH_SERVICE_URL=http://auth-service:8001
       - AUDIT_SERVICE_URL=http://audit-service:8007
-      - CONFIG_SERVICE_URL=http://config-service:8004
       - NOTIFICATION_SERVICE_URL=http://notification-service:8005
+      - EXPENSIVE_WALLET_SERVICE_URL=http://expensive-wallet-service:8006
       - KEYCLOAK_URL=http://keycloak:8080/
       - KEYCLOAK_REALM=kronos
       - KEYCLOAK_CLIENT_ID=kronos-backend
@@ -159,6 +156,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://kronos:kronos_dev@postgres:5432/kronos
       - DATABASE_SCHEMA=config
       - REDIS_URL=redis://redis:6379/3
+      - AUTH_SERVICE_URL=http://auth-service:8001
       - KEYCLOAK_URL=http://keycloak:8080/
       - KEYCLOAK_REALM=kronos
       - KEYCLOAK_CLIENT_ID=kronos-backend
@@ -194,6 +192,64 @@ services:
       - KEYCLOAK_CLIENT_ID=kronos-backend
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
     command: uvicorn src.services.notifications.main:app --host 0.0.0.0 --port 8005 --reload
+    volumes:
+      - ./backend:/app
+    networks:
+      - kronos-internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  expensive-wallet-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kronos-expensive-wallet
+    environment:
+      - SERVICE_NAME=expensive-wallet-service
+      - DATABASE_URL=postgresql+asyncpg://kronos:kronos_dev@postgres:5432/kronos
+      - DATABASE_SCHEMA=wallet
+      - REDIS_URL=redis://redis:6379/10
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - KEYCLOAK_URL=http://keycloak:8080/
+      - KEYCLOAK_REALM=kronos
+      - KEYCLOAK_CLIENT_ID=kronos-backend
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    ports:
+      - "8006:8006"
+    command: uvicorn src.services.expensive_wallet.main:app --host 0.0.0.0 --port 8006 --reload
+    volumes:
+      - ./backend:/app
+    networks:
+      - kronos-internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  leaves-wallet-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kronos-leaves-wallet
+    environment:
+      - SERVICE_NAME=leaves-wallet-service
+      - DATABASE_URL=postgresql+asyncpg://kronos:kronos_dev@postgres:5432/kronos
+      - DATABASE_SCHEMA=time_wallet
+      - REDIS_URL=redis://redis:6379/6
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - KEYCLOAK_URL=http://keycloak:8080/
+      - KEYCLOAK_REALM=kronos
+      - KEYCLOAK_CLIENT_ID=kronos-backend
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    ports:
+      - "8008:8008"
+    command: uvicorn src.services.leaves_wallet.main:app --host 0.0.0.0 --port 8008 --reload
     volumes:
       - ./backend:/app
     networks:

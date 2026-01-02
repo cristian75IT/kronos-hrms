@@ -43,8 +43,8 @@ export function CalendarPage() {
         showNationalHolidays: true,
         showLocalHolidays: true,
         showCompanyClosures: true,
-        showTeamLeaves: false,
-        teamScope: 'department',
+        showTeamLeaves: true,
+        teamScope: 'company',
     });
     useAuth();
 
@@ -62,16 +62,16 @@ export function CalendarPage() {
         // Leave events (own)
         const leaveEvents = (calendarData.events || []).map(event => {
             const status = event.extendedProps?.status || 'default';
-            let statusColorClass = '!bg-blue-500 !text-white';
+            let statusColorClass = '!bg-blue-600 !text-white !font-medium';
 
-            if (status === 'approved') statusColorClass = '!bg-emerald-500 !text-white';
-            else if (status === 'pending') statusColorClass = '!bg-amber-500 !text-white';
-            else if (status === 'rejected') statusColorClass = '!bg-red-500 !text-white';
+            if (status === 'approved') statusColorClass = '!bg-emerald-600 !text-white !font-medium';
+            else if (status === 'pending') statusColorClass = '!bg-amber-400 !text-amber-900 !font-medium';
+            else if (status === 'rejected') statusColorClass = '!bg-red-600 !text-white !font-medium';
 
             return {
                 ...event,
                 allDay: true,
-                classNames: [statusColorClass, 'leave-event'],
+                classNames: [statusColorClass, 'leave-event', 'shadow-sm', 'border-0'],
             };
         });
         result.push(...leaveEvents);
@@ -92,7 +92,11 @@ export function CalendarPage() {
                     end: holiday.end,
                     allDay: true,
                     // Use standard display instead of background to ensure title is shown
-                    classNames: ['holiday-event', isNational ? 'national' : 'local', isNational ? '!bg-red-50 !text-red-700 !border-red-200' : '!bg-orange-50 !text-orange-700 !border-orange-200'],
+                    classNames: ['holiday-event', isNational ? 'national' : 'local',
+                        isNational
+                            ? '!bg-red-100 !text-red-900 !border-red-200 !font-medium'
+                            : '!bg-orange-100 !text-orange-900 !border-orange-200 !font-medium'
+                    ],
                     extendedProps: { ...holiday.extendedProps, type: 'holiday' },
                 };
             });
@@ -109,8 +113,8 @@ export function CalendarPage() {
                 allDay: true,
                 // Use standard display to ensure title is shown
                 classNames: ['closure-event', closure.extendedProps?.closure_type || 'total', closure.extendedProps?.closure_type === 'total'
-                    ? '!bg-purple-50 !text-purple-700 !border-purple-200'
-                    : '!bg-purple-50/50 !text-purple-600 !border-purple-100'],
+                    ? '!bg-purple-100 !text-purple-900 !border-purple-200 !font-medium'
+                    : '!bg-purple-50 !text-purple-800 !border-purple-200 !font-medium'],
                 extendedProps: { ...closure.extendedProps, type: 'closure' },
             }));
             result.push(...closures);
@@ -120,15 +124,16 @@ export function CalendarPage() {
         if (filters.showTeamLeaves && (calendarData as any).teamEvents) {
             const teamEvents = ((calendarData as any).teamEvents || []).map((event: CalendarEvent) => {
                 const status = event.extendedProps?.status || 'default';
-                let statusColorClass = '!bg-blue-400 !text-white';
+                // Using lighter backgrounds with dark text for team events to differentiate from own leaves
+                let statusColorClass = '!bg-blue-100 !text-blue-900 !border-blue-200 !font-medium';
 
-                if (status === 'approved') statusColorClass = '!bg-emerald-400/80 !text-white';
-                else if (status === 'pending') statusColorClass = '!bg-amber-400/80 !text-white';
+                if (status === 'approved') statusColorClass = '!bg-emerald-100 !text-emerald-900 !border-emerald-200 !font-medium';
+                else if (status === 'pending') statusColorClass = '!bg-amber-100 !text-amber-900 !border-amber-200 !font-medium';
 
                 return {
                     ...event,
                     title: `${event.userName || 'Collega'} - Assente`,
-                    classNames: ['team-leave-event', statusColorClass],
+                    classNames: ['team-leave-event', statusColorClass, 'border'],
                 };
             });
             result.push(...teamEvents);

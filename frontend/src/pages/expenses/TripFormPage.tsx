@@ -74,7 +74,7 @@ export function TripFormPage() {
     return (
         <div className="max-w-2xl mx-auto animate-fadeIn pb-8">
             <div className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-900 mb-1">Nuova Trasferta</h1>
+                <h1 className="text-2xl font-bold text-gray-900 mb-1 mt-2">Nuova Trasferta</h1>
                 <p className="text-gray-500">Richiedi l'autorizzazione per una nuova missione.</p>
             </div>
 

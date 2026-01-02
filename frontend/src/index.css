@@ -1487,7 +1487,14 @@ input[type="number"].input {
   border-radius: 4px !important;
   padding: 2px 6px !important;
   font-size: 0.75rem !important;
-  font-weight: 500;
+  font-weight: 600 !important;
+}
+
+/* Ensure text color set by Tailwind classes overrides FullCalendar defaults */
+.fc-event .fc-event-main,
+.fc-event .fc-event-title,
+.fc-event .fc-event-time {
+  color: inherit !important;
 }
 
 .holiday-event,
@@ -1496,6 +1503,5 @@ input[type="number"].input {
 }
 
 .team-leave-event {
-  opacity: 0.85;
   border-left: 3px solid #3b82f6 !important;
 }
