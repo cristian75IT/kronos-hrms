@@ -1,10 +1,10 @@
 """KRONOS Expense Service - Business Logic."""
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, time
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Any
 from uuid import UUID
 
-import httpx
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
@@ -38,6 +38,7 @@ from src.services.expenses.schemas import (
 from src.shared.schemas import DataTableRequest
 from src.shared.storage import storage_manager
 from src.shared.audit_client import get_audit_logger
+from src.shared.clients import AuthClient, ConfigClient, NotificationClient
 
 
 class ExpenseService:
@@ -50,6 +51,11 @@ class ExpenseService:
         self._report_repo = ExpenseReportRepository(session)
         self._item_repo = ExpenseItemRepository(session)
         self._audit = get_audit_logger("expense-service")
+        
+        # Shared Clients
+        self._auth_client = AuthClient()
+        self._config_client = ConfigClient()
+        self._notifications = NotificationClient()
 
     # ═══════════════════════════════════════════════════════════
     # Business Trip Operations
@@ -632,19 +638,10 @@ class ExpenseService:
 
     async def _get_expense_type(self, expense_type_id: UUID) -> Optional[dict]:
         """Get expense type from config service."""
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{settings.config_service_url}/api/v1/expense-types",
-                    timeout=5.0,
-                )
-                if response.status_code == 200:
-                    types = response.json()
-                    for t in types:
-                        if t.get("id") == str(expense_type_id):
-                            return t
-        except Exception:
-            pass
+        types = await self._config_client.get_expense_types()
+        for t in types:
+            if t.get("id") == str(expense_type_id):
+                return t
         return None
 
     async def _send_notification(
@@ -657,41 +654,16 @@ class ExpenseService:
         entity_id: str = None,
     ) -> None:
         """Send notification via notification-service."""
-        try:
-            # Get user email from auth service
-            user_email = await self._get_user_email(user_id)
-            if not user_email:
-                return
-            
-            async with httpx.AsyncClient() as client:
-                await client.post(
-                    f"{settings.notification_service_url}/api/v1/notifications",
-                    json={
-                        "user_id": str(user_id),
-                        "user_email": user_email,
-                        "notification_type": notification_type,
-                        "title": title,
-                        "message": message,
-                        "channel": "in_app",
-                        "entity_type": entity_type,
-                        "entity_id": entity_id,
-                    },
-                    timeout=5.0,
-                )
-        except Exception:
-            # Notifications are not critical - fail silently
-            pass
+        await self._notifications.send_notification(
+            user_id=user_id,
+            notification_type=notification_type,
+            title=title,
+            message=message,
+            entity_type=entity_type,
+            entity_id=entity_id
+        )
 
     async def _get_user_email(self, user_id: UUID) -> Optional[str]:
         """Get user email from auth service."""
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{settings.auth_service_url}/api/v1/users/{user_id}",
-                    timeout=5.0,
-                )
-                if response.status_code == 200:
-                    return response.json().get("email")
-        except Exception:
-            pass
+        return await self._auth_client.get_user_email(user_id)
         return None

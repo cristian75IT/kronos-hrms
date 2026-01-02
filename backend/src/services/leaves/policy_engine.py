@@ -12,6 +12,7 @@ from src.core.exceptions import BusinessRuleError, InsufficientBalanceError
 from src.services.leaves.schemas import PolicyValidationResult
 from src.services.leaves.models import LeaveRequestStatus
 from src.services.leaves.repository import LeaveRequestRepository, LeaveBalanceRepository
+from src.shared.clients import ConfigClient
 
 
 class PolicyEngine:
@@ -25,10 +26,12 @@ class PolicyEngine:
         session: AsyncSession,
         leave_request_repo: LeaveRequestRepository,
         balance_repo: LeaveBalanceRepository,
+        config_client: Optional[ConfigClient] = None,
     ) -> None:
         self._session = session
         self._request_repo = leave_request_repo
         self._balance_repo = balance_repo
+        self._config_client = config_client or ConfigClient()
         self._config_cache: dict = {}
 
     async def _get_config(self, key: str, default: any = None) -> any:
@@ -36,18 +39,13 @@ class PolicyEngine:
         if key in self._config_cache:
             return self._config_cache[key]
         
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{settings.config_service_url}/api/v1/config/{key}",
-                    timeout=5.0,
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    self._config_cache[key] = data.get("value", default)
-                    return self._config_cache[key]
-        except Exception:
-            pass
+        value = await self._config_client.get_sys_config(key, default)
+        # Note: If value matches default passed to get_sys_config (which handles logging), we cache it too?
+        # My ConfigClient.get_sys_config returns data.get("value", default)
+        
+        if value is not None:
+            self._config_cache[key] = value
+            return value
         
         return default
 
@@ -57,18 +55,10 @@ class PolicyEngine:
         if cache_key in self._config_cache:
             return self._config_cache[cache_key]
         
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{settings.config_service_url}/api/v1/leave-types/{leave_type_id}",
-                    timeout=5.0,
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    self._config_cache[cache_key] = data
-                    return data
-        except Exception:
-            pass
+        data = await self._config_client.get_leave_type(leave_type_id)
+        if data:
+            self._config_cache[cache_key] = data
+            return data
         
         return None
 
