@@ -13,6 +13,8 @@ from src.services.expenses.models import (
     TripStatus,
     ExpenseReportStatus,
     DestinationType,
+    TripAttachment,
+    ReportAttachment,
 )
 from src.services.expenses.repository import (
     BusinessTripRepository,
@@ -205,11 +207,25 @@ class ExpenseService:
         if not path:
             raise BusinessRuleError("Failed to upload file to storage")
             
-        # Optional: delete old file
-        if trip.attachment_path:
-            storage_manager.delete_file(trip.attachment_path)
+        if not path:
+            raise BusinessRuleError("Failed to upload file to storage")
             
-        return await self._trip_repo.update(id, attachment_path=path)
+        # Create attachment record
+        attachment = TripAttachment(
+            trip_id=id,
+            file_path=path,
+            filename=filename,
+            content_type=content_type,
+            size_bytes=len(content),
+        )
+        self._session.add(attachment)
+        
+        # Update legacy path for compatibility
+        trip.attachment_path = path
+        
+        await self._session.commit()
+        await self._session.refresh(trip)
+        return trip
 
     # ═══════════════════════════════════════════════════════════
     # Daily Allowance Operations
@@ -461,11 +477,25 @@ class ExpenseService:
         if not path:
             raise BusinessRuleError("Failed to upload file to storage")
             
-        # Optional: delete old file
-        if report.attachment_path:
-            storage_manager.delete_file(report.attachment_path)
+        if not path:
+            raise BusinessRuleError("Failed to upload file to storage")
             
-        return await self._report_repo.update(id, attachment_path=path)
+        # Create attachment record
+        attachment = ReportAttachment(
+            report_id=id,
+            file_path=path,
+            filename=filename,
+            content_type=content_type,
+            size_bytes=len(content),
+        )
+        self._session.add(attachment)
+        
+        # Update legacy path for compatibility
+        report.attachment_path = path
+        
+        await self._session.commit()
+        await self._session.refresh(report)
+        return report
 
     # ═══════════════════════════════════════════════════════════
     # Expense Item Operations

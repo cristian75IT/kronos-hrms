@@ -56,8 +56,15 @@ Documentazione tecnica per agenti AI (Antigravity) per implementare il sistema i
 | 6 | **Clean Architecture** | Router → Service → Repository → Model |
 | 7 | **Type Safety** | Type hints obbligatori, Pydantic |
 | 8 | **Async First** | SQLAlchemy 2.0 async, FastAPI async |
+| 9 | **Identity Resolution** | `keycloak_id` → `internal_id` via auth service |
 
 ---
+
+## 📝 Changelog
+
+| Data | Versione | Descrizione |
+|------|----------|-------------|
+| 2026-01-01 | v1.1.0 | [Identity Resolution, Bug Fixes](./CHANGELOG-2026-01-01.md) |
 
 ## ⚡ Quick Start per Agenti
 

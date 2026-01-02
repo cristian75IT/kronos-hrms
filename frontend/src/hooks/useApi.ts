@@ -74,6 +74,13 @@ export function usePendingApprovals() {
     });
 }
 
+export function useApprovalHistory(params?: { status?: string; year?: number; limit?: number }) {
+    return useQuery({
+        queryKey: ['approvalHistory', params],
+        queryFn: () => leavesService.getApprovalHistory(params),
+    });
+}
+
 export function useLeaveBalance(year?: number) {
     return useQuery({
         queryKey: queryKeys.leaveBalance(year),

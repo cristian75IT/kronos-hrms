@@ -7,6 +7,88 @@
 - **Database isolation** tramite PostgreSQL schemas
 - **SSO esterno** (Keycloak) per simulare ambiente produzione
 - **Audit completo** (Log + Trail) su tutte le operazioni
+- **Identity Resolution** centralizzata per consistenza cross-service
+
+---
+
+## 🔐 Identity Resolution Architecture
+
+### Problema
+I sistemi con SSO esterno hanno due identificatori per ogni utente:
+- **External ID** (Keycloak `sub`): UUID nel token JWT
+- **Internal ID** (Database `id`): UUID nel database locale
+
+### Soluzione Enterprise
+La risoluzione avviene **una sola volta** per request, nel security layer:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         REQUEST FLOW                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  JWT Token                  get_current_user()              Business Logic   │
+│  ┌───────────────┐          ┌──────────────────┐          ┌────────────────┐│
+│  │ sub: e393d52a │ ───────► │ Auth Service     │ ───────► │ token.user_id  ││
+│  │ (keycloak_id) │          │ GET /by-keycloak │          │ = 6d50491b     ││
+│  └───────────────┘          │ {keycloak_id}    │          │ (internal)     ││
+│                             └──────────────────┘          └────────────────┘│
+│                                      │                                       │
+│                                      ▼                                       │
+│                             ┌──────────────────┐                            │
+│                             │ TokenPayload     │                            │
+│                             │ .internal_user_id│                            │
+│                             │ .user_id (prop)  │                            │
+│                             └──────────────────┘                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Implementazione
+
+**1. TokenPayload esteso** (`src/core/security.py`):
+```python
+class TokenPayload(BaseModel):
+    sub: str  # Keycloak ID (external)
+    internal_user_id: Optional[UUID] = None  # Resolved internal ID
+    
+    @property
+    def user_id(self) -> UUID:
+        """Use this for all database operations."""
+        if self.internal_user_id is None:
+            raise ValueError("Use get_current_user dependency")
+        return self.internal_user_id
+```
+
+**2. Dependency get_current_user**:
+```python
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> TokenPayload:
+    payload = await decode_token(token)
+    
+    # Resolve keycloak_id → internal_id via auth service
+    response = await httpx.get(
+        f"{AUTH_SERVICE_URL}/api/v1/users/by-keycloak/{payload.keycloak_id}"
+    )
+    payload.internal_user_id = UUID(response.json()["id"])
+    
+    return payload
+```
+
+**3. Uso nei router**:
+```python
+# ✅ CORRETTO: usa get_current_user
+@router.get("/leaves")
+async def get_leaves(token: TokenPayload = Depends(get_current_user)):
+    user_id = token.user_id  # ID interno, consistente
+
+# ❌ ERRATO: usa keycloak_id direttamente  
+user_id = UUID(token.keycloak_id)  # Mai fare questo!
+```
+
+### Endpoint Auth Service
+
+```
+GET /api/v1/users/by-keycloak/{keycloak_id}
+```
+Restituisce l'utente con tutte le relazioni (profile, location, etc.) date un keycloak_id.
 
 ---
 

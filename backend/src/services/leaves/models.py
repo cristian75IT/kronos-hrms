@@ -100,9 +100,12 @@ class LeaveRequest(Base):
     condition_accepted: Mapped[Optional[bool]] = mapped_column(Boolean)
     condition_accepted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     
-    # Recall (for approved requests)
+    # Recall (for approved requests with RIC condition)
     recalled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     recall_reason: Mapped[Optional[str]] = mapped_column(Text)
+    days_used_before_recall: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))  # Days actually used
+    recall_date: Mapped[Optional[date]] = mapped_column(Date)  # Day of recall (first day back at work)
+
     
     # Sickness specific
     protocol_number: Mapped[Optional[str]] = mapped_column(String(50))  # INPS protocol
@@ -223,8 +226,9 @@ class LeaveBalance(Base):
     
     @property
     def vacation_available_ac(self) -> Decimal:
-        """Available vacation days from current year (accrued only)."""
+        """Available vacation days from current year (accrued + adjustments)."""
         return self.vacation_accrued - self.vacation_used_ac
+
     
     @property
     def vacation_available_total(self) -> Decimal:

@@ -16,6 +16,7 @@ from sqlalchemy import (
     String,
     Text,
     func,
+    BigInteger,
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -118,6 +119,10 @@ class BusinessTrip(Base):
         cascade="all, delete-orphan",
     )
     expense_reports: Mapped[list["ExpenseReport"]] = relationship(
+        back_populates="trip",
+        cascade="all, delete-orphan",
+    )
+    attachments: Mapped[list["TripAttachment"]] = relationship(
         back_populates="trip",
         cascade="all, delete-orphan",
     )
@@ -237,6 +242,10 @@ class ExpenseReport(Base):
         back_populates="report",
         cascade="all, delete-orphan",
     )
+    attachments: Mapped[list["ReportAttachment"]] = relationship(
+        back_populates="report",
+        cascade="all, delete-orphan",
+    )
 
 
 class ExpenseItem(Base):
@@ -291,3 +300,65 @@ class ExpenseItem(Base):
     
     # Relationship
     report: Mapped["ExpenseReport"] = relationship(back_populates="items")
+
+
+class TripAttachment(Base):
+    """Attachment for a business trip."""
+    
+    __tablename__ = "trip_attachments"
+    __table_args__ = {"schema": "expenses"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    trip_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("expenses.business_trips.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    
+    file_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    
+    # Relationship
+    trip: Mapped["BusinessTrip"] = relationship(back_populates="attachments")
+
+
+class ReportAttachment(Base):
+    """Attachment for an expense report."""
+    
+    __tablename__ = "report_attachments"
+    __table_args__ = {"schema": "expenses"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    report_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("expenses.expense_reports.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    
+    file_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    
+    # Relationship
+    report: Mapped["ExpenseReport"] = relationship(back_populates="attachments")

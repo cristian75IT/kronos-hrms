@@ -18,7 +18,9 @@ import {
     Ban,
     Sunrise,
     Building,
+    Phone,
 } from 'lucide-react';
+
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import {
@@ -122,8 +124,8 @@ function ExcludedDaysSection({ startDate, endDate }: { startDate: string; endDat
                         <div className="flex items-center gap-2">
                             <span className="text-gray-500">{day.name}</span>
                             <span className={`px-2 py-0.5 rounded text-xs font-medium ${day.reason === 'weekend' ? 'bg-gray-200 text-gray-600' :
-                                    day.reason === 'holiday' ? 'bg-amber-100 text-amber-700' :
-                                        'bg-blue-100 text-blue-700'
+                                day.reason === 'holiday' ? 'bg-amber-100 text-amber-700' :
+                                    'bg-blue-100 text-blue-700'
                                 }`}>
                                 {getReasonLabel(day.reason)}
                             </span>
@@ -154,6 +156,19 @@ export function LeaveDetailPage() {
     const [rejectReason, setRejectReason] = useState('');
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
+    const [showConditionalModal, setShowConditionalModal] = useState(false);
+    const [conditionType, setConditionType] = useState<string>('RIC');
+    const [conditionDetails, setConditionDetails] = useState('');
+    const [showApproveModal, setShowApproveModal] = useState(false);
+    const [approverNotes, setApproverNotes] = useState('');
+    const [showRevokeModal, setShowRevokeModal] = useState(false);
+    const [revokeReason, setRevokeReason] = useState('');
+    const [showReopenModal, setShowReopenModal] = useState(false);
+    const [reopenNotes, setReopenNotes] = useState('');
+    const [showRecallModal, setShowRecallModal] = useState(false);
+    const [recallReason, setRecallReason] = useState('');
+    const [recallDate, setRecallDate] = useState('');
+
 
     // Find the specific leave request
     const leave = leaves?.find(l => l.id === id);
@@ -210,10 +225,12 @@ export function LeaveDetailPage() {
         if (!id) return;
         setActionLoading('approve');
         approveMutation.mutate(
-            { id, notes: '' },
+            { id, notes: approverNotes },
             {
                 onSuccess: () => {
                     toast.success('Richiesta approvata');
+                    setShowApproveModal(false);
+                    setApproverNotes('');
                     refetch(); // Update local list
                     setActionLoading(null);
                 },
@@ -224,6 +241,7 @@ export function LeaveDetailPage() {
             }
         );
     };
+
 
     const handleReject = () => {
         if (!id || !rejectReason.trim()) return;
@@ -244,6 +262,71 @@ export function LeaveDetailPage() {
                 }
             }
         );
+    };
+
+    const handleConditionalApprove = async () => {
+        if (!id || !conditionDetails.trim()) return;
+        setActionLoading('conditional');
+        try {
+            await leavesService.approveConditional(id, conditionType, conditionDetails);
+            toast.success('Richiesta approvata con condizioni');
+            setShowConditionalModal(false);
+            setConditionDetails('');
+            refetch();
+        } catch (error: any) {
+            toast.error(formatApiError(error));
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleRevoke = async () => {
+        if (!id || !revokeReason.trim()) return;
+        setActionLoading('revoke');
+        try {
+            await leavesService.revokeApproval(id, revokeReason);
+            toast.success('Approvazione revocata');
+            setShowRevokeModal(false);
+            setRevokeReason('');
+            refetch();
+        } catch (error: any) {
+            toast.error(formatApiError(error));
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleReopen = async () => {
+        if (!id) return;
+        setActionLoading('reopen');
+        try {
+            await leavesService.reopenRequest(id, reopenNotes || undefined);
+            toast.success('Richiesta riaperta');
+            setShowReopenModal(false);
+            setReopenNotes('');
+            refetch();
+        } catch (error: any) {
+            toast.error(formatApiError(error));
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleRecall = async () => {
+        if (!id || !recallReason.trim() || !recallDate) return;
+        setActionLoading('recall');
+        try {
+            await leavesService.recallRequest(id, recallReason, recallDate);
+            toast.success('Dipendente richiamato in servizio');
+            setShowRecallModal(false);
+            setRecallReason('');
+            setRecallDate('');
+            refetch();
+        } catch (error: any) {
+            toast.error(formatApiError(error));
+        } finally {
+            setActionLoading(null);
+        }
     };
 
     if (isLoading) {
@@ -565,11 +648,21 @@ export function LeaveDetailPage() {
                                 <>
                                     <button
                                         className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-                                        onClick={handleApprove}
+                                        onClick={() => setShowApproveModal(true)}
+                                        disabled={actionLoading !== null}
+
+                                    >
+                                        <CheckCircle size={18} />
+                                        Approva
+                                    </button>
+
+                                    <button
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                        onClick={() => setShowConditionalModal(true)}
                                         disabled={actionLoading !== null}
                                     >
-                                        {actionLoading === 'approve' ? <Loader size={18} className="animate-spin" /> : <CheckCircle size={18} />}
-                                        Approva
+                                        <AlertCircle size={18} />
+                                        Approva con Condizioni
                                     </button>
                                     <button
                                         className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
@@ -581,13 +674,50 @@ export function LeaveDetailPage() {
                                     </button>
                                 </>
                             )}
-                            {(leave.status === 'approved' || leave.status === 'rejected' || leave.status === 'cancelled') && (
+
+                            {/* Revoke approved request (approver only, before start date) */}
+                            {(leave.status === 'approved' || leave.status === 'approved_conditional') && isApprover && (
+                                <>
+                                    <button
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                        onClick={() => setShowRevokeModal(true)}
+                                        disabled={actionLoading !== null}
+                                    >
+                                        <Ban size={18} />
+                                        Revoca Approvazione
+                                    </button>
+                                    <button
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                        onClick={() => setShowRecallModal(true)}
+                                        disabled={actionLoading !== null}
+                                    >
+                                        <Phone size={18} />
+                                        Richiama in Servizio
+                                    </button>
+                                </>
+                            )}
+
+                            {/* Reopen rejected/cancelled request (approver only, before start date) */}
+                            {(leave.status === 'rejected' || leave.status === 'cancelled') && isApprover && (
+                                <button
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                    onClick={() => setShowReopenModal(true)}
+                                    disabled={actionLoading !== null}
+                                >
+                                    <History size={18} />
+                                    Riapri Richiesta
+                                </button>
+                            )}
+
+                            {/* No actions for non-approvers on processed requests */}
+                            {(leave.status === 'approved' || leave.status === 'rejected' || leave.status === 'cancelled') && !isApprover && (
                                 <p className="text-center text-sm text-gray-500 italic">
                                     Nessuna azione disponibile per questa richiesta.
                                 </p>
                             )}
                         </div>
                     </div>
+
 
                     {/* Summary Card */}
                     <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
@@ -620,7 +750,46 @@ export function LeaveDetailPage() {
                 </div>
             </div>
 
-            {/* Reject Modal */}
+            {/* Approve Modal */}
+            {showApproveModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn" onClick={() => setShowApproveModal(false)}>
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-scaleIn" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-emerald-50">
+                            <h3 className="font-bold text-gray-900">Approva Richiesta</h3>
+                            <button className="text-gray-400 hover:text-gray-600 p-1" onClick={() => setShowApproveModal(false)}>
+                                <XCircle size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-gray-700">Note (opzionale)</label>
+                                <textarea
+                                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm min-h-[100px] resize-y"
+                                    placeholder="Aggiungi eventuali note per il dipendente..."
+                                    value={approverNotes}
+                                    onChange={(e) => setApproverNotes(e.target.value)}
+                                    rows={4}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3 p-4 bg-gray-50 border-t border-gray-100">
+                            <button className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" onClick={() => setShowApproveModal(false)}>
+                                Annulla
+                            </button>
+                            <button
+                                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                                onClick={handleApprove}
+                                disabled={actionLoading === 'approve'}
+                            >
+                                {actionLoading === 'approve' ? <Loader size={16} className="animate-spin" /> : <CheckCircle size={16} />}
+                                Conferma Approvazione
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+
             {showRejectModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn" onClick={() => setShowRejectModal(false)}>
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-scaleIn" onClick={e => e.stopPropagation()}>
@@ -653,6 +822,62 @@ export function LeaveDetailPage() {
                             >
                                 {actionLoading === 'reject' ? <Loader size={16} className="animate-spin" /> : null}
                                 Conferma Rifiuto
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Conditional Approval Modal */}
+            {showConditionalModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn" onClick={() => setShowConditionalModal(false)}>
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-scaleIn" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-amber-50">
+                            <h3 className="font-bold text-gray-900">Approva con Condizioni</h3>
+                            <button className="text-gray-400 hover:text-gray-600 p-1" onClick={() => setShowConditionalModal(false)}>
+                                <XCircle size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-gray-700">Tipo di Condizione <span className="text-red-500">*</span></label>
+                                <select
+                                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 sm:text-sm"
+                                    value={conditionType}
+                                    onChange={(e) => setConditionType(e.target.value)}
+                                >
+                                    <option value="RIC">🔔 Riserva di Richiamo (Salvo Necessità Aziendali)</option>
+                                    <option value="REP">📞 Reperibilità Richiesta</option>
+                                    <option value="PAR">📅 Approvazione Parziale</option>
+                                    <option value="MOD">✏️ Modifica Date Richiesta</option>
+                                    <option value="ALT">📋 Altra Condizione</option>
+                                </select>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-gray-700">Dettagli Condizione <span className="text-red-500">*</span></label>
+                                <textarea
+                                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 sm:text-sm min-h-[120px] resize-y"
+                                    placeholder="Descrivi i dettagli della condizione. Es: 'Approvato salvo esigenze operative aziendali. In caso di necessità, sarà richiesto il rientro anticipato.'"
+                                    value={conditionDetails}
+                                    onChange={(e) => setConditionDetails(e.target.value)}
+                                    rows={5}
+                                />
+                            </div>
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                                <strong>Nota:</strong> Il dipendente dovrà accettare le condizioni prima che la richiesta diventi definitiva.
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3 p-4 bg-gray-50 border-t border-gray-100">
+                            <button className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" onClick={() => setShowConditionalModal(false)}>
+                                Annulla
+                            </button>
+                            <button
+                                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                                onClick={handleConditionalApprove}
+                                disabled={!conditionDetails.trim() || actionLoading === 'conditional'}
+                            >
+                                {actionLoading === 'conditional' ? <Loader size={16} className="animate-spin" /> : <AlertCircle size={16} />}
+                                Approva con Condizioni
                             </button>
                         </div>
                     </div>
@@ -692,6 +917,149 @@ export function LeaveDetailPage() {
                             >
                                 {actionLoading === 'cancel' ? <Loader size={16} className="animate-spin" /> : null}
                                 Conferma Annullamento
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Revoke Modal */}
+            {showRevokeModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn" onClick={() => setShowRevokeModal(false)}>
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-scaleIn" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-orange-50">
+                            <h3 className="font-bold text-gray-900">Revoca Approvazione</h3>
+                            <button className="text-gray-400 hover:text-gray-600 p-1" onClick={() => setShowRevokeModal(false)}>
+                                <XCircle size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-800">
+                                <strong>Attenzione:</strong> Revocare un'approvazione riporterà la richiesta a stato "rifiutato" e ripristinerà il saldo ferie del dipendente.
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-gray-700">Motivo della Revoca <span className="text-red-500">*</span></label>
+                                <textarea
+                                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-orange-500 focus:ring-orange-500 sm:text-sm min-h-[100px] resize-y"
+                                    placeholder="Inserisci il motivo della revoca..."
+                                    value={revokeReason}
+                                    onChange={(e) => setRevokeReason(e.target.value)}
+                                    rows={4}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3 p-4 bg-gray-50 border-t border-gray-100">
+                            <button className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" onClick={() => setShowRevokeModal(false)}>
+                                Annulla
+                            </button>
+                            <button
+                                className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                                onClick={handleRevoke}
+                                disabled={!revokeReason.trim() || actionLoading === 'revoke'}
+                            >
+                                {actionLoading === 'revoke' ? <Loader size={16} className="animate-spin" /> : <Ban size={16} />}
+                                Conferma Revoca
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Reopen Modal */}
+            {showReopenModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn" onClick={() => setShowReopenModal(false)}>
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-scaleIn" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-blue-50">
+                            <h3 className="font-bold text-gray-900">Riapri Richiesta</h3>
+                            <button className="text-gray-400 hover:text-gray-600 p-1" onClick={() => setShowReopenModal(false)}>
+                                <XCircle size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+                                <strong>Info:</strong> La richiesta verrà riportata allo stato "in attesa" per una nuova valutazione.
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-gray-700">Note (opzionale)</label>
+                                <textarea
+                                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm min-h-[100px] resize-y"
+                                    placeholder="Aggiungi eventuali note..."
+                                    value={reopenNotes}
+                                    onChange={(e) => setReopenNotes(e.target.value)}
+                                    rows={4}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3 p-4 bg-gray-50 border-t border-gray-100">
+                            <button className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" onClick={() => setShowReopenModal(false)}>
+                                Annulla
+                            </button>
+                            <button
+                                className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                                onClick={handleReopen}
+                                disabled={actionLoading === 'reopen'}
+                            >
+                                {actionLoading === 'reopen' ? <Loader size={16} className="animate-spin" /> : <History size={16} />}
+                                Riapri Richiesta
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Recall Modal (Richiamo in Servizio) */}
+            {showRecallModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn" onClick={() => setShowRecallModal(false)}>
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-scaleIn" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-red-50">
+                            <h3 className="font-bold text-gray-900">Richiamo in Servizio</h3>
+                            <button className="text-gray-400 hover:text-gray-600 p-1" onClick={() => setShowRecallModal(false)}>
+                                <XCircle size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                                <strong>Art. 2109 c.c. e CCNL:</strong> Il richiamo in servizio durante le ferie è consentito solo per inderogabili esigenze aziendali.
+                                Il dipendente ha diritto a:
+                                <ul className="list-disc list-inside mt-1">
+                                    <li>Riprogrammare i giorni non goduti</li>
+                                    <li>Rimborso spese documentate (viaggio, soggiorno)</li>
+                                    <li>Eventuali compensazioni previste dal CCNL</li>
+                                </ul>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-gray-700">Data Rientro in Servizio <span className="text-red-500">*</span></label>
+                                <input
+                                    type="date"
+                                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm"
+                                    value={recallDate}
+                                    onChange={(e) => setRecallDate(e.target.value)}
+                                    min={leave?.start_date}
+                                    max={leave?.end_date}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-gray-700">Motivazione Urgenza Aziendale <span className="text-red-500">*</span></label>
+                                <textarea
+                                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm min-h-[100px] resize-y"
+                                    placeholder="Descrivi la criticità aziendale che giustifica il richiamo..."
+                                    value={recallReason}
+                                    onChange={(e) => setRecallReason(e.target.value)}
+                                    rows={4}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3 p-4 bg-gray-50 border-t border-gray-100">
+                            <button className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" onClick={() => setShowRecallModal(false)}>
+                                Annulla
+                            </button>
+                            <button
+                                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                                onClick={handleRecall}
+                                disabled={!recallReason.trim() || !recallDate || actionLoading === 'recall'}
+                            >
+                                {actionLoading === 'recall' ? <Loader size={16} className="animate-spin" /> : <Phone size={16} />}
+                                Conferma Richiamo
                             </button>
                         </div>
                     </div>

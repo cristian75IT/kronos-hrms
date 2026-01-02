@@ -14,33 +14,44 @@ import {
     CheckCircle,
     ArrowRight,
     Loader,
-    User
+    User,
+    History,
+    XCircle,
+    AlertCircle
 } from 'lucide-react';
-import { usePendingApprovals, usePendingTrips, usePendingReports } from '../hooks/useApi';
+import { usePendingApprovals, usePendingTrips, usePendingReports, useApprovalHistory } from '../hooks/useApi';
 import type { LeaveRequest, BusinessTrip, ExpenseReport } from '../types';
 
-type TabType = 'leaves' | 'trips' | 'expenses';
+type TabType = 'leaves' | 'trips' | 'expenses' | 'history';
 
 export function ApprovalsPage() {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<TabType>('leaves');
+    const [historyFilter, setHistoryFilter] = useState<string>('all');
 
     // Fetch data
     const { data: pendingLeaves, isLoading: loadingLeaves } = usePendingApprovals();
     const { data: pendingTrips, isLoading: loadingTrips } = usePendingTrips();
     const { data: pendingReports, isLoading: loadingReports } = usePendingReports();
+    const { data: historyData, isLoading: loadingHistory } = useApprovalHistory({
+        status: historyFilter !== 'all' ? historyFilter : undefined,
+        limit: 100
+    });
 
     // Calculate counts
     const leavesCount = pendingLeaves?.length || 0;
     const tripsCount = pendingTrips?.length || 0;
     const reportsCount = pendingReports?.length || 0;
     const totalCount = leavesCount + tripsCount + reportsCount;
+    const historyCount = historyData?.length || 0;
 
     const tabs = [
         { key: 'leaves' as TabType, label: 'Ferie e Permessi', icon: Calendar, count: leavesCount, color: 'from-indigo-500 to-purple-500' },
         { key: 'trips' as TabType, label: 'Trasferte', icon: MapPin, count: tripsCount, color: 'from-cyan-500 to-blue-500' },
         { key: 'expenses' as TabType, label: 'Note Spese', icon: FileText, count: reportsCount, color: 'from-emerald-500 to-green-500' },
+        { key: 'history' as TabType, label: 'Storico', icon: History, count: historyCount, color: 'from-gray-500 to-slate-500' },
     ];
+
 
     return (
         <div className="space-y-6 animate-fadeIn max-w-[1400px] mx-auto pb-8">
@@ -95,7 +106,17 @@ export function ApprovalsPage() {
                 {activeTab === 'expenses' && (
                     <ReportsApprovalsList reports={pendingReports} isLoading={loadingReports} navigate={navigate} />
                 )}
+                {activeTab === 'history' && (
+                    <HistoryList
+                        requests={historyData}
+                        isLoading={loadingHistory}
+                        navigate={navigate}
+                        filter={historyFilter}
+                        onFilterChange={setHistoryFilter}
+                    />
+                )}
             </div>
+
         </div>
     );
 }
@@ -129,7 +150,7 @@ function LeavesApprovalsList({ requests, isLoading, navigate }: { requests: Leav
                             <div className="flex items-center gap-4 text-sm text-gray-500">
                                 <span className="flex items-center gap-1.5">
                                     <User size={14} />
-                                    {req.user_id?.substring(0, 8)}...
+                                    {req.user_name || 'Utente sconosciuto'}
                                 </span>
                                 <span className="flex items-center gap-1.5">
                                     <Calendar size={14} />
@@ -149,8 +170,9 @@ function LeavesApprovalsList({ requests, isLoading, navigate }: { requests: Leav
                         </div>
                     </div>
                 </div>
-            ))}
-        </div>
+            ))
+            }
+        </div >
     );
 }
 
@@ -292,6 +314,123 @@ function getLeaveTypeName(code: string): string {
         'DON': 'Donazione Sangue',
     };
     return types[code] || code;
+}
+
+// History List Component
+function HistoryList({
+    requests,
+    isLoading,
+    navigate,
+    filter,
+    onFilterChange
+}: {
+    requests: LeaveRequest[] | undefined;
+    isLoading: boolean;
+    navigate: (path: string) => void;
+    filter: string;
+    onFilterChange: (filter: string) => void;
+}) {
+    if (isLoading) return <LoadingState />;
+
+    const statusFilters = [
+        { key: 'all', label: 'Tutti', icon: History },
+        { key: 'approved', label: 'Approvati', icon: CheckCircle, color: 'text-emerald-500' },
+        { key: 'rejected', label: 'Rifiutati', icon: XCircle, color: 'text-red-500' },
+        { key: 'cancelled', label: 'Annullati', icon: AlertCircle, color: 'text-gray-500' },
+    ];
+
+    const getStatusIcon = (status: string) => {
+        switch (status) {
+            case 'approved':
+            case 'approved_conditional':
+                return <CheckCircle size={16} className="text-emerald-500" />;
+            case 'rejected':
+                return <XCircle size={16} className="text-red-500" />;
+            case 'cancelled':
+                return <AlertCircle size={16} className="text-gray-500" />;
+            case 'pending':
+                return <Clock size={16} className="text-amber-500" />;
+            default:
+                return <History size={16} className="text-gray-400" />;
+        }
+    };
+
+    const getStatusLabel = (status: string) => {
+        const labels: Record<string, string> = {
+            'approved': 'Approvato',
+            'approved_conditional': 'Approv. Cond.',
+            'rejected': 'Rifiutato',
+            'cancelled': 'Annullato',
+            'pending': 'In Attesa',
+            'draft': 'Bozza',
+        };
+        return labels[status] || status;
+    };
+
+    return (
+        <div className="space-y-4">
+            {/* Filter buttons */}
+            <div className="flex flex-wrap gap-2 mb-4">
+                {statusFilters.map((sf) => (
+                    <button
+                        key={sf.key}
+                        onClick={() => onFilterChange(sf.key)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${filter === sf.key
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                    >
+                        <sf.icon size={16} className={filter === sf.key ? 'text-white' : sf.color || 'text-gray-500'} />
+                        {sf.label}
+                    </button>
+                ))}
+            </div>
+
+            {/* List */}
+            {!requests || requests.length === 0 ? (
+                <EmptyState label="Nessun risultato" icon={History} color="gray" />
+            ) : (
+                <div className="grid grid-cols-1 gap-3">
+                    {requests.map((req) => (
+                        <div
+                            key={req.id}
+                            onClick={() => navigate(`/leaves/${req.id}`)}
+                            className="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all cursor-pointer"
+                        >
+                            <div className="flex items-center gap-4 flex-1">
+                                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gray-100">
+                                    <User size={20} className="text-gray-500" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-semibold text-gray-900">
+                                            {req.user_name || 'Utente'}
+                                        </span>
+                                        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                                            {getLeaveTypeName(req.leave_type_code)}
+                                        </span>
+                                    </div>
+                                    <div className="text-sm text-gray-500">
+                                        {format(new Date(req.start_date), 'dd MMM', { locale: it })} - {format(new Date(req.end_date), 'dd MMM yyyy', { locale: it })}
+                                        <span className="ml-2 font-medium">{req.days_requested} gg</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-50">
+                                    {getStatusIcon(req.status)}
+                                    <span className="text-sm font-medium text-gray-700">
+                                        {getStatusLabel(req.status)}
+                                    </span>
+                                </div>
+                                <ArrowRight size={16} className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
 }
 
 export default ApprovalsPage;

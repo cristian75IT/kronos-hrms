@@ -2,10 +2,10 @@
  * KRONOS - Leave Request Form Component
  */
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { Calendar as CalendarIcon, Save, X, AlertCircle, ChevronDown } from 'lucide-react';
-import { useCreateLeaveRequest } from '../../hooks/useApi';
+import { Calendar as CalendarIcon, Save, X, AlertCircle, ChevronDown, Loader } from 'lucide-react';
+import { useCreateLeaveRequest, useUpdateLeaveRequest, useLeaveRequest } from '../../hooks/useApi';
 import { configApi } from '../../services/api'; // Direct call for leave types since it's rarely updated
 import type { LeaveType, LeaveRequestCreate } from '../../types';
 import { formatApiError } from '../../utils/errorUtils';
@@ -14,8 +14,16 @@ import { leavesService } from '../../services/leaves.service';
 
 export function LeaveRequestForm() {
     const navigate = useNavigate();
+    const { id } = useParams<{ id: string }>();
+    const isEditing = !!id;
     const [searchParams] = useSearchParams();
+
     const createMutation = useCreateLeaveRequest();
+    const updateMutation = useUpdateLeaveRequest();
+
+    // Fetch existing request if editing
+    const { data: existingLeave, isLoading: isLoadingLeave } = useLeaveRequest(id || '');
+
     const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
     const [loadingTypes, setLoadingTypes] = useState(true);
 
@@ -26,7 +34,7 @@ export function LeaveRequestForm() {
     // Pre-fill date from URL query param if present
     const initialDate = searchParams.get('date') || new Date().toISOString().split('T')[0];
 
-    const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<LeaveRequestCreate>({
+    const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<LeaveRequestCreate>({
         defaultValues: {
             start_date: initialDate,
             end_date: initialDate,
@@ -34,6 +42,20 @@ export function LeaveRequestForm() {
             end_half_day: false,
         }
     });
+
+    // Populate form when data is loaded
+    useEffect(() => {
+        if (existingLeave) {
+            reset({
+                leave_type_id: existingLeave.leave_type_id,
+                start_date: existingLeave.start_date,
+                end_date: existingLeave.end_date,
+                start_half_day: existingLeave.start_half_day,
+                end_half_day: existingLeave.end_half_day,
+                employee_notes: existingLeave.employee_notes || '',
+            });
+        }
+    }, [existingLeave, reset]);
 
     const startDate = watch('start_date');
     const endDate = watch('end_date');
@@ -55,9 +77,9 @@ export function LeaveRequestForm() {
                 );
                 setLeaveTypes(filteredTypes);
 
-                // Set default if not set
+                // Set default if not set and not editing
                 const currentType = watch('leave_type_id');
-                if (types.length > 0 && !currentType) {
+                if (types.length > 0 && !currentType && !isEditing) {
                     setValue('leave_type_id', types[0].id);
                 }
             } catch (error) {
@@ -67,7 +89,7 @@ export function LeaveRequestForm() {
             }
         }
         fetchLeaveTypes();
-    }, [setValue, watch]);
+    }, [setValue, watch, isEditing]);
 
     // Calculate days effect
     useEffect(() => {
@@ -85,7 +107,6 @@ export function LeaveRequestForm() {
 
             setIsCalculating(true);
             try {
-                // Debounce could be added here if typing is fast, but date pickers usually trigger once
                 const result = await leavesService.calculateDays(
                     startDate,
                     endDate,
@@ -107,26 +128,43 @@ export function LeaveRequestForm() {
     }, [startDate, endDate, startHalfDay, endHalfDay, leaveTypeId]);
 
     const onSubmit = (data: LeaveRequestCreate) => {
-        console.log('Submitting leave request:', data);
-        createMutation.mutate(data, {
-            onSuccess: () => {
-                navigate('/leaves');
-            },
-            onError: (error) => {
-                console.error('Mutation failed:', error);
-            }
-        });
+        if (isEditing && id) {
+            updateMutation.mutate({ id, data: data as any }, {
+                onSuccess: () => {
+                    navigate(`/leaves/${id}`);
+                }
+            });
+        } else {
+            createMutation.mutate(data, {
+                onSuccess: () => {
+                    navigate('/leaves');
+                }
+            });
+        }
     };
 
     const onInvalid = (errors: any) => {
         console.error('Form validation failed:', errors);
     };
 
+    if (isLoadingLeave && isEditing) {
+        return (
+            <div className="max-w-2xl mx-auto py-32 flex flex-col items-center justify-center animate-fadeIn">
+                <Loader className="animate-spin text-indigo-600 mb-4" size={48} />
+                <p className="text-gray-500 font-medium">Caricamento richiesta...</p>
+            </div>
+        );
+    }
+
     return (
         <div className="max-w-2xl mx-auto animate-fadeIn py-8">
             <div className="mb-8">
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">Nuova Richiesta</h1>
-                <p className="text-gray-500">Compila il modulo per richiedere ferie o permessi.</p>
+                <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                    {isEditing ? 'Modifica Richiesta' : 'Nuova Richiesta'}
+                </h1>
+                <p className="text-gray-500">
+                    {isEditing ? 'Aggiorna i dettagli della tua richiesta di assenza.' : 'Compila il modulo per richiedere ferie o permessi.'}
+                </p>
             </div>
 
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
@@ -232,13 +270,13 @@ export function LeaveRequestForm() {
                     </div>
 
                     {/* Error Message */}
-                    {createMutation.isError && (
+                    {(createMutation.isError || updateMutation.isError) && (
                         <div className="p-4 bg-red-50 border border-red-100 rounded-lg flex items-start gap-3 text-red-700">
                             <AlertCircle size={20} className="mt-0.5 flex-shrink-0" />
                             <div>
                                 <div className="font-semibold text-sm">Errore durante l'invio</div>
                                 <div className="text-sm opacity-90 mt-1">
-                                    {formatApiError(createMutation.error)}
+                                    {formatApiError(createMutation.error || updateMutation.error)}
                                 </div>
                             </div>
                         </div>
@@ -248,7 +286,7 @@ export function LeaveRequestForm() {
                     <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-100 mt-6">
                         <button
                             type="button"
-                            onClick={() => navigate('/leaves')}
+                            onClick={() => navigate(isEditing ? `/leaves/${id}` : '/leaves')}
                             className="btn btn-ghost text-gray-600 hover:text-gray-900"
                         >
                             <X size={18} />
@@ -256,10 +294,10 @@ export function LeaveRequestForm() {
                         </button>
                         <button
                             type="submit"
-                            disabled={createMutation.isPending}
+                            disabled={createMutation.isPending || updateMutation.isPending}
                             className="btn btn-primary shadow-sm"
                         >
-                            {createMutation.isPending ? (
+                            {(createMutation.isPending || updateMutation.isPending) ? (
                                 <>
                                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
                                     Invio in corso...
@@ -267,7 +305,7 @@ export function LeaveRequestForm() {
                             ) : (
                                 <>
                                     <Save size={18} />
-                                    Invia Richiesta
+                                    {isEditing ? 'Salva Modifiche' : 'Invia Richiesta'}
                                 </>
                             )}
                         </button>

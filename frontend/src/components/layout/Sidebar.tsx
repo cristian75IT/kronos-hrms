@@ -1,7 +1,7 @@
 /**
  * KRONOS - Main Sidebar Layout Component
  */
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Calendar,
@@ -16,6 +16,8 @@ import {
   Sun,
   Moon,
   Book,
+  Terminal,
+  Activity,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { clsx } from 'clsx';
@@ -45,6 +47,11 @@ const adminItems: NavItem[] = [
   { label: 'Festività e Chiusure', path: '/admin/holidays', icon: <Calendar size={20} />, roles: ['admin', 'hr'] },
   { label: 'Contratti CCNL', path: '/admin/national-contracts', icon: <FileText size={20} />, roles: ['admin', 'hr'] },
   { label: 'Strumenti Admin', path: '/admin/tools', icon: <Settings size={20} />, roles: ['admin'] },
+  { label: 'Audit Log', path: '/admin/audit-logs', icon: <Terminal size={20} />, roles: ['admin'] },
+];
+
+const hrItems: NavItem[] = [
+  { label: 'Report Presenze', path: '/hr/reports', icon: <Activity size={20} />, roles: ['admin', 'hr'] },
 ];
 
 export function Sidebar() {
@@ -113,6 +120,13 @@ export function Sidebar() {
           <div className="sidebar-section">
             {!collapsed && <div className="sidebar-section-title">Approvazioni</div>}
             {approverItems.map(renderNavItem)}
+          </div>
+        )}
+
+        {(hasRole('hr') || isAdmin) && (
+          <div className="sidebar-section">
+            {!collapsed && <div className="sidebar-section-title">Risorse Umane</div>}
+            {hrItems.map(renderNavItem)}
           </div>
         )}
 

@@ -135,6 +135,22 @@ async def get_approvers(
     return [UserListItem.model_validate(u) for u in approvers]
 
 
+@router.get("/users/by-keycloak/{keycloak_id}", response_model=UserResponse)
+async def get_user_by_keycloak_id(
+    keycloak_id: str,
+    service: UserService = Depends(get_user_service),
+):
+    """Get user by Keycloak ID (internal use for identity resolution).
+    
+    This endpoint is called by other microservices to resolve
+    Keycloak external ID to internal database ID.
+    """
+    try:
+        return await service.get_user_by_keycloak_id(keycloak_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.get("/users/{id}", response_model=UserResponse)
 async def get_user(
     id: UUID,

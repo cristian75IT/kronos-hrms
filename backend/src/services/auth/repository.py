@@ -41,9 +41,18 @@ class UserRepository:
         return result.scalar_one_or_none()
 
     async def get_by_keycloak_id(self, keycloak_id: str) -> Optional[User]:
-        """Get user by Keycloak ID."""
+        """Get user by Keycloak ID with eagerly loaded relationships."""
         result = await self._session.execute(
-            select(User).where(User.keycloak_id == keycloak_id)
+            select(User)
+            .options(
+                selectinload(User.contract_type),
+                selectinload(User.work_schedule),
+                selectinload(User.location),
+                selectinload(User.manager),
+                selectinload(User.areas),
+                selectinload(User.profile),
+            )
+            .where(User.keycloak_id == keycloak_id)
         )
         return result.scalar_one_or_none()
 

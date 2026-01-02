@@ -26,7 +26,13 @@ keycloak_openid = KeycloakOpenID(
 
 
 class TokenPayload(BaseModel):
-    """Decoded JWT token payload."""
+    """Decoded JWT token payload with resolved internal user ID.
+    
+    The flow is:
+    1. JWT contains Keycloak 'sub' (external identity)
+    2. Auth layer resolves keycloak_id → internal_user_id (once per request)
+    3. All services use internal_user_id consistently
+    """
     
     sub: str  # Keycloak user ID
     email: Optional[str] = None
@@ -34,10 +40,28 @@ class TokenPayload(BaseModel):
     preferred_username: Optional[str] = None
     realm_access: Optional[dict] = None
     
+    # Internal user ID - resolved from keycloak_id
+    # This is set by get_current_user dependency after DB lookup
+    internal_user_id: Optional[UUID] = None
+    
     @property
     def keycloak_id(self) -> str:
-        """Get Keycloak user ID."""
+        """Get Keycloak user ID (external identity)."""
         return self.sub
+    
+    @property
+    def user_id(self) -> UUID:
+        """Get internal user ID for database operations.
+        
+        This is the ID to use in all leave_balances, leave_requests, etc.
+        Raises ValueError if not yet resolved (should never happen in normal flow).
+        """
+        if self.internal_user_id is None:
+            raise ValueError(
+                "Internal user ID not resolved. Use get_current_user dependency "
+                "instead of get_current_token for endpoints that need user context."
+            )
+        return self.internal_user_id
     
     @property
     def roles(self) -> list[str]:
@@ -63,7 +87,12 @@ class TokenPayload(BaseModel):
     @property
     def is_approver(self) -> bool:
         """Check if user has approver capability."""
-        return self.has_role("approver") or self.is_admin
+        return self.has_role("approver") or self.is_admin or self.is_hr
+
+    @property
+    def is_hr(self) -> bool:
+        """Check if user is HR."""
+        return self.has_role("hr") or self.is_admin
 
 
 async def decode_token(token: str) -> TokenPayload:
@@ -99,17 +128,65 @@ async def decode_token(token: str) -> TokenPayload:
 async def get_current_token(
     token: str = Depends(oauth2_scheme),
 ) -> TokenPayload:
-    """Get current token payload.
+    """Get current token payload (raw, without internal ID resolution).
     
-    Use this when you only need token info, not full user object.
+    Use this only for simple role checks where you don't need the internal user ID.
+    For most endpoints, use get_current_user instead.
     """
     return await decode_token(token)
 
 
-async def require_admin(
-    token: TokenPayload = Depends(get_current_token),
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
 ) -> TokenPayload:
-    """Require admin role."""
+    """Get current user with resolved internal user ID.
+    
+    This is the primary dependency to use for endpoints that need user context.
+    It decodes the JWT, then calls auth-service to resolve keycloak_id → internal_user_id.
+    
+    The internal_user_id is then accessible via token.user_id property.
+    """
+    import httpx
+    
+    payload = await decode_token(token)
+    
+    # Resolve keycloak_id to internal_user_id via auth service
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{settings.auth_service_url}/api/v1/users/by-keycloak/{payload.keycloak_id}",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=5.0,
+            )
+            
+            if response.status_code == 200:
+                user_data = response.json()
+                payload.internal_user_id = UUID(user_data.get("id"))
+            elif response.status_code == 404:
+                # User not found in local DB - they may need to be synced
+                # For now, raise an error
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="User not found in system. Please contact administrator.",
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to resolve user identity",
+                )
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Auth service unavailable: {str(e)}",
+        )
+    
+    return payload
+
+
+async def require_admin(
+    token: TokenPayload = Depends(get_current_user),
+) -> TokenPayload:
+    """Require admin role (with resolved internal ID)."""
     if not token.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -119,9 +196,9 @@ async def require_admin(
 
 
 async def require_manager(
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
 ) -> TokenPayload:
-    """Require manager or admin role."""
+    """Require manager or admin role (with resolved internal ID)."""
     if not token.is_manager:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -131,12 +208,24 @@ async def require_manager(
 
 
 async def require_approver(
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
 ) -> TokenPayload:
-    """Require approver capability."""
+    """Require approver capability (with resolved internal ID)."""
     if not token.is_approver:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Approver capability required",
+        )
+    return token
+
+
+async def require_hr(
+    token: TokenPayload = Depends(get_current_user),
+) -> TokenPayload:
+    """Require HR or admin role (with resolved internal ID)."""
+    if not token.is_hr:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="HR role required",
         )
     return token

@@ -11,6 +11,9 @@ import type {
     CalendarEvent,
     DataTableRequest,
     DataTableResponse,
+    DailyAttendanceResponse,
+    AggregateReportRequest,
+    AggregateReportResponse,
 } from '../types';
 
 const ENDPOINT = '/leaves';
@@ -108,6 +111,11 @@ export const leavesService = {
         return response.data;
     },
 
+    getApprovalHistory: async (params?: { status?: string; year?: number; limit?: number }): Promise<LeaveRequest[]> => {
+        const response = await leavesApi.get(`${ENDPOINT}/history`, { params });
+        return response.data;
+    },
+
     approveRequest: async (id: string, notes?: string): Promise<LeaveRequest> => {
         const response = await leavesApi.post(`${ENDPOINT}/${id}/approve`, { notes });
         return response.data;
@@ -126,6 +134,28 @@ export const leavesService = {
         const response = await leavesApi.post(`${ENDPOINT}/${id}/approve-conditional`, {
             condition_type: conditionType,
             condition_details: conditionDetails,
+        });
+        return response.data;
+    },
+
+    revokeApproval: async (id: string, reason: string): Promise<LeaveRequest> => {
+        const response = await leavesApi.post(`${ENDPOINT}/${id}/revoke`, null, {
+            params: { reason }
+        });
+        return response.data;
+    },
+
+    reopenRequest: async (id: string, notes?: string): Promise<LeaveRequest> => {
+        const response = await leavesApi.post(`${ENDPOINT}/${id}/reopen`, null, {
+            params: { notes }
+        });
+        return response.data;
+    },
+
+    recallRequest: async (id: string, reason: string, recallDate: string): Promise<LeaveRequest> => {
+        const response = await leavesApi.post(`${ENDPOINT}/${id}/recall`, {
+            reason,
+            recall_date: recallDate,
         });
         return response.data;
     },
@@ -266,6 +296,20 @@ export const leavesService = {
     applyRolloverSelected: async (userIds: string[], year: number): Promise<string> => {
         const response = await leavesApi.post('/balances/rollover/apply-selected', { user_ids: userIds }, { params: { year } });
         return response.data.message;
+    },
+
+    // ═══════════════════════════════════════════════════════════════════
+    // HR Reporting
+    // ═══════════════════════════════════════════════════════════════════
+
+    getDailyAttendance: async (date: string, department?: string): Promise<DailyAttendanceResponse> => {
+        const response = await leavesApi.post('/leaves/daily-attendance', { date, department });
+        return response.data;
+    },
+
+    getAggregateAttendance: async (request: AggregateReportRequest): Promise<AggregateReportResponse> => {
+        const response = await leavesApi.post('/leaves/aggregate-attendance', request);
+        return response.data;
     },
 };
 

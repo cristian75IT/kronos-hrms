@@ -294,7 +294,6 @@ async def generate_holidays(
 async def list_closures(
     year: Optional[int] = None,
     include_inactive: bool = False,
-    token: TokenPayload = Depends(get_current_token),
     service: ConfigService = Depends(get_config_service),
 ):
     """List company closures for a year."""

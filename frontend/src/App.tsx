@@ -31,6 +31,8 @@ import { WikiIndex } from './pages/wiki/WikiIndex';
 import { WikiCalculations } from './pages/wiki/WikiCalculations';
 import { WikiManagement } from './pages/wiki/WikiManagement';
 import { WikiConfig } from './pages/wiki/WikiConfig';
+import { HRReportsPage } from './pages/hr/HRReportsPage';
+import { AuditLogPage } from './pages/admin/AuditLogPage';
 
 function App() {
   return (
@@ -53,6 +55,7 @@ function App() {
               <Route path="/leaves" element={<LeavesPage />} />
               <Route path="/leaves/new" element={<LeaveRequestForm />} />
               <Route path="/leaves/:id" element={<LeaveDetailPage />} />
+              <Route path="/leaves/:id/edit" element={<LeaveRequestForm />} />
               <Route path="/calendar" element={<CalendarPage />} />
 
               {/* Trips */}
@@ -78,6 +81,10 @@ function App() {
               <Route path="/admin/national-contracts" element={<ProtectedRoute roles={['admin', 'hr']}><NationalContractsPage /></ProtectedRoute>} />
               <Route path="/admin/national-contracts/:id" element={<ProtectedRoute roles={['admin', 'hr']}><NationalContractDetailPage /></ProtectedRoute>} />
               <Route path="/admin/tools" element={<ProtectedRoute roles={['admin']}><AdminToolsPage /></ProtectedRoute>} />
+              <Route path="/admin/audit-logs" element={<ProtectedRoute roles={['admin']}><AuditLogPage /></ProtectedRoute>} />
+
+              {/* HR */}
+              <Route path="/hr/reports" element={<ProtectedRoute roles={['hr', 'admin']}><HRReportsPage /></ProtectedRoute>} />
 
               {/* Wiki & Knowledge Base */}
               <Route path="/wiki" element={<WikiIndex />} />

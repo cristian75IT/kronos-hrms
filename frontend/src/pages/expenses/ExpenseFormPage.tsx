@@ -3,11 +3,12 @@
  */
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { Calendar as CalendarIcon, Save, X, AlertCircle, FileText, Paperclip } from 'lucide-react';
+import { Calendar as CalendarIcon, Save, X, AlertCircle, FileText } from 'lucide-react';
 import { useCreateExpenseReport, useUploadReportAttachment, useTrips } from '../../hooks/useApi';
 import { useState } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { formatApiError } from '../../utils/errorUtils';
+import { FileUpload } from '../../components/common/FileUpload';
 
 interface ExpenseFormValues {
     trip_id: string;
@@ -21,8 +22,8 @@ export function ExpenseFormPage() {
     const navigate = useNavigate();
     const createMutation = useCreateExpenseReport();
     const uploadMutation = useUploadReportAttachment();
-    const { data: trips, isLoading: isLoadingTrips } = useTrips('approved,completed'); // Only link to approved or completed trips
-    const [attachment, setAttachment] = useState<File | null>(null);
+    const { data: trips, isLoading: isLoadingTrips } = useTrips('approved,completed');
+    const [attachments, setAttachments] = useState<File[]>([]);
     const { success, error: showError } = useToast();
 
     const { register, handleSubmit, watch, formState: { errors } } = useForm<ExpenseFormValues>({
@@ -34,24 +35,33 @@ export function ExpenseFormPage() {
 
     const startDate = watch('period_start');
 
+    const uploadAttachments = async (reportId: string) => {
+        for (const file of attachments) {
+            try {
+                await new Promise<void>((resolve, reject) => {
+                    uploadMutation.mutate(
+                        { id: reportId, file },
+                        {
+                            onSuccess: () => resolve(),
+                            onError: () => reject(),
+                        }
+                    );
+                });
+            } catch {
+                showError(`Errore durante il caricamento di "${file.name}"`);
+            }
+        }
+    };
+
     const onSubmit = (data: ExpenseFormValues) => {
         createMutation.mutate(data, {
-            onSuccess: (newReport) => {
+            onSuccess: async (newReport) => {
                 success('Nota spese creata con successo!');
-                if (attachment) {
-                    uploadMutation.mutate({ id: newReport.id, file: attachment }, {
-                        onSuccess: () => {
-                            success('Allegato caricato correttamente');
-                            navigate(`/expenses/${newReport.id}`);
-                        },
-                        onError: () => {
-                            showError('Errore durante il caricamento dell\'allegato');
-                            navigate(`/expenses/${newReport.id}`);
-                        },
-                    });
-                } else {
-                    navigate(`/expenses/${newReport.id}`);
+                if (attachments.length > 0) {
+                    await uploadAttachments(newReport.id);
+                    success(`${attachments.length} allegat${attachments.length === 1 ? 'o' : 'i'} caricat${attachments.length === 1 ? 'o' : 'i'}`);
                 }
+                navigate(`/expenses/${newReport.id}`);
             },
         });
     };
@@ -93,7 +103,7 @@ export function ExpenseFormPage() {
                     <div className="space-y-1.5">
                         <label className="block text-sm font-medium text-gray-700">Titolo Report</label>
                         <div className="relative">
-                            <FileText size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <FileText size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                             <input
                                 type="text"
                                 {...register('title', { required: 'Il titolo è obbligatorio' })}
@@ -109,7 +119,7 @@ export function ExpenseFormPage() {
                         <div className="space-y-1.5">
                             <label className="block text-sm font-medium text-gray-700">Periodo Dal</label>
                             <div className="relative">
-                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                                 <input
                                     type="date"
                                     {...register('period_start', { required: 'Data inizio obbligatoria' })}
@@ -122,7 +132,7 @@ export function ExpenseFormPage() {
                         <div className="space-y-1.5">
                             <label className="block text-sm font-medium text-gray-700">Periodo Al</label>
                             <div className="relative">
-                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                                 <input
                                     type="date"
                                     {...register('period_end', {
@@ -147,29 +157,17 @@ export function ExpenseFormPage() {
                         />
                     </div>
 
-                    {/* Attachment */}
-                    <div className="space-y-1.5">
-                        <label className="block text-sm font-medium text-gray-700">Allegato Riepilogativo (PDF max 2MB)</label>
-                        <div className="relative">
-                            <Paperclip size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <input
-                                type="file"
-                                accept=".pdf"
-                                onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file && file.size > 2 * 1024 * 1024) {
-                                        showError("Il file non può superare i 2MB");
-                                        e.target.value = "";
-                                        setAttachment(null);
-                                    } else {
-                                        setAttachment(file || null);
-                                    }
-                                }}
-                                className="input w-full pl-10 py-2"
-                            />
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">Carica un PDF riepilogativo o documenti giustificativi aggiuntivi.</p>
-                    </div>
+                    {/* Attachments */}
+                    <FileUpload
+                        label="Allegati"
+                        files={attachments}
+                        onFilesChange={setAttachments}
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        multiple={true}
+                        maxSizeMB={5}
+                        maxFiles={10}
+                        helperText="Ricevute, scontrini, fatture o documenti giustificativi (max 10 file, 5MB per file)"
+                    />
 
                     {/* Error Message */}
                     {createMutation.isError && (

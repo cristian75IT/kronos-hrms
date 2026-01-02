@@ -75,6 +75,7 @@ class LeaveRequestListItem(BaseModel):
     
     id: UUID
     user_id: UUID
+    user_name: Optional[str] = None  # Full name of the requester
     leave_type_code: str
     start_date: date
     end_date: date
@@ -134,9 +135,10 @@ class CancelRequest(BaseModel):
 
 
 class RecallRequest(BaseModel):
-    """Schema for recalling an approved request (by HR/Manager)."""
+    """Schema for recalling an approved request during leave (richiamo in servizio)."""
     
-    reason: str = Field(..., min_length=10)
+    reason: str = Field(..., min_length=10, description="Reason for recall (justified business need)")
+    recall_date: date = Field(..., description="Date when employee returns to work")
 
 
 class DaysCalculationRequest(BaseModel):
@@ -222,6 +224,11 @@ class BalanceSummary(BaseModel):
     permits_available: Decimal
     permits_used: Decimal
     permits_pending: Decimal
+
+    # Deductions from mandatory company closures
+    vacation_mandatory_deductions: Decimal = Decimal(0)
+    rol_mandatory_deductions: Decimal = Decimal(0)
+    permits_mandatory_deductions: Decimal = Decimal(0)
 
 
 class BalanceAdjustment(BaseModel):
@@ -344,3 +351,61 @@ class ApplyChangesRequest(BaseModel):
     """Request to apply changes to selected employees."""
     
     user_ids: list[UUID]
+
+
+# ═══════════════════════════════════════════════════════════
+# Daily Attendance (HR)
+# ═══════════════════════════════════════════════════════════
+
+class DailyAttendanceRequest(BaseModel):
+    """Request for daily attendance report."""
+    date: date
+    department: Optional[str] = None
+
+
+class DailyAttendanceItem(BaseModel):
+    """Attendance status for a single user."""
+    user_id: UUID
+    full_name: str
+    status: str  # "Presente", "Assente (Ferie)", "Assente (Malattia)", "Permesso (1h)"
+    hours_worked: Optional[Decimal] = None
+    leave_request_id: Optional[UUID] = None
+    leave_type_code: Optional[str] = None
+
+
+class DailyAttendanceResponse(BaseModel):
+    """Response including list of users and attendance stats."""
+    date: date
+    items: list[DailyAttendanceItem]
+    total_present: int
+    total_absent: int
+# ═══════════════════════════════════════════════════════════
+# Aggregate Reporting (HR)
+# ═══════════════════════════════════════════════════════════
+
+class AggregateReportRequest(BaseModel):
+    """Request for aggregated attendance report."""
+    start_date: date
+    end_date: date
+    department: Optional[str] = None
+
+
+class AggregateReportItem(BaseModel):
+    """Aggregated stats for a single user."""
+    user_id: UUID
+    full_name: str
+    total_days: int
+    worked_days: float
+    vacation_days: Decimal
+    holiday_days: Decimal
+    rol_hours: Decimal
+    permit_hours: Decimal
+    sick_days: Optional[Decimal] = Decimal(0)
+    other_absences: Decimal
+
+
+class AggregateReportResponse(BaseModel):
+    """Response for aggregated report."""
+    start_date: date
+    end_date: date
+    items: list[AggregateReportItem]

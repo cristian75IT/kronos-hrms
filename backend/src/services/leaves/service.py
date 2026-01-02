@@ -6,7 +6,7 @@ from uuid import UUID
 
 import httpx
 from sqlalchemy import select, or_, func
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, contains_eager
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
@@ -16,9 +16,9 @@ from src.core.exceptions import (
     BusinessRuleError,
     ValidationError,
 )
-from src.services.auth.models import EmployeeContract, ContractType
+from src.services.auth.models import EmployeeContract, ContractType, User, UserProfile
 from src.services.config.models import NationalContract, NationalContractVersion, NationalContractTypeConfig
-from src.services.leaves.models import LeaveRequest, LeaveRequestStatus, ConditionType, LeaveBalance
+from src.services.leaves.models import LeaveRequest, LeaveRequestStatus, ConditionType, LeaveBalance, BalanceTransaction
 from src.services.leaves.repository import LeaveRequestRepository, LeaveBalanceRepository
 from src.services.leaves.policy_engine import PolicyEngine
 from src.services.leaves.strategies import StrategyFactory
@@ -38,6 +38,12 @@ from src.services.leaves.schemas import (
     CalendarResponse,
     DaysCalculationRequest,
     DaysCalculationResponse,
+    DailyAttendanceRequest,
+    DailyAttendanceResponse,
+    DailyAttendanceItem,
+    AggregateReportRequest,
+    AggregateReportResponse,
+    AggregateReportItem,
 )
 from src.shared.schemas import DataTableRequest
 
@@ -480,6 +486,15 @@ class LeaveService:
         """Get requests for DataTable."""
         return await self._request_repo.get_datatable(request, user_id, status, year)
 
+    async def get_all_requests(
+        self,
+        status: Optional[list[LeaveRequestStatus]] = None,
+        year: Optional[int] = None,
+        limit: int = 50,
+    ) -> list[LeaveRequest]:
+        """Get all requests with optional filters (for approval history)."""
+        return await self._request_repo.get_all(status=status, year=year, limit=limit)
+
     async def create_request(
         self,
         user_id: UUID,
@@ -490,6 +505,22 @@ class LeaveService:
         leave_type = await self._get_leave_type(data.leave_type_id)
         if not leave_type:
             raise ValidationError("Leave type not found", field="leave_type_id")
+        
+        # Check for overlapping requests (approved or pending)
+        overlapping = await self._request_repo.check_overlap(
+            user_id=user_id,
+            start_date=data.start_date,
+            end_date=data.end_date,
+        )
+        if overlapping:
+            overlap_info = overlapping[0]
+            raise BusinessRuleError(
+                f"Esiste già una richiesta di ferie ({overlap_info.leave_type_code}) "
+                f"dal {overlap_info.start_date.strftime('%d/%m/%Y')} al {overlap_info.end_date.strftime('%d/%m/%Y')} "
+                f"che si sovrappone a queste date. Stato: {overlap_info.status.value}",
+                rule="OVERLAP_EXISTING",
+            )
+
         
         # Calculate days
         days = await self._calculate_days(
@@ -513,6 +544,7 @@ class LeaveService:
             employee_notes=data.employee_notes,
             status=LeaveRequestStatus.DRAFT,
         )
+
         
         # Add history
         await self._request_repo.add_history(
@@ -553,11 +585,28 @@ class LeaveService:
             start_half = update_data.get("start_half_day", request.start_half_day)
             end_half = update_data.get("end_half_day", request.end_half_day)
             
+            # Check for overlapping requests (exclude current request)
+            overlapping = await self._request_repo.check_overlap(
+                user_id=user_id,
+                start_date=start,
+                end_date=end,
+                exclude_id=id,
+            )
+            if overlapping:
+                overlap_info = overlapping[0]
+                raise BusinessRuleError(
+                    f"Esiste già una richiesta di ferie ({overlap_info.leave_type_code}) "
+                    f"dal {overlap_info.start_date.strftime('%d/%m/%Y')} al {overlap_info.end_date.strftime('%d/%m/%Y')} "
+                    f"che si sovrappone a queste date. Stato: {overlap_info.status.value}",
+                    rule="OVERLAP_EXISTING",
+                )
+            
             update_data["days_requested"] = await self._calculate_days(
                 start, end, start_half, end_half, user_id
             )
         
         return await self._request_repo.update(id, **update_data)
+
 
     async def submit_request(
         self,
@@ -802,6 +851,105 @@ class LeaveService:
         
         return await self.get_request(id)
 
+    async def revoke_approval(
+        self,
+        id: UUID,
+        approver_id: UUID,
+        reason: str,
+    ) -> LeaveRequest:
+        """Revoke an approved request. Only allowed before start_date (Italian law compliance)."""
+        request = await self.get_request(id)
+        
+        if request.status not in [LeaveRequestStatus.APPROVED, LeaveRequestStatus.APPROVED_CONDITIONAL]:
+            raise BusinessRuleError("Solo le richieste approvate possono essere revocate")
+        
+        # Check if request already started (legal deadline)
+        from datetime import date as dt_date
+        if request.start_date <= dt_date.today():
+            raise BusinessRuleError(
+                "Non è possibile revocare una richiesta già iniziata. "
+                "Per le ferie in corso, contattare HR."
+            )
+        
+        old_status = request.status
+        
+        # Restore balance if it was deducted
+        if old_status == LeaveRequestStatus.APPROVED:
+            await self._restore_balance(request)
+        
+        await self._request_repo.update(
+            id,
+            status=LeaveRequestStatus.REJECTED,
+            rejection_reason=f"[REVOCATA] {reason}",
+        )
+        
+        await self._request_repo.add_history(
+            leave_request_id=id,
+            from_status=old_status,
+            to_status=LeaveRequestStatus.REJECTED,
+            changed_by=approver_id,
+            reason=f"Approvazione revocata: {reason}",
+        )
+        
+        # Notify employee
+        await self._send_notification(
+            user_id=request.user_id,
+            notification_type="leave_approval_revoked",
+            title="Approvazione revocata",
+            message=f"L'approvazione per la tua richiesta {request.leave_type_code} è stata revocata: {reason}",
+            entity_type="LeaveRequest",
+            entity_id=str(id),
+        )
+        
+        return await self.get_request(id)
+
+    async def reopen_request(
+        self,
+        id: UUID,
+        approver_id: UUID,
+        notes: Optional[str] = None,
+    ) -> LeaveRequest:
+        """Reopen a rejected/cancelled request back to pending. Only before original start_date."""
+        request = await self.get_request(id)
+        
+        if request.status not in [LeaveRequestStatus.REJECTED, LeaveRequestStatus.CANCELLED]:
+            raise BusinessRuleError("Solo le richieste rifiutate o annullate possono essere riaperte")
+        
+        # Check if request period has passed
+        from datetime import date as dt_date
+        if request.start_date < dt_date.today():
+            raise BusinessRuleError(
+                "Non è possibile riaprire una richiesta per date passate"
+            )
+        
+        old_status = request.status
+        
+        await self._request_repo.update(
+            id,
+            status=LeaveRequestStatus.PENDING,
+            rejection_reason=None,
+        )
+        
+        await self._request_repo.add_history(
+            leave_request_id=id,
+            from_status=old_status,
+            to_status=LeaveRequestStatus.PENDING,
+            changed_by=approver_id,
+            reason=notes or "Richiesta riaperta per revisione",
+        )
+        
+        # Notify employee
+        await self._send_notification(
+            user_id=request.user_id,
+            notification_type="leave_request_reopened",
+            title="Richiesta riaperta",
+            message=f"La tua richiesta {request.leave_type_code} è stata riaperta per revisione",
+            entity_type="LeaveRequest",
+            entity_id=str(id),
+        )
+        
+        return await self.get_request(id)
+
     async def cancel_request(
         self,
         id: UUID,
@@ -848,42 +996,144 @@ class LeaveService:
         manager_id: UUID,
         data: RecallRequest,
     ) -> LeaveRequest:
-        """Recall an approved request (right of recall)."""
+        """
+        Recall an employee from approved leave (richiamo in servizio).
+        
+        Italian Labor Law allows recall for justified business needs, especially
+        when leave was approved with condition RIC (Riserva di Richiamo).
+        
+        This method:
+        - Calculates days actually used before recall
+        - Restores only unused days to balance
+        - Tracks all details for audit/compensation
+        """
         request = await self.get_request(id)
         
-        if request.status != LeaveRequestStatus.APPROVED:
-            raise BusinessRuleError("Only approved requests can be recalled")
+        # Can recall from APPROVED or APPROVED_CONDITIONAL
+        if request.status not in [LeaveRequestStatus.APPROVED, LeaveRequestStatus.APPROVED_CONDITIONAL]:
+            raise BusinessRuleError(
+                "Solo le richieste approvate possono essere richiamate"
+            )
         
+        # Verify recall is during the leave period
+        from datetime import date as dt_date
+        today = dt_date.today()
+        
+        if data.recall_date < request.start_date:
+            raise BusinessRuleError(
+                "La data di rientro non può essere precedente all'inizio delle ferie"
+            )
+        
+        if data.recall_date > request.end_date:
+            raise BusinessRuleError(
+                "La data di rientro non può essere successiva alla fine delle ferie. "
+                "Usare la revoca invece."
+            )
+        
+        # Check if leave has started
+        if today < request.start_date:
+            raise BusinessRuleError(
+                "Le ferie non sono ancora iniziate. Usare la revoca invece del richiamo."
+            )
+        
+        # Calculate days actually used before recall
+        days_used = await self._calculate_days(
+            start_date=request.start_date,
+            end_date=data.recall_date - timedelta(days=1),  # Day before return
+            start_half_day=request.start_half_day,
+            end_half_day=False,  # Full day before return
+            user_id=request.user_id,
+        )
+        
+        # Make sure days_used is at least 0
+        if days_used < 0:
+            days_used = Decimal("0")
+        
+        days_to_restore = request.days_requested - days_used
+        
+        old_status = request.status
+        
+        # Update request
         await self._request_repo.update(
             id,
             status=LeaveRequestStatus.RECALLED,
             recalled_at=datetime.utcnow(),
             recall_reason=data.reason,
+            recall_date=data.recall_date,
+            days_used_before_recall=days_used,
         )
         
         await self._request_repo.add_history(
             leave_request_id=id,
-            from_status=LeaveRequestStatus.APPROVED,
+            from_status=old_status,
             to_status=LeaveRequestStatus.RECALLED,
             changed_by=manager_id,
-            reason=data.reason,
+            reason=f"Richiamo in servizio: {data.reason}. Giorni goduti: {days_used}, Giorni da recuperare: {days_to_restore}",
         )
         
-        # Restore balance
-        if request.balance_deducted:
-            await self._restore_balance(request)
+        # Restore only unused balance
+        if request.balance_deducted and days_to_restore > 0:
+            await self._restore_partial_balance(request, days_to_restore)
         
         # Send notification with compensation info
         await self._send_notification(
             user_id=request.user_id,
             notification_type="leave_request_recalled",
-            title="Richiamo da ferie",
-            message=f"Sei stato richiamato dal periodo di ferie: {data.reason}. Hai diritto a compensazione.",
+            title="Richiamo in Servizio",
+            message=(
+                f"Sei stato richiamato dal periodo di ferie per: {data.reason}. "
+                f"Data rientro: {data.recall_date.strftime('%d/%m/%Y')}. "
+                f"Giorni goduti: {days_used}. Giorni da recuperare: {days_to_restore}. "
+                f"Hai diritto a riprogrammare i giorni non goduti e alla compensazione prevista dal CCNL."
+            ),
             entity_type="LeaveRequest",
             entity_id=str(id),
         )
         
         return await self.get_request(id)
+    
+    async def _restore_partial_balance(self, request: LeaveRequest, days_to_restore: Decimal) -> None:
+        """Restore partial balance after recall."""
+        try:
+            balance = await self._balance_repo.get_by_user_and_year(
+                request.user_id,
+                request.start_date.year,
+            )
+            if not balance:
+                return
+            
+            # Determine which leave type to restore (simplified - restore to AC)
+            code = request.leave_type_code
+            if code == "FER":
+                await self._balance_repo.update(
+                    balance.id,
+                    ferie_ac_used=max(Decimal("0"), balance.ferie_ac_used - days_to_restore),
+                )
+            elif code == "ROL":
+                await self._balance_repo.update(
+                    balance.id,
+                    rol_used=max(Decimal("0"), balance.rol_used - days_to_restore),
+                )
+            elif code == "PER":
+                await self._balance_repo.update(
+                    balance.id,
+                    permessi_used=max(Decimal("0"), balance.permessi_used - days_to_restore),
+                )
+            
+            # Log the restoration
+            from src.services.leaves.models import BalanceTransaction
+            await self._balance_repo.add_transaction(
+                balance_id=balance.id,
+                transaction_type="RECALL_RESTORE",
+                leave_type_code=code,
+                amount=days_to_restore,
+                description=f"Ripristino per richiamo in servizio - Richiesta #{str(request.id)[:8]}",
+                reference_id=request.id,
+            )
+        except Exception as e:
+            # Log but don't fail the recall
+            print(f"Warning: Failed to restore partial balance: {e}")
+
     
     async def delete_request(
         self,
@@ -948,7 +1198,12 @@ class LeaveService:
                         c_end = date.fromisoformat(closure_end) if isinstance(closure_end, str) else closure_end
                         current_closure = c_start
                         while current_closure <= c_end:
-                            closure_map[current_closure.isoformat()] = closure_name
+                            closure_map[current_closure.isoformat()] = {
+                                "name": closure_name,
+                                "consumes_balance": closure.get("consumes_leave_balance", False),
+                                "is_paid": closure.get("is_paid", True),
+                                "affected_departments": closure.get("affected_departments")
+                            }
                             current_closure += timedelta(days=1)
                     except (ValueError, TypeError):
                         pass
@@ -986,10 +1241,14 @@ class LeaveService:
                 })
             # Check if closure
             elif current_iso in closure_map:
+                c_info = closure_map[current_iso]
                 excluded.append({
                     "date": current,
                     "reason": "closure",
-                    "name": closure_map[current_iso]
+                    "name": c_info["name"],
+                    "consumes_balance": c_info["consumes_balance"],
+                    "is_paid": c_info["is_paid"],
+                    "affected_departments": c_info["affected_departments"]
                 })
             else:
                 working_days += 1
@@ -1016,10 +1275,10 @@ class LeaveService:
         return balance
 
     async def get_balance_summary(self, user_id: UUID, year: int) -> BalanceSummary:
-        """Get balance summary including pending requests."""
+        """Get balance summary including pending requests and mandatory closures."""
         balance = await self.get_balance(user_id, year)
         
-        # Get pending requests to calculate reserved
+        # 1. Get pending requests to calculate reserved
         pending = await self._request_repo.get_by_user(
             user_id,
             year=year,
@@ -1036,24 +1295,71 @@ class LeaveService:
             r.days_requested * 8 for r in pending if r.leave_type_code in ["PER"]
         )
         
+        # 2. Calculate Mandatory Closures Deductions
+        # These are closures where consumes_leave_balance = True
+        user_info = await self._get_user_info(user_id)
+        profile = user_info.get("profile") if user_info else None
+        user_dept = profile.get("department") if profile else None
+        
+        closures = await self._get_company_closures(date(year, 1, 1), date(year, 12, 31))
+        holidays = await self._get_holidays(year)
+        holiday_dates = {h["date"] for h in holidays if h.get("date")}
+        
+        working_days_limit = await self._get_system_config("work_week_days", 5)
+        try:
+            working_days_limit = int(working_days_limit)
+        except (ValueError, TypeError):
+            working_days_limit = 5
+
+        vac_mandatory = Decimal(0)
+        rol_mandatory = Decimal(0)
+        per_mandatory = Decimal(0)
+        
+        for closure in closures:
+            if closure.get("consumes_leave_balance") and closure.get("closure_type") == "total":
+                # Filter by department if specified
+                affected_depts = closure.get("affected_departments")
+                if affected_depts and user_dept and user_dept not in affected_depts:
+                    continue
+                    
+                c_start = date.fromisoformat(closure["start_date"]) if isinstance(closure["start_date"], str) else closure["start_date"]
+                c_end = date.fromisoformat(closure["end_date"]) if isinstance(closure["end_date"], str) else closure["end_date"]
+                
+                curr = c_start
+                while curr <= c_end:
+                    if curr.year == year:
+                        if curr.weekday() < working_days_limit:
+                            if curr.isoformat() not in holiday_dates:
+                                # For now, mandatory closures always deduct from vacation in the UI
+                                vac_mandatory += Decimal("1.0")
+                    curr += timedelta(days=1)
+        
         days_until_ap_expiry = None
         if balance.ap_expiry_date:
             days_until_ap_expiry = (balance.ap_expiry_date - date.today()).days
 
+        # Substract mandatory from available totals
+        vac_total = max(Decimal(0), balance.vacation_available_total - vac_mandatory)
+        vac_ac = max(Decimal(0), balance.vacation_available_ac - vac_mandatory)
+        # If mandatory exceeds AC, it should technically eat into AP too, but available_total covers it.
+
         return BalanceSummary(
-            vacation_total_available=balance.vacation_available_total,
+            vacation_total_available=vac_total,
             vacation_available_ap=balance.vacation_available_ap,
-            vacation_available_ac=balance.vacation_available_ac,
+            vacation_available_ac=vac_ac,
             vacation_used=balance.vacation_used,
             vacation_pending=vacation_pending,
+            vacation_mandatory_deductions=vac_mandatory,
             ap_expiry_date=balance.ap_expiry_date,
             days_until_ap_expiry=days_until_ap_expiry,
-            rol_available=balance.rol_available,
+            rol_available=balance.rol_available - rol_mandatory,
             rol_used=balance.rol_used,
             rol_pending=rol_pending,
-            permits_available=balance.permits_available,
+            rol_mandatory_deductions=rol_mandatory,
+            permits_available=balance.permits_available - per_mandatory,
             permits_used=balance.permits_used,
             permits_pending=permits_pending,
+            permits_mandatory_deductions=per_mandatory
         )
 
     async def adjust_balance(
@@ -1067,10 +1373,12 @@ class LeaveService:
         balance = await self._balance_repo.get_or_create(user_id, year)
         
         # Map balance type to field
+        # NOTE: Adjustments update the 'accrued' fields so they immediately
+        # affect the available balance (which is calculated from accrued - used)
         field_map = {
             "vacation_ap": "vacation_previous_year",
-            "vacation_ac": "vacation_current_year",
-            "rol": "rol_current_year",
+            "vacation_ac": "vacation_accrued",  # Not vacation_current_year!
+            "rol": "rol_accrued",  # Not rol_current_year!
             "permits": "permits_total",
         }
         
@@ -1146,17 +1454,30 @@ class LeaveService:
         # Get holidays
         holidays = []
         if request.include_holidays:
-            raw_holidays = await self._get_holidays(
-                request.start_date.year,
-                request.start_date,
-                request.end_date,
-            )
+            years = {request.start_date.year, request.end_date.year}
+            raw_holidays = []
+            for y in years:
+                y_holidays = await self._get_holidays(
+                    y,
+                    request.start_date,
+                    request.end_date,
+                )
+                raw_holidays.extend(y_holidays)
+            
+            # Deduplicate by ID
+            seen_ids = set()
+            unique_raw_holidays = []
+            for h in raw_holidays:
+                if isinstance(h, dict) and h.get('id') and h.get('id') not in seen_ids:
+                    seen_ids.add(h['id'])
+                    unique_raw_holidays.append(h)
+
             holidays = [
                 CalendarEvent(
                     id=f"hol_{h['id']}",
                     title=h['name'],
                     start=h['date'],
-                    end=h['date'],
+                    end=h['date'] + timedelta(days=1) if isinstance(h['date'], date) else (date.fromisoformat(h['date']) + timedelta(days=1)).isoformat() if isinstance(h['date'], str) else h['date'],
                     allDay=True,
                     color="#EF4444" if h.get('is_national') else "#3B82F6" if h.get('is_regional') else "#F59E0B",
                     extendedProps={
@@ -1165,7 +1486,7 @@ class LeaveService:
                         "is_regional": h.get('is_regional', False),
                     }
                 )
-                for h in raw_holidays
+                for h in unique_raw_holidays
                 if isinstance(h, dict) and 'id' in h and 'name' in h and 'date' in h
             ]
         
@@ -1176,11 +1497,20 @@ class LeaveService:
             closure_start = closure.get("start_date")
             closure_end = closure.get("end_date")
             if closure_start and closure_end:
+                # Convert to date objects to add 1 day to end (since FullCalendar end is exclusive)
+                try:
+                    c_start = date.fromisoformat(closure_start) if isinstance(closure_start, str) else closure_start
+                    c_end = date.fromisoformat(closure_end) if isinstance(closure_end, str) else closure_end
+                    c_end_exclusive = c_end + timedelta(days=1)
+                except (ValueError, TypeError):
+                    c_start = closure_start
+                    c_end_exclusive = closure_end
+
                 closures.append(CalendarEvent(
                     id=f"closure_{closure.get('id', 'unknown')}",
                     title=closure.get('name', 'Chiusura'),
-                    start=closure_start,
-                    end=closure_end,
+                    start=c_start,
+                    end=c_end_exclusive,
                     allDay=True,
                     color="#9333EA",  # Purple for closures
                     extendedProps={
@@ -1727,6 +2057,20 @@ class LeaveService:
             pass
         return []
 
+    async def _get_user_info(self, user_id: UUID) -> Optional[dict]:
+        """Get user info from auth service."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{settings.auth_service_url}/api/v1/users/{user_id}",
+                    timeout=5.0,
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception:
+            pass
+        return None
+
     async def _send_notification(
         self,
         user_id: UUID,
@@ -1775,3 +2119,218 @@ class LeaveService:
         except Exception:
             pass
         return None
+
+    async def get_daily_attendance(self, request: DailyAttendanceRequest) -> DailyAttendanceResponse:
+        """Get daily attendance report for HR."""
+        # 1. Fetch active users (filtered by department if provided)
+        stmt = select(User).where(User.is_active == True)
+        if request.department:
+            stmt = stmt.join(User.profile).where(UserProfile.department == request.department).options(contains_eager(User.profile))
+        else:
+            stmt = stmt.options(selectinload(User.profile))
+        
+        result = await self._session.execute(stmt)
+        users = result.scalars().all()
+        
+        # 2. Fetch leave requests for the date
+        leave_stmt = select(LeaveRequest).where(
+            LeaveRequest.start_date <= request.date,
+            LeaveRequest.end_date >= request.date,
+            LeaveRequest.status.in_([
+                LeaveRequestStatus.APPROVED, 
+                LeaveRequestStatus.APPROVED_CONDITIONAL
+            ])
+        )
+        leave_result = await self._session.execute(leave_stmt)
+        leaves = leave_result.scalars().all()
+        leave_map = {l.user_id: l for l in leaves}
+        
+        # 3. Build response
+        items = []
+        total_present = 0
+        total_absent = 0
+        
+        for user in users:
+             leave = leave_map.get(user.id)
+             if leave:
+                 status = f"Assente ({leave.leave_type_code})"
+                 # Determine hours: 0 if full day, partial if half day?
+                 hours = Decimal(0)
+                 if leave.start_date == request.date and leave.start_half_day:
+                     hours = Decimal(4)
+                 elif leave.end_date == request.date and leave.end_half_day:
+                     hours = Decimal(4)
+                     
+                 total_absent += 1
+                 item = DailyAttendanceItem(
+                     user_id=user.id,
+                     full_name=f"{user.first_name} {user.last_name}",
+                     status=status,
+                     hours_worked=hours,
+                     leave_request_id=leave.id,
+                     leave_type_code=leave.leave_type_code
+                 )
+             else:
+                 status = "Presente"
+                 hours = Decimal(8) 
+                 # TODO: Ideally fetch from contract. But for now 8 is standard.
+                 total_present += 1
+                 item = DailyAttendanceItem(
+                     user_id=user.id,
+                     full_name=f"{user.first_name} {user.last_name}",
+                     status=status,
+                     hours_worked=hours
+                 )
+             items.append(item)
+             
+        return DailyAttendanceResponse(
+            date=request.date,
+            items=items,
+            total_present=total_present,
+            total_absent=total_absent
+        )
+    async def get_aggregate_report(self, request: AggregateReportRequest) -> AggregateReportResponse:
+        """Get aggregated attendance report for HR."""
+        # 1. Fetch users
+        stmt = select(User).where(User.is_active == True)
+        if request.department:
+            stmt = stmt.join(User.profile).where(UserProfile.department == request.department).options(contains_eager(User.profile))
+        else:
+            stmt = stmt.options(selectinload(User.profile))
+        
+        result = await self._session.execute(stmt)
+        users = result.scalars().all()
+        
+        # 2. Fetch all approved leave requests in range for these users
+        user_ids = [u.id for u in users]
+        leave_stmt = select(LeaveRequest).where(
+            LeaveRequest.user_id.in_(user_ids),
+            LeaveRequest.status.in_([
+                LeaveRequestStatus.APPROVED, 
+                LeaveRequestStatus.APPROVED_CONDITIONAL
+            ]),
+            or_(
+                (LeaveRequest.start_date <= request.end_date) & (LeaveRequest.end_date >= request.start_date)
+            )
+        )
+        leave_result = await self._session.execute(leave_stmt)
+        all_leaves = leave_result.scalars().all()
+        
+        # 3. Pre-calculate excluded days for the entire range to avoid repeated DB calls
+        period_days_data = await self.get_excluded_days(request.start_date, request.end_date)
+        total_potential_days = period_days_data["working_days"]
+        excluded_info = {d["date"]: d for d in period_days_data["excluded_days"]}
+        excluded_dates = {d["date"] for d in period_days_data["excluded_days"]}
+        
+        items = []
+        for user in users:
+            user_leaves = [l for l in all_leaves if l.user_id == user.id]
+            
+            vacation_days = Decimal(0)
+            holiday_days = Decimal(0)
+            rol_hours = Decimal(0)
+            permit_hours = Decimal(0)
+            sick_days = Decimal(0)
+            other_absences = Decimal(0)
+            
+            # Count holidays/closures in period
+            user_dept = user.profile.department if user.profile else None
+            for d_date, info in excluded_info.items():
+                if request.start_date <= d_date <= request.end_date:
+                    reason = info["reason"]
+                    if reason == "holiday":
+                        holiday_days += Decimal("1.0")
+                    elif reason == "closure":
+                        # Check department overlap
+                        affected_depts = info.get("affected_departments")
+                        if affected_depts and user_dept and user_dept not in affected_depts:
+                            continue
+                        
+                        holiday_days += Decimal("1.0")
+                        if info.get("consumes_balance"):
+                            vacation_days += Decimal("1.0")
+
+            for leave in user_leaves:
+                # Calculate overlap days
+                effective_start = max(leave.start_date, request.start_date)
+                effective_end = min(leave.end_date, request.end_date)
+                
+                if effective_start <= effective_end:
+                    # Count working days in overlap using pre-calculated excluded_dates
+                    overlap_working_days = Decimal(0)
+                    curr = effective_start
+                    while curr <= effective_end:
+                        if curr not in excluded_dates:
+                            overlap_working_days += Decimal("1.0")
+                        curr += timedelta(days=1)
+                    
+                    # Adjust for half days only if effective start/end is the original leave's start/end
+                    if effective_start == leave.start_date and leave.start_half_day:
+                        # Only if it wasn't excluded
+                        if effective_start not in excluded_dates:
+                            overlap_working_days -= Decimal("0.5")
+                    if effective_end == leave.end_date and leave.end_half_day:
+                        if effective_end not in excluded_dates:
+                            overlap_working_days -= Decimal("0.5")
+                        
+                    # Map to categories
+                    code = leave.leave_type_code
+                    if code == "FER":
+                        vacation_days += overlap_working_days
+                    elif code == "ROL":
+                        rol_hours += overlap_working_days * Decimal("8.0")
+                    elif code in ["PAR", "PER"]:
+                        permit_hours += overlap_working_days * Decimal("8.0") 
+                    elif code == "MAL":
+                        sick_days += overlap_working_days
+                    else:
+                        other_absences += overlap_working_days
+            
+            # 4. Calculate effectively worked days (only in the past/today)
+            today = date.today()
+            effective_end_for_worked = min(request.end_date, today)
+            
+            worked_days_count = Decimal(0)
+            if request.start_date <= effective_end_for_worked:
+                curr = request.start_date
+                while curr <= effective_end_for_worked:
+                    if curr not in excluded_dates:
+                        # Check if user had an absence on this specific day
+                        has_absence = False
+                        for leave in user_leaves:
+                            if leave.start_date <= curr <= leave.end_date:
+                                # Count as absence if it's a full day or we are on the half-day boundary
+                                if leave.start_date == curr and leave.start_half_day:
+                                    worked_days_count += Decimal("0.5")
+                                    has_absence = True
+                                elif leave.end_date == curr and leave.end_half_day:
+                                    worked_days_count += Decimal("0.5")
+                                    has_absence = True
+                                else:
+                                    has_absence = True
+                                break
+                        
+                        if not has_absence:
+                            worked_days_count += Decimal("1.0")
+                    curr += timedelta(days=1)
+
+            worked_days = float(worked_days_count)
+            
+            items.append(AggregateReportItem(
+                user_id=user.id,
+                full_name=f"{user.first_name} {user.last_name}",
+                total_days=total_potential_days,
+                worked_days=worked_days,
+                vacation_days=vacation_days,
+                holiday_days=holiday_days,
+                rol_hours=rol_hours,
+                permit_hours=permit_hours,
+                sick_days=sick_days,
+                other_absences=other_absences
+            ))
+            
+        return AggregateReportResponse(
+            start_date=request.start_date,
+            end_date=request.end_date,
+            items=items
+        )

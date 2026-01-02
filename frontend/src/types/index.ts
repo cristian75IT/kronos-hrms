@@ -32,7 +32,10 @@ export interface User {
     first_name: string;
     last_name: string;
     is_active: boolean;
-    is_superuser?: boolean;
+    is_superuser?: boolean; // Admin
+    is_manager?: boolean;
+    is_approver?: boolean;
+    is_hr?: boolean;
     last_login?: string;
     created_at: string;
 }
@@ -305,6 +308,7 @@ export interface LeaveBalanceSummary {
 export interface LeaveRequest {
     id: string;
     user_id: string;
+    user_name?: string;  // Full name of the requester
     leave_type_id: string;
     leave_type_code: string;
     status: LeaveRequestStatus;
@@ -514,4 +518,84 @@ export interface DataTableResponse<T> {
     recordsTotal: number;
     recordsFiltered: number;
     data: T[];
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Audit Logs
+// ═══════════════════════════════════════════════════════════════════
+
+export interface AuditLogListItem {
+    id: string;
+    user_email?: string;
+    action: string;
+    resource_type: string;
+    resource_id?: string;
+    status: 'SUCCESS' | 'FAILURE' | 'ERROR';
+    service_name: string;
+    created_at: string;
+}
+
+export interface AuditLogDetails extends AuditLogListItem {
+    user_id?: string;
+    description?: string;
+    ip_address?: string;
+    endpoint?: string;
+    http_method?: string;
+    error_message?: string;
+    request_data?: any;
+    response_data?: any;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// HR Types
+// ═══════════════════════════════════════════════════════════════════
+
+export interface DailyAttendanceRequest {
+    date: string;
+    department?: string;
+}
+
+export interface DailyAttendanceItem {
+    user_id: string;
+    full_name: string;
+    status: string;
+    hours_worked?: number;
+    leave_request_id?: string;
+    leave_type_code?: string;
+}
+
+export interface DailyAttendanceResponse {
+    date: string;
+    items: DailyAttendanceItem[];
+    total_present: number;
+    total_absent: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// HR Aggregate Reporting
+// ═══════════════════════════════════════════════════════════════════
+
+export interface AggregateReportRequest {
+    start_date: string;
+    end_date: string;
+    department?: string;
+}
+
+export interface AggregateReportItem {
+    user_id: string;
+    full_name: string;
+    total_days: number;
+    worked_days: number;
+    vacation_days: number;
+    holiday_days: number;
+    rol_hours: number;
+    permit_hours: number;
+    sick_days: number;
+    other_absences: number;
+}
+
+export interface AggregateReportResponse {
+    start_date: string;
+    end_date: string;
+    items: AggregateReportItem[];
 }

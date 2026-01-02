@@ -25,7 +25,7 @@ interface NotificationSetting {
     value: boolean;
     label: string;
     description: string;
-    category: 'email' | 'app';
+    category: 'email' | 'app' | 'business';
 }
 
 interface EmployeePreview {
@@ -46,13 +46,14 @@ export function AdminToolsPage() {
     const [previewMode, setPreviewMode] = useState<'recalc' | 'rollover' | null>(null);
     const [previewData, setPreviewData] = useState<EmployeePreview[]>([]);
     const [isLoadingPreview, setIsLoadingPreview] = useState(false);
-    const [previewYear, setPreviewYear] = useState<number>(new Date().getFullYear());
+    const [previewYear] = useState<number>(new Date().getFullYear());
 
     const [settings, setSettings] = useState<NotificationSetting[]>([
         { key: 'notify_leave_request', value: true, label: 'Nuove Richieste Ferie', description: 'Invia email ai responsabili quando un dipendente richiede ferie.', category: 'email' },
         { key: 'notify_leave_approval', value: true, label: 'Esito Richieste', description: 'Notifica il dipendente quando la sua richiesta viene approvata o rifiutata.', category: 'email' },
         { key: 'notify_wallet_expiry', value: false, label: 'Scadenza Wallet', description: 'Avvisa i dipendenti un mese prima della scadenza delle ferie AP.', category: 'email' },
         { key: 'push_approvals', value: true, label: 'Notifiche App Approvatori', description: 'Notifiche push per gli approvatori in attesa.', category: 'app' },
+        { key: 'smart_deduction_enabled', value: false, label: 'Smart Deduction', description: 'Se abilitato, il sistema prioritizza lo scarico dei residui che scadono prima (es. ROL in scadenza).', category: 'business' },
     ]);
 
     const handleToggleSetting = (key: string) => {
@@ -200,6 +201,32 @@ export function AdminToolsPage() {
                         </div>
                         <div className="divide-y divide-gray-100">
                             {settings.filter(s => s.category === 'app').map(setting => (
+                                <div key={setting.key} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                                    <div className="flex-1 min-w-0 mr-4">
+                                        <p className="font-medium text-gray-900">{setting.label}</p>
+                                        <p className="text-sm text-gray-500">{setting.description}</p>
+                                    </div>
+                                    <button
+                                        onClick={() => handleToggleSetting(setting.key)}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${setting.value ? 'bg-indigo-600' : 'bg-gray-200'}`}
+                                    >
+                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${setting.value ? 'translate-x-6' : 'translate-x-1'}`} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Business Rules */}
+                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex items-center justify-between">
+                            <div>
+                                <h3 className="font-semibold text-gray-900">Logica di Business</h3>
+                                <p className="text-xs text-gray-500 mt-0.5">Parametri globali per il calcolo delle assenze</p>
+                            </div>
+                        </div>
+                        <div className="divide-y divide-gray-100">
+                            {settings.filter(s => s.category === 'business').map(setting => (
                                 <div key={setting.key} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                                     <div className="flex-1 min-w-0 mr-4">
                                         <p className="font-medium text-gray-900">{setting.label}</p>

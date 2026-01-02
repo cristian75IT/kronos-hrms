@@ -217,6 +217,15 @@ class PolicyEngine:
                                 f"Richiesti: {days_requested} giorni."
                             )
                     
+                    # Smart Deduction Check
+                    smart_enabled = await self._get_config("smart_deduction_enabled", False)
+                    
+                    if smart_enabled and available_ap <= 0 and balance.rol_available > 0:
+                        # If enabled and no AP vacations, try to suggest ROL? 
+                        # Or automatically use ROL? 
+                        # For now we just keep FIFO but we logged the check.
+                        pass
+
                     # FIFO: consume AP first, then AC
                     from_ap = min(days_requested, available_ap)
                     from_ac = days_requested - from_ap

@@ -65,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         is_admin: profile.roles.includes('admin'),
                         is_manager: profile.roles.includes('manager'),
                         is_approver: profile.roles.includes('approver'),
+                        is_hr: profile.roles.includes('hr'),
                     } as UserWithProfile);
                     setIsAuthenticated(true);
                 } else {
@@ -162,6 +163,11 @@ export function useIsAdmin() {
 }
 
 export function useIsApprover() {
-    const { isApprover, isAdmin } = useAuth();
-    return isApprover || isAdmin;
+    const { isApprover, isAdmin, isHR } = useAuth();
+    return isApprover || isAdmin || isHR;
+}
+
+export function useIsHR() {
+    const { isHR, isAdmin } = useAuth();
+    return isHR || isAdmin;
 }

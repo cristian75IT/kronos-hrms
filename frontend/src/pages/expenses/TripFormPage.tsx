@@ -3,12 +3,13 @@
  */
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { Calendar as CalendarIcon, Save, X, AlertCircle, MapPin, DollarSign, Globe, Paperclip } from 'lucide-react';
+import { Calendar as CalendarIcon, Save, X, AlertCircle, MapPin, DollarSign, Globe } from 'lucide-react';
 import { useCreateTrip, useUploadTripAttachment } from '../../hooks/useApi';
 import { useState } from 'react';
 import { useToast } from '../../context/ToastContext';
 import type { DestinationType } from '../../types';
 import { formatApiError } from '../../utils/errorUtils';
+import { FileUpload } from '../../components/common/FileUpload';
 
 interface TripFormValues {
     title: string;
@@ -24,8 +25,9 @@ export function TripFormPage() {
     const navigate = useNavigate();
     const createMutation = useCreateTrip();
     const uploadMutation = useUploadTripAttachment();
-    const [attachment, setAttachment] = useState<File | null>(null);
+    const [attachments, setAttachments] = useState<File[]>([]);
     const { success, error: showError } = useToast();
+
 
     const { register, handleSubmit, watch, formState: { errors } } = useForm<TripFormValues>({
         defaultValues: {
@@ -37,27 +39,37 @@ export function TripFormPage() {
 
     const startDate = watch('start_date');
 
+    const uploadAttachments = async (tripId: string) => {
+        for (const file of attachments) {
+            try {
+                await new Promise<void>((resolve, reject) => {
+                    uploadMutation.mutate(
+                        { id: tripId, file },
+                        {
+                            onSuccess: () => resolve(),
+                            onError: () => reject(),
+                        }
+                    );
+                });
+            } catch {
+                showError(`Errore durante il caricamento di "${file.name}"`);
+            }
+        }
+    };
+
     const onSubmit = (data: TripFormValues) => {
         createMutation.mutate(data, {
-            onSuccess: (newTrip) => {
+            onSuccess: async (newTrip) => {
                 success('Trasferta creata con successo!');
-                if (attachment) {
-                    uploadMutation.mutate({ id: newTrip.id, file: attachment }, {
-                        onSuccess: () => {
-                            success('Allegato caricato correttamente');
-                            navigate('/trips');
-                        },
-                        onError: () => {
-                            showError('Errore durante il caricamento dell\'allegato');
-                            navigate('/trips');
-                        },
-                    });
-                } else {
-                    navigate('/trips');
+                if (attachments.length > 0) {
+                    await uploadAttachments(newTrip.id);
+                    success(`${attachments.length} allegat${attachments.length === 1 ? 'o' : 'i'} caricat${attachments.length === 1 ? 'o' : 'i'}`);
                 }
+                navigate('/trips');
             },
         });
     };
+
 
     return (
         <div className="max-w-2xl mx-auto animate-fadeIn pb-8">
@@ -86,7 +98,7 @@ export function TripFormPage() {
                         <div className="space-y-1.5">
                             <label className="block text-sm font-medium text-gray-700">Destinazione</label>
                             <div className="relative">
-                                <MapPin size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <MapPin size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                                 <input
                                     type="text"
                                     {...register('destination', { required: 'La destinazione è obbligatoria' })}
@@ -100,7 +112,7 @@ export function TripFormPage() {
                         <div className="space-y-1.5">
                             <label className="block text-sm font-medium text-gray-700">Tipo Destinazione</label>
                             <div className="relative">
-                                <Globe size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <Globe size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                                 <select
                                     {...register('destination_type')}
                                     className="input w-full pl-10 appearance-none bg-none"
@@ -118,7 +130,7 @@ export function TripFormPage() {
                         <div className="space-y-1.5">
                             <label className="block text-sm font-medium text-gray-700">Data Inizio</label>
                             <div className="relative">
-                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                                 <input
                                     type="date"
                                     {...register('start_date', { required: 'Data inizio obbligatoria' })}
@@ -131,7 +143,7 @@ export function TripFormPage() {
                         <div className="space-y-1.5">
                             <label className="block text-sm font-medium text-gray-700">Data Fine</label>
                             <div className="relative">
-                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                                 <input
                                     type="date"
                                     {...register('end_date', {
@@ -150,7 +162,7 @@ export function TripFormPage() {
                     <div className="space-y-1.5">
                         <label className="block text-sm font-medium text-gray-700">Budget Stimato (€)</label>
                         <div className="relative max-w-xs">
-                            <DollarSign size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <DollarSign size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                             <input
                                 type="number"
                                 step="0.01"
@@ -173,29 +185,18 @@ export function TripFormPage() {
                         {errors.purpose && <span className="text-red-500 text-xs">{errors.purpose.message}</span>}
                     </div>
 
-                    {/* Attachment */}
-                    <div className="space-y-1.5">
-                        <label className="block text-sm font-medium text-gray-700">Allegato (PDF max 2MB)</label>
-                        <div className="relative">
-                            <Paperclip size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <input
-                                type="file"
-                                accept=".pdf"
-                                onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file && file.size > 2 * 1024 * 1024) {
-                                        showError("Il file non può superare i 2MB");
-                                        e.target.value = "";
-                                        setAttachment(null);
-                                    } else {
-                                        setAttachment(file || null);
-                                    }
-                                }}
-                                className="input w-full pl-10 py-2"
-                            />
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">Carica un piano di viaggio o altri documenti rilevanti.</p>
-                    </div>
+                    {/* Attachments */}
+                    <FileUpload
+                        label="Allegati"
+                        files={attachments}
+                        onFilesChange={setAttachments}
+                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                        multiple={true}
+                        maxSizeMB={5}
+                        maxFiles={5}
+                        helperText="Piano di viaggio, prenotazioni, inviti o altri documenti (max 5 file, 5MB per file)"
+                    />
+
 
                     {/* Error Message */}
                     {createMutation.isError && (

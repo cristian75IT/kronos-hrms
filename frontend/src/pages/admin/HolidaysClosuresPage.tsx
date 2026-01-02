@@ -709,7 +709,14 @@ export function HolidaysClosuresPage() {
                                     <input
                                         type="checkbox"
                                         checked={closureForm.is_paid}
-                                        onChange={e => setClosureForm({ ...closureForm, is_paid: e.target.checked })}
+                                        onChange={e => {
+                                            const checked = e.target.checked;
+                                            setClosureForm({
+                                                ...closureForm,
+                                                is_paid: checked,
+                                                consumes_leave_balance: checked ? false : closureForm.consumes_leave_balance
+                                            });
+                                        }}
                                         className="rounded border-gray-300 text-indigo-600"
                                     />
                                     <span className="text-sm text-gray-700">Giorni retribuiti dall'azienda</span>
@@ -718,7 +725,14 @@ export function HolidaysClosuresPage() {
                                     <input
                                         type="checkbox"
                                         checked={closureForm.consumes_leave_balance}
-                                        onChange={e => setClosureForm({ ...closureForm, consumes_leave_balance: e.target.checked })}
+                                        onChange={e => {
+                                            const checked = e.target.checked;
+                                            setClosureForm({
+                                                ...closureForm,
+                                                consumes_leave_balance: checked,
+                                                is_paid: checked ? false : closureForm.is_paid
+                                            });
+                                        }}
                                         className="rounded border-gray-300 text-indigo-600"
                                     />
                                     <span className="text-sm text-gray-700">Scala dal saldo ferie dipendenti</span>

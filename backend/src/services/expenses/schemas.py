@@ -14,6 +14,16 @@ from src.services.expenses.models import TripStatus, ExpenseReportStatus, Destin
 # Business Trip Schemas
 # ═══════════════════════════════════════════════════════════
 
+class AttachmentResponse(IDMixin, BaseSchema):
+    """Response schema for file attachment."""
+    
+    filename: str
+    file_path: str
+    content_type: str
+    size_bytes: int
+    created_at: datetime
+
+
 class BusinessTripBase(BaseModel):
     """Base business trip schema."""
     
@@ -57,7 +67,9 @@ class BusinessTripResponse(BusinessTripBase, IDMixin, BaseSchema):
     approver_id: Optional[UUID] = None
     approved_at: Optional[datetime] = None
     approver_notes: Optional[str] = None
-    attachment_path: Optional[str] = None
+    approver_notes: Optional[str] = None
+    attachment_path: Optional[str] = None  # Deprecated in favor of attachments list
+    attachments: list[AttachmentResponse] = []
     total_days: int
     created_at: datetime
     updated_at: datetime
@@ -149,7 +161,9 @@ class ExpenseReportResponse(ExpenseReportBase, IDMixin, BaseSchema):
     approver_id: Optional[UUID] = None
     approved_at: Optional[datetime] = None
     approver_notes: Optional[str] = None
-    attachment_path: Optional[str] = None
+    approver_notes: Optional[str] = None
+    attachment_path: Optional[str] = None  # Deprecated in favor of attachments list
+    attachments: list[AttachmentResponse] = []
     paid_at: Optional[datetime] = None
     payment_reference: Optional[str] = None
     created_at: datetime

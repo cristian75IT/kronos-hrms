@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import get_current_token, require_admin, require_approver, TokenPayload
+from src.core.security import get_current_token, get_current_user, require_admin, require_approver, require_hr, TokenPayload
 from src.core.exceptions import NotFoundError, BusinessRuleError, ValidationError
 from src.shared.schemas import MessageResponse, DataTableRequest
 from src.services.leaves.service import LeaveService
@@ -37,6 +37,10 @@ from src.services.leaves.schemas import (
     RolloverPreviewResponse,
     ApplyChangesRequest,
     EmployeePreviewItem,
+    DailyAttendanceRequest,
+    DailyAttendanceResponse,
+    AggregateReportRequest,
+    AggregateReportResponse,
 )
 
 
@@ -51,14 +55,15 @@ async def get_leave_service(
 
 
 async def get_current_user_id(
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
 ) -> UUID:
-    """Get current user's ID from Keycloak token.
+    """Get current user's internal database ID.
     
-    The keycloak_id is used as the primary user identifier across all services.
-    This approach ensures consistency with the auth-service user sync.
+    Uses the resolved internal_user_id from the auth service lookup.
+    This ensures consistency: the same ID is used for leave_balances,
+    leave_requests, and all other user-related data.
     """
-    return UUID(token.keycloak_id)
+    return token.user_id
 
 
 # ═══════════════════════════════════════════════════════════
@@ -69,11 +74,11 @@ async def get_current_user_id(
 async def get_my_requests(
     year: Optional[int] = None,
     status: Optional[str] = Query(None, description="Comma-separated statuses"),
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Get current user's leave requests."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     status_list = None
     if status:
@@ -88,11 +93,11 @@ async def leaves_datatable(
     request: DataTableRequest,
     year: Optional[int] = None,
     status: Optional[str] = Query(None),
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Get leave requests for DataTable."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     status_list = None
     if status:
@@ -117,14 +122,58 @@ async def get_pending_approval(
 ):
     """Get requests pending approval. Approver only."""
     requests = await service.get_pending_approval()
-    return [LeaveRequestListItem.model_validate(r) for r in requests]
+    
+    # Enrich with user names
+    result = []
+    for r in requests:
+        item = LeaveRequestListItem.model_validate(r)
+        # Fetch user name from auth service
+        user_info = await service._get_user_info(r.user_id)
+        if user_info:
+            item.user_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip()
+        result.append(item)
+    
+    return result
+
+
+@router.get("/leaves/history", response_model=list[LeaveRequestListItem])
+async def get_approval_history(
+    status: Optional[str] = Query(None, description="Filter by status: approved, rejected, cancelled, all"),
+    year: Optional[int] = Query(None, description="Filter by year"),
+    limit: int = Query(50, ge=1, le=200),
+    token: TokenPayload = Depends(require_approver),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Get approval history (all processed requests). Approver only."""
+    # Get all requests (not just pending)
+    status_filter = None
+    if status and status != "all":
+        status_map = {
+            "approved": [LeaveRequestStatus.APPROVED, LeaveRequestStatus.APPROVED_CONDITIONAL],
+            "rejected": [LeaveRequestStatus.REJECTED],
+            "cancelled": [LeaveRequestStatus.CANCELLED],
+        }
+        status_filter = status_map.get(status)
+    
+    requests = await service.get_all_requests(status=status_filter, year=year, limit=limit)
+    
+    # Enrich with user names
+    result = []
+    for r in requests:
+        item = LeaveRequestListItem.model_validate(r)
+        user_info = await service._get_user_info(r.user_id)
+        if user_info:
+            item.user_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip()
+        result.append(item)
+    
+    return result
 
 
 @router.get("/leaves/excluded-days")
 async def get_excluded_days(
     start_date: str = Query(..., description="Start date in YYYY-MM-DD format"),
     end_date: str = Query(..., description="End date in YYYY-MM-DD format"),
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Get list of excluded days (weekends, holidays, closures) in a date range."""
@@ -139,7 +188,7 @@ async def get_excluded_days(
 @router.get("/leaves/{id}", response_model=LeaveRequestResponse)
 async def get_request(
     id: UUID,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Get leave request by ID."""
@@ -152,11 +201,11 @@ async def get_request(
 @router.post("/leaves", response_model=LeaveRequestResponse, status_code=201)
 async def create_request(
     data: LeaveRequestCreate,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Create a new leave request (as draft)."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     try:
         return await service.create_request(user_id, data)
@@ -168,11 +217,11 @@ async def create_request(
 async def update_request(
     id: UUID,
     data: LeaveRequestUpdate,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Update a draft request."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     try:
         return await service.update_request(id, user_id, data)
@@ -185,11 +234,11 @@ async def update_request(
 @router.post("/leaves/{id}/submit", response_model=LeaveRequestResponse)
 async def submit_request(
     id: UUID,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Submit a draft request for approval."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     try:
         return await service.submit_request(id, user_id)
@@ -207,7 +256,7 @@ async def approve_request(
     service: LeaveService = Depends(get_leave_service),
 ):
     """Approve a pending request. Approver only."""
-    approver_id = UUID(token.keycloak_id)
+    approver_id = token.user_id
     
     try:
         return await service.approve_request(id, approver_id, data)
@@ -225,7 +274,7 @@ async def approve_conditional(
     service: LeaveService = Depends(get_leave_service),
 ):
     """Approve with conditions. Approver only."""
-    approver_id = UUID(token.keycloak_id)
+    approver_id = token.user_id
     
     try:
         return await service.approve_conditional(id, approver_id, data)
@@ -239,11 +288,11 @@ async def approve_conditional(
 async def accept_condition(
     id: UUID,
     data: AcceptConditionRequest,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Accept or reject approval conditions."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     try:
         return await service.accept_condition(id, user_id, data)
@@ -261,10 +310,46 @@ async def reject_request(
     service: LeaveService = Depends(get_leave_service),
 ):
     """Reject a pending request. Approver only."""
-    approver_id = UUID(token.keycloak_id)
+    approver_id = token.user_id
     
     try:
         return await service.reject_request(id, approver_id, data)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except BusinessRuleError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/leaves/{id}/revoke", response_model=LeaveRequestResponse)
+async def revoke_approval(
+    id: UUID,
+    reason: str = Query(..., min_length=5, description="Reason for revocation"),
+    token: TokenPayload = Depends(require_approver),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Revoke an already approved request. Only within legal deadlines (before start_date)."""
+    approver_id = token.user_id
+    
+    try:
+        return await service.revoke_approval(id, approver_id, reason)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except BusinessRuleError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/leaves/{id}/reopen", response_model=LeaveRequestResponse)
+async def reopen_request(
+    id: UUID,
+    notes: str = Query(None, description="Optional notes for reopening"),
+    token: TokenPayload = Depends(require_approver),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Reopen a rejected/cancelled request back to pending. Only before the original start_date."""
+    approver_id = token.user_id
+    
+    try:
+        return await service.reopen_request(id, approver_id, notes)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except BusinessRuleError as e:
@@ -275,11 +360,11 @@ async def reject_request(
 async def cancel_request(
     id: UUID,
     data: CancelRequest = CancelRequest(),
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Cancel own request."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     try:
         return await service.cancel_request(id, user_id, data)
@@ -297,7 +382,7 @@ async def recall_request(
     service: LeaveService = Depends(get_leave_service),
 ):
     """Recall an approved request. Manager only."""
-    manager_id = UUID(token.keycloak_id)
+    manager_id = token.user_id
     
     try:
         return await service.recall_request(id, manager_id, data)
@@ -310,11 +395,11 @@ async def recall_request(
 @router.delete("/leaves/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_request(
     id: UUID,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Delete a draft request."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     try:
         await service.delete_request(id, user_id)
@@ -331,22 +416,22 @@ async def delete_request(
 @router.get("/balances/me", response_model=LeaveBalanceResponse)
 async def get_my_balance(
     year: int = Query(default_factory=lambda: date.today().year),
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Get current user's balance."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     return await service.get_balance(user_id, year)
 
 
 @router.get("/balances/me/summary", response_model=BalanceSummary)
 async def get_my_balance_summary(
     year: int = Query(default_factory=lambda: date.today().year),
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Get current user's balance summary with pending."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     return await service.get_balance_summary(user_id, year)
 
 
@@ -370,7 +455,7 @@ async def adjust_balance(
     service: LeaveService = Depends(get_leave_service),
 ):
     """Manually adjust a user's balance. Admin only."""
-    admin_id = UUID(token.keycloak_id)
+    admin_id = token.user_id
     
     try:
         return await service.adjust_balance(user_id, year, data, admin_id)
@@ -464,14 +549,32 @@ async def apply_rollover_selected(
 @router.post("/leaves/calendar", response_model=CalendarResponse)
 async def get_calendar(
     request: CalendarRequest,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Get calendar events for FullCalendar."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     is_manager = token.is_manager
     
     return await service.get_calendar(request, user_id, is_manager)
+
+
+@router.post("/leaves/daily-attendance", response_model=DailyAttendanceResponse)
+async def get_daily_attendance(
+    request: DailyAttendanceRequest,
+    token: TokenPayload = Depends(require_hr),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Get daily attendance report for HR."""
+    return await service.get_daily_attendance(request)
+@router.post("/leaves/aggregate-attendance", response_model=AggregateReportResponse)
+async def get_aggregate_attendance(
+    request: AggregateReportRequest,
+    token: TokenPayload = Depends(require_hr),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Get aggregated attendance report for HR."""
+    return await service.get_aggregate_report(request)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -481,7 +584,7 @@ async def get_calendar(
 @router.post("/leaves/calculate-days", response_model=DaysCalculationResponse)
 async def calculate_days(
     request: DaysCalculationRequest,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Calculate working days for preview."""
@@ -493,11 +596,11 @@ async def calculate_days(
 @router.post("/leaves/validate", response_model=PolicyValidationResult)
 async def validate_request(
     data: LeaveRequestCreate,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Validate a request against policies before submission."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     # Calculate days first
     days = await service._calculate_days(

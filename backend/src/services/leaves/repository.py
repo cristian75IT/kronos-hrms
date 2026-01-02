@@ -68,6 +68,27 @@ class LeaveRequestRepository:
         result = await self._session.execute(query)
         return list(result.scalars().all())
 
+    async def get_all(
+        self,
+        status: Optional[list[LeaveRequestStatus]] = None,
+        year: Optional[int] = None,
+        limit: int = 50,
+    ) -> list[LeaveRequest]:
+        """Get all requests with optional filters."""
+        query = select(LeaveRequest)
+        
+        if status:
+            query = query.where(LeaveRequest.status.in_(status))
+        
+        if year:
+            query = query.where(
+                func.extract("year", LeaveRequest.start_date) == year
+            )
+        
+        query = query.order_by(LeaveRequest.updated_at.desc()).limit(limit)
+        result = await self._session.execute(query)
+        return list(result.scalars().all())
+
     async def get_datatable(
         self,
         request: DataTableRequest,
@@ -183,6 +204,7 @@ class LeaveRequestRepository:
         request = LeaveRequest(**kwargs)
         self._session.add(request)
         await self._session.flush()
+        await self._session.refresh(request)
         return request
 
     async def update(self, id: UUID, **kwargs: Any) -> Optional[LeaveRequest]:
@@ -196,6 +218,7 @@ class LeaveRequestRepository:
                 setattr(request, field, value)
         
         await self._session.flush()
+        await self._session.refresh(request)
         return request
 
     async def delete(self, id: UUID) -> bool:
@@ -274,6 +297,7 @@ class LeaveBalanceRepository:
         balance = LeaveBalance(user_id=user_id, year=year)
         self._session.add(balance)
         await self._session.flush()
+        await self._session.refresh(balance)
         return balance
 
     async def update(self, id: UUID, **kwargs: Any) -> Optional[LeaveBalance]:
@@ -287,6 +311,7 @@ class LeaveBalanceRepository:
                 setattr(balance, field, value)
         
         await self._session.flush()
+        await self._session.refresh(balance)
         return balance
 
     async def add_transaction(
@@ -320,6 +345,7 @@ class LeaveBalanceRepository:
         )
         self._session.add(transaction)
         await self._session.flush()
+        await self._session.refresh(transaction)
         return transaction
 
     async def get_transactions(

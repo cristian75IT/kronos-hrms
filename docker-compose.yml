@@ -121,6 +121,8 @@ services:
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=kronos
       - MINIO_SECRET_KEY=kronos_dev
+      - MINIO_SECRET_KEY=kronos_dev
+      - AUTH_SERVICE_URL=http://auth-service:8001
       - CONFIG_SERVICE_URL=http://config-service:8004
       - NOTIFICATION_SERVICE_URL=http://notification-service:8005
       - KEYCLOAK_URL=http://keycloak:8080/
@@ -207,6 +209,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://kronos:kronos_dev@postgres:5432/kronos
       - DATABASE_SCHEMA=audit
       - REDIS_URL=redis://redis:6379/5
+      - AUTH_SERVICE_URL=http://auth-service:8001
       - KEYCLOAK_URL=http://keycloak:8080/
       - KEYCLOAK_REALM=kronos
       - KEYCLOAK_CLIENT_ID=kronos-backend

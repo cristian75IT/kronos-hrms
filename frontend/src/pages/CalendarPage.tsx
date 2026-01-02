@@ -79,36 +79,39 @@ export function CalendarPage() {
         // National & Local Holidays
         if (filters.showNationalHolidays || filters.showLocalHolidays) {
             const holidays = (calendarData.holidays || []).filter(h => {
-                if (h.is_national && filters.showNationalHolidays) return true;
-                if (!h.is_national && filters.showLocalHolidays) return true;
+                const isNational = h.extendedProps?.is_national;
+                if (isNational && filters.showNationalHolidays) return true;
+                if (!isNational && filters.showLocalHolidays) return true;
                 return false;
-            }).map(holiday => ({
-                id: `holiday-${holiday.id}`,
-                title: `🏛️ ${holiday.title}`,
-                start: holiday.start,
-                allDay: true,
-                display: 'background',
-                backgroundColor: holiday.is_national ? 'rgba(239, 68, 68, 0.15)' : 'rgba(249, 115, 22, 0.15)',
-                classNames: ['holiday-event', holiday.is_national ? 'national' : 'local'],
-                extendedProps: { type: 'holiday', isNational: holiday.is_national },
-            }));
+            }).map(holiday => {
+                const isNational = holiday.extendedProps?.is_national;
+                return {
+                    id: holiday.id,
+                    title: `🏛️ ${holiday.title}`,
+                    start: holiday.start,
+                    end: holiday.end,
+                    allDay: true,
+                    // Use standard display instead of background to ensure title is shown
+                    classNames: ['holiday-event', isNational ? 'national' : 'local', isNational ? '!bg-red-50 !text-red-700 !border-red-200' : '!bg-orange-50 !text-orange-700 !border-orange-200'],
+                    extendedProps: { ...holiday.extendedProps, type: 'holiday' },
+                };
+            });
             result.push(...holidays);
         }
 
         // Company Closures
         if (filters.showCompanyClosures) {
             const closures = (calendarData.closures || []).map((closure) => ({
-                id: `closure-${closure.id}`,
+                id: closure.id,
                 title: `🏢 ${closure.title}`,
                 start: closure.start,
                 end: closure.end,
                 allDay: true,
-                display: 'background',
-                backgroundColor: closure.extendedProps?.closure_type === 'total'
-                    ? 'rgba(147, 51, 234, 0.15)'
-                    : 'rgba(147, 51, 234, 0.08)',
-                classNames: ['closure-event', closure.extendedProps?.closure_type || 'total'],
-                extendedProps: { type: 'closure', closureType: closure.extendedProps?.closure_type },
+                // Use standard display to ensure title is shown
+                classNames: ['closure-event', closure.extendedProps?.closure_type || 'total', closure.extendedProps?.closure_type === 'total'
+                    ? '!bg-purple-50 !text-purple-700 !border-purple-200'
+                    : '!bg-purple-50/50 !text-purple-600 !border-purple-100'],
+                extendedProps: { ...closure.extendedProps, type: 'closure' },
             }));
             result.push(...closures);
         }
@@ -173,15 +176,15 @@ export function CalendarPage() {
             </div>
 
             {/* Calendar Section */}
-            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+            <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-xl overflow-hidden shadow-sm">
                 {/* Toolbar */}
-                <div className="flex flex-col md:flex-row justify-between items-center p-4 gap-4 border-b border-gray-200 bg-gray-50/50">
-                    <div className="flex items-center gap-2 text-gray-900 font-bold text-lg">
-                        <CalendarIcon size={20} className="text-indigo-600" />
+                <div className="flex flex-col md:flex-row justify-between items-center p-4 gap-4 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
+                    <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-bold text-lg">
+                        <CalendarIcon size={20} className="text-[var(--color-primary)]" />
                         <h2>Calendario</h2>
                     </div>
 
-                    <div className="flex bg-white rounded-lg p-1 border border-gray-200 shadow-sm">
+                    <div className="flex bg-[var(--color-bg-primary)] rounded-lg p-1 border border-[var(--color-border)] shadow-sm">
                         {(['dayGridMonth', 'timeGridWeek', 'timeGridDay'] as CalendarView[]).map(view => (
                             <button
                                 key={view}
@@ -199,8 +202,8 @@ export function CalendarPage() {
                     <div className="relative">
                         <button
                             className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${filtersOpen
-                                ? 'bg-gray-100 text-gray-900 border-gray-300'
-                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                ? 'bg-[var(--color-bg-active)] text-[var(--color-text-primary)] border-[var(--color-border-strong)]'
+                                : 'bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:bg-[var(--color-bg-hover)]'
                                 }`}
                             onClick={() => setFiltersOpen(!filtersOpen)}
                         >
@@ -210,9 +213,9 @@ export function CalendarPage() {
                         </button>
 
                         {filtersOpen && (
-                            <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-xl z-50 animate-fadeInUp overflow-hidden">
-                                <div className="flex justify-between items-center p-3 border-b border-gray-100 bg-gray-50">
-                                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide">Elementi Visibili</h4>
+                            <div className="absolute right-0 top-full mt-2 w-72 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-xl shadow-xl z-50 animate-fadeInUp overflow-hidden">
+                                <div className="flex justify-between items-center p-3 border-b border-[var(--color-border-light)] bg-[var(--color-bg-tertiary)]">
+                                    <h4 className="text-xs font-bold text-[var(--color-text-muted)] uppercase tracking-wide">Elementi Visibili</h4>
                                     <button className="text-gray-400 hover:text-gray-600 p-1" onClick={() => setFiltersOpen(false)}>
                                         <X size={14} />
                                     </button>
@@ -312,7 +315,7 @@ export function CalendarPage() {
                 </div>
 
                 {/* Legend */}
-                <div className="flex flex-wrap gap-4 p-3 bg-white border-b border-gray-100 text-xs">
+                <div className="flex flex-wrap gap-4 p-3 bg-[var(--color-bg-secondary)] border-b border-[var(--color-border-light)] text-xs">
                     <div className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded bg-emerald-500" />
                         <span className="text-gray-600">Approvate</span>
