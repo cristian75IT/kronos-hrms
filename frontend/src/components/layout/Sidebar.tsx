@@ -45,7 +45,7 @@ const approverItems: NavItem[] = [
 
 const adminItems: NavItem[] = [
   { label: 'Gestione Utenti', path: '/admin/users', icon: <Users size={20} />, roles: ['admin', 'hr'] },
-  { label: 'Festività e Chiusure', path: '/admin/holidays', icon: <Calendar size={20} />, roles: ['admin', 'hr'] },
+  { label: 'Calendari di Sistema', path: '/admin/system-calendars', icon: <Calendar size={20} />, roles: ['admin', 'hr'] },
   { label: 'Contratti CCNL', path: '/admin/national-contracts', icon: <FileText size={20} />, roles: ['admin', 'hr'] },
   { label: 'Strumenti Admin', path: '/admin/tools', icon: <Settings size={20} />, roles: ['admin'] },
   { label: 'Audit Log', path: '/admin/audit-logs', icon: <Terminal size={20} />, roles: ['admin'] },

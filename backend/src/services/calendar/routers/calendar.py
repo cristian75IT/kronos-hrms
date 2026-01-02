@@ -8,13 +8,18 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import get_current_user
+from src.core.security import get_current_user, TokenPayload
 from ..schemas import (
     CalendarRangeView,
-    WorkingDaysRequest,
-    WorkingDaysResponse,
     WorkingDayExceptionCreate,
     WorkingDayExceptionResponse,
+    UserCalendarCreate,
+    UserCalendarUpdate,
+    UserCalendarResponse,
+    CalendarShareCreate,
+    CalendarShareResponse,
+    WorkingDaysRequest,
+    WorkingDaysResponse,
 )
 from ..service import CalendarService
 
@@ -27,7 +32,7 @@ async def get_calendar_range(
     end_date: date = Query(..., description="End date of the range"),
     location_id: Optional[UUID] = Query(None, description="Location filter"),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
 ):
     """Get aggregated calendar view for a date range.
     
@@ -38,7 +43,7 @@ async def get_calendar_range(
     result = await service.get_calendar_range(
         start_date=start_date,
         end_date=end_date,
-        user_id=current_user.get("id"),
+        user_id=current_user.user_id,
         location_id=location_id,
     )
     return result
@@ -49,7 +54,7 @@ async def get_calendar_date(
     check_date: date,
     location_id: Optional[UUID] = Query(None, description="Location filter"),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
 ):
     """Get calendar information for a specific date.
     
@@ -59,7 +64,7 @@ async def get_calendar_date(
     result = await service.get_calendar_range(
         start_date=check_date,
         end_date=check_date,
-        user_id=current_user.get("id"),
+        user_id=current_user.user_id,
         location_id=location_id,
     )
     
@@ -78,7 +83,7 @@ async def get_calendar_date(
 async def calculate_working_days(
     request: WorkingDaysRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
 ):
     """Calculate the number of working days between two dates.
     
@@ -104,7 +109,7 @@ async def is_working_day(
     check_date: date,
     location_id: Optional[UUID] = Query(None, description="Location filter"),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
 ):
     """Check if a specific date is a working day."""
     service = CalendarService(db)
@@ -121,7 +126,7 @@ async def list_working_day_exceptions(
     year: int = Query(..., description="Year to filter"),
     location_id: Optional[UUID] = Query(None, description="Location filter"),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
 ):
     """Get all working day exceptions for a year."""
     service = CalendarService(db)
@@ -133,7 +138,7 @@ async def list_working_day_exceptions(
 async def create_working_day_exception(
     data: WorkingDayExceptionCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
 ):
     """Create a working day exception.
     
@@ -146,6 +151,125 @@ async def create_working_day_exception(
     service = CalendarService(db)
     exception = await service.create_working_day_exception(
         data=data,
-        created_by=current_user.get("id"),
+        created_by=current_user.user_id,
     )
     return exception
+
+
+@router.delete("/exceptions/{exception_id}", status_code=204)
+async def delete_working_day_exception(
+    exception_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    """Delete a working day exception."""
+    from src.core.security import require_hr
+    # This requires HR or Admin
+    
+    service = CalendarService(db)
+    success = await service.delete_working_day_exception(exception_id)
+    
+    if not success:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Exception not found")
+    
+    return None
+
+
+@router.get("/user-calendars", response_model=list[UserCalendarResponse])
+async def list_user_calendars(
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    """List all custom calendars for the current user."""
+    service = CalendarService(db)
+    calendars = await service.get_user_calendars(current_user.user_id)
+    
+    results = []
+    for cal in calendars:
+        res = UserCalendarResponse.model_validate(cal)
+        res.is_owner = cal.user_id == current_user.user_id
+        results.append(res)
+    return results
+
+
+@router.post("/user-calendars", response_model=UserCalendarResponse)
+async def create_user_calendar(
+    data: UserCalendarCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    """Create a new custom calendar."""
+    service = CalendarService(db)
+    return await service.create_user_calendar(current_user.user_id, data)
+
+
+@router.put("/user-calendars/{calendar_id}", response_model=UserCalendarResponse)
+async def update_user_calendar(
+    calendar_id: UUID,
+    data: UserCalendarUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    """Update a custom calendar."""
+    service = CalendarService(db)
+    calendar = await service.update_user_calendar(calendar_id, current_user.user_id, data)
+    if not calendar:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Calendar not found")
+    return calendar
+
+
+@router.delete("/user-calendars/{calendar_id}", status_code=204)
+async def delete_user_calendar(
+    calendar_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    """Delete a custom calendar."""
+    service = CalendarService(db)
+    success = await service.delete_user_calendar(calendar_id, current_user.user_id)
+    if not success:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Calendar not found")
+    return None
+
+@router.post("/user-calendars/{calendar_id}/share", response_model=CalendarShareResponse)
+async def share_calendar(
+    calendar_id: UUID,
+    data: CalendarShareCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    """Share a calendar with another user."""
+    service = CalendarService(db)
+    share = await service.share_calendar(
+        calendar_id=calendar_id,
+        user_id=current_user.user_id,
+        shared_with_user_id=data.shared_with_user_id,
+        can_edit=data.can_edit
+    )
+    if not share:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Calendar not found or you are not the owner")
+    return share
+
+
+@router.delete("/user-calendars/{calendar_id}/share/{shared_user_id}", status_code=204)
+async def unshare_calendar(
+    calendar_id: UUID,
+    shared_user_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    """Remove a calendar share."""
+    service = CalendarService(db)
+    success = await service.unshare_calendar(
+        calendar_id=calendar_id,
+        user_id=current_user.user_id,
+        shared_with_user_id=shared_user_id
+    )
+    if not success:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Share not found or you are not the owner")
+    return None

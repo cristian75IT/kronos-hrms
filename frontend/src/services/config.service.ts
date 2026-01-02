@@ -27,6 +27,11 @@ export const configService = {
         return response.data;
     },
 
+    createConfig: async (data: Omit<SystemConfig, 'value_type'> & { value_type: string }): Promise<SystemConfig> => {
+        const response = await configApi.post('/config', data);
+        return response.data;
+    },
+
     clearCache: async (): Promise<{ message: string }> => {
         const response = await configApi.post('/config/cache/clear');
         return response.data;

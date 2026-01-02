@@ -31,6 +31,7 @@ import {
 } from '../../hooks/useApi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { ConfirmModal } from '../../components/common';
 import { leavesService } from '../../services/leaves.service';
 import { formatApiError } from '../../utils/errorUtils';
 import { useQueryClient } from '@tanstack/react-query';
@@ -152,12 +153,13 @@ export function LeaveDetailPage() {
 
     const [activeTab, setActiveTab] = useState<'details' | 'history'>('details');
     const [actionLoading, setActionLoading] = useState<string | null>(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
     const [showConditionalModal, setShowConditionalModal] = useState(false);
-    const [conditionType, setConditionType] = useState<string>('RIC');
+    const [conditionType, setConditionType] = useState<string>('ric');
     const [conditionDetails, setConditionDetails] = useState('');
     const [showApproveModal, setShowApproveModal] = useState(false);
     const [approverNotes, setApproverNotes] = useState('');
@@ -204,9 +206,13 @@ export function LeaveDetailPage() {
         }
     };
 
-    const handleDelete = async () => {
+    const onRequestDelete = () => {
         if (!id) return;
-        if (!confirm('Sei sicuro di voler eliminare questa richiesta?')) return;
+        setShowDeleteConfirm(true);
+    };
+
+    const confirmDelete = async () => {
+        if (!id) return;
         setActionLoading('delete');
         try {
             await leavesService.deleteRequest(id);
@@ -216,9 +222,11 @@ export function LeaveDetailPage() {
             navigate('/leaves');
         } catch (error: any) {
             toast.error(formatApiError(error));
-        } finally {
             setActionLoading(null);
+            setShowDeleteConfirm(false);
         }
+        // Note: No finally block resetting loading/modal here on success because we navigate away (component unmounts)
+        // Adding it might cause "update on unmounted component" warning
     };
 
     const handleApprove = () => {
@@ -321,6 +329,21 @@ export function LeaveDetailPage() {
             setShowRecallModal(false);
             setRecallReason('');
             setRecallDate('');
+            refetch();
+        } catch (error: any) {
+            toast.error(formatApiError(error));
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleConditionResponse = async (accept: boolean) => {
+        if (!id) return;
+        setActionLoading(accept ? 'accept_condition' : 'reject_condition');
+        try {
+            await leavesService.acceptCondition(id, accept);
+            toast.success(accept ? 'Condizioni accettate' : 'Condizioni rifiutate');
+            // Check if we need to close any modal - currently prompt is direct.
             refetch();
         } catch (error: any) {
             toast.error(formatApiError(error));
@@ -543,6 +566,27 @@ export function LeaveDetailPage() {
                                 </div>
                             )}
 
+                            {/* Condition Details - Must be visible to user */}
+                            {(leave as any).has_conditions && (leave as any).condition_details && (
+                                <div className="p-6 border-b border-gray-100">
+                                    <h3 className="flex items-center gap-2 text-sm font-bold text-amber-500 uppercase tracking-wider mb-4">
+                                        <AlertCircle size={18} />
+                                        Condizioni di Approvazione
+                                    </h3>
+                                    <div className="bg-amber-50 p-4 rounded-lg border border-amber-100 text-sm leading-relaxed">
+                                        <div className="flex items-center gap-2 mb-2 font-semibold text-amber-800">
+                                            <span className="uppercase">{(leave as any).condition_type}</span>
+                                            {leave.status === 'approved' && (leave as any).condition_accepted && (
+                                                <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-xs flex items-center gap-1">
+                                                    <CheckCircle size={10} /> Accettata
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="text-gray-700">{(leave as any).condition_details}</p>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Attachment - future feature */}
                             {(leave as any).attachment_path && (
                                 <div className="p-6">
@@ -626,7 +670,7 @@ export function LeaveDetailPage() {
                                     </Link>
                                     <button
                                         className="w-full flex items-center justify-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors disabled:opacity-50"
-                                        onClick={handleDelete}
+                                        onClick={onRequestDelete}
                                         disabled={actionLoading !== null}
                                     >
                                         {actionLoading === 'delete' ? <Loader size={18} className="animate-spin" /> : <Trash2 size={18} />}
@@ -714,6 +758,31 @@ export function LeaveDetailPage() {
                                 <p className="text-center text-sm text-gray-500 italic">
                                     Nessuna azione disponibile per questa richiesta.
                                 </p>
+                            )}
+
+                            {/* Employee Condition Acceptance */}
+                            {leave.status === 'approved_conditional' && !isApprover && (
+                                <>
+                                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 mb-2">
+                                        <strong>Attenzione:</strong> Questa richiesta è stata approvata con condizioni. Accetta per confermare o rifiuta per annullare.
+                                    </div>
+                                    <button
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                        onClick={() => handleConditionResponse(true)}
+                                        disabled={actionLoading !== null}
+                                    >
+                                        {actionLoading === 'accept_condition' ? <Loader size={18} className="animate-spin" /> : <CheckCircle size={18} />}
+                                        Accetta Condizioni
+                                    </button>
+                                    <button
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                        onClick={() => handleConditionResponse(false)}
+                                        disabled={actionLoading !== null}
+                                    >
+                                        {actionLoading === 'reject_condition' ? <Loader size={18} className="animate-spin" /> : <XCircle size={18} />}
+                                        Rifiuta Condizioni
+                                    </button>
+                                </>
                             )}
                         </div>
                     </div>
@@ -846,11 +915,11 @@ export function LeaveDetailPage() {
                                     value={conditionType}
                                     onChange={(e) => setConditionType(e.target.value)}
                                 >
-                                    <option value="RIC">🔔 Riserva di Richiamo (Salvo Necessità Aziendali)</option>
-                                    <option value="REP">📞 Reperibilità Richiesta</option>
-                                    <option value="PAR">📅 Approvazione Parziale</option>
-                                    <option value="MOD">✏️ Modifica Date Richiesta</option>
-                                    <option value="ALT">📋 Altra Condizione</option>
+                                    <option value="ric">🔔 Riserva di Richiamo (Salvo Necessità Aziendali)</option>
+                                    <option value="rep">📞 Reperibilità Richiesta</option>
+                                    <option value="par">📅 Approvazione Parziale</option>
+                                    <option value="mod">✏️ Modifica Date Richiesta</option>
+                                    <option value="alt">📋 Altra Condizione</option>
                                 </select>
                             </div>
                             <div className="space-y-2">
@@ -1065,6 +1134,16 @@ export function LeaveDetailPage() {
                     </div>
                 </div>
             )}
+
+            <ConfirmModal
+                isOpen={showDeleteConfirm}
+                onClose={() => setShowDeleteConfirm(false)}
+                onConfirm={confirmDelete}
+                title="Elimina Richiesta"
+                message="Sei sicuro di voler eliminare definitivamente questa richiesta? L'azione è irreversibile."
+                variant="danger"
+                confirmLabel="Elimina"
+            />
         </div>
     );
 }

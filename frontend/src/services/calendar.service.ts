@@ -120,6 +120,7 @@ export interface CalendarEvent {
     recurrence_rule?: string;
     color: string;
     status: string;
+    calendar_id?: string;
     participants: EventParticipant[];
     created_at: string;
     updated_at: string;
@@ -151,6 +152,44 @@ export interface CalendarDayView {
     items: CalendarDayItem[];
 }
 
+export interface UserCalendar {
+    id: string;
+    user_id: string;
+    name: string;
+    description?: string;
+    color: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+    shared_with?: CalendarShare[];
+    is_owner: boolean;
+}
+
+export interface CalendarShare {
+    id: string;
+    shared_with_user_id: string;
+    can_edit: boolean;
+    created_at: string;
+}
+
+export interface CalendarShareCreate {
+    shared_with_user_id: string;
+    can_edit?: boolean;
+}
+
+export interface UserCalendarCreate {
+    name: string;
+    description?: string;
+    color?: string;
+}
+
+export interface UserCalendarUpdate {
+    name?: string;
+    description?: string;
+    color?: string;
+    is_active?: boolean;
+}
+
 export interface CalendarRangeView {
     start_date: string;
     end_date: string;
@@ -175,6 +214,27 @@ export interface WorkingDaysResponse {
     closure_days: string[];
     weekend_days: string[];
 }
+
+export interface WorkingDayException {
+    id: string;
+    date: string;
+    year: number;
+    exception_type: 'working' | 'non_working';
+    reason?: string;
+    location_id?: string;
+    department_code?: string;
+    created_at: string;
+}
+
+export interface WorkingDayExceptionCreate {
+    date: string;
+    year: number;
+    exception_type: 'working' | 'non_working';
+    reason?: string;
+    location_id?: string;
+    department_code?: string;
+}
+
 
 
 // ═══════════════════════════════════════════════════════════
@@ -270,6 +330,7 @@ export const calendarService = {
         is_virtual?: boolean;
         meeting_url?: string;
         color?: string;
+        calendar_id?: string;
         participant_ids?: string[];
     }): Promise<CalendarEvent> => {
         const response = await api.post(`/events`, data);
@@ -319,6 +380,53 @@ export const calendarService = {
         });
         return response.data;
     },
+
+    // Working Day Exceptions
+    getWorkingDayExceptions: async (year: number, location_id?: string): Promise<WorkingDayException[]> => {
+        const response = await api.get(`/calendar/exceptions`, {
+            params: { year, location_id }
+        });
+        return response.data;
+    },
+
+    createWorkingDayException: async (data: WorkingDayExceptionCreate): Promise<WorkingDayException> => {
+        const response = await api.post(`/calendar/exceptions`, data);
+        return response.data;
+    },
+
+    deleteWorkingDayException: async (id: string): Promise<void> => {
+        await api.delete(`/calendar/exceptions/${id}`);
+    },
+
+    // User Calendars
+    getUserCalendars: async (): Promise<UserCalendar[]> => {
+        const response = await api.get(`/calendar/user-calendars`);
+        return response.data;
+    },
+
+    createUserCalendar: async (data: UserCalendarCreate): Promise<UserCalendar> => {
+        const response = await api.post(`/calendar/user-calendars`, data);
+        return response.data;
+    },
+
+    updateUserCalendar: async (id: string, data: UserCalendarUpdate): Promise<UserCalendar> => {
+        const response = await api.put(`/calendar/user-calendars/${id}`, data);
+        return response.data;
+    },
+
+    deleteUserCalendar: async (id: string): Promise<void> => {
+        await api.delete(`/calendar/user-calendars/${id}`);
+    },
+
+    shareCalendar: async (calendarId: string, data: CalendarShareCreate): Promise<CalendarShare> => {
+        const response = await api.post(`/calendar/user-calendars/${calendarId}/share`, data);
+        return response.data;
+    },
+
+    unshareCalendar: async (calendarId: string, sharedUserId: string): Promise<void> => {
+        await api.delete(`/calendar/user-calendars/${calendarId}/share/${sharedUserId}`);
+    },
+
 
     // Utility: Generate holidays for a year (calls backend if available)
     generateHolidaysForYear: async (year: number): Promise<Holiday[]> => {

@@ -103,6 +103,54 @@ class ClosureResponse(ClosureBase):
 
 
 # ═══════════════════════════════════════════════════════════
+# USER CALENDAR SCHEMAS
+# ═══════════════════════════════════════════════════════════
+ 
+class CalendarShareBase(BaseModel):
+    """Base schema for calendar sharing."""
+    shared_with_user_id: UUID
+    can_edit: bool = False
+
+class CalendarShareCreate(CalendarShareBase):
+    """Schema for creating a calendar share."""
+    pass
+
+class CalendarShareResponse(CalendarShareBase):
+    """Schema for calendar share response."""
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    created_at: datetime
+
+class UserCalendarBase(BaseModel):
+    """Base schema for custom calendars."""
+    name: str = Field(..., max_length=50)
+    description: Optional[str] = None
+    color: str = Field(default="#4F46E5", pattern="^#[0-9A-Fa-f]{6}$")
+    is_active: bool = True
+
+class UserCalendarCreate(UserCalendarBase):
+    """Schema for creating a custom calendar."""
+    pass
+
+class UserCalendarUpdate(BaseModel):
+    """Schema for updating a custom calendar."""
+    name: Optional[str] = Field(None, max_length=50)
+    description: Optional[str] = None
+    color: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class UserCalendarResponse(UserCalendarBase):
+    """Schema for custom calendar response."""
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    user_id: UUID
+    created_at: datetime
+    updated_at: datetime
+    shared_with: List[CalendarShareResponse] = []
+    is_owner: bool = True
+
+
+# ═══════════════════════════════════════════════════════════
 # EVENT SCHEMAS
 # ═══════════════════════════════════════════════════════════
 
@@ -123,6 +171,7 @@ class EventBase(BaseModel):
     is_recurring: bool = False
     recurrence_rule: Optional[str] = None
     color: str = Field(default="#3B82F6", pattern="^#[0-9A-Fa-f]{6}$")
+    calendar_id: Optional[UUID] = None
 
 
 class EventCreate(EventBase):
@@ -147,6 +196,7 @@ class EventUpdate(BaseModel):
     is_recurring: Optional[bool] = None
     recurrence_rule: Optional[str] = None
     color: Optional[str] = None
+    calendar_id: Optional[UUID] = None
     status: Optional[str] = None
 
 

@@ -21,6 +21,7 @@ import {
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { useToast } from '../../context/ToastContext';
+import { ConfirmModal } from '../../components/common';
 import { configApi } from '../../services/api';
 import type { CompanyClosure, CompanyClosureCreate } from '../../types';
 
@@ -43,6 +44,7 @@ export function CompanyClosuresPage() {
         is_paid: true,
         consumes_leave_balance: false,
     });
+    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
     useEffect(() => {
         loadClosures();
@@ -83,14 +85,20 @@ export function CompanyClosuresPage() {
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Questa azione rimuoverà la chiusura e potrebbe impattare i calendari dipendenti. Procedere?')) return;
+    const onRequestDelete = (id: string) => {
+        setDeleteConfirmId(id);
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteConfirmId) return;
         try {
-            await configApi.delete(`/closures/${id}`);
+            await configApi.delete(`/closures/${deleteConfirmId}`);
             toast.success('Pianificazione rimossa');
             loadClosures();
         } catch (error: any) {
             toast.error(error.message || "Errore durante l'eliminazione");
+        } finally {
+            setDeleteConfirmId(null);
         }
     };
 
@@ -207,7 +215,7 @@ export function CompanyClosuresPage() {
                                         <button onClick={() => handleEdit(closure)} className="p-1.5 text-gray-400 hover:text-primary hover:bg-gray-100 rounded-md transition-colors">
                                             <Edit size={16} />
                                         </button>
-                                        <button onClick={() => handleDelete(closure.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors">
+                                        <button onClick={() => onRequestDelete(closure.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors">
                                             <Trash2 size={16} />
                                         </button>
                                     </div>
@@ -376,6 +384,16 @@ export function CompanyClosuresPage() {
                     </div>
                 </div>
             )}
+
+            <ConfirmModal
+                isOpen={!!deleteConfirmId}
+                onClose={() => setDeleteConfirmId(null)}
+                onConfirm={confirmDelete}
+                title="Elimina Chiusura"
+                message="Questa azione rimuoverà la chiusura e potrebbe impattare i calendari dipendenti. Sei sicuro di voler procedere?"
+                variant="danger"
+                confirmLabel="Elimina"
+            />
         </div>
     );
 }

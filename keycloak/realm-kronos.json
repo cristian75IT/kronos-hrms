@@ -84,7 +84,7 @@
                 {
                     "type": "password",
                     "value": "admin123",
-                    "temporary": true
+                    "temporary": false
                 }
             ],
             "realmRoles": [
@@ -103,7 +103,7 @@
                 {
                     "type": "password",
                     "value": "manager123",
-                    "temporary": true
+                    "temporary": false
                 }
             ],
             "realmRoles": [
@@ -122,7 +122,7 @@
                 {
                     "type": "password",
                     "value": "employee123",
-                    "temporary": true
+                    "temporary": false
                 }
             ],
             "realmRoles": [

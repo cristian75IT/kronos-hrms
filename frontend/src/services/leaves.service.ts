@@ -61,8 +61,8 @@ export const leavesService = {
         await leavesApi.delete(`${ENDPOINT}/${id}`);
     },
 
-    acceptCondition: async (id: string): Promise<LeaveRequest> => {
-        const response = await leavesApi.post(`${ENDPOINT}/${id}/accept-condition`);
+    acceptCondition: async (id: string, accept: boolean): Promise<LeaveRequest> => {
+        const response = await leavesApi.post(`${ENDPOINT}/${id}/accept-condition`, { accept });
         return response.data;
     },
 

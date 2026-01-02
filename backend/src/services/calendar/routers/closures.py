@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import require_admin
+from src.core.security import require_hr, TokenPayload
 from ..schemas import ClosureCreate, ClosureUpdate, ClosureResponse
 from ..service import CalendarService
 
@@ -51,13 +51,13 @@ async def get_closure(
 async def create_closure(
     data: ClosureCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_hr),
 ):
-    """Create a new company closure. Requires admin privileges."""
+    """Create a new company closure. Requires HR or Admin privileges."""
     service = CalendarService(db)
     closure = await service.create_closure(
         data=data,
-        created_by=current_user.get("id"),
+        created_by=current_user.user_id,
     )
     return closure
 
@@ -67,9 +67,9 @@ async def update_closure(
     closure_id: UUID,
     data: ClosureUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_hr),
 ):
-    """Update an existing closure. Requires admin privileges."""
+    """Update an existing closure. Requires HR or Admin privileges."""
     service = CalendarService(db)
     closure = await service.update_closure(closure_id, data)
     if not closure:
@@ -84,9 +84,9 @@ async def update_closure(
 async def delete_closure(
     closure_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_hr),
 ):
-    """Delete a closure. Requires admin privileges."""
+    """Delete a closure. Requires HR or Admin privileges."""
     service = CalendarService(db)
     success = await service.delete_closure(closure_id)
     if not success:

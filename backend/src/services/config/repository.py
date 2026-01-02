@@ -49,7 +49,8 @@ class SystemConfigRepository:
         """Create new config."""
         config = SystemConfig(**kwargs)
         self._session.add(config)
-        await self._session.flush()
+        await self._session.commit()
+        await self._session.refresh(config)
         return config
 
     async def update(self, key: str, **kwargs: Any) -> Optional[SystemConfig]:
@@ -62,7 +63,8 @@ class SystemConfigRepository:
             if hasattr(config, field):
                 setattr(config, field, value)
         
-        await self._session.flush()
+        await self._session.commit()
+        await self._session.refresh(config)
         return config
 
     async def delete(self, key: str) -> bool:
@@ -72,7 +74,7 @@ class SystemConfigRepository:
             return False
         
         await self._session.delete(config)
-        await self._session.flush()
+        await self._session.commit()
         return True
 
 

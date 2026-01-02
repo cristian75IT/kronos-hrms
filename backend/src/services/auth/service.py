@@ -83,9 +83,6 @@ class UserService:
             # Update roles from Keycloak
             await self._user_repo.update(
                 user.id,
-                is_admin="admin" in roles,
-                is_manager="manager" in roles,
-                is_approver="approver" in roles,
                 last_sync_at=datetime.utcnow(),
             )
             return user

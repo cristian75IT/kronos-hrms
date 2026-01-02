@@ -1,3 +1,4 @@
+from uuid import UUID
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Optional, Dict, Any, List, Set, Union
@@ -60,89 +61,136 @@ class CalendarUtils:
                         pass
         return all_closures
 
-    async def get_excluded_days_data(self, start_date: date, end_date: date) -> Dict[str, Any]:
-        """Get detailed exclusion data."""
+    async def get_excluded_days_data(self, start_date: date, end_date: date, user_id: Optional[UUID] = None) -> Dict[str, Any]:
+        """Get detailed exclusion data using the Calendar microservice."""
+        location_id = None
+        if user_id:
+            try:
+                from src.shared.clients import AuthClient
+                auth_client = AuthClient()
+                user_info = await auth_client.get_user_info(user_id)
+                if user_info:
+                    loc_id = user_info.get("location_id")
+                    if loc_id:
+                        location_id = UUID(loc_id) if isinstance(loc_id, str) else loc_id
+            except Exception:
+                pass
+
+        if self._use_calendar_service:
+            try:
+                # Use the microservice as the source of truth
+                range_view = await self.calendar_client.get_calendar_range(
+                    start_date=start_date,
+                    end_date=end_date,
+                    location_id=location_id
+                )
+                
+                if range_view:
+                    excluded_dates_set = set()
+                    details = {}
+                    working_days_count = 0
+                    
+                    for day in range_view.get("days", []):
+                        d_str = day.get("date")
+                        d_date = date.fromisoformat(d_str) if isinstance(d_str, str) else d_str
+                        iso = d_date.isoformat()
+                        
+                        if not day.get("is_working_day"):
+                            excluded_dates_set.add(iso)
+                            
+                            # Identify the primary reason
+                            items = day.get("items", [])
+                            reason = "weekend"
+                            name = ""
+                            info = None
+                            
+                            holiday_item = next((i for i in items if i.get("item_type") == "holiday"), None)
+                            closure_item = next((i for i in items if i.get("item_type") == "closure"), None)
+                            
+                            if holiday_item:
+                                reason = "holiday"
+                                name = holiday_item.get("title")
+                            elif closure_item:
+                                reason = "closure"
+                                name = closure_item.get("title")
+                                info = {
+                                    "name": name,
+                                    "is_paid": True, # Fallback, ideally from API
+                                    "consumes_balance": False # Fallback
+                                }
+                            else:
+                                # If no holiday/closure but not working, it's weekend or non-working exception
+                                day_names = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+                                name = day_names[d_date.weekday()]
+                                
+                            details[iso] = {
+                                "date": d_date,
+                                "reason": reason,
+                                "name": name,
+                                "info": info
+                            }
+                        else:
+                            working_days_count += 1
+                            
+                    return {
+                        "excluded_dates": excluded_dates_set,
+                        "details": details,
+                        "working_days_count": working_days_count,
+                        "working_days_limit": 5 # Default
+                    }
+            except Exception as e:
+                # Fallback to local implementation if service fails
+                print(f"Calendar service failed: {e}")
+                pass
+
+        # --- Fallback Local Implementation (Original Logic) ---
         # 1. Get holidays
-        years = set()
-        years.add(start_date.year)
-        years.add(end_date.year)
-        
-        holidays = []
+        years = set([start_date.year, end_date.year])
+        holiday_map = {}
         for year in years:
             h_list = await self.get_holidays(year, start_date, end_date)
-            holidays.extend(h_list)
-
-        holiday_map = {}
-        for h in holidays:
-            # Handle potential string dates if client returns strings
-            h_date_raw = h.get("date")
-            h_date = h_date_raw
-            if isinstance(h_date_raw, str):
-                try:
-                    h_date = date.fromisoformat(h_date_raw)
-                except ValueError:
-                    pass
-            
-            if h_date:
-                holiday_map[h_date.isoformat()] = h.get("name", "Festività")
+            for h in h_list:
+                h_date_raw = h.get("date")
+                h_date = date.fromisoformat(h_date_raw) if isinstance(h_date_raw, str) else h_date_raw
+                if h_date:
+                    holiday_map[h_date.isoformat()] = h.get("name", "Festività")
 
         # 2. Closures
         closures = await self.get_company_closures(start_date, end_date)
         closure_map = {}
-        closure_dates = set()
-        
         for closure in closures:
             if closure.get("closure_type") == "total":
-                closure_start = closure.get("start_date")
-                closure_end = closure.get("end_date")
-                closure_name = closure.get("name", "Chiusura Aziendale")
-                if closure_start and closure_end:
-                    try:
-                        c_start = date.fromisoformat(closure_start) if isinstance(closure_start, str) else closure_start
-                        c_end = date.fromisoformat(closure_end) if isinstance(closure_end, str) else closure_end
-                        current_closure = c_start
-                        while current_closure <= c_end:
-                            iso = current_closure.isoformat()
-                            closure_dates.add(iso)
-                            closure_map[iso] = {
-                                "name": closure_name,
-                                "consumes_balance": closure.get("consumes_leave_balance", False),
-                                "is_paid": closure.get("is_paid", True),
-                                "affected_departments": closure.get("affected_departments")
-                            }
-                            current_closure += timedelta(days=1)
-                    except (ValueError, TypeError):
-                        pass
+                c_start = date.fromisoformat(closure["start_date"]) if isinstance(closure["start_date"], str) else closure["start_date"]
+                c_end = date.fromisoformat(closure["end_date"]) if isinstance(closure["end_date"], str) else closure["end_date"]
+                current = c_start
+                while current <= c_end:
+                    iso = current.isoformat()
+                    closure_map[iso] = {
+                        "name": closure.get("name", "Chiusura Aziendale"),
+                        "consumes_balance": closure.get("consumes_leave_balance", False),
+                        "is_paid": closure.get("is_paid", True)
+                    }
+                    current += timedelta(days=1)
 
         # 3. Work week config
         working_days_limit_val = await self.get_system_config("work_week_days", 5)
-        try:
-            working_days_limit = int(working_days_limit_val)
-        except (ValueError, TypeError):
-            working_days_limit = 5
+        working_days_limit = int(working_days_limit_val)
 
-        # 4. Weekends logic and assembly
+        # 4. Weekend logic
         excluded_dates_set = set()
         details = {}
-        
         day_names = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
-        
         current = start_date
         working_days_count = 0
         
         while current <= end_date:
             iso = current.isoformat()
             weekday = current.weekday()
-            
             is_excluded = False
             reason = ""
             name = ""
             
-            if weekday >= working_days_limit:
-                 is_excluded = True
-                 reason = "weekend"
-                 name = day_names[weekday]
-            elif iso in holiday_map:
+            if iso in holiday_map:
                  is_excluded = True
                  reason = "holiday"
                  name = holiday_map[iso]
@@ -150,18 +198,19 @@ class CalendarUtils:
                  is_excluded = True
                  reason = "closure"
                  name = closure_map[iso]["name"]
+            elif weekday >= working_days_limit:
+                 is_excluded = True
+                 reason = "weekend"
+                 name = day_names[weekday]
             
             if is_excluded:
                 excluded_dates_set.add(iso)
                 details[iso] = {
-                    "date": current,
-                    "reason": reason,
-                    "name": name,
+                    "date": current, "reason": reason, "name": name,
                     "info": closure_map.get(iso) if reason == "closure" else None
                 }
             else:
                 working_days_count += 1
-            
             current += timedelta(days=1)
 
         return {
@@ -176,10 +225,11 @@ class CalendarUtils:
         start_date: date, 
         end_date: date, 
         start_half: bool = False, 
-        end_half: bool = False
+        end_half: bool = False,
+        user_id: Optional[UUID] = None
     ) -> Decimal:
         """Calculate number of working days."""
-        data = await self.get_excluded_days_data(start_date, end_date)
+        data = await self.get_excluded_days_data(start_date, end_date, user_id=user_id)
         working_days = Decimal(data["working_days_count"])
         
         if start_half and working_days > 0:
@@ -189,9 +239,9 @@ class CalendarUtils:
             
         return working_days
 
-    async def get_excluded_list(self, start_date: date, end_date: date) -> dict:
+    async def get_excluded_list(self, start_date: date, end_date: date, user_id: Optional[UUID] = None) -> dict:
         """Format for UI response."""
-        data = await self.get_excluded_days_data(start_date, end_date)
+        data = await self.get_excluded_days_data(start_date, end_date, user_id=user_id)
         details = data["details"]
         
         # Convert dict to sorted list

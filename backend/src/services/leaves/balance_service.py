@@ -20,7 +20,31 @@ class LeaveBalanceService:
     
     async def get_balance(self, user_id: UUID, year: int) -> dict:
         """Get wallet data from WalletService."""
-        return await self._wallet_client.get_wallet(user_id, year)
+        wallet = await self._wallet_client.get_wallet(user_id, year)
+        if not wallet:
+            # If wallet not found, return a default empty structure to avoid 404 in UI
+            return {
+                "id": str(user_id), # We don't have a wallet ID, use user_id as placeholder or uuid4
+                "user_id": user_id,
+                "year": year,
+                "vacation_previous_year": Decimal(0),
+                "vacation_current_year": Decimal(0),
+                "vacation_accrued": Decimal(0),
+                "vacation_used": Decimal(0),
+                "vacation_available_ap": Decimal(0),
+                "vacation_available_ac": Decimal(0),
+                "vacation_available_total": Decimal(0),
+                "rol_previous_year": Decimal(0),
+                "rol_current_year": Decimal(0),
+                "rol_accrued": Decimal(0),
+                "rol_used": Decimal(0),
+                "rol_available": Decimal(0),
+                "permits_total": Decimal(0),
+                "permits_used": Decimal(0),
+                "permits_available": Decimal(0),
+                "last_accrual_date": None
+            }
+        return wallet
         
     async def get_transactions(self, balance_id: UUID) -> list:
         # Note: balance_id in leave-service used to refer to LeaveBalance.id.

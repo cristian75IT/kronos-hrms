@@ -117,6 +117,76 @@ class CalendarClosure(Base):
     )
 
 
+class UserCalendar(Base):
+    """Custom user-defined calendars for organizing events."""
+    
+    __tablename__ = "user_calendars"
+    __table_args__ = {"schema": "calendar"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(50), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    color: Mapped[str] = mapped_column(String(7), default="#4F46E5")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+    
+    # Relationships
+    events: Mapped[list["CalendarEvent"]] = relationship(back_populates="calendar")
+    shared_with: Mapped[list["CalendarShare"]] = relationship(
+        back_populates="calendar",
+        cascade="all, delete-orphan",
+    )
+
+
+
+class CalendarShare(Base):
+    """Many-to-many relationship for sharing calendars with other users."""
+    
+    __tablename__ = "calendar_shares"
+    __table_args__ = (
+        UniqueConstraint('calendar_id', 'shared_with_user_id', name='uq_calendar_share'),
+        {"schema": "calendar"}
+    )
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    calendar_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("calendar.user_calendars.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    shared_with_user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False, index=True)
+    
+    # Permissions
+    can_edit: Mapped[bool] = mapped_column(Boolean, default=False)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    
+    # Relationships
+    calendar: Mapped["UserCalendar"] = relationship(back_populates="shared_with")
+
+
 class CalendarEvent(Base):
     """Generic calendar events (meetings, reminders, personal events).
     
@@ -146,6 +216,11 @@ class CalendarEvent(Base):
     
     # Ownership
     user_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), index=True)  # Owner
+    calendar_id: Mapped[Optional[UUID]] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("calendar.user_calendars.id", ondelete="SET NULL"),
+        index=True
+    )
     visibility: Mapped[str] = mapped_column(String(20), default="private")  # private, team, public
     
     # Location
@@ -181,6 +256,7 @@ class CalendarEvent(Base):
     )
     
     # Relationships
+    calendar: Mapped[Optional["UserCalendar"]] = relationship(back_populates="events")
     participants: Mapped[list["EventParticipant"]] = relationship(
         back_populates="event",
         cascade="all, delete-orphan",

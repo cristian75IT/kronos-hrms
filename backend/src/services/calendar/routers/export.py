@@ -13,7 +13,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import get_current_user
+from src.core.security import get_current_user, TokenPayload
 from ..service import CalendarService
 from ..ical_export import (
     generate_holidays_ics,
@@ -157,7 +157,7 @@ async def export_combined_ics(
 async def export_my_events_ics(
     year: int = Query(None, description="Year to export (defaults to current year)"),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
 ):
     """Export personal calendar events as an ICS file.
     
@@ -167,7 +167,7 @@ async def export_my_events_ics(
         year = date.today().year
     
     service = CalendarService(db)
-    user_id = current_user.get("id")
+    user_id = current_user.user_id
     
     # Get user's events
     start_date = date(year, 1, 1)
@@ -205,7 +205,7 @@ async def export_my_events_ics(
 @router.get("/subscription-url")
 async def get_subscription_urls(
     year: int = Query(..., description="Year for subscription"),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
 ):
     """Get subscription URLs for external calendar apps.
     

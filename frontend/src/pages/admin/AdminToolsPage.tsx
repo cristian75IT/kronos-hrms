@@ -2,7 +2,7 @@
  * KRONOS - Admin Tools Page
  * System maintenance and notification settings
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Zap,
     Bell,
@@ -19,6 +19,7 @@ import {
 import { useToast } from '../../context/ToastContext';
 import { leavesService } from '../../services/leaves.service';
 import { Button } from '../../components/common';
+import { configService } from '../../services/config.service';
 
 interface NotificationSetting {
     key: string;
@@ -53,8 +54,26 @@ export function AdminToolsPage() {
         { key: 'notify_leave_approval', value: true, label: 'Esito Richieste', description: 'Notifica il dipendente quando la sua richiesta viene approvata o rifiutata.', category: 'email' },
         { key: 'notify_wallet_expiry', value: false, label: 'Scadenza Wallet', description: 'Avvisa i dipendenti un mese prima della scadenza delle ferie AP.', category: 'email' },
         { key: 'push_approvals', value: true, label: 'Notifiche App Approvatori', description: 'Notifiche push per gli approvatori in attesa.', category: 'app' },
+        { key: 'leaves.block_insufficient_balance', value: true, label: 'Blocco Saldo Insufficiente', description: 'Impedisce l\'invio di richieste se il saldo disponibile non è sufficiente. Se disabilitato, mostra solo un avviso.', category: 'business' },
         { key: 'smart_deduction_enabled', value: false, label: 'Smart Deduction', description: 'Se abilitato, il sistema prioritizza lo scarico dei residui che scadono prima (es. ROL in scadenza).', category: 'business' },
     ]);
+
+    useEffect(() => {
+        const loadConfig = async () => {
+            try {
+                // Try to load the specific config for blocking balance
+                const config = await configService.getConfig('leaves.block_insufficient_balance');
+                if (config) {
+                    setSettings(prev => prev.map(s =>
+                        s.key === 'leaves.block_insufficient_balance' ? { ...s, value: config.value } : s
+                    ));
+                }
+            } catch (e) {
+                console.log('Config not found or error loading config, using default');
+            }
+        };
+        loadConfig();
+    }, []);
 
     const handleToggleSetting = (key: string) => {
         setSettings(prev => prev.map(s => s.key === key ? { ...s, value: !s.value } : s));
@@ -63,7 +82,29 @@ export function AdminToolsPage() {
     const handleSaveSettings = async () => {
         setIsSaving(true);
         try {
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Save business logic settings to backend
+            const blockSetting = settings.find(s => s.key === 'leaves.block_insufficient_balance');
+            if (blockSetting) {
+                try {
+                    await configService.updateConfig('leaves.block_insufficient_balance', blockSetting.value);
+                } catch (e: any) {
+                    // If config doesn't exist (404), create it
+                    if (e.response && e.response.status === 404) {
+                        await configService.createConfig({
+                            key: blockSetting.key,
+                            value: blockSetting.value,
+                            value_type: 'boolean',
+                            category: blockSetting.category,
+                            description: blockSetting.description
+                        });
+                    } else {
+                        throw e;
+                    }
+                }
+            }
+
+            // Simulate saving for others (or implement generic save loop if other keys are real)
+            await new Promise(resolve => setTimeout(resolve, 500));
             toast.success('Impostazioni salvate con successo');
         } catch {
             toast.error('Errore nel salvataggio');

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { configService } from '../../services/config.service';
 import { useToast } from '../../context/ToastContext';
+import { ConfirmModal } from '../../components/common';
 import type { NationalContract, NationalContractVersion, NationalContractLevel } from '../../types';
 
 export function NationalContractDetailPage() {
@@ -52,6 +53,11 @@ export function NationalContractDetailPage() {
     const [isEditingMode, setIsEditingMode] = useState(false);
     const [currentMode, setCurrentMode] = useState<any | null>(null);
     const { register: registerMode, handleSubmit: handleSubmitMode, reset: resetMode } = useForm();
+
+    // Confirm States
+    const [deleteLevelId, setDeleteLevelId] = useState<string | null>(null);
+    const [deleteModeId, setDeleteModeId] = useState<string | null>(null);
+    const [deleteConfigId, setDeleteConfigId] = useState<string | null>(null);
 
     // Forms
     const {
@@ -184,15 +190,21 @@ export function NationalContractDetailPage() {
         }
     };
 
-    const onDeleteLevel = async (id: string) => {
-        if (!window.confirm('Sei sicuro di voler eliminare questo livello?')) return;
+    const onRequestDeleteLevel = (id: string) => {
+        setDeleteLevelId(id);
+    };
+
+    const confirmDeleteLevel = async () => {
+        if (!deleteLevelId) return;
 
         try {
-            await configService.deleteNationalContractLevel(id);
-            setLevels(levels.filter(l => l.id !== id));
+            await configService.deleteNationalContractLevel(deleteLevelId);
+            setLevels(prev => prev.filter(l => l.id !== deleteLevelId));
             toast.success('Livello eliminato');
         } catch (error: any) {
             toast.error(error.detail || 'Errore eliminazione livello');
+        } finally {
+            setDeleteLevelId(null);
         }
     };
 
@@ -230,14 +242,20 @@ export function NationalContractDetailPage() {
         }
     };
 
-    const onDeleteMode = async (id: string) => {
-        if (!window.confirm('Eliminare questa modalità?')) return;
+    const onRequestDeleteMode = (id: string) => {
+        setDeleteModeId(id);
+    };
+
+    const confirmDeleteMode = async () => {
+        if (!deleteModeId) return;
         try {
-            await configService.deleteCalculationMode(id);
-            setCalculationModes(calculationModes.filter(m => m.id !== id));
+            await configService.deleteCalculationMode(deleteModeId);
+            setCalculationModes(prev => prev.filter(m => m.id !== deleteModeId));
             toast.success('Modalità eliminata');
         } catch (e: any) {
             toast.error('Errore eliminazione');
+        } finally {
+            setDeleteModeId(null);
         }
     };
 
@@ -295,11 +313,14 @@ export function NationalContractDetailPage() {
         }
     };
 
-    const onDeleteConfig = async (configId: string) => {
-        if (!id) return;
-        if (!window.confirm('Eliminare questa configurazione specifica?')) return;
+    const onRequestDeleteConfig = (configId: string) => {
+        setDeleteConfigId(configId);
+    };
+
+    const confirmDeleteConfig = async () => {
+        if (!deleteConfigId || !id) return;
         try {
-            await configService.deleteNationalContractTypeConfig(configId);
+            await configService.deleteNationalContractTypeConfig(deleteConfigId);
 
             // Refresh
             const updatedVersions = await configService.getNationalContractVersions(id);
@@ -310,6 +331,8 @@ export function NationalContractDetailPage() {
             toast.success('Configurazione eliminata');
         } catch (e: any) {
             toast.error(e.detail || 'Errore eliminazione');
+        } finally {
+            setDeleteConfigId(null);
         }
     };
 
@@ -643,7 +666,7 @@ export function NationalContractDetailPage() {
                                                 <button onClick={() => { setCurrentLevel(level); setIsEditingLevel(true); }} className="text-indigo-600 hover:text-indigo-900 mr-4">
                                                     <Edit2 size={16} />
                                                 </button>
-                                                <button onClick={() => onDeleteLevel(level.id)} className="text-red-600 hover:text-red-900">
+                                                <button onClick={() => onRequestDeleteLevel(level.id)} className="text-red-600 hover:text-red-900">
                                                     <Trash2 size={16} />
                                                 </button>
                                             </td>
@@ -795,7 +818,7 @@ export function NationalContractDetailPage() {
                                                     <button onClick={() => setEditingConfig(config)} className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg text-indigo-600 border border-transparent hover:border-gray-200 transition-all" title="Modifica">
                                                         <Edit2 size={16} />
                                                     </button>
-                                                    <button onClick={() => onDeleteConfig(config.id)} className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg text-red-600 border border-transparent hover:border-gray-200 transition-all" title="Elimina">
+                                                    <button onClick={() => onRequestDeleteConfig(config.id)} className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg text-red-600 border border-transparent hover:border-gray-200 transition-all" title="Elimina">
                                                         <Trash2 size={16} />
                                                     </button>
                                                 </div>
@@ -852,7 +875,7 @@ export function NationalContractDetailPage() {
                                                 <button onClick={() => { setCurrentMode(mode); setIsEditingMode(true); }} className="text-indigo-600 hover:text-indigo-900 mr-4">
                                                     <Edit2 size={16} />
                                                 </button>
-                                                <button onClick={() => onDeleteMode(mode.id)} className="text-red-600 hover:text-red-900">
+                                                <button onClick={() => onRequestDeleteMode(mode.id)} className="text-red-600 hover:text-red-900">
                                                     <Trash2 size={16} />
                                                 </button>
                                             </td>
@@ -980,6 +1003,37 @@ export function NationalContractDetailPage() {
                     </div>
                 </div>
             )}
+
+            {/* Delete Confirmation Modals */}
+            <ConfirmModal
+                isOpen={!!deleteLevelId}
+                onClose={() => setDeleteLevelId(null)}
+                onConfirm={confirmDeleteLevel}
+                title="Elimina Livello"
+                message="Sei sicuro di voler eliminare questo livello contrattuale? L'azione è irreversibile."
+                variant="danger"
+                confirmLabel="Elimina"
+            />
+
+            <ConfirmModal
+                isOpen={!!deleteModeId}
+                onClose={() => setDeleteModeId(null)}
+                onConfirm={confirmDeleteMode}
+                title="Elimina Modalità"
+                message="Sei sicuro di voler eliminare questa modalità di calcolo? Potrebbe essere in uso da altri contratti."
+                variant="danger"
+                confirmLabel="Elimina"
+            />
+
+            <ConfirmModal
+                isOpen={!!deleteConfigId}
+                onClose={() => setDeleteConfigId(null)}
+                onConfirm={confirmDeleteConfig}
+                title="Elimina Configurazione"
+                message="Sei sicuro di voler eliminare questa specifica configurazione per il tipo di contratto?"
+                variant="danger"
+                confirmLabel="Elimina"
+            />
         </div>
     );
 }

@@ -748,7 +748,7 @@ class LeaveService:
     ) -> Decimal:
         """Calculate working days between dates."""
         return await self._calendar_utils.calculate_working_days(
-            start_date, end_date, start_half, end_half
+            start_date, end_date, start_half, end_half, user_id=user_id
         )
         
 
@@ -782,6 +782,12 @@ class LeaveService:
     async def _get_subordinates(self, manager_id: UUID) -> list[UUID]:
         """Get subordinate user IDs from auth service."""
         return await self._auth_client.get_subordinates(manager_id)
+
+
+
+    async def get_excluded_days(self, start_date: date, end_date: date, user_id: Optional[UUID] = None) -> dict:
+        """Get list of excluded days (holidays/weekends) for UI."""
+        return await self._calendar_utils.get_excluded_list(start_date, end_date, user_id=user_id)
 
 
 

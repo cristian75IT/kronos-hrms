@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import require_admin
+from src.core.security import require_hr, TokenPayload
 from ..schemas import HolidayCreate, HolidayUpdate, HolidayResponse
 from ..service import CalendarService
 
@@ -55,13 +55,13 @@ async def get_holiday(
 async def create_holiday(
     data: HolidayCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_hr),
 ):
-    """Create a new holiday. Requires admin privileges."""
+    """Create a new holiday. Requires HR or Admin privileges."""
     service = CalendarService(db)
     holiday = await service.create_holiday(
         data=data,
-        created_by=current_user.get("id"),
+        created_by=current_user.user_id
     )
     return holiday
 
@@ -71,9 +71,9 @@ async def update_holiday(
     holiday_id: UUID,
     data: HolidayUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_hr),
 ):
-    """Update an existing holiday. Requires admin privileges."""
+    """Update an existing holiday. Requires HR or Admin privileges."""
     service = CalendarService(db)
     holiday = await service.update_holiday(holiday_id, data)
     if not holiday:
@@ -88,9 +88,9 @@ async def update_holiday(
 async def delete_holiday(
     holiday_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_hr),
 ):
-    """Delete a holiday. Requires admin privileges."""
+    """Delete a holiday. Requires HR or Admin privileges."""
     service = CalendarService(db)
     success = await service.delete_holiday(holiday_id)
     if not success:

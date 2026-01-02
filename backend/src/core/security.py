@@ -44,6 +44,12 @@ class TokenPayload(BaseModel):
     # This is set by get_current_user dependency after DB lookup
     internal_user_id: Optional[UUID] = None
     
+    # DB-based roles (merged with Keycloak roles)
+    db_is_admin: bool = False
+    db_is_manager: bool = False
+    db_is_approver: bool = False
+    db_is_hr: bool = False
+    
     @property
     def keycloak_id(self) -> str:
         """Get Keycloak user ID (external identity)."""
@@ -77,22 +83,22 @@ class TokenPayload(BaseModel):
     @property
     def is_admin(self) -> bool:
         """Check if user is admin."""
-        return self.has_role("admin")
+        return self.has_role("admin") or self.db_is_admin
     
     @property
     def is_manager(self) -> bool:
         """Check if user is manager or admin."""
-        return self.has_role("manager") or self.is_admin
+        return self.has_role("manager") or self.db_is_manager or self.is_admin
     
     @property
     def is_approver(self) -> bool:
         """Check if user has approver capability."""
-        return self.has_role("approver") or self.is_admin or self.is_hr
+        return self.has_role("approver") or self.db_is_approver or self.is_admin or self.is_hr
 
     @property
     def is_hr(self) -> bool:
         """Check if user is HR."""
-        return self.has_role("hr") or self.is_admin
+        return self.has_role("hr") or self.db_is_hr or self.is_admin
 
 
 async def decode_token(token: str) -> TokenPayload:
@@ -162,6 +168,11 @@ async def get_current_user(
             if response.status_code == 200:
                 user_data = response.json()
                 payload.internal_user_id = UUID(user_data.get("id"))
+                payload.db_is_admin = user_data.get("is_admin", False)
+                payload.db_is_manager = user_data.get("is_manager", False)
+                payload.db_is_approver = user_data.get("is_approver", False)
+                # Note: db_is_hr might not be in user_data yet unless added to UserResponse, 
+                # but defaults to False is safe.
             elif response.status_code == 404:
                 # User not found in local DB - they may need to be synced
                 # For now, raise an error

@@ -346,13 +346,17 @@ class CalendarClient:
             logger.error(f"CalendarClient error get_holidays: {e}")
         return []
 
-    async def get_closures(self, year: int) -> list[dict]:
+    async def get_closures(self, year: int, location_id: Optional[UUID] = None) -> list[dict]:
         """Get company closures from calendar service."""
         try:
+            params = {"year": year}
+            if location_id:
+                params["location_id"] = str(location_id)
+                
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     f"{self.base_url}/api/v1/closures",
-                    params={"year": year},
+                    params=params,
                     timeout=5.0
                 )
                 if response.status_code == 200:

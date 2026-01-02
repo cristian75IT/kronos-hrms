@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import get_current_user
+from src.core.security import get_current_user, TokenPayload
 from ..schemas import EventCreate, EventUpdate, EventResponse
 from ..service import CalendarService
 
@@ -22,12 +22,12 @@ async def list_events(
     event_type: Optional[str] = Query(None, description="Filter by event type"),
     include_public: bool = Query(True, description="Include public events"),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
 ):
     """Get calendar events for the current user."""
     service = CalendarService(db)
     events = await service.get_events(
-        user_id=current_user.get("id"),
+        user_id=current_user.user_id,
         start_date=start_date,
         end_date=end_date,
         event_type=event_type,
@@ -40,7 +40,7 @@ async def list_events(
 async def get_event(
     event_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
 ):
     """Get a specific event by ID."""
     service = CalendarService(db)
@@ -52,7 +52,7 @@ async def get_event(
         )
     
     # Check visibility
-    user_id = current_user.get("id")
+    user_id = current_user.user_id
     if event.visibility == "private" and str(event.user_id) != str(user_id):
         # Check if user is a participant
         participant_ids = [str(p.user_id) for p in event.participants]
@@ -69,13 +69,13 @@ async def get_event(
 async def create_event(
     data: EventCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
 ):
     """Create a new calendar event."""
     service = CalendarService(db)
     event = await service.create_event(
         data=data,
-        user_id=current_user.get("id"),
+        user_id=current_user.user_id,
     )
     return event
 
@@ -85,7 +85,7 @@ async def update_event(
     event_id: UUID,
     data: EventUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
 ):
     """Update an existing event. Only the owner can update."""
     service = CalendarService(db)
@@ -98,7 +98,7 @@ async def update_event(
         )
     
     # Only owner or organizer can update
-    user_id = current_user.get("id")
+    user_id = current_user.user_id
     is_organizer = any(p.user_id == user_id and p.is_organizer for p in event.participants)
     
     if str(event.user_id) != str(user_id) and not is_organizer:
@@ -115,7 +115,7 @@ async def update_event(
 async def delete_event(
     event_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
 ):
     """Delete (cancel) an event. Only the owner can delete."""
     service = CalendarService(db)
@@ -128,7 +128,7 @@ async def delete_event(
         )
     
     # Only owner can delete
-    if str(event.user_id) != str(current_user.get("id")):
+    if str(event.user_id) != str(current_user.user_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the event owner can delete it",
@@ -143,14 +143,14 @@ async def respond_to_event(
     event_id: UUID,
     response: str = Query(..., pattern="^(accepted|declined|tentative)$"),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
 ):
     """Respond to an event invitation."""
     from datetime import datetime
     from sqlalchemy import select, update
     from ..models import EventParticipant
     
-    user_id = current_user.get("id")
+    user_id = current_user.user_id
     
     # Find participation
     result = await db.execute(

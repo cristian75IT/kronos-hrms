@@ -33,7 +33,7 @@ import {
     TrendingUp,
     AlertCircle,
 } from 'lucide-react';
-import { Button } from '../../components/common';
+import { Button, ConfirmModal } from '../../components/common';
 
 interface UserWithBalance extends UserWithProfile {
     balance?: LeaveBalance | null;
@@ -51,6 +51,7 @@ export function UsersPage() {
     const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
     const [showBatchModal, setShowBatchModal] = useState(false);
     const [isProcessing, setIsProcessing] = useState<string | null>(null);
+    const [userToDelete, setUserToDelete] = useState<string | null>(null);
 
     useEffect(() => {
         loadUsers();
@@ -87,12 +88,17 @@ export function UsersPage() {
         setIsLoadingBalances(false);
     };
 
-    const handleDeleteUser = async (userId: string) => {
-        if (!window.confirm('Sei sicuro di voler eliminare questo utente?')) return;
+    const handleDeleteClick = (userId: string) => {
+        setUserToDelete(userId);
+    };
+
+    const confirmDeleteUser = async () => {
+        if (!userToDelete) return;
         try {
-            await userService.deleteUser(userId);
-            setUsers(users.filter(u => u.id !== userId));
+            await userService.deleteUser(userToDelete);
+            setUsers(prev => prev.filter(u => u.id !== userToDelete));
             toast.success('Utente eliminato con successo');
+            setUserToDelete(null);
         } catch (error) {
             console.error('Failed to delete user:', error);
             toast.error('Errore durante l\'eliminazione');
@@ -328,7 +334,7 @@ export function UsersPage() {
                                                     <Edit size={16} />
                                                 </button>
                                                 {currentUser?.id !== user.id && (
-                                                    <button onClick={() => handleDeleteUser(user.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Elimina">
+                                                    <button onClick={() => handleDeleteClick(user.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Elimina">
                                                         <Trash2 size={16} />
                                                     </button>
                                                 )}
@@ -492,6 +498,16 @@ export function UsersPage() {
                     <p className="opacity-80">Le modifiche ai ruoli e ai wallet vengono registrate automaticamente per conformità e audit aziendale.</p>
                 </div>
             </div>
+
+            <ConfirmModal
+                isOpen={!!userToDelete}
+                onClose={() => setUserToDelete(null)}
+                onConfirm={confirmDeleteUser}
+                title="Elimina Dipendente"
+                message="Sei sicuro di voler eliminare questo dipendente? Questa azione è irreversibile e rimuoverà anche lo storico contratti, il wallet e i dati sulle presenze."
+                confirmLabel="Elimina"
+                variant="danger"
+            />
         </div>
     );
 }
