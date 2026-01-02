@@ -1,0 +1,300 @@
+kronos-leaves  | (Background on this error at: https://sqlalche.me/e/20/f405)
+kronos-leaves  | Traceback (most recent call last):
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 526, in _prepare_and_execute
+kronos-leaves  |     prepared_stmt, attributes = await adapt_connection._prepare(
+kronos-leaves  |                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 773, in _prepare
+kronos-leaves  |     prepared_stmt = await self._connection.prepare(
+kronos-leaves  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 638, in prepare
+kronos-leaves  |     return await self._prepare(
+kronos-leaves  |            ^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 657, in _prepare
+kronos-leaves  |     stmt = await self._get_statement(
+kronos-leaves  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 443, in _get_statement
+kronos-leaves  |     statement = await self._protocol.prepare(
+kronos-leaves  |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "asyncpg/protocol/protocol.pyx", line 165, in prepare
+kronos-leaves  | asyncpg.exceptions.UndefinedColumnError: column leave_requests.days_used_before_recall does not exist
+kronos-leaves  | 
+kronos-leaves  | The above exception was the direct cause of the following exception:
+kronos-leaves  | 
+kronos-leaves  | Traceback (most recent call last):
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+kronos-leaves  |     self.dialect.do_execute(
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+kronos-leaves  |     cursor.execute(statement, parameters)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 585, in execute
+kronos-leaves  |     self._adapt_connection.await_(
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+kronos-leaves  |     return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+kronos-leaves  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+kronos-leaves  |     value = await result
+kronos-leaves  |             ^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 563, in _prepare_and_execute
+kronos-leaves  |     self._handle_exception(error)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 513, in _handle_exception
+kronos-leaves  |     self._adapt_connection._handle_exception(error)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 797, in _handle_exception
+kronos-leaves  |     raise translated_error from error
+kronos-leaves  | sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.ProgrammingError: <class 'asyncpg.exceptions.UndefinedColumnError'>: column leave_requests.days_used_before_recall does not exist
+kronos-leaves  | 
+kronos-leaves  | The above exception was the direct cause of the following exception:
+kronos-leaves  | 
+kronos-leaves  | Traceback (most recent call last):
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+kronos-leaves  |     await self.app(scope, receive, _send)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/middleware/cors.py", line 85, in __call__
+kronos-leaves  |     await self.app(scope, receive, send)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+kronos-leaves  |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+kronos-leaves  |     raise exc
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+kronos-leaves  |     await app(scope, receive, sender)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+kronos-leaves  |     await self.app(scope, receive, send)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 716, in __call__
+kronos-leaves  |     await self.middleware_stack(scope, receive, send)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 736, in app
+kronos-leaves  |     await route.handle(scope, receive, send)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 290, in handle
+kronos-leaves  |     await self.app(scope, receive, send)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 115, in app
+kronos-leaves  |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+kronos-leaves  |     raise exc
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+kronos-leaves  |     await app(scope, receive, sender)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 101, in app
+kronos-leaves  |     response = await f(request)
+kronos-leaves  |                ^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 355, in app
+kronos-leaves  |     raw_response = await run_endpoint_function(
+kronos-leaves  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 243, in run_endpoint_function
+kronos-leaves  |     return await dependant.call(**values)
+kronos-leaves  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/app/src/services/leaves/routers/requests.py", line 48, in get_my_requests
+kronos-leaves  |     requests = await service.get_user_requests(user_id, year, status_list)
+kronos-leaves  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/app/src/services/leaves/service.py", line 103, in get_user_requests
+kronos-leaves  |     return await self._request_repo.get_by_user(user_id, year, status)
+kronos-leaves  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/app/src/services/leaves/repository.py", line 54, in get_by_user
+kronos-leaves  |     result = await self._session.execute(query)
+kronos-leaves  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/session.py", line 449, in execute
+kronos-leaves  |     result = await greenlet_spawn(
+kronos-leaves  |              ^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 201, in greenlet_spawn
+kronos-leaves  |     result = context.throw(*sys.exc_info())
+kronos-leaves  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+kronos-leaves  |     return self._execute_internal(
+kronos-leaves  |            ^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2249, in _execute_internal
+kronos-leaves  |     result: Result[Any] = compile_state_cls.orm_execute_statement(
+kronos-leaves  |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
+kronos-leaves  |     result = conn.execute(
+kronos-leaves  |              ^^^^^^^^^^^^^
+kronos-leaves  | INFO:     192.168.97.11:44674 - "GET /api/v1/leaves?year=2026 HTTP/1.1" 500 Internal Server Error
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+kronos-leaves  |     return meth(
+kronos-leaves  |            ^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+kronos-leaves  |     return connection._execute_clauseelement(
+kronos-leaves  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+kronos-leaves  |     ret = self._execute_context(
+kronos-leaves  |           ^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+kronos-leaves  |     return self._exec_single_context(
+kronos-leaves  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+kronos-leaves  |     self._handle_dbapi_exception(
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+kronos-leaves  |     raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+kronos-leaves  |     self.dialect.do_execute(
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+kronos-leaves  |     cursor.execute(statement, parameters)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 585, in execute
+kronos-leaves  |     self._adapt_connection.await_(
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+kronos-leaves  |     return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+kronos-leaves  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+kronos-leaves  |     value = await result
+kronos-leaves  |             ^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 563, in _prepare_and_execute
+kronos-leaves  |     self._handle_exception(error)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 513, in _handle_exception
+kronos-leaves  |     self._adapt_connection._handle_exception(error)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 797, in _handle_exception
+kronos-leaves  |     raise translated_error from error
+kronos-leaves  | sqlalchemy.exc.ProgrammingError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedColumnError'>: column leave_requests.days_used_before_recall does not exist
+kronos-leaves  | [SQL: SELECT leaves.leave_requests.id, leaves.leave_requests.user_id, leaves.leave_requests.leave_type_id, leaves.leave_requests.leave_type_code, leaves.leave_requests.start_date, leaves.leave_requests.end_date, leaves.leave_requests.start_half_day, leaves.leave_requests.end_half_day, leaves.leave_requests.days_requested, leaves.leave_requests.hours_requested, leaves.leave_requests.status, leaves.leave_requests.employee_notes, leaves.leave_requests.approver_notes, leaves.leave_requests.approver_id, leaves.leave_requests.approved_at, leaves.leave_requests.has_conditions, leaves.leave_requests.condition_type, leaves.leave_requests.condition_details, leaves.leave_requests.condition_accepted, leaves.leave_requests.condition_accepted_at, leaves.leave_requests.recalled_at, leaves.leave_requests.recall_reason, leaves.leave_requests.days_used_before_recall, leaves.leave_requests.recall_date, leaves.leave_requests.protocol_number, leaves.leave_requests.attachment_path, leaves.leave_requests.balance_deducted, leaves.leave_requests.deduction_details, leaves.leave_requests.policy_violations, leaves.leave_requests.created_at, leaves.leave_requests.updated_at 
+kronos-leaves  | FROM leaves.leave_requests 
+kronos-leaves  | WHERE leaves.leave_requests.user_id = $1::UUID AND EXTRACT(year FROM leaves.leave_requests.start_date) = $2::INTEGER ORDER BY leaves.leave_requests.start_date DESC]
+kronos-leaves  | [parameters: (UUID('e18c5e9c-ae9e-4765-adaa-11222e933591'), 2026)]
+kronos-leaves  | (Background on this error at: https://sqlalche.me/e/20/f405)
+kronos-leaves  | 
+kronos-leaves  | ERROR:    Exception in ASGI application
+kronos-leaves  | Traceback (most recent call last):
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 526, in _prepare_and_execute
+kronos-leaves  |     prepared_stmt, attributes = await adapt_connection._prepare(
+kronos-leaves  |                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 773, in _prepare
+kronos-leaves  |     prepared_stmt = await self._connection.prepare(
+kronos-leaves  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 638, in prepare
+kronos-leaves  |     return await self._prepare(
+kronos-leaves  |            ^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 657, in _prepare
+kronos-leaves  |     stmt = await self._get_statement(
+kronos-leaves  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/asyncpg/connection.py", line 443, in _get_statement
+kronos-leaves  |     statement = await self._protocol.prepare(
+kronos-leaves  |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "asyncpg/protocol/protocol.pyx", line 165, in prepare
+kronos-leaves  | asyncpg.exceptions.UndefinedColumnError: column leave_requests.days_used_before_recall does not exist
+kronos-leaves  | 
+kronos-leaves  | The above exception was the direct cause of the following exception:
+kronos-leaves  | 
+kronos-leaves  | Traceback (most recent call last):
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+kronos-leaves  |     self.dialect.do_execute(
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+kronos-leaves  |     cursor.execute(statement, parameters)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 585, in execute
+kronos-leaves  |     self._adapt_connection.await_(
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+kronos-leaves  |     return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+kronos-leaves  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+kronos-leaves  |     value = await result
+kronos-leaves  |             ^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 563, in _prepare_and_execute
+kronos-leaves  |     self._handle_exception(error)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 513, in _handle_exception
+kronos-leaves  |     self._adapt_connection._handle_exception(error)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 797, in _handle_exception
+kronos-leaves  |     raise translated_error from error
+kronos-leaves  | sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.ProgrammingError: <class 'asyncpg.exceptions.UndefinedColumnError'>: column leave_requests.days_used_before_recall does not exist
+kronos-leaves  | 
+kronos-leaves  | The above exception was the direct cause of the following exception:
+kronos-leaves  | 
+kronos-leaves  | Traceback (most recent call last):
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/uvicorn/protocols/http/httptools_impl.py", line 416, in run_asgi
+kronos-leaves  |     result = await app(  # type: ignore[func-returns-value]
+kronos-leaves  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+kronos-leaves  |     return await self.app(scope, receive, send)
+kronos-leaves  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/fastapi/applications.py", line 1135, in __call__
+kronos-leaves  |     await super().__call__(scope, receive, send)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/applications.py", line 107, in __call__
+kronos-leaves  |     await self.middleware_stack(scope, receive, send)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 186, in __call__
+kronos-leaves  |     raise exc
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/middleware/errors.py", line 164, in __call__
+kronos-leaves  |     await self.app(scope, receive, _send)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/middleware/cors.py", line 85, in __call__
+kronos-leaves  |     await self.app(scope, receive, send)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+kronos-leaves  |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+kronos-leaves  |     raise exc
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+kronos-leaves  |     await app(scope, receive, sender)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+kronos-leaves  |     await self.app(scope, receive, send)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 716, in __call__
+kronos-leaves  |     await self.middleware_stack(scope, receive, send)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 736, in app
+kronos-leaves  |     await route.handle(scope, receive, send)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/routing.py", line 290, in handle
+kronos-leaves  |     await self.app(scope, receive, send)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 115, in app
+kronos-leaves  |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+kronos-leaves  |     raise exc
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+kronos-leaves  |     await app(scope, receive, sender)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 101, in app
+kronos-leaves  |     response = await f(request)
+kronos-leaves  |                ^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 355, in app
+kronos-leaves  |     raw_response = await run_endpoint_function(
+kronos-leaves  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/fastapi/routing.py", line 243, in run_endpoint_function
+kronos-leaves  |     return await dependant.call(**values)
+kronos-leaves  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/app/src/services/leaves/routers/requests.py", line 48, in get_my_requests
+kronos-leaves  |     requests = await service.get_user_requests(user_id, year, status_list)
+kronos-leaves  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/app/src/services/leaves/service.py", line 103, in get_user_requests
+kronos-leaves  |     return await self._request_repo.get_by_user(user_id, year, status)
+kronos-leaves  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/app/src/services/leaves/repository.py", line 54, in get_by_user
+kronos-leaves  |     result = await self._session.execute(query)
+kronos-leaves  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/session.py", line 449, in execute
+kronos-leaves  |     result = await greenlet_spawn(
+kronos-leaves  |              ^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 201, in greenlet_spawn
+kronos-leaves  |     result = context.throw(*sys.exc_info())
+kronos-leaves  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2351, in execute
+kronos-leaves  |     return self._execute_internal(
+kronos-leaves  |            ^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2249, in _execute_internal
+kronos-leaves  |     result: Result[Any] = compile_state_cls.orm_execute_statement(
+kronos-leaves  |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 306, in orm_execute_statement
+kronos-leaves  |     result = conn.execute(
+kronos-leaves  |              ^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1419, in execute
+kronos-leaves  |     return meth(
+kronos-leaves  |            ^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 527, in _execute_on_connection
+kronos-leaves  |     return connection._execute_clauseelement(
+kronos-leaves  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1641, in _execute_clauseelement
+kronos-leaves  |     ret = self._execute_context(
+kronos-leaves  |           ^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1846, in _execute_context
+kronos-leaves  |     return self._exec_single_context(
+kronos-leaves  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1986, in _exec_single_context
+kronos-leaves  |     self._handle_dbapi_exception(
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2363, in _handle_dbapi_exception
+kronos-leaves  |     raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1967, in _exec_single_context
+kronos-leaves  |     self.dialect.do_execute(
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
+kronos-leaves  |     cursor.execute(statement, parameters)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 585, in execute
+kronos-leaves  |     self._adapt_connection.await_(
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+kronos-leaves  |     return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+kronos-leaves  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+kronos-leaves  |     value = await result
+kronos-leaves  |             ^^^^^^^^^^^^
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 563, in _prepare_and_execute
+kronos-leaves  |     self._handle_exception(error)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 513, in _handle_exception
+kronos-leaves  |     self._adapt_connection._handle_exception(error)
+kronos-leaves  |   File "/usr/local/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 797, in _handle_exception
+kronos-leaves  |     raise translated_error from error
+kronos-leaves  | sqlalchemy.exc.ProgrammingError: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.UndefinedColumnError'>: column leave_requests.days_used_before_recall does not exist
+kronos-leaves  | [SQL: SELECT leaves.leave_requests.id, leaves.leave_requests.user_id, leaves.leave_requests.leave_type_id, leaves.leave_requests.leave_type_code, leaves.leave_requests.start_date, leaves.leave_requests.end_date, leaves.leave_requests.start_half_day, leaves.leave_requests.end_half_day, leaves.leave_requests.days_requested, leaves.leave_requests.hours_requested, leaves.leave_requests.status, leaves.leave_requests.employee_notes, leaves.leave_requests.approver_notes, leaves.leave_requests.approver_id, leaves.leave_requests.approved_at, leaves.leave_requests.has_conditions, leaves.leave_requests.condition_type, leaves.leave_requests.condition_details, leaves.leave_requests.condition_accepted, leaves.leave_requests.condition_accepted_at, leaves.leave_requests.recalled_at, leaves.leave_requests.recall_reason, leaves.leave_requests.days_used_before_recall, leaves.leave_requests.recall_date, leaves.leave_requests.protocol_number, leaves.leave_requests.attachment_path, leaves.leave_requests.balance_deducted, leaves.leave_requests.deduction_details, leaves.leave_requests.policy_violations, leaves.leave_requests.created_at, leaves.leave_requests.updated_at 
+kronos-leaves  | FROM leaves.leave_requests 
+kronos-leaves  | WHERE leaves.leave_requests.user_id = $1::UUID AND EXTRACT(year FROM leaves.leave_requests.start_date) = $2::INTEGER ORDER BY leaves.leave_requests.start_date DESC]
+kronos-leaves  | [parameters: (UUID('e18c5e9c-ae9e-4765-adaa-11222e933591'), 2026)]
+kronos-leaves  | (Background on this error at: https://sqlalche.me/e/20/f405)

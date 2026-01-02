@@ -208,22 +208,22 @@ class LeaveBalanceResponse(BaseModel):
 class BalanceSummary(BaseModel):
     """Summary of user balances for dashboard."""
     
-    vacation_total_available: Decimal
-    vacation_available_ap: Decimal
-    vacation_available_ac: Decimal
-    vacation_used: Decimal
-    vacation_pending: Decimal  # Requested but not yet approved
+    vacation_total_available: Decimal = Decimal(0)
+    vacation_available_ap: Decimal = Decimal(0)
+    vacation_available_ac: Decimal = Decimal(0)
+    vacation_used: Decimal = Decimal(0)
+    vacation_pending: Decimal = Decimal(0)  # Requested but not yet approved
     
     ap_expiry_date: Optional[date] = None
     days_until_ap_expiry: Optional[int] = None
     
-    rol_available: Decimal
-    rol_used: Decimal
-    rol_pending: Decimal
+    rol_available: Decimal = Decimal(0)
+    rol_used: Decimal = Decimal(0)
+    rol_pending: Decimal = Decimal(0)
     
-    permits_available: Decimal
-    permits_used: Decimal
-    permits_pending: Decimal
+    permits_available: Decimal = Decimal(0)
+    permits_used: Decimal = Decimal(0)
+    permits_pending: Decimal = Decimal(0)
 
     # Deductions from mandatory company closures
     vacation_mandatory_deductions: Decimal = Decimal(0)
