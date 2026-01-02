@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Navigate, useLocation } from 'react-router-dom';
 import { ArrowRight, User, Lock, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
+import { Logo } from '../../components/common/Logo';
 
 export function LoginPage() {
   const { login, isAuthenticated } = useAuth();
@@ -41,8 +42,8 @@ export function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl border border-gray-200 shadow-sm">
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-primary rounded-xl flex items-center justify-center text-white text-3xl font-bold shadow-sm mb-4">
-            K
+          <div className="mx-auto h-20 w-20 flex items-center justify-center mb-4">
+            <Logo size={80} />
           </div>
           <h2 className="text-3xl font-extrabold text-gray-900">KRONOS</h2>
           <p className="mt-2 text-sm text-gray-600">HR Management System</p>

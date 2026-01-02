@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { clsx } from 'clsx';
+import { Logo } from '../common/Logo';
 
 interface NavItem {
   label: string;
@@ -98,7 +99,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="sidebar-header">
         <Link to="/" className="sidebar-logo">
-          <div className="sidebar-logo-icon">K</div>
+          <Logo size={32} />
           {!collapsed && <span className="sidebar-logo-text">KRONOS</span>}
         </Link>
         <button
