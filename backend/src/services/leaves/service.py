@@ -46,6 +46,7 @@ from src.services.leaves.schemas import (
     AggregateReportItem,
 )
 from src.shared.schemas import DataTableRequest
+from src.shared.audit_client import get_audit_logger
 
 
 class LeaveService:
@@ -55,6 +56,7 @@ class LeaveService:
         self._session = session
         self._request_repo = LeaveRequestRepository(session)
         self._balance_repo = LeaveBalanceRepository(session)
+        self._audit = get_audit_logger("leave-service")
         self._policy_engine = PolicyEngine(
             session,
             self._request_repo,
@@ -545,6 +547,15 @@ class LeaveService:
             status=LeaveRequestStatus.DRAFT,
         )
 
+        # Audit Log
+        await self._audit.log_action(
+            user_id=user_id,
+            action="CREATE",
+            resource_type="LEAVE_REQUEST",
+            resource_id=str(request.id),
+            description=f"Created leave request {request.id}",
+            request_data=data.model_dump(mode="json"),
+        )
         
         # Add history
         await self._request_repo.add_history(
@@ -702,6 +713,16 @@ class LeaveService:
             to_status=LeaveRequestStatus.APPROVED,
             changed_by=approver_id,
             reason=data.notes,
+        )
+        
+        # Audit Log
+        await self._audit.log_action(
+            user_id=approver_id,
+            action="APPROVE",
+            resource_type="LEAVE_REQUEST",
+            resource_id=str(id),
+            description=f"Approved leave request {id}",
+            request_data=data.model_dump(mode="json"),
         )
         
         # Deduct balance

@@ -37,6 +37,7 @@ from src.services.expenses.schemas import (
 )
 from src.shared.schemas import DataTableRequest
 from src.shared.storage import storage_manager
+from src.shared.audit_client import get_audit_logger
 
 
 class ExpenseService:
@@ -48,6 +49,7 @@ class ExpenseService:
         self._allowance_repo = DailyAllowanceRepository(session)
         self._report_repo = ExpenseReportRepository(session)
         self._item_repo = ExpenseItemRepository(session)
+        self._audit = get_audit_logger("expense-service")
 
     # ═══════════════════════════════════════════════════════════
     # Business Trip Operations
@@ -84,11 +86,22 @@ class ExpenseService:
 
     async def create_trip(self, user_id: UUID, data: BusinessTripCreate):
         """Create new business trip."""
-        return await self._trip_repo.create(
+        trip = await self._trip_repo.create(
             user_id=user_id,
             status=TripStatus.DRAFT,
             **data.model_dump(),
         )
+        
+        await self._audit.log_action(
+            user_id=user_id,
+            action="CREATE",
+            resource_type="BUSINESS_TRIP",
+            resource_id=str(trip.id),
+            description=f"Created trip {trip.title}",
+            request_data=data.model_dump(mode="json"),
+        )
+        
+        return trip
 
     async def update_trip(self, id: UUID, user_id: UUID, data: BusinessTripUpdate):
         """Update trip (draft only)."""
@@ -139,6 +152,15 @@ class ExpenseService:
             approver_id=approver_id,
             approved_at=datetime.utcnow(),
             approver_notes=data.notes,
+        )
+        
+        await self._audit.log_action(
+            user_id=approver_id,
+            action="APPROVE",
+            resource_type="BUSINESS_TRIP",
+            resource_id=str(id),
+            description=f"Approved trip {trip.title}",
+            request_data=data.model_dump(mode="json"),
         )
         
         # Auto-generate daily allowances
@@ -378,6 +400,17 @@ class ExpenseService:
             status=ExpenseReportStatus.DRAFT,
             total_amount=Decimal(0),
         )
+        
+        await self._audit.log_action(
+            user_id=user_id,
+            action="CREATE",
+            resource_type="EXPENSE_REPORT",
+            resource_id=str(report.id),
+            description=f"Created report {data.title}",
+            request_data=data.model_dump(mode="json"),
+        )
+        
+        return report
 
     async def submit_report(self, id: UUID, user_id: UUID):
         """Submit report for approval."""

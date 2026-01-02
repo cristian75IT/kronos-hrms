@@ -89,6 +89,9 @@ services:
       - REDIS_URL=redis://redis:6379/1
       - AUTH_SERVICE_URL=http://auth-service:8001
       - CONFIG_SERVICE_URL=http://config-service:8004
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - AUDIT_SERVICE_URL=http://audit-service:8007
+      - CONFIG_SERVICE_URL=http://config-service:8004
       - NOTIFICATION_SERVICE_URL=http://notification-service:8005
       - KEYCLOAK_URL=http://keycloak:8080/
       - KEYCLOAK_REALM=kronos
@@ -123,6 +126,9 @@ services:
       - MINIO_SECRET_KEY=kronos_dev
       - MINIO_SECRET_KEY=kronos_dev
       - AUTH_SERVICE_URL=http://auth-service:8001
+      - CONFIG_SERVICE_URL=http://config-service:8004
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - AUDIT_SERVICE_URL=http://audit-service:8007
       - CONFIG_SERVICE_URL=http://config-service:8004
       - NOTIFICATION_SERVICE_URL=http://notification-service:8005
       - KEYCLOAK_URL=http://keycloak:8080/
