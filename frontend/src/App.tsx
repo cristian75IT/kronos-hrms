@@ -36,6 +36,7 @@ import { WikiManagement } from './pages/wiki/WikiManagement';
 import { WikiConfig } from './pages/wiki/WikiConfig';
 import { HRReportsPage } from './pages/hr/HRReportsPage';
 import { AuditLogPage } from './pages/admin/AuditLogPage';
+import { EmailLogsPage } from './pages/admin/EmailLogsPage';
 
 function App() {
   return (
@@ -92,6 +93,7 @@ function App() {
                 <Route path="/admin/notifications" element={<ProtectedRoute roles={['admin', 'hr']}><NotificationCenterPage /></ProtectedRoute>} />
                 <Route path="/admin/tools" element={<ProtectedRoute roles={['admin']}><AdminToolsPage /></ProtectedRoute>} />
                 <Route path="/admin/audit-logs" element={<ProtectedRoute roles={['admin']}><AuditLogPage /></ProtectedRoute>} />
+                <Route path="/admin/email-logs" element={<ProtectedRoute roles={['admin', 'hr']}><EmailLogsPage /></ProtectedRoute>} />
 
                 {/* HR */}
                 <Route path="/hr/reports" element={<ProtectedRoute roles={['hr', 'admin']}><HRReportsPage /></ProtectedRoute>} />

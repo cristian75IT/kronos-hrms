@@ -100,6 +100,9 @@ class Settings(BaseSettings):
     calendar_service_url: str = Field(
         default="http://localhost:8009", alias="CALENDAR_SERVICE_URL"
     )
+    leave_service_url: str = Field(
+        default="http://localhost:8001", alias="LEAVE_SERVICE_URL"
+    )
 
     # ─────────────────────────────────────────────────────────────
     # VAPID (Web Push Notifications)

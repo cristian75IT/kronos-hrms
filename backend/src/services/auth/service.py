@@ -86,6 +86,10 @@ class UserService:
             # Update roles from Keycloak
             await self._user_repo.update(
                 user.id,
+                is_admin="admin" in roles,
+                is_manager="manager" in roles,
+                is_approver="approver" in roles,
+                is_hr="hr" in roles,
                 last_sync_at=datetime.utcnow(),
             )
             return user
@@ -100,6 +104,7 @@ class UserService:
             is_admin="admin" in roles,
             is_manager="manager" in roles,
             is_approver="approver" in roles,
+            is_hr="hr" in roles,
             last_sync_at=datetime.utcnow(),
         )
 
@@ -128,24 +133,35 @@ class UserService:
         """Get all users with approver capability."""
         return await self._user_repo.get_approvers()
 
-    async def update_user(self, id: UUID, data: UserUpdate):
+    async def update_user(self, id: UUID, data: UserUpdate, actor_id: Optional[UUID] = None):
         """Update user."""
         user = await self._user_repo.update(id, **data.model_dump(exclude_unset=True))
         if not user:
             raise NotFoundError("User not found", entity_type="User", entity_id=str(id))
+            
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="UPDATE",
+            resource_type="USER",
+            resource_id=str(id),
+            description=f"Updated user: {user.full_name}",
+            request_data=data.model_dump(mode="json", exclude_unset=True)
+        )
         return user
 
-    async def deactivate_user(self, id: UUID) -> bool:
+    async def deactivate_user(self, id: UUID, actor_id: Optional[UUID] = None) -> bool:
         """Deactivate user."""
+        user = await self.get_user(id)
         result = await self._user_repo.deactivate(id)
         if not result:
             raise NotFoundError("User not found", entity_type="User", entity_id=str(id))
             
         await self._audit.log_action(
+            user_id=actor_id,
             action="DEACTIVATE",
             resource_type="USER",
             resource_id=str(id),
-            description=f"User deactivated: {id}",
+            description=f"User deactivated: {user.full_name}",
         )
         return True
 
@@ -209,6 +225,7 @@ class UserService:
                             is_admin="admin" in role_names,
                             is_manager="manager" in role_names,
                             is_approver="approver" in role_names,
+                            is_hr="hr" in role_names,
                             is_active=kc_user.get("enabled", True),
                             last_sync_at=datetime.utcnow(),
                         )
@@ -224,6 +241,7 @@ class UserService:
                             is_admin="admin" in role_names,
                             is_manager="manager" in role_names,
                             is_approver="approver" in role_names,
+                            is_hr="hr" in role_names,
                             is_active=kc_user.get("enabled", True),
                             last_sync_at=datetime.utcnow(),
                         )
@@ -284,19 +302,38 @@ class UserService:
             raise NotFoundError("Area not found", entity_type="Area", entity_id=str(id))
         return area
 
-    async def create_area(self, data: AreaCreate):
+    async def create_area(self, data: AreaCreate, actor_id: Optional[UUID] = None):
         """Create new area."""
         existing = await self._area_repo.get_by_code(data.code)
         if existing:
             raise ConflictError(f"Area code already exists: {data.code}")
         
-        return await self._area_repo.create(**data.model_dump())
+        area = await self._area_repo.create(**data.model_dump())
+        
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="CREATE",
+            resource_type="AREA",
+            resource_id=str(area.id),
+            description=f"Created area: {area.name}",
+            request_data=data.model_dump(mode="json")
+        )
+        return area
 
-    async def update_area(self, id: UUID, data: AreaUpdate):
+    async def update_area(self, id: UUID, data: AreaUpdate, actor_id: Optional[UUID] = None):
         """Update area."""
         area = await self._area_repo.update(id, **data.model_dump(exclude_unset=True))
         if not area:
             raise NotFoundError("Area not found", entity_type="Area", entity_id=str(id))
+            
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="UPDATE",
+            resource_type="AREA",
+            resource_id=str(id),
+            description=f"Updated area: {area.name}",
+            request_data=data.model_dump(mode="json", exclude_unset=True)
+        )
         return area
 
     # ═══════════════════════════════════════════════════════════
@@ -330,11 +367,21 @@ class UserService:
         """Get all contract types."""
         return await self._contract_repo.get_all(active_only)
 
-    async def create_contract_type(self, data: ContractTypeCreate):
+    async def create_contract_type(self, data: ContractTypeCreate, actor_id: Optional[UUID] = None):
         """Create new contract type."""
-        return await self._contract_repo.create(**data.model_dump())
+        contract_type = await self._contract_repo.create(**data.model_dump())
+        
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="CREATE",
+            resource_type="CONTRACT_TYPE",
+            resource_id=str(contract_type.id),
+            description=f"Created contract type: {contract_type.name}",
+            request_data=data.model_dump(mode="json")
+        )
+        return contract_type
 
-    async def update_contract_type(self, id: UUID, data: ContractTypeUpdate):
+    async def update_contract_type(self, id: UUID, data: ContractTypeUpdate, actor_id: Optional[UUID] = None):
         """Update contract type."""
         update_data = data.model_dump(exclude_unset=True)
         
@@ -345,6 +392,15 @@ class UserService:
         c_type = await self._contract_repo.update(id, **update_data)
         if not c_type:
              raise NotFoundError("Contract Type not found", entity_type="ContractType", entity_id=str(id))
+             
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="UPDATE",
+            resource_type="CONTRACT_TYPE",
+            resource_id=str(id),
+            description=f"Updated contract type: {c_type.name}",
+            request_data=update_data
+        )
         return c_type
 
     # ═══════════════════════════════════════════════════════════
@@ -354,8 +410,19 @@ class UserService:
     async def get_work_schedules(self, active_only: bool = True):
         """Get all work schedules."""
         return await self._schedule_repo.get_all(active_only)
-
-        # return await self._schedule_repo.create(**data.model_dump())
+    async def create_work_schedule(self, data: WorkScheduleCreate, actor_id: Optional[UUID] = None):
+        """Create new work schedule."""
+        schedule = await self._schedule_repo.create(**data.model_dump())
+        
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="CREATE",
+            resource_type="WORK_SCHEDULE",
+            resource_id=str(schedule.id),
+            description=f"Created work schedule: {schedule.name}",
+            request_data=data.model_dump(mode="json")
+        )
+        return schedule
 
     # ═══════════════════════════════════════════════════════════
     # Employee Contract Operations
@@ -366,7 +433,7 @@ class UserService:
         # Verify user exists? Maybe not strictly needed for list, empty list is fine.
         return await self._emp_contract_repo.get_by_user(user_id)
 
-    async def create_employee_contract(self, user_id: UUID, data: EmployeeContractCreate):
+    async def create_employee_contract(self, user_id: UUID, data: EmployeeContractCreate, actor_id: Optional[UUID] = None):
         """Create new employee contract."""
         # Verify user exists
         user = await self._user_repo.get(user_id)
@@ -378,4 +445,14 @@ class UserService:
         if not c_type:
              raise NotFoundError("Contract Type not found", entity_type="ContractType", entity_id=str(data.contract_type_id))
 
-        return await self._emp_contract_repo.create(user_id=user_id, **data.model_dump())
+        contract = await self._emp_contract_repo.create(user_id=user_id, **data.model_dump())
+        
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="CREATE",
+            resource_type="EMPLOYEE_CONTRACT",
+            resource_id=str(contract.id),
+            description=f"Created contract for user {user.full_name}",
+            request_data=data.model_dump(mode="json")
+        )
+        return contract

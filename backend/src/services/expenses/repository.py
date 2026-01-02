@@ -32,6 +32,7 @@ class BusinessTripRepository:
             .options(
                 selectinload(BusinessTrip.daily_allowances),
                 selectinload(BusinessTrip.expense_reports),
+                selectinload(BusinessTrip.attachments),
             )
             .where(BusinessTrip.id == id)
         )
@@ -183,7 +184,10 @@ class ExpenseReportRepository:
         """Get report by ID."""
         result = await self._session.execute(
             select(ExpenseReport)
-            .options(selectinload(ExpenseReport.items))
+            .options(
+                selectinload(ExpenseReport.items),
+                selectinload(ExpenseReport.attachments),
+            )
             .where(ExpenseReport.id == id)
         )
         return result.scalar_one_or_none()

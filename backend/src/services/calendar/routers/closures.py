@@ -71,7 +71,7 @@ async def update_closure(
 ):
     """Update an existing closure. Requires HR or Admin privileges."""
     service = CalendarService(db)
-    closure = await service.update_closure(closure_id, data)
+    closure = await service.update_closure(closure_id, data, user_id=current_user.user_id)
     if not closure:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -88,7 +88,7 @@ async def delete_closure(
 ):
     """Delete a closure. Requires HR or Admin privileges."""
     service = CalendarService(db)
-    success = await service.delete_closure(closure_id)
+    success = await service.delete_closure(closure_id, user_id=current_user.user_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

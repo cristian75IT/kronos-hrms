@@ -250,7 +250,19 @@ class LeaveService:
                 start, end, start_half, end_half, user_id
             )
         
-        return await self._request_repo.update(id, **update_data)
+        updated_request = await self._request_repo.update(id, **update_data)
+
+        # Audit Log
+        await self._audit.log_action(
+            user_id=user_id,
+            action="UPDATE",
+            resource_type="LEAVE_REQUEST",
+            resource_id=str(id),
+            description=f"Updated leave request {id}",
+            request_data=update_data,
+        )
+
+        return updated_request
 
 
     async def submit_request(
@@ -311,7 +323,17 @@ class LeaveService:
         
         # Send notification
         # Send notification
+        # Send notification
         await self._notifier.notify_submission(request)
+
+        # Audit Log
+        await self._audit.log_action(
+            user_id=user_id,
+            action="SUBMIT",
+            resource_type="LEAVE_REQUEST",
+            resource_id=str(id),
+            description=f"Submitted leave request {id}",
+        )
         
         return await self.get_request(id)
 
@@ -324,8 +346,12 @@ class LeaveService:
         """Approve a pending request."""
         request = await self.get_request(id)
         
-        if request.status != LeaveRequestStatus.PENDING:
-            raise BusinessRuleError("Only pending requests can be approved")
+        if request.status == LeaveRequestStatus.DRAFT:
+            raise BusinessRuleError("Non è possibile approvare una bozza")
+        
+        old_status = request.status
+        if old_status == LeaveRequestStatus.APPROVED:
+            return request # Già approvata
         
         await self._request_repo.update(
             id,
@@ -337,7 +363,7 @@ class LeaveService:
         
         await self._request_repo.add_history(
             leave_request_id=id,
-            from_status=LeaveRequestStatus.PENDING,
+            from_status=old_status,
             to_status=LeaveRequestStatus.APPROVED,
             changed_by=approver_id,
             reason=data.notes,
@@ -353,8 +379,9 @@ class LeaveService:
             request_data=data.model_dump(mode="json"),
         )
         
-        # Deduct balance
-        await self._deduct_balance(request, request.deduction_details or {})
+        # Deduct balance only if newly approved
+        if old_status != LeaveRequestStatus.APPROVED:
+            await self._deduct_balance(request, request.deduction_details or {})
         
         # Send notification
         # Send notification
@@ -395,7 +422,18 @@ class LeaveService:
         
         # Send notification to employee for acceptance
         # Send notification to employee for acceptance
+        # Send notification to employee for acceptance
         await self._notifier.notify_conditional_approval(request, data.condition_details)
+
+        # Audit Log
+        await self._audit.log_action(
+            user_id=approver_id,
+            action="APPROVE_CONDITIONAL",
+            resource_type="LEAVE_REQUEST",
+            resource_id=str(id),
+            description=f"Conditionally approved leave request {id}",
+            request_data=data.model_dump(mode="json"),
+        )
         
         return await self.get_request(id)
 
@@ -447,6 +485,16 @@ class LeaveService:
                 reason="Conditions rejected by employee",
             )
         
+        # Audit Log
+        await self._audit.log_action(
+            user_id=user_id,
+            action="ACCEPT_CONDITION" if data.accept else "REJECT_CONDITION",
+            resource_type="LEAVE_REQUEST",
+            resource_id=str(id),
+            description=f"User {'accepted' if data.accept else 'rejected'} conditions for request {id}",
+            request_data=data.model_dump(mode="json"),
+        )
+        
         return await self.get_request(id)
 
     async def reject_request(
@@ -458,8 +506,12 @@ class LeaveService:
         """Reject a pending request."""
         request = await self.get_request(id)
         
-        if request.status != LeaveRequestStatus.PENDING:
-            raise BusinessRuleError("Only pending requests can be rejected")
+        if request.status == LeaveRequestStatus.DRAFT:
+            raise BusinessRuleError("Non è possibile rifiutare una bozza")
+        
+        old_status = request.status
+        if old_status == LeaveRequestStatus.REJECTED:
+            return request # Già rifiutata
         
         await self._request_repo.update(
             id,
@@ -470,15 +522,30 @@ class LeaveService:
         
         await self._request_repo.add_history(
             leave_request_id=id,
-            from_status=LeaveRequestStatus.PENDING,
+            from_status=old_status,
             to_status=LeaveRequestStatus.REJECTED,
             changed_by=approver_id,
             reason=data.reason,
         )
         
+        # Restore balance if it was deducted
+        if old_status == LeaveRequestStatus.APPROVED:
+            await self._restore_balance(request)
+        
+        # Send notification
         # Send notification
         # Send notification
         await self._notifier.notify_rejected(request, data.reason)
+
+        # Audit Log
+        await self._audit.log_action(
+            user_id=approver_id,
+            action="REJECT",
+            resource_type="LEAVE_REQUEST",
+            resource_id=str(id),
+            description=f"Rejected leave request {id}",
+            request_data=data.model_dump(mode="json"),
+        )
         
         return await self.get_request(id)
 
@@ -524,7 +591,18 @@ class LeaveService:
         
         # Notify employee
         # Notify employee
+        # Notify employee
         await self._notifier.notify_revoked(request, reason)
+
+        # Audit Log
+        await self._audit.log_action(
+            user_id=approver_id,
+            action="REVOKE",
+            resource_type="LEAVE_REQUEST",
+            resource_id=str(id),
+            description=f"Revoked approval for leave request {id}",
+            request_data={"reason": reason},
+        )
         
         return await self.get_request(id)
 
@@ -565,7 +643,18 @@ class LeaveService:
         
         # Notify employee
         # Notify employee
+        # Notify employee
         await self._notifier.notify_reopened(request)
+
+        # Audit Log
+        await self._audit.log_action(
+            user_id=approver_id,
+            action="REOPEN",
+            resource_type="LEAVE_REQUEST",
+            resource_id=str(id),
+            description=f"Reopened leave request {id}",
+            request_data={"notes": notes},
+        )
         
         return await self.get_request(id)
 
@@ -606,6 +695,16 @@ class LeaveService:
         # If was approved, restore balance
         if old_status == LeaveRequestStatus.APPROVED and request.balance_deducted:
             await self._restore_balance(request)
+        
+        # Audit Log
+        await self._audit.log_action(
+            user_id=user_id,
+            action="CANCEL",
+            resource_type="LEAVE_REQUEST",
+            resource_id=str(id),
+            description=f"Cancelled leave request {id}",
+            request_data=data.model_dump(mode="json"),
+        )
         
         return await self.get_request(id)
 
@@ -697,6 +796,16 @@ class LeaveService:
         
         # Send notification with compensation info
         await self._notifier.notify_recalled(request, data.reason, data.recall_date, days_used, days_to_restore)
+
+        # Audit Log
+        await self._audit.log_action(
+            user_id=manager_id,
+            action="RECALL",
+            resource_type="LEAVE_REQUEST",
+            resource_id=str(id),
+            description=f"Recalled employee from leave request {id}",
+            request_data=data.model_dump(mode="json"),
+        )
         
         return await self.get_request(id)
     
@@ -722,7 +831,19 @@ class LeaveService:
         if request.user_id != user_id:
             raise BusinessRuleError("Cannot delete another user's request")
             
-        return await self._request_repo.delete(id)
+        success = await self._request_repo.delete(id)
+        
+        if success:
+            # Audit Log
+            await self._audit.log_action(
+                user_id=user_id,
+                action="DELETE",
+                resource_type="LEAVE_REQUEST",
+                resource_id=str(id),
+                description=f"Deleted draft leave request {id}",
+            )
+            
+        return success
 
     async def calculate_preview(self, request: DaysCalculationRequest) -> DaysCalculationResponse:
         """Calculate days for a preview (no persistence)."""
@@ -796,9 +917,86 @@ class LeaveService:
         return await self._auth_client.get_user_info(user_id)
 
 
-
     async def _get_user_email(self, user_id: UUID) -> Optional[str]:
         """Get user email from auth service."""
         return await self._auth_client.get_user_email(user_id)
 
+    async def recalculate_for_closure(
+        self,
+        closure_start: date,
+        closure_end: date,
+    ) -> list[dict]:
+        """
+        Recalculate days_requested for approved leave requests that overlap with a new closure.
+        
+        When a company closure is added (or modified), any approved leave requests that
+        overlap should have their days recalculated to exclude the closure days.
+        
+        Returns list of affected requests with their updated days.
+        """
+        from src.services.leaves.models import LeaveRequest, LeaveRequestStatus
+        
+        # Find all approved/approved_conditional requests that overlap with the closure dates
+        stmt = select(LeaveRequest).where(
+            LeaveRequest.status.in_([
+                LeaveRequestStatus.APPROVED,
+                LeaveRequestStatus.APPROVED_CONDITIONAL,
+            ]),
+            # Overlap check: request overlaps with closure if:
+            # request.start_date <= closure_end AND request.end_date >= closure_start
+            LeaveRequest.start_date <= closure_end,
+            LeaveRequest.end_date >= closure_start,
+        )
+        
+        result = await self._session.execute(stmt)
+        affected_requests = result.scalars().all()
+        
+        updates = []
+        
+        for request in affected_requests:
+            old_days = request.days_requested
+            
+            # Recalculate working days with the new closure
+            new_days = await self._calculate_days(
+                request.start_date,
+                request.end_date,
+                request.start_half_day,
+                request.end_half_day,
+                user_id=request.user_id,
+            )
+            
+            if old_days != new_days:
+                # Update the request
+                request.days_requested = new_days
+                if request.hours_requested is not None:
+                    request.hours_requested = new_days * Decimal("8")
+                
+                # Log the update
+                await self._audit.log_action(
+                    user_id=None,  # System action
+                    action="RECALCULATE",
+                    resource_type="LEAVE_REQUEST",
+                    resource_id=str(request.id),
+                    description=f"Days recalculated due to closure: {old_days} -> {new_days}",
+                    request_data={
+                        "closure_start": closure_start.isoformat(),
+                        "closure_end": closure_end.isoformat(),
+                        "old_days": float(old_days),
+                        "new_days": float(new_days),
+                    },
+                )
+                
+                updates.append({
+                    "request_id": str(request.id),
+                    "user_id": str(request.user_id),
+                    "start_date": request.start_date.isoformat(),
+                    "end_date": request.end_date.isoformat(),
+                    "old_days": float(old_days),
+                    "new_days": float(new_days),
+                    "days_refunded": float(old_days - new_days),
+                })
+        
+        await self._session.commit()
+        
+        return updates
 

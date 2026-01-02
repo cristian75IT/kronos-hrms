@@ -29,11 +29,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
 
     const roles = user?.roles || [];
+    const hasRole = (role: string): boolean =>
+        roles.some(r => r.toLowerCase() === role.toLowerCase());
 
-    const hasRole = (role: string): boolean => roles.includes(role);
-    const isAdmin = hasRole('admin');
-    const isApprover = hasRole('approver');
-    const isHR = hasRole('hr');
+    const isAdmin = user?.is_admin || hasRole('admin');
+    const isApprover = user?.is_approver || hasRole('approver');
+    const isHR = user?.is_hr || hasRole('hr');
 
     const fetchUserProfile = async () => {
         try {

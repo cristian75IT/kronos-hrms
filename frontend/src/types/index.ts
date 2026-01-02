@@ -32,10 +32,11 @@ export interface User {
     first_name: string;
     last_name: string;
     is_active: boolean;
-    is_superuser?: boolean; // Admin
+    is_admin?: boolean;
     is_manager?: boolean;
     is_approver?: boolean;
     is_hr?: boolean;
+    is_superuser?: boolean;
     last_login?: string;
     created_at: string;
 }

@@ -225,3 +225,32 @@ class PushSubscriptionResponse(IDMixin, BaseSchema):
     device_info: Optional[dict] = None
     is_active: bool
     created_at: datetime
+
+
+class EmailLogResponse(IDMixin, BaseSchema):
+    """Response schema for email log."""
+    
+    to_email: str
+    to_name: Optional[str] = None
+    user_id: Optional[UUID] = None
+    template_code: str
+    subject: Optional[str] = None
+    variables: Optional[dict] = None
+    
+    status: str
+    message_id: Optional[str] = None
+    notification_id: Optional[UUID] = None
+    
+    error_message: Optional[str] = None
+    retry_count: int
+    next_retry_at: Optional[datetime] = None
+    
+    sent_at: Optional[datetime] = None
+    delivered_at: Optional[datetime] = None
+    opened_at: Optional[datetime] = None
+    clicked_at: Optional[datetime] = None
+    bounced_at: Optional[datetime] = None
+    failed_at: Optional[datetime] = None
+    
+    created_at: datetime
+    updated_at: datetime

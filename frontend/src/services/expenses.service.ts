@@ -50,6 +50,15 @@ export const tripsService = {
         return response.data;
     },
 
+    deleteTrip: async (id: string): Promise<void> => {
+        await expensesApi.delete(`/trips/${id}`);
+    },
+
+    cancelTrip: async (id: string, reason: string): Promise<BusinessTrip> => {
+        const response = await expensesApi.post(`/trips/${id}/cancel?reason=${encodeURIComponent(reason)}`);
+        return response.data;
+    },
+
     // Approver actions
     getPendingTrips: async (): Promise<BusinessTrip[]> => {
         const response = await expensesApi.get('/trips/pending');
@@ -116,6 +125,15 @@ export const reportsService = {
 
     submitReport: async (id: string): Promise<ExpenseReport> => {
         const response = await expensesApi.post(`/expenses/${id}/submit`);
+        return response.data;
+    },
+
+    deleteReport: async (id: string): Promise<void> => {
+        await expensesApi.delete(`/expenses/${id}`);
+    },
+
+    cancelReport: async (id: string, reason: string): Promise<ExpenseReport> => {
+        const response = await expensesApi.post(`/expenses/${id}/cancel?reason=${encodeURIComponent(reason)}`);
         return response.data;
     },
 

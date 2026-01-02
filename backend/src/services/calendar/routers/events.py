@@ -107,7 +107,7 @@ async def update_event(
             detail="Only the event owner can update it",
         )
     
-    updated = await service.update_event(event_id, data)
+    updated = await service.update_event(event_id, data, user_id=current_user.user_id)
     return updated
 
 
@@ -134,7 +134,7 @@ async def delete_event(
             detail="Only the event owner can delete it",
         )
     
-    await service.delete_event(event_id)
+    await service.delete_event(event_id, user_id=current_user.user_id)
     return None
 
 

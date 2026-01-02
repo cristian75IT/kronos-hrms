@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import get_current_token, require_admin, TokenPayload
+from src.core.security import get_current_user, require_admin, TokenPayload
 from src.core.exceptions import NotFoundError
 from src.shared.schemas import MessageResponse, DataTableRequest, DataTableResponse
 from src.services.notifications.service import NotificationService
@@ -28,8 +28,12 @@ from src.services.notifications.schemas import (
     BulkNotificationResponse,
     PushSubscriptionCreate,
     PushSubscriptionResponse,
+    EmailLogResponse,
 )
-from src.services.notifications.repository import PushSubscriptionRepository
+from src.services.notifications.repository import (
+    PushSubscriptionRepository,
+    EmailLogRepository,
+)
 
 
 class NotificationDataTableRequest(DataTableRequest):
@@ -63,25 +67,21 @@ async def get_my_notifications(
     unread_only: bool = False,
     limit: int = 50,
     channel: Optional[str] = None,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),
-    user_service: UserService = Depends(get_user_service),
 ):
     """Get current user's notifications."""
-    user = await user_service.get_user_by_keycloak_id(token.keycloak_id)
-    notifications = await service.get_user_notifications(user.id, unread_only, limit, channel)
+    notifications = await service.get_user_notifications(token.user_id, unread_only, limit, channel)
     return [NotificationListItem.model_validate(n) for n in notifications]
 
 
 @router.get("/notifications/unread-count", response_model=UnreadCountResponse)
 async def get_unread_count(
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),
-    user_service: UserService = Depends(get_user_service),
 ):
     """Get unread notification count."""
-    user = await user_service.get_user_by_keycloak_id(token.keycloak_id)
-    count = await service.count_unread(user.id)
+    count = await service.count_unread(token.user_id)
     return UnreadCountResponse(count=count)
 
 
@@ -145,31 +145,77 @@ async def get_notification_history_datatable(
 
 @router.get("/notifications/preferences", response_model=UserPreferencesResponse)
 async def get_my_preferences(
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),
-    user_service: UserService = Depends(get_user_service),
 ):
     """Get current user's notification preferences."""
-    user = await user_service.get_user_by_keycloak_id(token.keycloak_id)
-    return await service.get_preferences(user.id)
+    return await service.get_preferences(token.user_id)
 
 
 @router.put("/notifications/preferences", response_model=UserPreferencesResponse)
 async def update_my_preferences(
     data: UserPreferencesUpdate,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),
-    user_service: UserService = Depends(get_user_service),
 ):
     """Update current user's notification preferences."""
-    user = await user_service.get_user_by_keycloak_id(token.keycloak_id)
-    return await service.update_preferences(user.id, data)
+    return await service.update_preferences(token.user_id, data)
+
+
+# ═══════════════════════════════════════════════════════════
+# Email Log Endpoints
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/notifications/email-logs", response_model=list[EmailLogResponse])
+async def get_email_logs(
+    status: Optional[str] = None,
+    template_code: Optional[str] = None,
+    to_email: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    token: TokenPayload = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    """Get email logs history. Admin only."""
+    repo = EmailLogRepository(session)
+    if not (token.is_admin or token.is_hr):
+        raise HTTPException(status_code=403, detail="Admin or HR role required")
+    return await repo.get_history(
+        limit=limit,
+        offset=offset,
+        status=status,
+        template_code=template_code,
+        to_email=to_email,
+    )
+
+
+@router.get("/notifications/email-logs/stats", response_model=dict)
+async def get_email_stats(
+    days: int = 7,
+    token: TokenPayload = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    """Get email delivery statistics. Admin only."""
+    repo = EmailLogRepository(session)
+    if not (token.is_admin or token.is_hr):
+        raise HTTPException(status_code=403, detail="Admin or HR role required")
+    return await repo.get_stats(days=days)
+
+
+@router.post("/notifications/email-logs/{id}/retry", response_model=EmailLogResponse)
+async def retry_email(
+    id: UUID,
+    token: TokenPayload = Depends(require_admin),
+    service: NotificationService = Depends(get_notification_service),
+):
+    """Manually retry a failed email. Admin only."""
+    return await service.retry_email(id)
 
 
 @router.get("/notifications/{id}", response_model=NotificationResponse)
 async def get_notification(
     id: UUID,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Get notification by ID."""
@@ -194,25 +240,21 @@ async def create_notification(
 @router.post("/notifications/mark-read", response_model=MessageResponse)
 async def mark_read(
     data: MarkReadRequest,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),
-    user_service: UserService = Depends(get_user_service),
 ):
     """Mark notifications as read."""
-    user = await user_service.get_user_by_keycloak_id(token.keycloak_id)
-    count = await service.mark_read(data.notification_ids, user.id)
+    count = await service.mark_read(data.notification_ids, token.user_id)
     return MessageResponse(message=f"Marked {count} notifications as read")
 
 
 @router.post("/notifications/mark-all-read", response_model=MessageResponse)
 async def mark_all_read(
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),
-    user_service: UserService = Depends(get_user_service),
 ):
     """Mark all notifications as read."""
-    user = await user_service.get_user_by_keycloak_id(token.keycloak_id)
-    count = await service.mark_all_read(user.id)
+    count = await service.mark_all_read(token.user_id)
     return MessageResponse(message=f"Marked {count} notifications as read")
 
 
@@ -285,7 +327,7 @@ async def update_template(
 ):
     """Update email template. Admin only."""
     try:
-        return await service.update_template(id, data)
+        return await service.update_template(id, data, user_id=token.user_id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -297,15 +339,13 @@ async def update_template(
 @router.post("/notifications/push-subscriptions", response_model=PushSubscriptionResponse, status_code=201)
 async def subscribe_to_push(
     data: PushSubscriptionCreate,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
-    user_service: UserService = Depends(get_user_service),
 ):
     """Subscribe to Web Push notifications."""
-    user = await user_service.get_user_by_keycloak_id(token.keycloak_id)
     repo = PushSubscriptionRepository(session)
     subscription = await repo.create(
-        user_id=user.id,
+        user_id=token.user_id,
         endpoint=data.endpoint,
         p256dh=data.p256dh,
         auth=data.auth,
@@ -316,20 +356,18 @@ async def subscribe_to_push(
 
 @router.get("/notifications/push-subscriptions", response_model=list[PushSubscriptionResponse])
 async def get_my_push_subscriptions(
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
-    user_service: UserService = Depends(get_user_service),
 ):
     """Get current user's push subscriptions."""
-    user = await user_service.get_user_by_keycloak_id(token.keycloak_id)
     repo = PushSubscriptionRepository(session)
-    return await repo.get_by_user(user.id)
+    return await repo.get_by_user(token.user_id)
 
 
 @router.delete("/notifications/push-subscriptions/{id}", response_model=MessageResponse)
 async def unsubscribe_from_push(
     id: UUID,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
     """Unsubscribe from Web Push notifications."""
@@ -338,3 +376,6 @@ async def unsubscribe_from_push(
     if not success:
         raise HTTPException(status_code=404, detail="Subscription not found")
     return MessageResponse(message="Unsubscribed from push notifications")
+
+
+

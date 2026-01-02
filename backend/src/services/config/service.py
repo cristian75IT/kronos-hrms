@@ -9,6 +9,8 @@ from workalendar.europe import Italy
 
 from src.core.config import settings
 from src.core.exceptions import NotFoundError, ValidationError, ConflictError
+from src.shared.audit_client import get_audit_logger
+from src.shared.clients import LeaveClient
 from src.services.config.repository import (
     SystemConfigRepository,
     LeaveTypeRepository,
@@ -50,6 +52,16 @@ class ConfigService:
         self._expense_type_repo = ExpenseTypeRepository(session)
         self._allowance_repo = DailyAllowanceRuleRepository(session)
         self._redis = redis_client
+        self._audit = get_audit_logger("config-service")
+
+    async def _trigger_leave_recalculation(self, start_date, end_date) -> None:
+        """Trigger leave recalculation for approved requests overlapping with dates."""
+        import logging
+        try:
+            leave_client = LeaveClient()
+            await leave_client.recalculate_for_closure(start_date, end_date)
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Failed to trigger leave recalculation: {e}")
 
     # ═══════════════════════════════════════════════════════════
     # System Config
@@ -90,7 +102,7 @@ class ConfigService:
 
         return value
 
-    async def set(self, key: str, value: Any) -> None:
+    async def set(self, key: str, value: Any, user_id: Optional[UUID] = None) -> None:
         """Update config value and invalidate cache."""
         config = await self._config_repo.get_by_key(key)
         if not config:
@@ -98,6 +110,15 @@ class ConfigService:
 
         await self._config_repo.update(key, value=value)
         await self._invalidate_cache(key)
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="UPDATE",
+            resource_type="SYSTEM_CONFIG",
+            resource_id=key,
+            description=f"Updated system config: {key}",
+            request_data={"value": value}
+        )
 
     async def get_by_category(self, category: str) -> dict[str, Any]:
         """Get all configs in a category."""
@@ -114,13 +135,13 @@ class ConfigService:
             config.value = self._parse_value(config.value, config.value_type)
         return configs
 
-    async def create_config(self, data: SystemConfigCreate):
+    async def create_config(self, data: SystemConfigCreate, user_id: Optional[UUID] = None):
         """Create new config entry."""
         existing = await self._config_repo.get_by_key(data.key)
         if existing:
             raise ConflictError(f"Config key already exists: {data.key}")
 
-        return await self._config_repo.create(
+        config = await self._config_repo.create(
             key=data.key,
             value=data.value,
             value_type=data.value_type,
@@ -128,6 +149,17 @@ class ConfigService:
             description=data.description,
             is_sensitive=data.is_sensitive,
         )
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="CREATE",
+            resource_type="SYSTEM_CONFIG",
+            resource_id=data.key,
+            description=f"Created system config: {data.key}",
+            request_data=data.model_dump(mode="json")
+        )
+
+        return config
 
     def _parse_value(self, value: Any, value_type: str) -> Any:
         """Convert JSONB value to Python type."""
@@ -211,7 +243,7 @@ class ConfigService:
             raise NotFoundError(f"Leave type not found: {code}")
         return leave_type
 
-    async def create_leave_type(self, data: LeaveTypeCreate):
+    async def create_leave_type(self, data: LeaveTypeCreate, user_id: Optional[UUID] = None):
         """Create new leave type."""
         existing = await self._leave_type_repo.get_by_code(data.code)
         if existing:
@@ -219,24 +251,51 @@ class ConfigService:
 
         leave_type = await self._leave_type_repo.create(**data.model_dump())
         await self._invalidate_cache("leave_types")
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="CREATE",
+            resource_type="LEAVE_TYPE",
+            resource_id=str(leave_type.id),
+            description=f"Created leave type: {leave_type.name} ({leave_type.code})",
+            request_data=data.model_dump(mode="json")
+        )
         return leave_type
 
-    async def update_leave_type(self, id: UUID, data: LeaveTypeUpdate):
+    async def update_leave_type(self, id: UUID, data: LeaveTypeUpdate, user_id: Optional[UUID] = None):
         """Update leave type."""
         leave_type = await self._leave_type_repo.update(id, **data.model_dump(exclude_unset=True))
         if not leave_type:
             raise NotFoundError("Leave type not found", entity_type="LeaveType", entity_id=str(id))
 
         await self._invalidate_cache("leave_types")
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="UPDATE",
+            resource_type="LEAVE_TYPE",
+            resource_id=str(id),
+            description=f"Updated leave type: {leave_type.name}",
+            request_data=data.model_dump(mode="json")
+        )
         return leave_type
 
-    async def delete_leave_type(self, id: UUID) -> bool:
+    async def delete_leave_type(self, id: UUID, user_id: Optional[UUID] = None) -> bool:
         """Deactivate leave type."""
+        leave_type = await self.get_leave_type(id)
         result = await self._leave_type_repo.deactivate(id)
         if not result:
             raise NotFoundError("Leave type not found", entity_type="LeaveType", entity_id=str(id))
 
         await self._invalidate_cache("leave_types")
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="DELETE",
+            resource_type="LEAVE_TYPE",
+            resource_id=str(id),
+            description=f"Deactivated leave type: {leave_type.name}"
+        )
         return True
 
     def _leave_type_to_dict(self, leave_type) -> dict:
@@ -293,7 +352,7 @@ class ConfigService:
 
         return holidays
 
-    async def create_holiday(self, data: HolidayCreate):
+    async def create_holiday(self, data: HolidayCreate, user_id: Optional[UUID] = None):
         """Create new holiday."""
         existing = await self._holiday_repo.get_by_date(data.date)
         if existing:
@@ -301,36 +360,76 @@ class ConfigService:
 
         holiday = await self._holiday_repo.create(**data.model_dump())
         await self._invalidate_cache(f"holidays:{data.date.year}")
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="CREATE",
+            resource_type="HOLIDAY",
+            resource_id=str(holiday.id),
+            description=f"Created holiday: {holiday.name} on {holiday.date}",
+            request_data=data.model_dump(mode="json")
+        )
+        
+        await self._trigger_leave_recalculation(data.date, data.date)
+        
         return holiday
 
-    async def delete_holiday(self, id: UUID) -> bool:
+    async def delete_holiday(self, id: UUID, user_id: Optional[UUID] = None) -> bool:
         """Delete holiday."""
         holiday = await self._holiday_repo.get(id)
         if not holiday:
             raise NotFoundError("Holiday not found")
 
         year = holiday.year
+        holiday_name = holiday.name
+        holiday_date = holiday.date
         result = await self._holiday_repo.delete(id)
         await self._invalidate_cache(f"holidays:{year}")
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="DELETE",
+            resource_type="HOLIDAY",
+            resource_id=str(id),
+            description=f"Deleted holiday: {holiday_name} on {holiday_date}"
+        )
+        
+        await self._trigger_leave_recalculation(holiday_date, holiday_date)
+        
         return result
 
-    async def update_holiday(self, id: UUID, data) -> Any:
+    async def update_holiday(self, id: UUID, data, user_id: Optional[UUID] = None) -> Any:
         """Update holiday - supports confirmation and other fields."""
         holiday = await self._holiday_repo.get(id)
         if not holiday:
             raise NotFoundError("Holiday not found")
 
+        old_date = holiday.date
         update_data = data.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(holiday, key, value)
         
-        await self._db.commit()
-        await self._db.refresh(holiday)
+        await self._session.commit()
+        await self._session.refresh(holiday)
         await self._invalidate_cache(f"holidays:{holiday.year}")
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="UPDATE",
+            resource_type="HOLIDAY",
+            resource_id=str(id),
+            description=f"Updated holiday: {holiday.name}",
+            request_data=update_data
+        )
+        
+        await self._trigger_leave_recalculation(old_date, old_date)
+        if holiday.date != old_date:
+            await self._trigger_leave_recalculation(holiday.date, holiday.date)
+        
         return holiday
 
 
-    async def generate_holidays(self, data: GenerateHolidaysRequest) -> list:
+    async def generate_holidays(self, data: GenerateHolidaysRequest, user_id: Optional[UUID] = None) -> list:
         """Generate Italian national holidays for a year using workalendar."""
         # Delete existing NATIONAL holidays for this year (preserve manual/local ones)
         await self._holiday_repo.delete_national_by_year(data.year)
@@ -351,6 +450,14 @@ class ConfigService:
             created.append(holiday)
 
         await self._invalidate_cache(f"holidays:{data.year}")
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="GENERATE",
+            resource_type="HOLIDAY",
+            description=f"Generated national holidays for year {data.year}",
+            request_data=data.model_dump(mode="json")
+        )
         return created
 
     def _holiday_to_dict(self, holiday) -> dict:
@@ -378,13 +485,23 @@ class ConfigService:
             raise NotFoundError(f"Expense type not found: {code}")
         return expense_type
 
-    async def create_expense_type(self, data: ExpenseTypeCreate):
+    async def create_expense_type(self, data: ExpenseTypeCreate, actor_id: Optional[UUID] = None):
         """Create new expense type."""
         existing = await self._expense_type_repo.get_by_code(data.code)
         if existing:
             raise ConflictError(f"Expense type code already exists: {data.code}")
 
-        return await self._expense_type_repo.create(**data.model_dump())
+        expense_type = await self._expense_type_repo.create(**data.model_dump())
+        
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="CREATE",
+            resource_type="EXPENSE_TYPE",
+            resource_id=str(expense_type.id),
+            description=f"Created expense type: {expense_type.name} ({expense_type.code})",
+            request_data=data.model_dump(mode="json")
+        )
+        return expense_type
 
     # ═══════════════════════════════════════════════════════════
     # Daily Allowance Rules
@@ -401,13 +518,23 @@ class ConfigService:
             raise NotFoundError(f"Allowance rule not found: {destination_type}")
         return rule
 
-    async def create_allowance_rule(self, data: DailyAllowanceRuleCreate):
+    async def create_allowance_rule(self, data: DailyAllowanceRuleCreate, actor_id: Optional[UUID] = None):
         """Create new allowance rule."""
         existing = await self._allowance_repo.get_by_destination_type(data.destination_type)
         if existing:
             raise ConflictError(f"Rule already exists for: {data.destination_type}")
 
-        return await self._allowance_repo.create(**data.model_dump())
+        rule = await self._allowance_repo.create(**data.model_dump())
+        
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="CREATE",
+            resource_type="ALLOWANCE_RULE",
+            resource_id=str(rule.id),
+            description=f"Created allowance rule: {rule.name} for {rule.destination_type}",
+            request_data=data.model_dump(mode="json")
+        )
+        return rule
 
     # ═══════════════════════════════════════════════════════════
     # Company Closures
@@ -431,20 +558,53 @@ class ConfigService:
             **data.model_dump(),
             created_by=created_by,
         )
+        
+        await self._audit.log_action(
+            user_id=created_by,
+            action="CREATE",
+            resource_type="COMPANY_CLOSURE",
+            resource_id=str(closure.id),
+            description=f"Created company closure: {closure.name}",
+            request_data=data.model_dump(mode="json")
+        )
+        
+        await self._trigger_leave_recalculation(data.start_date, data.end_date)
+        
         return closure
 
-    async def update_closure(self, id: UUID, data: CompanyClosureUpdate):
+    async def update_closure(self, id: UUID, data: CompanyClosureUpdate, user_id: Optional[UUID] = None):
         """Update company closure."""
         closure = await self._closure_repo.update(id, **data.model_dump(exclude_unset=True))
         if not closure:
             raise NotFoundError("Company closure not found", entity_type="CompanyClosure", entity_id=str(id))
+            
+        await self._audit.log_action(
+            user_id=user_id,
+            action="UPDATE",
+            resource_type="COMPANY_CLOSURE",
+            resource_id=str(id),
+            description=f"Updated company closure: {closure.name}",
+            request_data=data.model_dump(mode="json")
+        )
+        
+        await self._trigger_leave_recalculation(closure.start_date, closure.end_date)
+        
         return closure
 
-    async def delete_closure(self, id: UUID) -> bool:
+    async def delete_closure(self, id: UUID, user_id: Optional[UUID] = None) -> bool:
         """Delete company closure."""
+        closure = await self.get_closure(id)
         result = await self._closure_repo.delete(id)
         if not result:
             raise NotFoundError("Company closure not found", entity_type="CompanyClosure", entity_id=str(id))
+            
+        await self._audit.log_action(
+            user_id=user_id,
+            action="DELETE",
+            resource_type="COMPANY_CLOSURE",
+            resource_id=str(id),
+            description=f"Deleted company closure: {closure.name}"
+        )
         return True
 
     # ═══════════════════════════════════════════════════════════
@@ -498,7 +658,7 @@ class ConfigService:
             raise NotFoundError("National contract not found", entity_type="NationalContract", entity_id=str(id))
         return contract
 
-    async def create_national_contract(self, data):
+    async def create_national_contract(self, data, user_id: Optional[UUID] = None):
         """Create new national contract."""
         from src.services.config.models import NationalContract
         from sqlalchemy import select
@@ -515,9 +675,18 @@ class ConfigService:
         self._session.add(contract)
         await self._session.commit()
         await self._session.refresh(contract)
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="CREATE",
+            resource_type="NATIONAL_CONTRACT",
+            resource_id=str(contract.id),
+            description=f"Created national contract: {contract.name} ({contract.code})",
+            request_data=data.model_dump(mode="json")
+        )
         return contract
 
-    async def update_national_contract(self, id: UUID, data):
+    async def update_national_contract(self, id: UUID, data, user_id: Optional[UUID] = None):
         """Update national contract."""
         from src.services.config.models import NationalContract
         from sqlalchemy import select
@@ -538,9 +707,18 @@ class ConfigService:
         
         await self._session.commit()
         await self._session.refresh(contract)
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="UPDATE",
+            resource_type="NATIONAL_CONTRACT",
+            resource_id=str(id),
+            description=f"Updated national contract: {contract.name}",
+            request_data=update_data
+        )
         return contract
 
-    async def delete_national_contract(self, id: UUID) -> bool:
+    async def delete_national_contract(self, id: UUID, user_id: Optional[UUID] = None) -> bool:
         """Deactivate national contract (soft delete)."""
         from src.services.config.models import NationalContract
         from sqlalchemy import select
@@ -553,7 +731,16 @@ class ConfigService:
             raise NotFoundError("National contract not found", entity_type="NationalContract", entity_id=str(id))
         
         contract.is_active = False
+        contract_name = contract.name
         await self._session.commit()
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="DELETE",
+            resource_type="NATIONAL_CONTRACT",
+            resource_id=str(id),
+            description=f"Deactivated national contract: {contract_name}"
+        )
         return True
 
     # ═══════════════════════════════════════════════════════════
@@ -640,7 +827,7 @@ class ConfigService:
         Automatically updates the valid_to of the previous version.
         """
         from src.services.config.models import NationalContract, NationalContractVersion
-        from sqlalchemy import select
+        from sqlalchemy import select, and_
         from datetime import timedelta
         
         # Verify contract exists
@@ -675,9 +862,18 @@ class ConfigService:
         
         await self._session.commit()
         await self._session.refresh(version)
+
+        await self._audit.log_action(
+            user_id=created_by,
+            action="CREATE",
+            resource_type="NATIONAL_CONTRACT_VERSION",
+            resource_id=str(version.id),
+            description=f"Created new version for national contract {contract.name}: {version.version_name}",
+            request_data=data.model_dump(mode="json")
+        )
         return version
 
-    async def update_contract_version(self, version_id: UUID, data):
+    async def update_contract_version(self, version_id: UUID, data, user_id: Optional[UUID] = None):
         """Update a contract version."""
         from src.services.config.models import NationalContractVersion
         from sqlalchemy import select
@@ -695,9 +891,18 @@ class ConfigService:
         
         await self._session.commit()
         await self._session.refresh(version)
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="UPDATE",
+            resource_type="NATIONAL_CONTRACT_VERSION",
+            resource_id=str(version_id),
+            description=f"Updated national contract version: {version.version_name}",
+            request_data=update_data
+        )
         return version
 
-    async def delete_contract_version(self, version_id: UUID) -> bool:
+    async def delete_contract_version(self, version_id: UUID, user_id: Optional[UUID] = None) -> bool:
         """Delete a contract version (hard delete)."""
         from src.services.config.models import NationalContractVersion
         from sqlalchemy import select
@@ -709,8 +914,17 @@ class ConfigService:
         if not version:
             raise NotFoundError("Contract version not found", entity_type="NationalContractVersion", entity_id=str(version_id))
         
+        version_name = version.version_name
         await self._session.delete(version)
         await self._session.commit()
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="DELETE",
+            resource_type="NATIONAL_CONTRACT_VERSION",
+            resource_id=str(version_id),
+            description=f"Deleted national contract version: {version_name}"
+        )
         return True
 
 
@@ -723,7 +937,7 @@ class ConfigService:
         result = await self._session.execute(stmt)
         return result.scalars().all()
 
-    async def create_contract_type_config(self, data):
+    async def create_contract_type_config(self, data, actor_id: Optional[UUID] = None):
         """Create contract type parameter configuration."""
         from src.services.config.models import NationalContractTypeConfig
         
@@ -731,9 +945,18 @@ class ConfigService:
         self._session.add(config)
         await self._session.commit()
         await self._session.refresh(config)
+
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="CREATE",
+            resource_type="CONTRACT_TYPE_CONFIG",
+            resource_id=str(config.id),
+            description=f"Created contract type config for version {data.national_contract_version_id}",
+            request_data=data.model_dump(mode="json")
+        )
         return config
 
-    async def delete_contract_type_config(self, config_id: UUID) -> bool:
+    async def delete_contract_type_config(self, config_id: UUID, actor_id: Optional[UUID] = None) -> bool:
         """Delete contract type parameter configuration."""
         from src.services.config.models import NationalContractTypeConfig
         from sqlalchemy import select
@@ -747,9 +970,17 @@ class ConfigService:
             
         await self._session.delete(config)
         await self._session.commit()
+
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="DELETE",
+            resource_type="CONTRACT_TYPE_CONFIG",
+            resource_id=str(config_id),
+            description=f"Deleted contract type config override"
+        )
         return True
 
-    async def update_contract_type_config(self, config_id: UUID, data):
+    async def update_contract_type_config(self, config_id: UUID, data, actor_id: Optional[UUID] = None):
         """Update contract type parameter configuration."""
         from src.services.config.models import NationalContractTypeConfig
         from sqlalchemy import select
@@ -771,13 +1002,22 @@ class ConfigService:
             
         await self._session.commit()
         await self._session.refresh(config)
+
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="UPDATE",
+            resource_type="CONTRACT_TYPE_CONFIG",
+            resource_id=str(config_id),
+            description=f"Updated contract type config for version {config.national_contract_version_id}",
+            request_data=update_data
+        )
         return config
 
     # ═══════════════════════════════════════════════════════════
     # National Contract Levels
     # ═══════════════════════════════════════════════════════════
 
-    async def create_national_contract_level(self, data):
+    async def create_national_contract_level(self, data, actor_id: Optional[UUID] = None):
         """Create new level for a national contract."""
         from src.services.config.models import NationalContractLevel
         
@@ -785,9 +1025,18 @@ class ConfigService:
         self._session.add(level)
         await self._session.commit()
         await self._session.refresh(level)
+
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="CREATE",
+            resource_type="NATIONAL_CONTRACT_LEVEL",
+            resource_id=str(level.id),
+            description=f"Created level {level.level_name} for contract {level.national_contract_id}",
+            request_data=data.model_dump(mode="json")
+        )
         return level
 
-    async def update_national_contract_level(self, level_id: UUID, data):
+    async def update_national_contract_level(self, level_id: UUID, data, actor_id: Optional[UUID] = None):
         """Update a contract level."""
         from src.services.config.models import NationalContractLevel
         from sqlalchemy import select
@@ -805,9 +1054,18 @@ class ConfigService:
         
         await self._session.commit()
         await self._session.refresh(level)
+
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="UPDATE",
+            resource_type="NATIONAL_CONTRACT_LEVEL",
+            resource_id=str(level_id),
+            description=f"Updated level {level.level_name}",
+            request_data=update_data
+        )
         return level
 
-    async def delete_national_contract_level(self, level_id: UUID) -> bool:
+    async def delete_national_contract_level(self, level_id: UUID, actor_id: Optional[UUID] = None) -> bool:
         """Delete a contract level."""
         from src.services.config.models import NationalContractLevel
         from sqlalchemy import select
@@ -819,8 +1077,17 @@ class ConfigService:
         if not level:
             raise NotFoundError("Contract level not found", entity_type="NationalContractLevel", entity_id=str(level_id))
         
+        level_name = level.level_name
         await self._session.delete(level)
         await self._session.commit()
+
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="DELETE",
+            resource_type="NATIONAL_CONTRACT_LEVEL",
+            resource_id=str(level_id),
+            description=f"Deleted level {level_name}"
+        )
         return True
 
     # ═══════════════════════════════════════════════════════════
@@ -849,7 +1116,7 @@ class ConfigService:
             raise NotFoundError("Calculation mode not found", entity_type="CalculationMode", entity_id=str(id))
         return mode
 
-    async def create_calculation_mode(self, data):
+    async def create_calculation_mode(self, data, actor_id: Optional[UUID] = None):
         """Create new calculation mode."""
         from src.services.config.models import CalculationMode
         from sqlalchemy import select
@@ -865,9 +1132,18 @@ class ConfigService:
         self._session.add(mode)
         await self._session.commit()
         await self._session.refresh(mode)
+
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="CREATE",
+            resource_type="CALCULATION_MODE",
+            resource_id=str(mode.id),
+            description=f"Created calculation mode: {mode.name} ({mode.code})",
+            request_data=data.model_dump(mode="json")
+        )
         return mode
 
-    async def update_calculation_mode(self, id: UUID, data):
+    async def update_calculation_mode(self, id: UUID, data, actor_id: Optional[UUID] = None):
         """Update calculation mode."""
         from src.services.config.models import CalculationMode
         from sqlalchemy import select
@@ -885,9 +1161,18 @@ class ConfigService:
             
         await self._session.commit()
         await self._session.refresh(mode)
+
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="UPDATE",
+            resource_type="CALCULATION_MODE",
+            resource_id=str(id),
+            description=f"Updated calculation mode: {mode.name}",
+            request_data=update_data
+        )
         return mode
 
-    async def delete_calculation_mode(self, id: UUID) -> bool:
+    async def delete_calculation_mode(self, id: UUID, actor_id: Optional[UUID] = None) -> bool:
         """Deactivate calculation mode (soft delete)."""
         from src.services.config.models import CalculationMode
         from sqlalchemy import select
@@ -900,5 +1185,14 @@ class ConfigService:
             raise NotFoundError("Calculation mode not found", entity_type="CalculationMode", entity_id=str(id))
             
         mode.is_active = False
+        mode_name = mode.name
         await self._session.commit()
+
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="DELETE",
+            resource_type="CALCULATION_MODE",
+            resource_id=str(id),
+            description=f"Deactivated calculation mode: {mode_name}"
+        )
         return True

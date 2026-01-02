@@ -4,6 +4,7 @@ import {
     Users, Building, Mail, Smartphone, Monitor, Send,
     RefreshCw
 } from 'lucide-react';
+import { useToast } from '../../../context/ToastContext';
 import type { UserWithProfile } from '../../../types';
 import { NotificationChannel } from '../../../services/notification.service';
 import type { BulkNotificationRequest } from '../../../services/notification.service';
@@ -19,6 +20,7 @@ export const NotificationCompose: React.FC<NotificationComposeProps> = ({
     users, areas, onSend, sending
 }) => {
     // Local state for form
+    const toast = useToast();
     const [recipientMode, setRecipientMode] = useState<'user' | 'department'>('user');
     const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
     const [selectedArea, setSelectedArea] = useState<string>('');
@@ -55,6 +57,21 @@ export const NotificationCompose: React.FC<NotificationComposeProps> = ({
             if (activeAreaUsers.length > 0) {
                 targetUserIds = activeAreaUsers.map(u => u.id);
             }
+        }
+
+        if (targetUserIds.length === 0) {
+            toast.error('Seleziona almeno un destinatario o un dipartimento con utenti.');
+            return;
+        }
+
+        if (!formData.title.trim() || !formData.message.trim()) {
+            toast.error('Inserisci titolo e messaggio.');
+            return;
+        }
+
+        if (selectedChannels.length === 0) {
+            toast.error('Seleziona almeno un canale di invio.');
+            return;
         }
 
         await onSend({

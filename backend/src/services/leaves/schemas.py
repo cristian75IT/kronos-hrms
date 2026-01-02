@@ -64,6 +64,7 @@ class LeaveRequestResponse(LeaveRequestBase, IDMixin, BaseSchema):
     condition_type: Optional[ConditionType] = None
     condition_details: Optional[str] = None
     condition_accepted: Optional[bool] = None
+    condition_accepted_at: Optional[datetime] = None
     protocol_number: Optional[str] = None
     attachment_path: Optional[str] = None
     created_at: datetime

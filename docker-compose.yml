@@ -317,6 +317,53 @@ services:
 
     restart: unless-stopped
 
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kronos-worker
+    environment:
+      - SERVICE_NAME=celery-worker
+      - DATABASE_URL=postgresql+asyncpg://kronos:kronos_dev@postgres:5432/kronos
+      - REDIS_URL=redis://redis:6379/0
+      - BREVO_API_KEY=${BREVO_API_KEY:-}
+      - BREVO_SENDER_EMAIL=${BREVO_SENDER_EMAIL:-noreply@kronos.local}
+      - BREVO_SENDER_NAME=KRONOS HR
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    command: celery -A src.worker worker -l info
+    volumes:
+      - ./backend:/app
+    networks:
+      - kronos-internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kronos-beat
+    environment:
+      - SERVICE_NAME=celery-beat
+      - DATABASE_URL=postgresql+asyncpg://kronos:kronos_dev@postgres:5432/kronos
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    command: celery -A src.worker beat -l info
+    volumes:
+      - ./backend:/app
+    networks:
+      - kronos-internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   # ═══════════════════════════════════════════════════════════
   # DATA LAYER
   # ═══════════════════════════════════════════════════════════

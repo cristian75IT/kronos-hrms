@@ -16,12 +16,13 @@ import {
     Send,
     CreditCard,
     Plus,
-    Loader
+    Loader,
+    Ban
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { useReports } from '../../hooks/useApi';
-import { useAuth } from '../../context/AuthContext';
+import { useExpenseReport } from '../../hooks/useApi';
+import { useAuth, useIsApprover, useIsAdmin, useIsHR } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { reportsService } from '../../services/expenses.service';
 
@@ -29,16 +30,24 @@ export function ExpenseDetailPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const toast = useToast();
-    const { isApprover } = useAuth();
-    const { data: reports, isLoading, refetch } = useReports();
+    const { user } = useAuth();
+    const isApprover = useIsApprover();
+    const isAdmin = useIsAdmin();
+    const isHR = useIsHR();
+    const { data: report, isLoading, refetch } = useExpenseReport(id || '');
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
+    const [showCancelModal, setShowCancelModal] = useState(false);
+    const [cancelReason, setCancelReason] = useState('');
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-    // Find specific report
-    const report = reports?.find(r => r.id === id);
+    // Check ownership
+    const isOwner = user?.id === report?.user_id || user?.keycloak_id === report?.user_id;
+    const reportStatus = report?.status?.toLowerCase() || 'draft';
 
     const getStatusConfig = (status: string) => {
+        const s = status?.toLowerCase();
         const configs: Record<string, { className: string; icon: React.ReactNode; label: string }> = {
             draft: {
                 className: 'bg-gray-100 text-gray-600 border-gray-200',
@@ -64,9 +73,14 @@ export function ExpenseDetailPage() {
                 className: 'bg-blue-50 text-blue-700 border-blue-200',
                 icon: <CreditCard size={18} />,
                 label: 'Pagata'
+            },
+            cancelled: {
+                className: 'bg-gray-100 text-gray-500 border-gray-200',
+                icon: <XCircle size={18} />,
+                label: 'Annullata'
             }
         };
-        return configs[status] || configs.draft;
+        return configs[s] || configs.draft;
     };
 
     // Action Handlers
@@ -123,6 +137,36 @@ export function ExpenseDetailPage() {
             refetch();
         } catch (error: any) {
             toast.error(error.message || 'Errore durante l\'operazione');
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!id) return;
+        setActionLoading('delete');
+        try {
+            await reportsService.deleteReport(id);
+            toast.success('Nota spese eliminata');
+            navigate('/expenses');
+        } catch (error: any) {
+            toast.error(error.message || 'Errore durante l\'eliminazione');
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleCancel = async () => {
+        if (!id || !cancelReason.trim()) return;
+        setActionLoading('cancel');
+        try {
+            await reportsService.cancelReport(id, cancelReason);
+            toast.success('Richiesta annullata');
+            setShowCancelModal(false);
+            setCancelReason('');
+            refetch();
+        } catch (error: any) {
+            toast.error(error.message || 'Errore durante l\'annullamento');
         } finally {
             setActionLoading(null);
         }
@@ -233,7 +277,7 @@ export function ExpenseDetailPage() {
 
                                         <div className="flex items-center gap-4 justify-between sm:justify-end w-full sm:w-auto mt-2 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100">
                                             <div className="font-bold text-lg text-gray-900">
-                                                € {item.amount.toFixed(2)}
+                                                € {Number(item.amount || 0).toFixed(2)}
                                             </div>
                                             {report.status === 'draft' && (
                                                 <button className="btn btn-ghost p-2 text-red-500 hover:bg-red-50 hover:text-red-700 rounded-lg">
@@ -262,7 +306,7 @@ export function ExpenseDetailPage() {
                     <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
                         <h3 className="text-lg font-bold text-gray-900 mb-4">Azioni</h3>
                         <div className="space-y-3">
-                            {report.status === 'draft' && (
+                            {reportStatus === 'draft' && isOwner && (
                                 <>
                                     <button
                                         className="btn btn-primary w-full flex justify-center items-center gap-2 py-2.5"
@@ -276,18 +320,32 @@ export function ExpenseDetailPage() {
                                         <Edit size={18} />
                                         Modifica
                                     </Link>
-                                    <button className="btn btn-white border border-red-200 text-red-600 hover:bg-red-50 w-full flex justify-center items-center gap-2 py-2.5">
+                                    <button
+                                        className="btn btn-white border border-red-200 text-red-600 hover:bg-red-50 w-full flex justify-center items-center gap-2 py-2.5"
+                                        onClick={() => setShowDeleteModal(true)}
+                                        disabled={actionLoading !== null}
+                                    >
                                         <Trash2 size={18} />
                                         Elimina
                                     </button>
                                 </>
                             )}
-                            {report.status === 'submitted' && isApprover && (
+                            {reportStatus === 'submitted' && isOwner && (
+                                <button
+                                    className="btn btn-white border border-red-200 text-red-600 hover:bg-red-50 w-full flex justify-center items-center gap-2 py-2.5"
+                                    onClick={() => setShowCancelModal(true)}
+                                    disabled={actionLoading !== null}
+                                >
+                                    <Ban size={18} />
+                                    Annulla Richiesta
+                                </button>
+                            )}
+                            {reportStatus !== 'draft' && reportStatus !== 'paid' && isApprover && (!isOwner || isAdmin || isHR) && (
                                 <>
                                     <button
                                         className="btn bg-emerald-600 hover:bg-emerald-700 text-white w-full flex justify-center items-center gap-2 py-2.5 shadow-sm"
                                         onClick={handleApprove}
-                                        disabled={actionLoading !== null}
+                                        disabled={actionLoading !== null || reportStatus === 'approved'}
                                     >
                                         {actionLoading === 'approve' ? <Loader size={18} className="animate-spin" /> : <CheckCircle size={18} />}
                                         Approva
@@ -295,22 +353,36 @@ export function ExpenseDetailPage() {
                                     <button
                                         className="btn bg-white border border-red-200 text-red-600 hover:bg-red-50 w-full flex justify-center items-center gap-2 py-2.5"
                                         onClick={() => setShowRejectModal(true)}
-                                        disabled={actionLoading !== null}
+                                        disabled={actionLoading !== null || reportStatus === 'rejected'}
                                     >
                                         <XCircle size={18} />
                                         Rifiuta
                                     </button>
                                 </>
                             )}
-                            {report.status === 'approved' && ( // Assuming HR or Admin can mark as paid
-                                <button
-                                    className="btn btn-primary w-full flex justify-center items-center gap-2 py-2.5"
-                                    onClick={handleMarkPaid}
-                                    disabled={actionLoading !== null}
-                                >
-                                    {actionLoading === 'paid' ? <Loader size={18} className="animate-spin" /> : <CreditCard size={18} />}
-                                    Segna come Pagato
-                                </button>
+                            {reportStatus === 'approved' && (
+                                <>
+                                    {isApprover && (
+                                        <button
+                                            className="btn btn-primary w-full flex justify-center items-center gap-2 py-2.5"
+                                            onClick={handleMarkPaid}
+                                            disabled={actionLoading !== null}
+                                        >
+                                            {actionLoading === 'paid' ? <Loader size={18} className="animate-spin" /> : <CreditCard size={18} />}
+                                            Segna come Pagato
+                                        </button>
+                                    )}
+                                    {isOwner && (
+                                        <button
+                                            className="btn btn-white border border-red-200 text-red-600 hover:bg-red-50 w-full flex justify-center items-center gap-2 py-2.5"
+                                            onClick={() => setShowCancelModal(true)}
+                                            disabled={actionLoading !== null}
+                                        >
+                                            <Ban size={18} />
+                                            Annulla Nota Spese
+                                        </button>
+                                    )}
+                                </>
                             )}
                         </div>
                     </div>
@@ -321,12 +393,12 @@ export function ExpenseDetailPage() {
                         <div className="space-y-3">
                             <div className="flex justify-between items-center py-2 border-b border-gray-100">
                                 <span className="text-sm text-gray-500">Totale</span>
-                                <span className="font-bold text-xl text-gray-900">€ {report.total_amount.toFixed(2)}</span>
+                                <span className="font-bold text-xl text-gray-900">€ {Number(report.total_amount || 0).toFixed(2)}</span>
                             </div>
                             {report.approved_amount !== undefined && (
                                 <div className="flex justify-between items-center py-2 border-b border-gray-100">
                                     <span className="text-sm text-gray-500">Approvato</span>
-                                    <span className="font-bold text-lg text-emerald-600">€ {report.approved_amount.toFixed(2)}</span>
+                                    <span className="font-bold text-lg text-emerald-600">€ {Number(report.approved_amount || 0).toFixed(2)}</span>
                                 </div>
                             )}
                             <div className="flex justify-between items-center py-2 border-b border-gray-100">
@@ -377,6 +449,69 @@ export function ExpenseDetailPage() {
                                 {actionLoading === 'reject' ? <Loader size={16} className="animate-spin" /> : null}
                                 Conferma Rifiuto
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Cancel Modal */}
+            {showCancelModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md animate-scaleIn overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50">
+                            <h3 className="font-bold text-gray-900">Annulla Richiesta</h3>
+                            <button className="text-gray-400 hover:text-gray-600" onClick={() => setShowCancelModal(false)}>
+                                <XCircle size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-gray-700">Motivo dell'Annullamento <span className="text-red-500">*</span></label>
+                                <textarea
+                                    className="w-full rounded-lg border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 min-h-[100px]"
+                                    placeholder="Inserisci il motivo..."
+                                    value={cancelReason}
+                                    onChange={(e) => setCancelReason(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3 p-4 bg-gray-50/50 border-t border-gray-100">
+                            <button className="btn btn-ghost text-gray-600 hover:bg-white border border-transparent hover:border-gray-200" onClick={() => setShowCancelModal(false)}>
+                                Annulla
+                            </button>
+                            <button
+                                className="btn bg-red-600 hover:bg-red-700 text-white shadow-sm flex items-center gap-2"
+                                onClick={handleCancel}
+                                disabled={!cancelReason.trim() || actionLoading === 'cancel'}
+                            >
+                                {actionLoading === 'cancel' ? <Loader size={16} className="animate-spin" /> : null}
+                                Conferma
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Modal */}
+            {showDeleteModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn">
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-md animate-scaleIn overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 text-center">
+                            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                                <Trash2 className="h-6 w-6 text-red-600" />
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900 mb-2">Elimina Nota Spese</h3>
+                            <p className="text-sm text-gray-500 mb-6">Sei sicuro di voler eliminare questa nota spese? L'azione è irreversibile.</p>
+                            <div className="flex justify-center gap-3">
+                                <button className="btn btn-ghost" onClick={() => setShowDeleteModal(false)}>Annulla</button>
+                                <button
+                                    className="btn bg-red-600 hover:bg-red-700 text-white"
+                                    onClick={handleDelete}
+                                    disabled={actionLoading === 'delete'}
+                                >
+                                    {actionLoading === 'delete' ? <Loader size={16} className="animate-spin mr-2" /> : null}
+                                    Elimina
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

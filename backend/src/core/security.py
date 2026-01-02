@@ -171,8 +171,7 @@ async def get_current_user(
                 payload.db_is_admin = user_data.get("is_admin", False)
                 payload.db_is_manager = user_data.get("is_manager", False)
                 payload.db_is_approver = user_data.get("is_approver", False)
-                # Note: db_is_hr might not be in user_data yet unless added to UserResponse, 
-                # but defaults to False is safe.
+                payload.db_is_hr = user_data.get("is_hr", False)
             elif response.status_code == 404:
                 # User not found in local DB - they may need to be synced
                 # For now, raise an error

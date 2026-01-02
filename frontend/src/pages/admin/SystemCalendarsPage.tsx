@@ -111,7 +111,7 @@ export function SystemCalendarsPage() {
             ]);
             setHolidays(holidaysData || []);
             setClosures(closuresData || []);
-            setExceptions(exceptionsData || []);
+            setExceptions((exceptionsData || []).filter(e => e.exception_type === 'working'));
         } catch (error) {
             console.error('Failed to load data:', error);
             toast.error('Errore nel caricamento dei dati');
@@ -830,7 +830,8 @@ export function SystemCalendarsPage() {
                         <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <p className="text-sm font-medium text-gray-500 flex items-center gap-2">
                                 <AlertCircle size={16} className="text-amber-500" />
-                                Giorni in cui la normale operatività è invertita (es. Sabati lavorativi di recupero).
+                                Gestione giorni lavorativi straordinari (es. recuperi, aperture straordinarie).
+                                Per chiusure e ponti, utilizza la scheda Chiusure.
                             </p>
                             <button
                                 onClick={openNewException}
@@ -846,7 +847,6 @@ export function SystemCalendarsPage() {
                                 <thead>
                                     <tr className="bg-gray-50/50 border-b border-gray-100">
                                         <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Data</th>
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Tipo</th>
                                         <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-widest">Motivazione</th>
                                         <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-widest">Azioni</th>
                                     </tr>
@@ -857,14 +857,6 @@ export function SystemCalendarsPage() {
                                             <td className="px-6 py-4">
                                                 <span className="font-bold text-gray-900">
                                                     {format(parseISO(exception.date), 'EEEE d MMMM', { locale: it })}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${exception.exception_type === 'working'
-                                                    ? 'bg-emerald-100 text-emerald-700'
-                                                    : 'bg-red-100 text-red-700'
-                                                    }`}>
-                                                    {exception.exception_type === 'working' ? 'Lavorativo' : 'Non Lav.'}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4">
@@ -1208,27 +1200,17 @@ export function SystemCalendarsPage() {
                                         className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                     />
                                 </div>
-                                <div className="space-y-3">
-                                    <label className="block text-sm font-medium text-gray-700">Tipo Eccezione</label>
-                                    <div className="flex gap-4">
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                checked={exceptionForm.exception_type === 'working'}
-                                                onChange={() => setExceptionForm({ ...exceptionForm, exception_type: 'working' })}
-                                                className="border-gray-300 text-indigo-600"
-                                            />
-                                            <span className="text-sm">Giorno Lavorativo (es. recupero)</span>
-                                        </label>
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                checked={exceptionForm.exception_type === 'non_working'}
-                                                onChange={() => setExceptionForm({ ...exceptionForm, exception_type: 'non_working' })}
-                                                className="border-gray-300 text-indigo-600"
-                                            />
-                                            <span className="text-sm">Non Lavorativo (es. ponte extra)</span>
-                                        </label>
+                                <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                                    <div className="flex items-start gap-3">
+                                        <AlertCircle size={20} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                                        <div>
+                                            <h4 className="font-bold text-blue-900 text-sm">Giorno Lavorativo Straordinario</h4>
+                                            <p className="text-xs text-blue-700 mt-1">
+                                                Stai configurando questa data come <strong>giorno lavorativo</strong> (es. recupero, apertura straordinaria).
+                                                <br />
+                                                Per inserire giorni di riposo, ponti o festività aziendali, utilizza la scheda <strong>Chiusure</strong>.
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
                                 <div>

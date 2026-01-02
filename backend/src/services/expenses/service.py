@@ -1,4 +1,5 @@
 """KRONOS Expense Service - Business Logic."""
+import logging
 from datetime import date, datetime, timedelta, time
 from decimal import Decimal
 from typing import Optional, Any
@@ -9,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
 from src.core.exceptions import NotFoundError, BusinessRuleError, ValidationError
+
+logger = logging.getLogger(__name__)
 from src.services.expenses.models import (
     TripStatus,
     ExpenseReportStatus,
@@ -91,6 +94,8 @@ class ExpenseService:
         """Get trips for DataTable."""
         return await self._trip_repo.get_datatable(request, user_id, status)
 
+
+
     async def create_trip(self, user_id: UUID, data: BusinessTripCreate):
         """Create new business trip."""
         trip = await self._trip_repo.create(
@@ -108,6 +113,7 @@ class ExpenseService:
             request_data=data.model_dump(mode="json"),
         )
         
+        await self._session.refresh(trip, ["attachments", "daily_allowances", "expense_reports"])
         return trip
 
     async def update_trip(self, id: UUID, user_id: UUID, data: BusinessTripUpdate):
@@ -120,7 +126,19 @@ class ExpenseService:
         if trip.user_id != user_id:
             raise BusinessRuleError("Cannot update another user's trip")
         
-        return await self._trip_repo.update(id, **data.model_dump(exclude_unset=True))
+        updated_trip = await self._trip_repo.update(id, **data.model_dump(exclude_unset=True))
+
+        # Audit Log
+        await self._audit.log_action(
+            user_id=user_id,
+            action="UPDATE",
+            resource_type="BUSINESS_TRIP",
+            resource_id=str(id),
+            description=f"Updated trip {trip.title}",
+            request_data=data.model_dump(mode="json"),
+        )
+
+        return updated_trip
 
     async def submit_trip(self, id: UUID, user_id: UUID):
         """Submit trip for approval."""
@@ -158,8 +176,8 @@ class ExpenseService:
         """Approve trip."""
         trip = await self.get_trip(id)
         
-        if trip.status != TripStatus.PENDING:
-            raise BusinessRuleError("Only pending trips can be approved")
+        if trip.status == TripStatus.DRAFT:
+            raise BusinessRuleError("Cannot approve a draft trip. It must be submitted first.")
         
         await self._trip_repo.update(
             id,
@@ -184,13 +202,10 @@ class ExpenseService:
         # Initialize Trip Wallet
         budget = trip.estimated_budget or Decimal(0)
         try:
-            async with httpx.AsyncClient() as client:
-                # WalletClient has initialize_wallet? No, I added the endpoint but I should add it to the client too.
-                # Actually I'll use the generic create_transaction or status check.
-                # I'll update WalletClient with initialize_wallet method in the next step.
-                await self._wallet_client.initialize_wallet(id, trip.user_id, float(budget))
+            # The ExpensiveWalletClient already handles the HTTP connection
+            await self._wallet_client.initialize_wallet(id, trip.user_id, float(budget))
         except Exception as e:
-            self._audit.log_error(f"Failed to initialize wallet for trip {id}: {e}")
+            logger.error(f"Failed to initialize wallet for trip {id}: {e}")
         
         # Send notification to employee
         await self._send_notification(
@@ -208,8 +223,8 @@ class ExpenseService:
         """Reject trip."""
         trip = await self.get_trip(id)
         
-        if trip.status != TripStatus.PENDING:
-            raise BusinessRuleError("Only pending trips can be rejected")
+        if trip.status == TripStatus.DRAFT:
+            raise BusinessRuleError("Cannot reject a draft trip.")
         
         await self._trip_repo.update(
             id,
@@ -218,18 +233,28 @@ class ExpenseService:
             approver_notes=data.reason,
         )
         
+        # Audit Log
+        await self._audit.log_action(
+            user_id=approver_id,
+            action="REJECT",
+            resource_type="BUSINESS_TRIP",
+            resource_id=str(id),
+            description=f"Rejected trip {trip.title}",
+            request_data={"reason": data.reason},
+        )
+        
         return await self.get_trip(id)
 
     async def complete_trip(self, id: UUID, user_id: UUID):
         """Mark trip as completed."""
         trip = await self.get_trip(id)
         
-        if trip.status != TripStatus.APPROVED:
+        if trip.status.lower() != TripStatus.APPROVED:
             raise BusinessRuleError("Only approved trips can be completed")
-        
+            
         if trip.user_id != user_id:
             raise BusinessRuleError("Cannot complete another user's trip")
-        
+            
         await self._trip_repo.update(id, status=TripStatus.COMPLETED)
         
         await self._audit.log_action(
@@ -241,6 +266,53 @@ class ExpenseService:
         )
         
         return await self.get_trip(id)
+
+    async def delete_trip(self, id: UUID, user_id: UUID):
+        """Delete trip (draft only)."""
+        trip = await self.get_trip(id)
+        
+        if trip.status.lower() != TripStatus.DRAFT:
+            raise BusinessRuleError("Only draft trips can be deleted")
+            
+        if trip.user_id != user_id:
+            raise BusinessRuleError("Cannot delete another user's trip")
+            
+        await self._trip_repo.delete(id)
+        
+        await self._audit.log_action(
+            user_id=user_id,
+            action="DELETE",
+            resource_type="BUSINESS_TRIP",
+            resource_id=str(id),
+            description=f"Deleted trip {trip.title}",
+        )
+        
+        return True
+
+    async def cancel_trip(self, id: UUID, user_id: UUID, reason: str):
+        """Cancel/Withdraw trip request."""
+        trip = await self.get_trip(id)
+        
+        # Can cancel if pending or approved (if not already completed)
+        if trip.status.lower() not in [TripStatus.PENDING, TripStatus.SUBMITTED, TripStatus.APPROVED]:
+            raise BusinessRuleError(f"Cannot cancel trip in status {trip.status}")
+            
+        if trip.user_id != user_id:
+            raise BusinessRuleError("Cannot cancel another user's trip")
+            
+        await self._trip_repo.update(id, status=TripStatus.CANCELLED)
+        
+        await self._audit.log_action(
+            user_id=user_id,
+            action="CANCEL",
+            resource_type="BUSINESS_TRIP",
+            resource_id=str(id),
+            description=f"Cancelled trip {trip.title}. Reason: {reason}",
+        )
+        
+        return await self.get_trip(id)
+        
+
 
     async def update_trip_attachment(
         self, id: UUID, user_id: UUID, content: bytes, filename: str, content_type: str
@@ -281,8 +353,17 @@ class ExpenseService:
         trip.attachment_path = path
         
         await self._session.commit()
-        await self._session.refresh(trip)
-        return trip
+        
+        # Audit Log
+        await self._audit.log_action(
+            user_id=user_id,
+            action="UPLOAD_ATTACHMENT",
+            resource_type="BUSINESS_TRIP",
+            resource_id=str(id),
+            description=f"Uploaded attachment {filename} for trip {id}",
+        )
+        
+        return await self.get_trip(id)
 
     # ═══════════════════════════════════════════════════════════
     # Daily Allowance Operations
@@ -424,7 +505,7 @@ class ExpenseService:
             date.today().year
         )
         
-        return await self._report_repo.create(
+        report = await self._report_repo.create(
             trip_id=data.trip_id,
             user_id=user_id,
             report_number=report_number,
@@ -445,6 +526,7 @@ class ExpenseService:
             request_data=data.model_dump(mode="json"),
         )
         
+        await self._session.refresh(report, ["items", "attachments"])
         return report
 
     async def submit_report(self, id: UUID, user_id: UUID):
@@ -472,12 +554,56 @@ class ExpenseService:
         
         return await self.get_report(id)
 
+    async def delete_report(self, id: UUID, user_id: UUID):
+        """Delete expense report (draft only)."""
+        report = await self.get_report(id)
+        
+        if report.status.lower() != ExpenseReportStatus.DRAFT:
+            raise BusinessRuleError("Only draft reports can be deleted")
+            
+        if report.user_id != user_id:
+            raise BusinessRuleError("Cannot delete another user's report")
+            
+        await self._report_repo.delete(id)
+        
+        await self._audit.log_action(
+            user_id=user_id,
+            action="DELETE",
+            resource_type="EXPENSE_REPORT",
+            resource_id=str(id),
+            description=f"Deleted report {report.report_number}",
+        )
+        
+        return True
+
+    async def cancel_report(self, id: UUID, user_id: UUID, reason: str):
+        """Cancel/Withdraw expense report."""
+        report = await self.get_report(id)
+        
+        if report.status.lower() not in [ExpenseReportStatus.SUBMITTED, ExpenseReportStatus.APPROVED]:
+            raise BusinessRuleError(f"Cannot cancel report in status {report.status}")
+            
+        if report.user_id != user_id:
+            raise BusinessRuleError("Cannot cancel another user's report")
+            
+        await self._report_repo.update(id, status=ExpenseReportStatus.CANCELLED)
+        
+        await self._audit.log_action(
+            user_id=user_id,
+            action="CANCEL",
+            resource_type="EXPENSE_REPORT",
+            resource_id=str(id),
+            description=f"Cancelled report {report.report_number}. Reason: {reason}",
+        )
+        
+        return await self.get_report(id)
+
     async def approve_report(self, id: UUID, approver_id: UUID, data: ApproveReportRequest):
         """Approve expense report."""
         report = await self.get_report(id)
         
-        if report.status != ExpenseReportStatus.SUBMITTED:
-            raise BusinessRuleError("Only submitted reports can be approved")
+        if report.status == ExpenseReportStatus.DRAFT:
+            raise BusinessRuleError("Cannot approve a draft report. It must be submitted first.")
         
         # Handle item-level approvals
         if data.item_approvals:
@@ -516,7 +642,7 @@ class ExpenseService:
                         }
                     )
                 except Exception as e:
-                    self._audit.log_error(f"Failed to register item {item.id} in wallet: {e}")
+                    logger.error(f"Failed to register item {item.id} in wallet: {e}")
         
         return await self.get_report(id)
 
@@ -524,13 +650,23 @@ class ExpenseService:
         """Reject expense report."""
         report = await self.get_report(id)
         
-        if report.status != ExpenseReportStatus.SUBMITTED:
-            raise BusinessRuleError("Only submitted reports can be rejected")
+        if report.status == ExpenseReportStatus.DRAFT:
+            raise BusinessRuleError("Cannot reject a draft report.")
         
         await self._report_repo.update(
             id,
             status=ExpenseReportStatus.REJECTED,
             approver_notes=data.reason,
+        )
+        
+        # Audit Log
+        await self._audit.log_action(
+            user_id=approver_id,
+            action="REJECT",
+            resource_type="EXPENSE_REPORT",
+            resource_id=str(id),
+            description=f"Rejected expense report {report.report_number}",
+            request_data={"reason": data.reason},
         )
         
         return await self.get_report(id)
@@ -572,7 +708,7 @@ class ExpenseService:
                 }
             )
         except Exception as e:
-             self._audit.log_error(f"Failed to register payment in wallet for report {id}: {e}")
+             logger.error(f"Failed to register payment in wallet for report {id}: {e}")
         
         return await self.get_report(id)
 
@@ -615,8 +751,17 @@ class ExpenseService:
         report.attachment_path = path
         
         await self._session.commit()
-        await self._session.refresh(report)
-        return report
+        
+        # Audit Log
+        await self._audit.log_action(
+            user_id=user_id,
+            action="UPLOAD_ATTACHMENT",
+            resource_type="EXPENSE_REPORT",
+            resource_id=str(id),
+            description=f"Uploaded attachment {filename} for report {id}",
+        )
+        
+        return await self.get_report(id)
 
     # ═══════════════════════════════════════════════════════════
     # Expense Item Operations
@@ -665,6 +810,16 @@ class ExpenseService:
         # Recalculate total
         await self._report_repo.recalculate_total(data.report_id)
         
+        # Audit Log
+        await self._audit.log_action(
+            user_id=user_id,
+            action="ADD_ITEM",
+            resource_type="EXPENSE_REPORT",
+            resource_id=str(data.report_id),
+            description=f"Added item {item.id} to report",
+            request_data=data.model_dump(mode="json"),
+        )
+        
         return item
 
     async def update_item(self, id: UUID, user_id: UUID, data: ExpenseItemUpdate):
@@ -694,6 +849,16 @@ class ExpenseService:
         # Recalculate total
         await self._report_repo.recalculate_total(item.report_id)
         
+        # Audit Log
+        await self._audit.log_action(
+            user_id=user_id,
+            action="UPDATE_ITEM",
+            resource_type="EXPENSE_REPORT",
+            resource_id=str(item.report_id),
+            description=f"Updated item {id}",
+            request_data=data.model_dump(mode="json"),
+        )
+        
         return await self._item_repo.get(id)
 
     async def delete_item(self, id: UUID, user_id: UUID) -> bool:
@@ -715,6 +880,15 @@ class ExpenseService:
         
         # Recalculate total
         await self._report_repo.recalculate_total(report_id)
+        
+        # Audit Log
+        await self._audit.log_action(
+            user_id=user_id,
+            action="DELETE_ITEM",
+            resource_type="EXPENSE_REPORT",
+            resource_id=str(report_id),
+            description=f"Deleted item {id}",
+        )
         
         return True
 

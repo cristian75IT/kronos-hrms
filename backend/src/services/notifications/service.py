@@ -17,7 +17,9 @@ from src.services.notifications.repository import (
     NotificationRepository,
     EmailTemplateRepository,
     UserPreferenceRepository,
+    EmailLogRepository,
 )
+from src.services.notifications.models import EmailLogStatus
 from src.services.notifications.schemas import (
     NotificationCreate,
     SendEmailRequest,
@@ -39,6 +41,7 @@ class NotificationService:
         self._notification_repo = NotificationRepository(session)
         self._template_repo = EmailTemplateRepository(session)
         self._preference_repo = UserPreferenceRepository(session)
+        self._email_log_repo = EmailLogRepository(session)
         self._audit_logger = get_audit_logger("notification-service")
 
     # ═══════════════════════════════════════════════════════════
@@ -159,11 +162,28 @@ class NotificationService:
 
     async def mark_read(self, notification_ids: list[UUID], user_id: UUID) -> int:
         """Mark notifications as read."""
-        return await self._notification_repo.mark_read(notification_ids, user_id)
+        count = await self._notification_repo.mark_read(notification_ids, user_id)
+        
+        await self._audit_logger.log_action(
+            user_id=user_id,
+            action="NOTIFICATIONS_MARK_READ",
+            resource_type="NOTIFICATION",
+            description=f"Marked {count} notifications as read",
+            request_data={"count": count}
+        )
+        return count
 
     async def mark_all_read(self, user_id: UUID) -> int:
         """Mark all notifications as read."""
-        return await self._notification_repo.mark_all_read(user_id)
+        count = await self._notification_repo.mark_all_read(user_id)
+        
+        await self._audit_logger.log_action(
+            user_id=user_id,
+            action="NOTIFICATIONS_MARK_ALL_READ",
+            resource_type="NOTIFICATION",
+            description="Marked all notifications as read"
+        )
+        return count
 
     async def send_bulk(self, data: BulkNotificationRequest) -> BulkNotificationResponse:
         """Send bulk notifications."""
@@ -171,6 +191,14 @@ class NotificationService:
         sent = 0
         failed = 0
         errors = []
+        
+        if not data.user_ids:
+            return BulkNotificationResponse(
+                total=0,
+                sent=0,
+                failed=0,
+                errors=["No recipients selected"]
+            )
         
         for user_id in data.user_ids:
             try:
@@ -245,33 +273,36 @@ class NotificationService:
     # ═══════════════════════════════════════════════════════════
 
     async def send_email(self, data: SendEmailRequest) -> SendEmailResponse:
-        """Send email using Brevo."""
-        # Check API Key first
-        if not settings.brevo_api_key:
-            error_msg = "Brevo API Key is not configured. Please check your settings."
-            
-            await self._audit_logger.log_action(
-                action="EMAIL_FAILED",
-                resource_type="EMAIL",
-                status="FAILURE",
-                error_message=error_msg,
-                description=f"Failed to send email to {data.to_email}: Missing API Key",
-                request_data={"to": data.to_email, "template": data.template_code}
-            )
-            
-            return SendEmailResponse(
-                success=False,
-                error=error_msg,
-            )
-
-        # Get template
+        """Send email using Brevo with enterprise-grade logging and tracking."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Get template first
         template = await self._template_repo.get_by_code(data.template_code)
         if not template:
             error_msg = f"Template not found: {data.template_code}"
+            logger.error(f"Email sending failed: {error_msg}")
+            
+            # Create a failed log explicitly since we can't proceed
+            email_log = await self._email_log_repo.create(
+                to_email=data.to_email,
+                to_name=data.to_name,
+                template_code=data.template_code, # Use the requested code
+                variables=data.variables,
+                notification_id=data.notification_id,
+            )
+            
+            await self._email_log_repo.update_status(
+                email_log.id,
+                status=EmailLogStatus.FAILED.value,
+                error_message=error_msg,
+            )
+            await self._session.commit()
             
             await self._audit_logger.log_action(
                 action="EMAIL_FAILED",
                 resource_type="EMAIL",
+                resource_id=str(email_log.id),
                 status="FAILURE",
                 error_message=error_msg,
                 description=f"Failed to send email to {data.to_email}: Template not found",
@@ -283,78 +314,136 @@ class NotificationService:
             )
         
         try:
-            # Send via Brevo
-            result = await self._send_brevo_email(
+            # Delegate to shared method
+            result = await self._send_email_with_log(
                 to_email=data.to_email,
-                to_name=data.to_name,
                 template=template,
                 variables=data.variables,
+                to_name=data.to_name,
+                notification_id=data.notification_id,
             )
             
-            # Update notification if linked
-            if data.notification_id:
-                await self._notification_repo.update(
-                    data.notification_id,
-                    status=NotificationStatus.SENT,
-                    sent_at=datetime.utcnow(),
-                )
-
-            # Audit log success
-            await self._audit_logger.log_action(
-                action="EMAIL_SENT",
-                resource_type="EMAIL",
-                resource_id=result.get("messageId"),
-                status="SUCCESS",
-                description=f"Sent {data.template_code} email to {data.to_email}",
-                request_data={
-                    "to": data.to_email, 
-                    "template": data.template_code,
-                    "variables": data.variables
-                }
-            )
-            
+            if not result.get("success"):
+                return SendEmailResponse(success=False, error=result.get("error"))
+                
             return SendEmailResponse(
                 success=True,
-                message_id=result.get("messageId"),
+                message_id=result.get("message_id"),
             )
             
         except Exception as e:
-            if data.notification_id:
-                notification = await self._notification_repo.get(data.notification_id)
-                await self._notification_repo.update(
-                    data.notification_id,
-                    status=NotificationStatus.FAILED,
-                    error_message=str(e),
-                    retry_count=(notification.retry_count or 0) + 1,
-                )
+            return SendEmailResponse(success=False, error=str(e))
+
+    async def retry_email(self, log_id: UUID) -> None:
+        """Manually retry sending a specific email log."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Get log
+        log = await self._email_log_repo.get(log_id)
+        if not log:
+            raise NotFoundError("Email log not found")
             
-            # Audit log failure
+        # Get template
+        template = await self._template_repo.get_by_code(log.template_code)
+        if not template:
+            error_msg = f"Template {log.template_code} not found"
+            await self._email_log_repo.update_status(
+                log.id, 
+                status=EmailLogStatus.FAILED.value, 
+                error_message=error_msg
+            )
+            await self._session.commit()
+            raise ValueError(error_msg)
+
+        try:
+            # Update to processing
+            log.status = EmailLogStatus.QUEUED.value
+            await self._session.flush()
+            
+            logger.info(f"Retrying email {log_id} to {log.to_email}")
+            
+            # Send (using updated internal method to allow dev mode success)
+            # We can use _send_email_with_log but we already have the log object.
+            # Using _send_brevo_email directly as before is fine for RETRY logic 
+            # since we are manipulating an existing log.
+            
+            result = await self._send_brevo_email(
+                to_email=log.to_email,
+                to_name=log.to_name,
+                template=template,
+                variables=log.variables or {},
+            )
+            
+            # Update success
+            await self._email_log_repo.update_status(
+                log.id,
+                status=EmailLogStatus.SENT.value,
+                message_id=result.get("messageId"),
+                provider_response=result,
+            )
+            
+            # Audit log
             await self._audit_logger.log_action(
-                action="EMAIL_FAILED",
+                action="EMAIL_SENT",
                 resource_type="EMAIL",
-                status="FAILURE",
-                error_message=str(e),
-                description=f"Failed to send email to {data.to_email}",
+                resource_id=str(log.id),
+                status="SUCCESS",
+                description=f"Retried sending {log.template_code} to {log.to_email}",
             )
             
-            return SendEmailResponse(
-                success=False,
-                error=str(e),
+            return log
+            
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Retry failed for {log_id}: {error_msg}")
+            
+            await self._email_log_repo.update_status(
+                log.id,
+                status=EmailLogStatus.FAILED.value,
+                error_message=error_msg,
             )
+            await self._session.commit()
+            raise e
 
     async def _send_email_notification(self, notification) -> None:
         """Send email for a notification."""
-        # Get template for notification type
+        # 1. Get template for notification type
         template = await self._template_repo.get_by_notification_type(
             notification.notification_type
         )
         
+        # 2. Fallback to generic template
         if not template:
+            template = await self._template_repo.get_by_code("generic_notification")
+        
+        if not template:
+            import logging
+            logger = logging.getLogger(__name__)
+            error_msg = f"No email template found for type: {notification.notification_type}"
+            logger.error(error_msg)
+            
+            # Update Notification status
             await self._notification_repo.update(
                 notification.id,
                 status=NotificationStatus.FAILED,
-                error_message="No template found for notification type",
+                error_message=error_msg,
             )
+            
+            # Create FAILED EmailLog so it appears in Admin UI
+            log = await self._email_log_repo.create(
+                to_email=notification.user_email,
+                template_code=f"MISSING:{notification.notification_type}",
+                notification_id=notification.id,
+                user_id=notification.user_id,
+            )
+            
+            await self._email_log_repo.update_status(
+                log.id,
+                status=EmailLogStatus.FAILED.value,
+                error_message=error_msg
+            )
+            await self._session.commit()
             return
         
         # Build variables
@@ -366,25 +455,155 @@ class NotificationService:
         }
         
         try:
-            await self._send_brevo_email(
+            # Delegate to shared method to ensure logging
+            await self._send_email_with_log(
                 to_email=notification.user_email,
                 template=template,
                 variables=variables,
-            )
-            
-            await self._notification_repo.update(
-                notification.id,
-                status=NotificationStatus.SENT,
-                sent_at=datetime.utcnow(),
+                notification_id=notification.id,
+                user_id=notification.user_id
             )
             
         except Exception as e:
-            await self._notification_repo.update(
-                notification.id,
-                status=NotificationStatus.FAILED,
-                error_message=str(e),
-                retry_count=(notification.retry_count or 0) + 1,
+            # Exception handling is mostly done inside _send_email_with_log 
+            # (which updates notification status), but it re-raises.
+            # We catch here to ensure process doesn't crash if used in loop.
+            pass
+
+    async def _send_email_with_log(
+        self,
+        to_email: str,
+        template,
+        variables: dict,
+        to_name: Optional[str] = None,
+        notification_id: Optional[UUID] = None,
+        user_id: Optional[UUID] = None
+    ) -> dict:
+        """Shared method to send email with full logging."""
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # 1. Create Log
+        email_log = await self._email_log_repo.create(
+            to_email=to_email,
+            to_name=to_name,
+            template_code=template.code,
+            variables=variables,
+            notification_id=notification_id,
+            user_id=user_id,
+            subject=template.subject # Pre-fill if available
+        )
+        await self._session.commit()
+
+        # 2. Check API Key
+        if not settings.brevo_api_key:
+            error_msg = "Brevo API Key is not configured. Emails cannot be sent."
+            logger.error(f"Email sending failed: {error_msg}")
+            
+            await self._email_log_repo.update_status(
+                email_log.id,
+                status=EmailLogStatus.FAILED.value,
+                error_message=error_msg,
             )
+            
+            if notification_id:
+                 await self._notification_repo.update(
+                    notification_id,
+                    status=NotificationStatus.FAILED,
+                    error_message=error_msg,
+                )
+            
+            await self._session.commit()
+            
+            await self._audit_logger.log_action(
+                action="EMAIL_FAILED",
+                resource_type="EMAIL",
+                resource_id=str(email_log.id),
+                status="FAILURE",
+                error_message=error_msg,
+                description=f"Failed to send email to {to_email}: Missing API Key",
+                request_data={"to": to_email, "template": template.code}
+            )
+            return {"error": error_msg, "success": False}
+
+        try:
+             # 3. Send
+             logger.info(f"Sending email to {to_email} using template {template.code}")
+             result = await self._send_brevo_email(
+                to_email=to_email,
+                to_name=to_name,
+                template=template,
+                variables=variables
+             )
+             message_id = result.get("messageId")
+
+             # 4. Success
+             await self._email_log_repo.update_status(
+                email_log.id,
+                status=EmailLogStatus.SENT.value,
+                message_id=message_id,
+                provider_response=result,
+             )
+             
+             if notification_id:
+                await self._notification_repo.update(
+                    notification_id,
+                    status=NotificationStatus.SENT,
+                    sent_at=datetime.utcnow(),
+                )
+
+             await self._session.commit()
+
+             await self._audit_logger.log_action(
+                action="EMAIL_SENT",
+                resource_type="EMAIL",
+                resource_id=str(email_log.id),
+                status="SUCCESS",
+                description=f"Sent {template.code} email to {to_email}",
+                request_data={
+                    "to": to_email, 
+                    "template": template.code,
+                    "message_id": message_id
+                }
+             )
+             
+             return {"success": True, "message_id": message_id, "provider_response": result}
+
+        except Exception as e:
+            # 5. Failure
+            error_msg = str(e)
+            logger.error(f"Email sending failed to {to_email}: {error_msg}")
+
+            await self._email_log_repo.update_status(
+                email_log.id,
+                status=EmailLogStatus.FAILED.value,
+                error_message=error_msg,
+            )
+             
+            # Schedule retry
+            if email_log.retry_count < 3:
+                await self._email_log_repo.schedule_retry(email_log.id)
+            
+            if notification_id:
+                 notification = await self._notification_repo.get(notification_id)
+                 await self._notification_repo.update(
+                    notification_id,
+                    status=NotificationStatus.FAILED,
+                    error_message=error_msg,
+                    retry_count=(notification.retry_count or 0) + 1,
+                )
+            
+            await self._session.commit()
+
+            await self._audit_logger.log_action(
+                action="EMAIL_FAILED",
+                resource_type="EMAIL",
+                resource_id=str(email_log.id),
+                status="FAILURE",
+                error_message=error_msg,
+                description=f"Failed to send email to {to_email}",
+            )
+            raise e
 
     async def _send_brevo_email(
         self,
@@ -394,10 +613,6 @@ class NotificationService:
         to_name: Optional[str] = None,
     ) -> dict:
         """Send email via Brevo API."""
-        if not settings.brevo_api_key:
-            # Development mode - just log
-            print(f"[DEV] Would send email to {to_email}: {template.subject}")
-            return {"messageId": "dev-mode"}
         
         headers = {
             "api-key": settings.brevo_api_key,
@@ -550,7 +765,7 @@ class NotificationService:
         """Create email template."""
         return await self._template_repo.create(**data.model_dump())
 
-    async def update_template(self, id: UUID, data: EmailTemplateUpdate):
+    async def update_template(self, id: UUID, data: EmailTemplateUpdate, user_id: Optional[UUID] = None):
         """Update email template."""
         template = await self._template_repo.update(
             id,
@@ -558,6 +773,15 @@ class NotificationService:
         )
         if not template:
             raise NotFoundError("Template not found")
+
+        await self._audit_logger.log_action(
+            user_id=user_id,
+            action="UPDATE",
+            resource_type="EMAIL_TEMPLATE",
+            resource_id=str(id),
+            description=f"Updated email template: {template.name}",
+            request_data=data.model_dump(mode="json")
+        )
         return template
 
     # ═══════════════════════════════════════════════════════════
@@ -570,10 +794,18 @@ class NotificationService:
 
     async def update_preferences(self, user_id: UUID, data: UserPreferencesUpdate):
         """Update user preferences."""
-        return await self._preference_repo.update(
+        prefs = await self._preference_repo.update(
             user_id,
             **data.model_dump(exclude_unset=True),
         )
+        
+        await self._audit_logger.log_action(
+            user_id=user_id,
+            action="UPDATE_PREFERENCES",
+            resource_type="USER_PREFERENCES",
+            description="Updated notification preferences"
+        )
+        return prefs
 
     # ═══════════════════════════════════════════════════════════
     # Private Helpers

@@ -67,7 +67,6 @@ class BusinessTripResponse(BusinessTripBase, IDMixin, BaseSchema):
     approver_id: Optional[UUID] = None
     approved_at: Optional[datetime] = None
     approver_notes: Optional[str] = None
-    approver_notes: Optional[str] = None
     attachment_path: Optional[str] = None  # Deprecated in favor of attachments list
     attachments: list[AttachmentResponse] = []
     total_days: int
@@ -160,7 +159,6 @@ class ExpenseReportResponse(ExpenseReportBase, IDMixin, BaseSchema):
     status: ExpenseReportStatus
     approver_id: Optional[UUID] = None
     approved_at: Optional[datetime] = None
-    approver_notes: Optional[str] = None
     approver_notes: Optional[str] = None
     attachment_path: Optional[str] = None  # Deprecated in favor of attachments list
     attachments: list[AttachmentResponse] = []

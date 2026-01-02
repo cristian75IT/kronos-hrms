@@ -75,7 +75,7 @@ async def update_holiday(
 ):
     """Update an existing holiday. Requires HR or Admin privileges."""
     service = CalendarService(db)
-    holiday = await service.update_holiday(holiday_id, data)
+    holiday = await service.update_holiday(holiday_id, data, user_id=current_user.user_id)
     if not holiday:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -92,7 +92,7 @@ async def delete_holiday(
 ):
     """Delete a holiday. Requires HR or Admin privileges."""
     service = CalendarService(db)
-    success = await service.delete_holiday(holiday_id)
+    success = await service.delete_holiday(holiday_id, user_id=current_user.user_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

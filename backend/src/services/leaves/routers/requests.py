@@ -379,3 +379,26 @@ async def validate_request(
         end_date=data.end_date,
         days_requested=days,
     )
+
+
+# ═══════════════════════════════════════════════════════════
+# Internal Endpoints (for inter-service communication)
+# ═══════════════════════════════════════════════════════════
+
+@router.post("/internal/recalculate-for-closure")
+async def recalculate_for_closure(
+    closure_start: date = Query(..., description="Closure start date"),
+    closure_end: date = Query(..., description="Closure end date"),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """
+    Recalculate leave days for approved requests that overlap with a closure.
+    
+    This is an internal endpoint called by the calendar service when a 
+    company closure is created or modified.
+    """
+    updates = await service.recalculate_for_closure(closure_start, closure_end)
+    return {
+        "message": f"Recalculated {len(updates)} leave requests",
+        "updates": updates,
+    }

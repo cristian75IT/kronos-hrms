@@ -65,7 +65,7 @@ class ConfigClient:
         start_date: Optional[date] = None, 
         end_date: Optional[date] = None
     ) -> list[dict]:
-        """Get holidays."""
+        """[DEPRECATED] Get holidays. Use CalendarClient.get_holidays() instead."""
         try:
             params = {"year": year}
             if start_date:
@@ -89,7 +89,7 @@ class ConfigClient:
         return []
 
     async def get_company_closures(self, year: int) -> list[dict]:
-        """Get company closures."""
+        """[DEPRECATED] Get company closures. Use CalendarClient.get_closures() instead."""
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
@@ -265,6 +265,7 @@ class ExpensiveWalletClient:
                 )
                 if response.status_code == 200:
                     return response.json()
+                logger.warning(f"ExpensiveWalletClient get_status {trip_id} returned {response.status_code}")
         except Exception as e:
             logger.error(f"ExpensiveWalletClient error get_status: {e}")
         return None
@@ -280,6 +281,7 @@ class ExpensiveWalletClient:
                 )
                 if response.status_code == 201:
                     return response.json()
+                logger.warning(f"ExpensiveWalletClient create_transaction {trip_id} returned {response.status_code}")
         except Exception as e:
             logger.error(f"ExpensiveWalletClient error create_transaction: {e}")
         return None
@@ -293,11 +295,13 @@ class ExpensiveWalletClient:
                     params={"user_id": str(user_id), "budget": budget},
                     timeout=5.0
                 )
-                if response.status_code == 200:
+                if response.status_code in (200, 201):
                     return response.json()
+                logger.warning(f"ExpensiveWalletClient initialize_wallet {trip_id} returned {response.status_code}: {response.text}")
         except Exception as e:
             logger.error(f"ExpensiveWalletClient error initialize_wallet: {e}")
         return None
+
     async def get_transactions(self, trip_id: UUID) -> list:
         """Get expense wallet transactions for a trip."""
         try:
@@ -308,6 +312,7 @@ class ExpensiveWalletClient:
                 )
                 if response.status_code == 200:
                     return response.json()
+                logger.warning(f"ExpensiveWalletClient get_transactions {trip_id} returned {response.status_code}")
         except Exception as e:
             logger.error(f"ExpensiveWalletClient error get_transactions: {e}")
         return []
@@ -447,3 +452,33 @@ class CalendarClient:
         except Exception as e:
             logger.error(f"CalendarClient error is_working_day: {e}")
         return True  # Default to working day on error
+
+
+class LeaveClient:
+    """Client for Leave Service interactions (for inter-service communication)."""
+    
+    def __init__(self):
+        self.base_url = settings.leave_service_url
+    
+    async def recalculate_for_closure(self, closure_start: date, closure_end: date) -> Optional[dict]:
+        """
+        Trigger recalculation of leave requests that overlap with a closure.
+        
+        Called by calendar service when a company closure is created or modified.
+        """
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/internal/recalculate-for-closure",
+                    params={
+                        "closure_start": closure_start.isoformat(),
+                        "closure_end": closure_end.isoformat(),
+                    },
+                    timeout=10.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+                logger.warning(f"LeaveClient recalculate_for_closure returned {response.status_code}: {response.text}")
+        except Exception as e:
+            logger.error(f"LeaveClient error recalculate_for_closure: {e}")
+        return None

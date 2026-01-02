@@ -23,31 +23,41 @@ import {
     Receipt,
     Plus,
     Loader,
+    Trash2,
+    Ban
 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { useTrips, useTripWallet, useTripTransactions } from '../../hooks/useApi';
-import { useAuth } from '../../context/AuthContext';
+import { useTrip, useTripWallet, useTripTransactions } from '../../hooks/useApi';
+import { useAuth, useIsApprover, useIsAdmin, useIsHR } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { tripsService } from '../../services/expenses.service';
+import { walletsService } from '../../services/wallets.service';
 
 export function TripDetailPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const toast = useToast();
-    const { isApprover } = useAuth();
-    const { data: trips, isLoading, refetch } = useTrips();
+    const { user } = useAuth();
+    const isApprover = useIsApprover();
+    const isAdmin = useIsAdmin();
+    const isHR = useIsHR();
+    const { data: trip, isLoading, refetch } = useTrip(id || '');
 
     const [activeTab, setActiveTab] = useState<'details' | 'expenses' | 'allowances' | 'wallet'>('details');
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
+    const [showCancelModal, setShowCancelModal] = useState(false);
+    const [cancelReason, setCancelReason] = useState('');
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
 
     const { data: wallet } = useTripWallet(id || '');
     const { data: transactions } = useTripTransactions(id || '');
 
-    // Find the specific trip
-    const trip = trips?.find(t => t.id === id);
+    // Check ownership
+    const isOwner = user?.id === trip?.user_id || user?.keycloak_id === trip?.user_id;
+    const status = trip?.status?.toLowerCase() || 'draft';
 
     // Action handlers
     const handleSubmit = async () => {
@@ -108,6 +118,50 @@ export function TripDetailPage() {
         }
     };
 
+    const handleCancel = async () => {
+        if (!id || !cancelReason.trim()) return;
+        setActionLoading('cancel');
+        try {
+            await tripsService.cancelTrip(id, cancelReason);
+            toast.success('Richiesta annullata');
+            setShowCancelModal(false);
+            setCancelReason('');
+            refetch();
+        } catch (error: any) {
+            toast.error(error.message || 'Errore durante l\'annullamento');
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!id) return;
+        setActionLoading('delete');
+        try {
+            await tripsService.deleteTrip(id);
+            toast.success('Trasferta eliminata');
+            navigate('/trips');
+        } catch (error: any) {
+            toast.error(error.message || 'Errore durante l\'eliminazione');
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleInitializeWallet = async () => {
+        if (!id || !trip) return;
+        setActionLoading('init-wallet');
+        try {
+            await walletsService.initializeTripWallet(id, trip.user_id, Number(trip.estimated_budget || 0));
+            toast.success('Contabilità inizializzata con successo');
+            window.location.reload(); // Hard refresh to ensure all hooks update
+        } catch (error: any) {
+            toast.error(error.message || 'Errore durante l\'inizializzazione');
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="detail-page animate-fadeIn">
@@ -135,11 +189,17 @@ export function TripDetailPage() {
     }
 
     const getStatusConfig = (status: string) => {
+        const s = status?.toLowerCase();
         const configs: Record<string, { className: string; icon: React.ReactNode; label: string }> = {
             draft: {
                 className: 'bg-gray-100 text-gray-600 border-gray-200',
                 icon: <FileText size={16} />,
                 label: 'Bozza'
+            },
+            pending: {
+                className: 'bg-amber-50 text-amber-700 border-amber-200',
+                icon: <Clock size={16} />,
+                label: 'In Approvazione'
             },
             submitted: {
                 className: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -167,7 +227,7 @@ export function TripDetailPage() {
                 label: 'Annullata'
             },
         };
-        return configs[status] || configs.draft;
+        return configs[s] || configs.draft;
     };
 
     const getDestinationIcon = (type: string) => {
@@ -404,9 +464,35 @@ export function TripDetailPage() {
                         </div>
                     )}
 
-                    {activeTab === 'wallet' && (
+                    {activeTab === 'wallet' && !wallet && (
+                        <div className="bg-white border border-gray-200 rounded-xl p-12 shadow-sm animate-fadeInUp flex flex-col items-center text-center">
+                            <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center text-amber-500 mb-6 border-4 border-white shadow-sm">
+                                <AlertCircle size={40} />
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-900 mb-3">Contabilità non sincronizzata</h3>
+                            <p className="text-gray-500 text-sm mb-8 max-w-sm leading-relaxed">
+                                Il wallet contabile per questa trasferta non è stato ancora inizializzato.
+                                Sincronizza ora per monitorare budget e spese.
+                            </p>
+                            {(isAdmin || isApprover || isHR) ? (
+                                <button
+                                    onClick={handleInitializeWallet}
+                                    className="flex items-center gap-2 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all hover:shadow-lg active:scale-95 text-sm"
+                                    disabled={actionLoading === 'init-wallet'}
+                                >
+                                    {actionLoading === 'init-wallet' ? <Loader size={18} className="animate-spin" /> : <DollarSign size={18} />}
+                                    Inizializza Ora
+                                </button>
+                            ) : (
+                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 text-xs text-gray-500 font-medium italic">
+                                    Contatta un amministratore per inizializzare il wallet.
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === 'wallet' && wallet && (
                         <div className="space-y-6 animate-fadeInUp">
-                            {/* Wallet Summary Cards */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
                                     <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Budget Residuo</span>
@@ -535,7 +621,7 @@ export function TripDetailPage() {
                     <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
                         <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-4">Azioni</h3>
                         <div className="space-y-3">
-                            {trip.status === 'draft' && (
+                            {status === 'draft' && (
                                 <>
                                     <button
                                         className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
@@ -549,29 +635,47 @@ export function TripDetailPage() {
                                         <Edit size={18} />
                                         Modifica
                                     </Link>
+                                    <button
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors disabled:opacity-50"
+                                        onClick={() => setShowDeleteModal(true)}
+                                        disabled={actionLoading !== null}
+                                    >
+                                        <Trash2 size={18} />
+                                        Elimina
+                                    </button>
                                 </>
                             )}
-                            {(trip.status === 'submitted' || trip.status === 'pending') && isApprover && (
+                            {(status === 'submitted' || status === 'pending') && isOwner && (
+                                <button
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors disabled:opacity-50"
+                                    onClick={() => setShowCancelModal(true)}
+                                    disabled={actionLoading !== null}
+                                >
+                                    <XCircle size={18} />
+                                    Annulla Richiesta
+                                </button>
+                            )}
+                            {status !== 'draft' && status !== 'completed' && isApprover && (!isOwner || isAdmin || isHR) && (
                                 <>
                                     <button
                                         className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
                                         onClick={handleApprove}
-                                        disabled={actionLoading !== null}
+                                        disabled={actionLoading !== null || status === 'approved'}
                                     >
                                         {actionLoading === 'approve' ? <Loader size={18} className="animate-spin" /> : <CheckCircle size={18} />}
                                         Approva
                                     </button>
                                     <button
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors disabled:opacity-50"
                                         onClick={() => setShowRejectModal(true)}
-                                        disabled={actionLoading !== null}
+                                        disabled={actionLoading !== null || status === 'rejected'}
                                     >
                                         <XCircle size={18} />
                                         Rifiuta
                                     </button>
                                 </>
                             )}
-                            {trip.status === 'approved' && (
+                            {status === 'approved' && isOwner && (
                                 <>
                                     <Link to={`/expenses/new?trip_id=${id}`} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors">
                                         <Receipt size={18} />
@@ -585,9 +689,17 @@ export function TripDetailPage() {
                                         {actionLoading === 'complete' ? <Loader size={18} className="animate-spin" /> : <CheckCircle size={18} />}
                                         Completa Trasferta
                                     </button>
+                                    <button
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors disabled:opacity-50"
+                                        onClick={() => setShowCancelModal(true)}
+                                        disabled={actionLoading !== null}
+                                    >
+                                        <Ban size={18} />
+                                        Annulla Trasferta
+                                    </button>
                                 </>
                             )}
-                            {(trip.status === 'completed' || trip.status === 'rejected' || trip.status === 'cancelled') && (
+                            {(status === 'completed' || status === 'rejected' || status === 'cancelled') && (
                                 <p className="text-center text-sm text-gray-500 italic">
                                     Nessuna azione disponibile per questa trasferta.
                                 </p>
@@ -623,43 +735,112 @@ export function TripDetailPage() {
             </div>
 
             {/* Reject Modal */}
-            {showRejectModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn" onClick={() => setShowRejectModal(false)}>
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-scaleIn" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50/50">
-                            <h3 className="font-bold text-gray-900">Rifiuta Trasferta</h3>
-                            <button className="text-gray-400 hover:text-gray-600 p-1" onClick={() => setShowRejectModal(false)}>
-                                <XCircle size={20} />
-                            </button>
-                        </div>
-                        <div className="p-6">
-                            <div className="space-y-2">
-                                <label className="block text-sm font-medium text-gray-700">Motivo del Rifiuto <span className="text-red-500">*</span></label>
-                                <textarea
-                                    className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm min-h-[100px] resize-y"
-                                    placeholder="Inserisci il motivo del rifiuto..."
-                                    value={rejectReason}
-                                    onChange={(e) => setRejectReason(e.target.value)}
-                                    rows={4}
-                                />
+            {
+                showRejectModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn" onClick={() => setShowRejectModal(false)}>
+                        <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-scaleIn" onClick={e => e.stopPropagation()}>
+                            <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50/50">
+                                <h3 className="font-bold text-gray-900">Rifiuta Trasferta</h3>
+                                <button className="text-gray-400 hover:text-gray-600 p-1" onClick={() => setShowRejectModal(false)}>
+                                    <XCircle size={20} />
+                                </button>
+                            </div>
+                            <div className="p-6">
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-medium text-gray-700">Motivo del Rifiuto <span className="text-red-500">*</span></label>
+                                    <textarea
+                                        className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm min-h-[100px] resize-y"
+                                        placeholder="Inserisci il motivo del rifiuto..."
+                                        value={rejectReason}
+                                        onChange={(e) => setRejectReason(e.target.value)}
+                                        rows={4}
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-3 p-4 bg-gray-50 border-t border-gray-100">
+                                <button className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" onClick={() => setShowRejectModal(false)}>
+                                    Annulla
+                                </button>
+                                <button
+                                    className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                                    onClick={handleReject}
+                                    disabled={!rejectReason.trim() || actionLoading === 'reject'}
+                                >
+                                    {actionLoading === 'reject' ? <Loader size={16} className="animate-spin" /> : null}
+                                    Conferma Rifiuto
+                                </button>
                             </div>
                         </div>
-                        <div className="flex justify-end gap-3 p-4 bg-gray-50 border-t border-gray-100">
-                            <button className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors" onClick={() => setShowRejectModal(false)}>
-                                Annulla
-                            </button>
-                            <button
-                                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-                                onClick={handleReject}
-                                disabled={!rejectReason.trim() || actionLoading === 'reject'}
-                            >
-                                {actionLoading === 'reject' ? <Loader size={16} className="animate-spin" /> : null}
-                                Conferma Rifiuto
-                            </button>
+                    </div>
+                )
+            }
+            {/* Cancel Modal */}
+            {
+                showCancelModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn">
+                        <div className="bg-white rounded-xl shadow-xl w-full max-w-md animate-scaleIn overflow-hidden" onClick={e => e.stopPropagation()}>
+                            <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50">
+                                <h3 className="font-bold text-gray-900">Annulla Trasferta</h3>
+                                <button className="text-gray-400 hover:text-gray-600" onClick={() => setShowCancelModal(false)}>
+                                    <XCircle size={20} />
+                                </button>
+                            </div>
+                            <div className="p-6">
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-medium text-gray-700">Motivo dell'Annullamento <span className="text-red-500">*</span></label>
+                                    <textarea
+                                        className="w-full rounded-lg border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 min-h-[100px]"
+                                        placeholder="Inserisci il motivo..."
+                                        value={cancelReason}
+                                        onChange={(e) => setCancelReason(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-3 p-4 bg-gray-50/50 border-t border-gray-100">
+                                <button className="btn btn-ghost text-gray-600 hover:bg-white border border-transparent hover:border-gray-200" onClick={() => setShowCancelModal(false)}>
+                                    Annulla
+                                </button>
+                                <button
+                                    className="btn bg-red-600 hover:bg-red-700 text-white shadow-sm flex items-center gap-2"
+                                    onClick={handleCancel}
+                                    disabled={!cancelReason.trim() || actionLoading === 'cancel'}
+                                >
+                                    {actionLoading === 'cancel' ? <Loader size={16} className="animate-spin" /> : null}
+                                    Conferma
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
+
+            {/* Delete Modal */}
+            {
+                showDeleteModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn">
+                        <div className="bg-white rounded-xl shadow-xl w-full max-w-md animate-scaleIn overflow-hidden" onClick={e => e.stopPropagation()}>
+                            <div className="p-6 text-center">
+                                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                                    <Trash2 className="h-6 w-6 text-red-600" />
+                                </div>
+                                <h3 className="text-lg font-bold text-gray-900 mb-2">Elimina Trasferta</h3>
+                                <p className="text-sm text-gray-500 mb-6">Sei sicuro di voler eliminare questa trasferta? L'azione è irreversibile.</p>
+                                <div className="flex justify-center gap-3">
+                                    <button className="btn btn-ghost" onClick={() => setShowDeleteModal(false)}>Annulla</button>
+                                    <button
+                                        className="btn bg-red-600 hover:bg-red-700 text-white"
+                                        onClick={handleDelete}
+                                        disabled={actionLoading === 'delete'}
+                                    >
+                                        {actionLoading === 'delete' ? <Loader size={16} className="animate-spin mr-2" /> : null}
+                                        Elimina
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
         </div>
     );
 }

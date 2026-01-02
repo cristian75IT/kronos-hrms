@@ -245,3 +245,76 @@ class PushSubscription(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+
+class EmailLogStatus(str, enum.Enum):
+    """Email delivery status."""
+    PENDING = "pending"
+    QUEUED = "queued"
+    SENT = "sent"
+    DELIVERED = "delivered"
+    OPENED = "opened"
+    CLICKED = "clicked"
+    BOUNCED = "bounced"
+    FAILED = "failed"
+
+
+class EmailLog(Base):
+    """Enterprise email tracking log.
+    
+    Tracks all email sending attempts with delivery status,
+    retry information, and analytics events.
+    """
+    
+    __tablename__ = "email_logs"
+    __table_args__ = {"schema": "notifications"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    
+    # Recipient info
+    to_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    to_name: Mapped[Optional[str]] = mapped_column(String(200))
+    user_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), index=True)
+    
+    # Email content
+    template_code: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    subject: Mapped[Optional[str]] = mapped_column(String(300))
+    variables: Mapped[Optional[dict]] = mapped_column(JSONB)
+    
+    # Status
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    
+    # External IDs
+    message_id: Mapped[Optional[str]] = mapped_column(String(100), index=True)
+    notification_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))
+    
+    # Error tracking
+    error_message: Mapped[Optional[str]] = mapped_column(Text)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    next_retry_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    
+    # Provider response
+    provider_response: Mapped[Optional[dict]] = mapped_column(JSONB)
+    
+    # Tracking events
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    delivered_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    opened_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    clicked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    bounced_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    failed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    
+    # Audit
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )

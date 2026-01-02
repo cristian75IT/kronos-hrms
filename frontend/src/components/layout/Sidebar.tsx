@@ -19,6 +19,7 @@ import {
   Terminal,
   Activity,
   Bell,
+  Mail,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { clsx } from 'clsx';
@@ -47,6 +48,7 @@ const approverItems: NavItem[] = [
 const adminItems: NavItem[] = [
   { label: 'Gestione Utenti', path: '/admin/users', icon: <Users size={20} />, roles: ['admin', 'hr'] },
   { label: 'Centro Notifiche', path: '/admin/notifications', icon: <Bell size={20} />, roles: ['admin', 'hr'] },
+  { label: 'Log Email', path: '/admin/email-logs', icon: <Mail size={20} />, roles: ['admin', 'hr'] },
   { label: 'Calendari di Sistema', path: '/admin/system-calendars', icon: <Calendar size={20} />, roles: ['admin', 'hr'] },
   { label: 'Contratti CCNL', path: '/admin/national-contracts', icon: <FileText size={20} />, roles: ['admin', 'hr'] },
   { label: 'Strumenti Admin', path: '/admin/tools', icon: <Settings size={20} />, roles: ['admin'] },
@@ -133,7 +135,7 @@ export function Sidebar() {
           </div>
         )}
 
-        {isAdmin && (
+        {(isAdmin || hasRole('hr')) && (
           <div className="sidebar-section">
             {!collapsed && <div className="sidebar-section-title">Amministrazione</div>}
             {adminItems.map(renderNavItem)}

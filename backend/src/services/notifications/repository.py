@@ -14,6 +14,8 @@ from src.services.notifications.models import (
     EmailTemplate,
     UserNotificationPreference,
     PushSubscription,
+    EmailLog,
+    EmailLogStatus,
 )
 from src.services.auth.models import User
 from src.shared.schemas import DataTableRequest
@@ -394,3 +396,190 @@ class PushSubscriptionRepository:
             delete(PushSubscription).where(PushSubscription.user_id == user_id)
         )
         return result.rowcount
+
+
+class EmailLogRepository:
+    """Repository for email logs - enterprise email tracking."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get(self, id: UUID) -> Optional[EmailLog]:
+        """Get email log by ID."""
+        result = await self._session.execute(
+            select(EmailLog).where(EmailLog.id == id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_message_id(self, message_id: str) -> Optional[EmailLog]:
+        """Get email log by external message ID."""
+        result = await self._session.execute(
+            select(EmailLog).where(EmailLog.message_id == message_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def create(
+        self,
+        to_email: str,
+        template_code: str,
+        to_name: Optional[str] = None,
+        user_id: Optional[UUID] = None,
+        subject: Optional[str] = None,
+        variables: Optional[dict] = None,
+        notification_id: Optional[UUID] = None,
+    ) -> EmailLog:
+        """Create email log entry."""
+        log = EmailLog(
+            to_email=to_email,
+            to_name=to_name,
+            user_id=user_id,
+            template_code=template_code,
+            subject=subject,
+            variables=variables,
+            notification_id=notification_id,
+            status=EmailLogStatus.PENDING.value,
+        )
+        self._session.add(log)
+        await self._session.flush()
+        await self._session.refresh(log)
+        return log
+
+    async def update_status(
+        self,
+        id: UUID,
+        status: str,
+        message_id: Optional[str] = None,
+        error_message: Optional[str] = None,
+        provider_response: Optional[dict] = None,
+    ) -> Optional[EmailLog]:
+        """Update email log status."""
+        log = await self.get(id)
+        if not log:
+            return None
+
+        log.status = status
+        if message_id:
+            log.message_id = message_id
+        if error_message:
+            log.error_message = error_message
+        if provider_response:
+            log.provider_response = provider_response
+
+        # Set timestamp based on status
+        now = datetime.utcnow()
+        if status == EmailLogStatus.SENT.value:
+            log.sent_at = now
+        elif status == EmailLogStatus.DELIVERED.value:
+            log.delivered_at = now
+        elif status == EmailLogStatus.OPENED.value:
+            log.opened_at = now
+        elif status == EmailLogStatus.CLICKED.value:
+            log.clicked_at = now
+        elif status == EmailLogStatus.BOUNCED.value:
+            log.bounced_at = now
+        elif status == EmailLogStatus.FAILED.value:
+            log.failed_at = now
+            log.retry_count = (log.retry_count or 0) + 1
+
+        await self._session.flush()
+        return log
+
+    async def get_history(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        status: Optional[str] = None,
+        template_code: Optional[str] = None,
+        to_email: Optional[str] = None,
+    ) -> list[EmailLog]:
+        """Get email log history with filters."""
+        query = select(EmailLog).order_by(EmailLog.created_at.desc())
+
+        if status:
+            query = query.where(EmailLog.status == status)
+        if template_code:
+            query = query.where(EmailLog.template_code == template_code)
+        if to_email:
+            query = query.where(EmailLog.to_email.ilike(f"%{to_email}%"))
+
+        query = query.limit(limit).offset(offset)
+        result = await self._session.execute(query)
+        return list(result.scalars().all())
+
+    async def count_history(
+        self,
+        status: Optional[str] = None,
+        template_code: Optional[str] = None,
+    ) -> int:
+        """Count email logs with filters."""
+        query = select(func.count(EmailLog.id))
+
+        if status:
+            query = query.where(EmailLog.status == status)
+        if template_code:
+            query = query.where(EmailLog.template_code == template_code)
+
+        result = await self._session.execute(query)
+        return result.scalar() or 0
+
+    async def get_pending_retries(self, limit: int = 50) -> list[EmailLog]:
+        """Get emails pending retry."""
+        now = datetime.utcnow()
+        query = (
+            select(EmailLog)
+            .where(
+                and_(
+                    EmailLog.status == EmailLogStatus.FAILED.value,
+                    EmailLog.retry_count < 3,  # Max 3 retries
+                    EmailLog.next_retry_at <= now,
+                )
+            )
+            .order_by(EmailLog.next_retry_at)
+            .limit(limit)
+        )
+        result = await self._session.execute(query)
+        return list(result.scalars().all())
+
+    async def schedule_retry(self, id: UUID, delay_minutes: int = 5) -> Optional[EmailLog]:
+        """Schedule email for retry with exponential backoff."""
+        log = await self.get(id)
+        if not log:
+            return None
+
+        # Exponential backoff: 5min, 15min, 45min
+        backoff_multiplier = 3 ** log.retry_count
+        actual_delay = delay_minutes * backoff_multiplier
+
+        log.next_retry_at = datetime.utcnow() + timedelta(minutes=actual_delay)
+        log.status = EmailLogStatus.PENDING.value
+        await self._session.flush()
+        return log
+
+    async def get_stats(self, days: int = 7) -> dict:
+        """Get email delivery statistics."""
+        since = datetime.utcnow() - timedelta(days=days)
+
+        # Total count
+        total_result = await self._session.execute(
+            select(func.count(EmailLog.id)).where(EmailLog.created_at >= since)
+        )
+        total = total_result.scalar() or 0
+
+        # Status breakdown
+        stats = {"total": total, "by_status": {}}
+        for status in EmailLogStatus:
+            count_result = await self._session.execute(
+                select(func.count(EmailLog.id)).where(
+                    and_(
+                        EmailLog.created_at >= since,
+                        EmailLog.status == status.value,
+                    )
+                )
+            )
+            stats["by_status"][status.value] = count_result.scalar() or 0
+
+        # Calculate success rate
+        successful = stats["by_status"].get("sent", 0) + stats["by_status"].get("delivered", 0)
+        stats["success_rate"] = round(100 * successful / total, 2) if total > 0 else 0
+
+        return stats

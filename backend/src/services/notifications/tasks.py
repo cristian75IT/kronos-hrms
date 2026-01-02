@@ -336,3 +336,92 @@ async def _notify_shared_calendar_users(session: AsyncSession, event) -> None:
                     )
         except Exception as e:
             print(f"[Scheduler] Error notifying shared calendar user: {e}")
+
+
+@shared_task(name="notifications.process_email_retries")
+def process_email_retries():
+    """Process retry queue for failed emails.
+    
+    Run this task every 5 minutes via Celery beat.
+    """
+    import asyncio
+    asyncio.run(_process_email_retries_async())
+
+
+async def _process_email_retries_async():
+    """Async implementation of email retry processor."""
+    from src.services.notifications.models import EmailLogStatus
+    from src.services.notifications.repository import EmailLogRepository, EmailTemplateRepository
+    from src.services.notifications.service import NotificationService
+    
+    session = await _get_async_session()
+    email_repo = EmailLogRepository(session)
+    template_repo = EmailTemplateRepository(session)
+    service = NotificationService(session)
+    
+    try:
+        # Get pending retries
+        pending_logs = await email_repo.get_pending_retries(limit=50)
+        
+        if not pending_logs:
+            return
+            
+        print(f"[Scheduler] Processing {len(pending_logs)} email retries...")
+        
+        for log in pending_logs:
+            try:
+                # Update status to processing
+                log.status = EmailLogStatus.QUEUED.value
+                await session.flush()
+                
+                # Get template
+                template = await template_repo.get_by_code(log.template_code)
+                if not template:
+                    await email_repo.update_status(
+                        log.id, 
+                        EmailLogStatus.FAILED.value, 
+                        error_message=f"Template {log.template_code} not found during retry"
+                    )
+                    await session.commit()
+                    continue
+                
+                # Attempt resend (using internal method to avoid creating new log)
+                try:
+                    result = await service._send_brevo_email(
+                        to_email=log.to_email,
+                        to_name=log.to_name,
+                        template=template,
+                        variables=log.variables or {},
+                    )
+                    
+                    # Update success
+                    await email_repo.update_status(
+                        log.id,
+                        status=EmailLogStatus.SENT.value,
+                        message_id=result.get("messageId"),
+                        provider_response=result,
+                    )
+                    
+                except Exception as e:
+                    # Schedule next retry or fail permanently
+                    error_msg = str(e)
+                    await email_repo.update_status(
+                        log.id,
+                        status=EmailLogStatus.FAILED.value,
+                        error_message=error_msg,
+                        provider_response={"error": error_msg}
+                    )
+                    
+                    if (log.retry_count or 0) < 3:
+                        await email_repo.schedule_retry(log.id)
+            
+            except Exception as e:
+                print(f"[Scheduler] Error processing retry for log {log.id}: {e}")
+                
+        await session.commit()
+        
+    except Exception as e:
+        print(f"[Scheduler] Error in retry processor: {e}")
+        await session.rollback()
+    finally:
+        await session.close()

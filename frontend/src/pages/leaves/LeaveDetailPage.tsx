@@ -24,12 +24,12 @@ import {
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import {
-    useLeaveRequests,
+    useLeaveRequest,
     useApproveLeaveRequest,
     useRejectLeaveRequest,
     queryKeys
 } from '../../hooks/useApi';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth, useIsApprover, useIsAdmin, useIsHR } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { ConfirmModal } from '../../components/common';
 import { leavesService } from '../../services/leaves.service';
@@ -144,8 +144,11 @@ export function LeaveDetailPage() {
     const toast = useToast();
     const queryClient = useQueryClient();
 
-    const { isApprover } = useAuth();
-    const { data: leaves, isLoading, refetch } = useLeaveRequests(new Date().getFullYear());
+    const { user } = useAuth();
+    const isApprover = useIsApprover();
+    const isAdmin = useIsAdmin();
+    const isHR = useIsHR();
+    const { data: leave, isLoading, refetch } = useLeaveRequest(id || '');
 
     // Mutations
     const approveMutation = useApproveLeaveRequest();
@@ -172,8 +175,9 @@ export function LeaveDetailPage() {
     const [recallDate, setRecallDate] = useState('');
 
 
-    // Find the specific leave request
-    const leave = leaves?.find(l => l.id === id);
+    // Check ownership
+    const isOwner = user?.id === leave?.user_id || user?.keycloak_id === leave?.user_id;
+    const status = leave?.status?.toLowerCase() || 'draft';
 
     // Action handlers
     const handleSubmit = async () => {
@@ -574,15 +578,44 @@ export function LeaveDetailPage() {
                                         Condizioni di Approvazione
                                     </h3>
                                     <div className="bg-amber-50 p-4 rounded-lg border border-amber-100 text-sm leading-relaxed">
-                                        <div className="flex items-center gap-2 mb-2 font-semibold text-amber-800">
-                                            <span className="uppercase">{(leave as any).condition_type}</span>
+                                        <div className="flex flex-wrap items-center gap-2 mb-3 text-amber-800">
+                                            <span className="font-semibold">
+                                                {(() => {
+                                                    const conditionTypeLabels: Record<string, string> = {
+                                                        'ric': 'Riserva di Richiamo',
+                                                        'RIC': 'Riserva di Richiamo',
+                                                        'rep': 'Reperibilità',
+                                                        'REP': 'Reperibilità',
+                                                        'par': 'Approvazione Parziale',
+                                                        'PAR': 'Approvazione Parziale',
+                                                        'mod': 'Modifica Date',
+                                                        'MOD': 'Modifica Date',
+                                                        'alt': 'Altra Condizione',
+                                                        'ALT': 'Altra Condizione',
+                                                    };
+                                                    return conditionTypeLabels[(leave as any).condition_type] || (leave as any).condition_type;
+                                                })()}
+                                            </span>
                                             {leave.status === 'approved' && (leave as any).condition_accepted && (
                                                 <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-xs flex items-center gap-1">
-                                                    <CheckCircle size={10} /> Accettata
+                                                    <CheckCircle size={10} /> Accettata dal dipendente
                                                 </span>
                                             )}
                                         </div>
-                                        <p className="text-gray-700">{(leave as any).condition_details}</p>
+                                        <p className="text-gray-700 mb-3">{(leave as any).condition_details}</p>
+
+                                        {/* Show acceptance date if conditions were accepted */}
+                                        {(leave as any).condition_accepted && (leave as any).condition_accepted_at && (
+                                            <div className="mt-3 pt-3 border-t border-amber-200 text-xs text-gray-600 flex items-center gap-2">
+                                                <CheckCircle size={12} className="text-emerald-600" />
+                                                <span>
+                                                    Condizioni accettate il{' '}
+                                                    <strong>
+                                                        {format(new Date((leave as any).condition_accepted_at), "EEEE d MMMM yyyy 'alle' HH:mm", { locale: it })}
+                                                    </strong>
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -651,7 +684,7 @@ export function LeaveDetailPage() {
                     <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
                         <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-4">Azioni</h3>
                         <div className="space-y-3">
-                            {leave.status === 'draft' && (
+                            {status === 'draft' && isOwner && (
                                 <>
                                     <button
                                         className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
@@ -678,7 +711,7 @@ export function LeaveDetailPage() {
                                     </button>
                                 </>
                             )}
-                            {leave.status === 'pending' && !isApprover && (
+                            {(status === 'pending' || status === 'submitted') && isOwner && (
                                 <button
                                     className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors disabled:opacity-50"
                                     onClick={() => setShowCancelModal(true)}
@@ -688,13 +721,12 @@ export function LeaveDetailPage() {
                                     Annulla Richiesta
                                 </button>
                             )}
-                            {leave.status === 'pending' && isApprover && (
+                            {status !== 'draft' && isApprover && (!isOwner || isAdmin || isHR) && (
                                 <>
                                     <button
                                         className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
                                         onClick={() => setShowApproveModal(true)}
-                                        disabled={actionLoading !== null}
-
+                                        disabled={actionLoading !== null || status === 'approved'}
                                     >
                                         <CheckCircle size={18} />
                                         Approva
@@ -703,7 +735,7 @@ export function LeaveDetailPage() {
                                     <button
                                         className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
                                         onClick={() => setShowConditionalModal(true)}
-                                        disabled={actionLoading !== null}
+                                        disabled={actionLoading !== null || status === 'approved' || status === 'approved_conditional'}
                                     >
                                         <AlertCircle size={18} />
                                         Approva con Condizioni
@@ -711,7 +743,7 @@ export function LeaveDetailPage() {
                                     <button
                                         className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
                                         onClick={() => setShowRejectModal(true)}
-                                        disabled={actionLoading !== null}
+                                        disabled={actionLoading !== null || status === 'rejected'}
                                     >
                                         <XCircle size={18} />
                                         Rifiuta
@@ -720,7 +752,7 @@ export function LeaveDetailPage() {
                             )}
 
                             {/* Revoke approved request (approver only, before start date) */}
-                            {(leave.status === 'approved' || leave.status === 'approved_conditional') && isApprover && (
+                            {(status === 'approved' || status === 'approved_conditional') && isApprover && (!isOwner || isAdmin || isHR) && (
                                 <>
                                     <button
                                         className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
@@ -741,8 +773,8 @@ export function LeaveDetailPage() {
                                 </>
                             )}
 
-                            {/* Reopen rejected/cancelled request (approver only, before start date) */}
-                            {(leave.status === 'rejected' || leave.status === 'cancelled') && isApprover && (
+                            {/* Reopen rejected/cancelled request (approver only) */}
+                            {(status === 'rejected' || status === 'cancelled') && isApprover && (!isOwner || isAdmin || isHR) && (
                                 <button
                                     className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
                                     onClick={() => setShowReopenModal(true)}
@@ -754,14 +786,14 @@ export function LeaveDetailPage() {
                             )}
 
                             {/* No actions for non-approvers on processed requests */}
-                            {(leave.status === 'approved' || leave.status === 'rejected' || leave.status === 'cancelled') && !isApprover && (
+                            {(status === 'approved' || status === 'rejected' || status === 'cancelled') && !isApprover && !isOwner && (
                                 <p className="text-center text-sm text-gray-500 italic">
                                     Nessuna azione disponibile per questa richiesta.
                                 </p>
                             )}
 
-                            {/* Employee Condition Acceptance */}
-                            {leave.status === 'approved_conditional' && !isApprover && (
+                            {/* Employee Condition Acceptance (Owner only) */}
+                            {status === 'approved_conditional' && isOwner && (
                                 <>
                                     <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 mb-2">
                                         <strong>Attenzione:</strong> Questa richiesta è stata approvata con condizioni. Accetta per confermare o rifiuta per annullare.

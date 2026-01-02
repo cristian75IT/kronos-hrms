@@ -137,6 +137,46 @@ const notificationService = {
     subscribeToPush: async (subscription: unknown) => {
         await api.post('/notifications/push-subscriptions', subscription);
     },
+
+    // Email Logs
+    getEmailLogs: async (filters: { limit?: number; offset?: number; status?: string; template_code?: string; to_email?: string } = {}) => {
+        const queryParams = new URLSearchParams();
+        if (filters.limit) queryParams.append('limit', filters.limit.toString());
+        if (filters.offset) queryParams.append('offset', filters.offset.toString());
+        if (filters.status) queryParams.append('status', filters.status);
+        if (filters.template_code) queryParams.append('template_code', filters.template_code);
+        if (filters.to_email) queryParams.append('to_email', filters.to_email);
+
+        const response = await api.get<EmailLog[]>(`/notifications/email-logs?${queryParams.toString()}`);
+        return response.data;
+    },
+
+    getEmailStats: async (days: number = 7) => {
+        const response = await api.get<any>(`/notifications/email-logs/stats?days=${days}`);
+        return response.data;
+    },
+
+    retryEmail: async (id: string) => {
+        const response = await api.post<EmailLog>(`/notifications/email-logs/${id}/retry`);
+        return response.data;
+    },
 };
+
+export interface EmailLog {
+    id: string;
+    to_email: string;
+    to_name?: string;
+    template_code: string;
+    subject?: string;
+    variables?: Record<string, any>;
+    status: string;
+    message_id?: string;
+    notification_id?: string;
+    error_message?: string;
+    retry_count: number;
+    next_retry_at?: string;
+    created_at: string;
+    updated_at: string;
+}
 
 export default notificationService;

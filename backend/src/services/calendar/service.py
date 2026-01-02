@@ -32,6 +32,10 @@ from .schemas import (
     WorkingDaysResponse,
 )
 from src.shared.audit_client import get_audit_logger
+from src.shared.clients import LeaveClient
+
+import logging
+logger = logging.getLogger(__name__)
 
 
 class CalendarService:
@@ -40,6 +44,17 @@ class CalendarService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self._audit = get_audit_logger("calendar-service")
+        self._leave_client = LeaveClient()
+    
+    async def _trigger_leave_recalculation(self, start_date: date, end_date: date) -> None:
+        """
+        Trigger leave recalculation for approved requests overlapping with dates.
+        Called when holidays, closures, or working day exceptions change.
+        """
+        try:
+            await self._leave_client.recalculate_for_closure(start_date, end_date)
+        except Exception as e:
+            logger.error(f"Failed to trigger leave recalculation: {e}")
     
     # ═══════════════════════════════════════════════════════════
     # USER CALENDARS CRUD
@@ -201,34 +216,74 @@ class CalendarService:
         self.db.add(holiday)
         await self.db.commit()
         await self.db.refresh(holiday)
+
+        # Log to Audit Service
+        await self._audit.log_action(
+            user_id=created_by,
+            action="CREATE",
+            resource_type="CALENDAR_HOLIDAY",
+            resource_id=str(holiday.id),
+            description=f"Created holiday: {holiday.name} ({holiday.date})",
+            request_data=data.model_dump(mode="json")
+        )
+        await self._trigger_leave_recalculation(holiday.date, holiday.date)
+        
         return holiday
     
     async def update_holiday(
         self,
         holiday_id: UUID,
         data: HolidayUpdate,
+        user_id: Optional[UUID] = None,
     ) -> Optional[CalendarHoliday]:
         """Update an existing holiday."""
         holiday = await self.get_holiday(holiday_id)
         if not holiday:
             return None
         
+        old_date = holiday.date
         update_data = data.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(holiday, key, value)
         
         await self.db.commit()
         await self.db.refresh(holiday)
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="UPDATE",
+            resource_type="CALENDAR_HOLIDAY",
+            resource_id=str(holiday_id),
+            description=f"Updated holiday: {holiday.name}",
+            request_data=update_data
+        )
+        await self._trigger_leave_recalculation(old_date, old_date)
+        if holiday.date != old_date:
+            await self._trigger_leave_recalculation(holiday.date, holiday.date)
+        
         return holiday
     
-    async def delete_holiday(self, holiday_id: UUID) -> bool:
+    async def delete_holiday(self, holiday_id: UUID, user_id: Optional[UUID] = None) -> bool:
         """Delete a holiday."""
         holiday = await self.get_holiday(holiday_id)
         if not holiday:
             return False
         
+        holiday_name = holiday.name
+        holiday_date = holiday.date
         await self.db.delete(holiday)
         await self.db.commit()
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="DELETE",
+            resource_type="CALENDAR_HOLIDAY",
+            resource_id=str(holiday_id),
+            description=f"Deleted holiday: {holiday_name} ({holiday_date})"
+        )
+        
+        await self._trigger_leave_recalculation(holiday_date, holiday_date)
+        
         return True
     
     # ═══════════════════════════════════════════════════════════
@@ -284,12 +339,25 @@ class CalendarService:
         self.db.add(closure)
         await self.db.commit()
         await self.db.refresh(closure)
+
+        await self._audit.log_action(
+            user_id=created_by,
+            action="CREATE",
+            resource_type="CALENDAR_CLOSURE",
+            resource_id=str(closure.id),
+            description=f"Created company closure: {closure.name}",
+            request_data=data.model_dump(mode="json")
+        )
+        
+        await self._trigger_leave_recalculation(closure.start_date, closure.end_date)
+        
         return closure
     
     async def update_closure(
         self,
         closure_id: UUID,
         data: ClosureUpdate,
+        user_id: Optional[UUID] = None,
     ) -> Optional[CalendarClosure]:
         """Update an existing closure."""
         closure = await self.get_closure(closure_id)
@@ -302,16 +370,37 @@ class CalendarService:
         
         await self.db.commit()
         await self.db.refresh(closure)
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="UPDATE",
+            resource_type="CALENDAR_CLOSURE",
+            resource_id=str(closure_id),
+            description=f"Updated company closure: {closure.name}",
+            request_data=update_data
+        )
+        
+        await self._trigger_leave_recalculation(closure.start_date, closure.end_date)
+        
         return closure
     
-    async def delete_closure(self, closure_id: UUID) -> bool:
+    async def delete_closure(self, closure_id: UUID, user_id: Optional[UUID] = None) -> bool:
         """Delete a closure."""
         closure = await self.get_closure(closure_id)
         if not closure:
             return False
         
+        closure_name = closure.name
         await self.db.delete(closure)
         await self.db.commit()
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="DELETE",
+            resource_type="CALENDAR_CLOSURE",
+            resource_id=str(closure_id),
+            description=f"Deleted company closure: {closure_name}"
+        )
         return True
     
     # ═══════════════════════════════════════════════════════════
@@ -411,12 +500,23 @@ class CalendarService:
         
         await self.db.commit()
         # Return fully loaded event
-        return await self.get_event(event.id)
+        result = await self.get_event(event.id)
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="CREATE",
+            resource_type="CALENDAR_EVENT",
+            resource_id=str(event.id),
+            description=f"Created event: {event.title}",
+            request_data=data.model_dump(mode="json")
+        )
+        return result
     
     async def update_event(
         self,
         event_id: UUID,
         data: EventUpdate,
+        user_id: Optional[UUID] = None,
     ) -> Optional[CalendarEvent]:
         """Update an existing event."""
         event = await self.get_event(event_id)
@@ -429,9 +529,19 @@ class CalendarService:
         
         await self.db.commit()
         # Return fully loaded event
-        return await self.get_event(event.id)
+        result = await self.get_event(event.id)
+
+        await self._audit.log_action(
+            user_id=user_id,
+            action="UPDATE",
+            resource_type="CALENDAR_EVENT",
+            resource_id=str(event_id),
+            description=f"Updated event: {event.title}",
+            request_data=update_data
+        )
+        return result
     
-    async def delete_event(self, event_id: UUID) -> bool:
+    async def delete_event(self, event_id: UUID, user_id: Optional[UUID] = None) -> bool:
         """Delete an event (soft delete by setting status to cancelled)."""
         event = await self.get_event(event_id)
         if not event:
@@ -441,6 +551,7 @@ class CalendarService:
         await self.db.commit()
         
         await self._audit.log_action(
+            user_id=user_id,
             action="DELETE",
             resource_type="CALENDAR_EVENT",
             resource_id=str(event_id),
@@ -485,6 +596,9 @@ class CalendarService:
         self.db.add(exception)
         await self.db.commit()
         await self.db.refresh(exception)
+        
+        await self._trigger_leave_recalculation(exception.date, exception.date)
+        
         return exception
 
     async def delete_working_day_exception(self, exception_id: UUID) -> bool:
@@ -496,8 +610,14 @@ class CalendarService:
         if not exception:
             return False
         
+        # Store date before deletion for recalculation
+        exception_date = exception.date
+        
         await self.db.delete(exception)
         await self.db.commit()
+        
+        await self._trigger_leave_recalculation(exception_date, exception_date)
+        
         return True
 
     
@@ -602,30 +722,42 @@ class CalendarService:
     
     async def get_calendar_absences(self, start_date: date, end_date: date, user_id: Optional[UUID] = None) -> List[any]:
         """Fetch approved absences from leave service tables."""
-        # Query directly from leaves.leave_requests joined with auth.users
-        # This is a cross-schema query allowed in our shared-DB architecture
-        sql = """
-            SELECT 
-                lr.id,
-                lr.start_date,
-                lr.end_date,
-                lr.leave_type_code,
-                u.first_name,
-                u.last_name
-            FROM leaves.leave_requests lr
-            JOIN auth.users u ON lr.user_id = u.id
-            WHERE lr.status = 'approved'
-              AND lr.end_date >= :start_date
-              AND lr.start_date <= :end_date
-        """
-        params = {"start_date": start_date, "end_date": end_date}
-        
-        if user_id:
-            sql += " AND lr.user_id = :user_id"
-            params["user_id"] = user_id
+        try:
+            # Query directly from leaves.leave_requests joined with auth.users
+            # This is a cross-schema query allowed in our shared-DB architecture
+            sql = """
+                SELECT 
+                    lr.id,
+                    lr.start_date,
+                    lr.end_date,
+                    lr.leave_type_code,
+                    u.first_name,
+                    u.last_name
+                FROM leaves.leave_requests lr
+                JOIN auth.users u ON lr.user_id = u.id
+                WHERE lr.status IN ('approved', 'APPROVED', 'approved_conditional', 'APPROVED_CONDITIONAL')
+                  AND lr.end_date >= :start_date
+                  AND lr.start_date <= :end_date
+            """
+            params = {"start_date": start_date, "end_date": end_date}
             
-        result = await self.db.execute(text(sql), params)
-        return list(result.mappings().all())
+            if user_id:
+                sql += " AND lr.user_id = :user_id"
+                params["user_id"] = user_id
+                
+            result = await self.db.execute(text(sql), params)
+            return list(result.mappings().all())
+        except Exception as e:
+            await self._audit.log_action(
+                action="ERROR",
+                resource_type="CALENDAR",
+                status="FAILURE",
+                error_message=str(e),
+                description="Failed to fetch calendar absences",
+                service_name="calendar-service"
+            )
+            # Return empty list on error to prevent crashing the whole calendar
+            return []
 
     async def get_calendar_range(
         self,

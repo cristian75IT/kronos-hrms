@@ -74,6 +74,7 @@ async def get_current_user(
         is_admin=user.is_admin,
         is_manager=user.is_manager,
         is_approver=user.is_approver,
+        is_hr=user.is_hr,
         location=user.location.name if user.location else None,
         manager=user.manager.full_name if user.manager else None,
     )
@@ -172,7 +173,7 @@ async def update_user(
 ):
     """Update user. Admin only."""
     try:
-        return await service.update_user(id, data)
+        return await service.update_user(id, data, actor_id=token.user_id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -185,7 +186,7 @@ async def deactivate_user(
 ):
     """Deactivate user. Admin only."""
     try:
-        await service.deactivate_user(id)
+        await service.deactivate_user(id, actor_id=token.user_id)
         return MessageResponse(message="User deactivated")
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -236,7 +237,7 @@ async def create_area(
 ):
     """Create new area. Admin only."""
     try:
-        return await service.create_area(data)
+        return await service.create_area(data, actor_id=token.user_id)
     except ConflictError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
@@ -250,7 +251,7 @@ async def update_area(
 ):
     """Update area. Admin only."""
     try:
-        return await service.update_area(id, data)
+        return await service.update_area(id, data, actor_id=token.user_id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -318,7 +319,7 @@ async def create_user_contract(
 ):
     """Add a new contract to user history. Admin only."""
     try:
-        return await service.create_employee_contract(user_id, data)
+        return await service.create_employee_contract(user_id, data, actor_id=token.user_id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -344,7 +345,7 @@ async def create_contract_type(
     service: UserService = Depends(get_user_service),
 ):
     """Create new contract type. Admin only."""
-    return await service.create_contract_type(data)
+    return await service.create_contract_type(data, actor_id=token.user_id)
 
 
 @router.put("/contract-types/{id}", response_model=ContractTypeResponse)
@@ -355,7 +356,7 @@ async def update_contract_type(
     service: UserService = Depends(get_user_service),
 ):
     """Update contract type. Admin only."""
-    return await service.update_contract_type(id, data)
+    return await service.update_contract_type(id, data, actor_id=token.user_id)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -379,4 +380,4 @@ async def create_work_schedule(
     service: UserService = Depends(get_user_service),
 ):
     """Create new work schedule. Admin only."""
-    return await service.create_work_schedule(data)
+    return await service.create_work_schedule(data, actor_id=token.user_id)

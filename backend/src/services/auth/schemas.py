@@ -32,6 +32,7 @@ class UserCreate(UserBase):
     is_admin: bool = False
     is_manager: bool = False
     is_approver: bool = False
+    is_hr: bool = False
 
 
 class UserUpdate(BaseModel):
@@ -76,6 +77,7 @@ class UserResponse(UserBase, IDMixin, BaseSchema):
     is_admin: bool
     is_manager: bool
     is_approver: bool
+    is_hr: bool
     is_active: bool
     full_name: str
     contract_type_id: Optional[UUID] = None
@@ -120,6 +122,7 @@ class CurrentUserResponse(BaseModel):
     is_admin: bool
     is_manager: bool
     is_approver: bool
+    is_hr: bool
     location: Optional[str] = None
     manager: Optional[str] = None
 

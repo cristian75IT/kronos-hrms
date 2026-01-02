@@ -327,18 +327,40 @@ export function useUploadTripAttachment() {
 }
 
 export function useTripWallet(tripId: string) {
-    return useQuery<TripWallet>({
+    return useQuery<TripWallet | null>({
         queryKey: queryKeys.tripWallet(tripId),
-        queryFn: () => walletsService.getTripWallet(tripId),
+        queryFn: async () => {
+            try {
+                return await walletsService.getTripWallet(tripId);
+            } catch (error: any) {
+                // 404 means wallet doesn't exist yet - this is expected for unapproved trips
+                if (error?.response?.status === 404) {
+                    return null;
+                }
+                throw error;
+            }
+        },
         enabled: !!tripId,
+        retry: false, // Don't retry on 404
     });
 }
 
 export function useTripTransactions(tripId: string) {
     return useQuery<TripWalletTransaction[]>({
         queryKey: queryKeys.tripTransactions(tripId),
-        queryFn: () => walletsService.getTripTransactions(tripId),
+        queryFn: async () => {
+            try {
+                return await walletsService.getTripTransactions(tripId);
+            } catch (error: any) {
+                // 404 means wallet doesn't exist yet
+                if (error?.response?.status === 404) {
+                    return [];
+                }
+                throw error;
+            }
+        },
         enabled: !!tripId,
+        retry: false, // Don't retry on 404
     });
 }
 

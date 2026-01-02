@@ -8,57 +8,47 @@ from src.shared.clients import ConfigClient, CalendarClient
 class CalendarUtils:
     """Utilities for calendar calculations (working days, holidays, closures).
     
-    Now primarily uses the Calendar microservice, with fallback to Config service.
+    Uses the Calendar microservice as the single source of truth.
+    ConfigClient is only used for system configuration (work_week_days, etc).
     """
 
     def __init__(self, config_client: ConfigClient = None, calendar_client: CalendarClient = None):
         self.config_client = config_client or ConfigClient()
         self.calendar_client = calendar_client or CalendarClient()
-        # Flag to control which service to use
-        self._use_calendar_service = True
 
     async def get_system_config(self, key: str, default: Any = None) -> Any:
         return await self.config_client.get_sys_config(key, default)
 
     async def get_holidays(self, year: int, start_date: Optional[date] = None, end_date: Optional[date] = None) -> List[dict]:
-        """Get holidays for a specific year, optionally filtering by date range."""
-        if self._use_calendar_service:
-            try:
-                holidays = await self.calendar_client.get_holidays(year, start_date, end_date)
-                if holidays:
-                    return holidays
-            except Exception:
-                pass  # Fallback to config client
-        return await self.config_client.get_holidays(year, start_date, end_date)
+        """Get holidays for a specific year from Calendar Service."""
+        try:
+            return await self.calendar_client.get_holidays(year, start_date, end_date)
+        except Exception as e:
+            print(f"CalendarClient get_holidays failed: {e}")
+            return []
 
     async def get_company_closures(self, start_date: date, end_date: date) -> List[dict]:
-        """Get company closures overlapping the date range, handling multiple years."""
-        years = set()
-        years.add(start_date.year)
-        years.add(end_date.year)
+        """Get company closures from Calendar Service."""
+        years = set([start_date.year, end_date.year])
         
         all_closures = []
         for year in years:
-            closures = []
-            if self._use_calendar_service:
-                try:
-                    closures = await self.calendar_client.get_closures(year)
-                except Exception:
-                    closures = await self.config_client.get_company_closures(year)
-            else:
-                closures = await self.config_client.get_company_closures(year)
-            
-            for closure in closures:
-                closure_start = closure.get("start_date")
-                closure_end = closure.get("end_date")
-                if closure_start and closure_end:
-                    try:
-                        c_start = date.fromisoformat(closure_start) if isinstance(closure_start, str) else closure_start
-                        c_end = date.fromisoformat(closure_end) if isinstance(closure_end, str) else closure_end
-                        if c_start <= end_date and c_end >= start_date:
+            try:
+                closures = await self.calendar_client.get_closures(year)
+                for closure in closures:
+                    closure_start = closure.get("start_date")
+                    closure_end = closure.get("end_date")
+                    if closure_start and closure_end:
+                        try:
+                            c_start = date.fromisoformat(closure_start) if isinstance(closure_start, str) else closure_start
+                            c_end = date.fromisoformat(closure_end) if isinstance(closure_end, str) else closure_end
+                            if c_start <= end_date and c_end >= start_date:
                                 all_closures.append(closure)
-                    except (ValueError, TypeError):
-                        pass
+                        except (ValueError, TypeError):
+                            pass
+            except Exception as e:
+                print(f"CalendarClient get_closures failed for year {year}: {e}")
+        
         return all_closures
 
     async def get_excluded_days_data(self, start_date: date, end_date: date, user_id: Optional[UUID] = None) -> Dict[str, Any]:
@@ -76,75 +66,71 @@ class CalendarUtils:
             except Exception:
                 pass
 
-        if self._use_calendar_service:
-            try:
-                # Use the microservice as the source of truth
-                range_view = await self.calendar_client.get_calendar_range(
-                    start_date=start_date,
-                    end_date=end_date,
-                    location_id=location_id
-                )
+        try:
+            # Use Calendar microservice as the source of truth
+            range_view = await self.calendar_client.get_calendar_range(
+                start_date=start_date,
+                end_date=end_date,
+                location_id=location_id
+            )
+            
+            if range_view:
+                excluded_dates_set = set()
+                details = {}
+                working_days_count = 0
                 
-                if range_view:
-                    excluded_dates_set = set()
-                    details = {}
-                    working_days_count = 0
+                for day in range_view.get("days", []):
+                    d_str = day.get("date")
+                    d_date = date.fromisoformat(d_str) if isinstance(d_str, str) else d_str
+                    iso = d_date.isoformat()
                     
-                    for day in range_view.get("days", []):
-                        d_str = day.get("date")
-                        d_date = date.fromisoformat(d_str) if isinstance(d_str, str) else d_str
-                        iso = d_date.isoformat()
+                    if not day.get("is_working_day"):
+                        excluded_dates_set.add(iso)
                         
-                        if not day.get("is_working_day"):
-                            excluded_dates_set.add(iso)
-                            
-                            # Identify the primary reason
-                            items = day.get("items", [])
-                            reason = "weekend"
-                            name = ""
-                            info = None
-                            
-                            holiday_item = next((i for i in items if i.get("item_type") == "holiday"), None)
-                            closure_item = next((i for i in items if i.get("item_type") == "closure"), None)
-                            
-                            if holiday_item:
-                                reason = "holiday"
-                                name = holiday_item.get("title")
-                            elif closure_item:
-                                reason = "closure"
-                                name = closure_item.get("title")
-                                info = {
-                                    "name": name,
-                                    "is_paid": True, # Fallback, ideally from API
-                                    "consumes_balance": False # Fallback
-                                }
-                            else:
-                                # If no holiday/closure but not working, it's weekend or non-working exception
-                                day_names = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
-                                name = day_names[d_date.weekday()]
-                                
-                            details[iso] = {
-                                "date": d_date,
-                                "reason": reason,
+                        # Identify the primary reason
+                        items = day.get("items", [])
+                        reason = "weekend"
+                        name = ""
+                        info = None
+                        
+                        holiday_item = next((i for i in items if i.get("item_type") == "holiday"), None)
+                        closure_item = next((i for i in items if i.get("item_type") == "closure"), None)
+                        
+                        if holiday_item:
+                            reason = "holiday"
+                            name = holiday_item.get("title")
+                        elif closure_item:
+                            reason = "closure"
+                            name = closure_item.get("title")
+                            info = {
                                 "name": name,
-                                "info": info
+                                "is_paid": closure_item.get("metadata", {}).get("is_paid", True),
+                                "consumes_balance": closure_item.get("metadata", {}).get("consumes_leave_balance", False)
                             }
                         else:
-                            working_days_count += 1
+                            # If no holiday/closure but not working, it's weekend or non-working exception
+                            day_names = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]
+                            name = day_names[d_date.weekday()]
                             
-                    return {
-                        "excluded_dates": excluded_dates_set,
-                        "details": details,
-                        "working_days_count": working_days_count,
-                        "working_days_limit": 5 # Default
-                    }
-            except Exception as e:
-                # Fallback to local implementation if service fails
-                print(f"Calendar service failed: {e}")
-                pass
-
-        # --- Fallback Local Implementation (Original Logic) ---
-        # 1. Get holidays
+                        details[iso] = {
+                            "date": d_date,
+                            "reason": reason,
+                            "name": name,
+                            "info": info
+                        }
+                    else:
+                        working_days_count += 1
+                        
+                return {
+                    "excluded_dates": excluded_dates_set,
+                    "details": details,
+                    "working_days_count": working_days_count,
+                    "working_days_limit": 5  # Default
+                }
+        except Exception as e:
+            print(f"Calendar service get_calendar_range failed: {e}")
+        
+        # Fallback: compute locally using holidays and closures from Calendar Service
         years = set([start_date.year, end_date.year])
         holiday_map = {}
         for year in years:
@@ -155,7 +141,6 @@ class CalendarUtils:
                 if h_date:
                     holiday_map[h_date.isoformat()] = h.get("name", "Festività")
 
-        # 2. Closures
         closures = await self.get_company_closures(start_date, end_date)
         closure_map = {}
         for closure in closures:
@@ -172,11 +157,9 @@ class CalendarUtils:
                     }
                     current += timedelta(days=1)
 
-        # 3. Work week config
         working_days_limit_val = await self.get_system_config("work_week_days", 5)
         working_days_limit = int(working_days_limit_val)
 
-        # 4. Weekend logic
         excluded_dates_set = set()
         details = {}
         day_names = ["Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"]

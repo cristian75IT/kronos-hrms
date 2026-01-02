@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
 from src.core.config import settings
-from src.core.security import get_current_token, require_admin, TokenPayload
+from src.core.security import get_current_user, require_admin, TokenPayload
 from src.core.exceptions import NotFoundError, ConflictError
 from src.shared.schemas import MessageResponse
 from src.services.config.service import ConfigService
@@ -22,15 +22,7 @@ from src.services.config.schemas import (
     LeaveTypeListResponse,
     LeaveTypeCreate,
     LeaveTypeUpdate,
-    HolidayResponse,
-    HolidayListResponse,
-    HolidayCreate,
-    HolidayUpdate,
-    GenerateHolidaysRequest,
-    CompanyClosureResponse,
-    CompanyClosureListResponse,
-    CompanyClosureCreate,
-    CompanyClosureUpdate,
+    # Note: Holiday and Closure schemas moved to Calendar Service
     ExpenseTypeResponse,
     ExpenseTypeCreate,
     DailyAllowanceRuleResponse,
@@ -101,7 +93,7 @@ async def clear_cache(
 @router.get("/config", response_model=list[SystemConfigResponse])
 async def list_configs(
     category: Optional[str] = None,
-    token: TokenPayload = Depends(get_current_token),  # Any authenticated user can view
+    token: TokenPayload = Depends(get_current_user),  # Any authenticated user can view
     service: ConfigService = Depends(get_config_service),
 ):
     """List all system configurations. Any authenticated user can view."""
@@ -133,7 +125,7 @@ async def create_config(
 ):
     """Create new config entry. Admin only."""
     try:
-        return await service.create_config(data)
+        return await service.create_config(data, user_id=token.user_id)
     except ConflictError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
@@ -147,7 +139,7 @@ async def update_config(
 ):
     """Update config value. Admin only."""
     try:
-        await service.set(key, data.value)
+        await service.set(key, data.value, user_id=token.user_id)
         return ConfigValueResponse(key=key, value=data.value)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -187,7 +179,7 @@ async def create_leave_type(
 ):
     """Create new leave type. Admin only."""
     try:
-        return await service.create_leave_type(data)
+        return await service.create_leave_type(data, user_id=token.user_id)
     except ConflictError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
@@ -201,7 +193,7 @@ async def update_leave_type(
 ):
     """Update leave type. Admin only."""
     try:
-        return await service.update_leave_type(id, data)
+        return await service.update_leave_type(id, data, user_id=token.user_id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -214,147 +206,16 @@ async def delete_leave_type(
 ):
     """Deactivate leave type. Admin only."""
     try:
-        await service.delete_leave_type(id)
+        await service.delete_leave_type(id, user_id=token.user_id)
         return MessageResponse(message="Leave type deactivated")
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 
 # ═══════════════════════════════════════════════════════════
-# Holidays Endpoints
+# NOTE: Holidays and Closures have been migrated to Calendar Service
+# Use Calendar Service endpoints at /api/v1/calendar/holidays and /api/v1/calendar/closures
 # ═══════════════════════════════════════════════════════════
-
-@router.get("/holidays", response_model=HolidayListResponse)
-async def list_holidays(
-    year: int,
-    location_id: Optional[UUID] = None,
-    service: ConfigService = Depends(get_config_service),
-):
-    """List holidays for a year."""
-    holidays = await service.get_holidays(year, location_id)
-    return HolidayListResponse(items=holidays, year=year, total=len(holidays))
-
-
-@router.post("/holidays", response_model=HolidayResponse, status_code=201)
-async def create_holiday(
-    data: HolidayCreate,
-    token: TokenPayload = Depends(require_admin),
-    service: ConfigService = Depends(get_config_service),
-):
-    """Create new holiday. Admin only."""
-    try:
-        return await service.create_holiday(data)
-    except ConflictError as e:
-        raise HTTPException(status_code=409, detail=str(e))
-
-
-@router.delete("/holidays/{id}", response_model=MessageResponse)
-async def delete_holiday(
-    id: UUID,
-    token: TokenPayload = Depends(require_admin),
-    service: ConfigService = Depends(get_config_service),
-):
-    """Delete holiday. Admin only."""
-    try:
-        await service.delete_holiday(id)
-        return MessageResponse(message="Holiday deleted")
-    except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-
-@router.put("/holidays/{id}", response_model=HolidayResponse)
-async def update_holiday(
-    id: UUID,
-    data: HolidayUpdate,
-    token: TokenPayload = Depends(require_admin),
-    service: ConfigService = Depends(get_config_service),
-):
-    """Update holiday (including confirmation). Admin only."""
-    try:
-        return await service.update_holiday(id, data)
-    except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-
-@router.post("/holidays/generate", response_model=list[HolidayResponse])
-async def generate_holidays(
-    data: GenerateHolidaysRequest,
-    token: TokenPayload = Depends(require_admin),
-    service: ConfigService = Depends(get_config_service),
-):
-    """Generate Italian national holidays for a year. Admin only."""
-    return await service.generate_holidays(data)
-
-
-# ═══════════════════════════════════════════════════════════
-# Company Closures Endpoints
-# ═══════════════════════════════════════════════════════════
-
-@router.get("/closures", response_model=CompanyClosureListResponse)
-async def list_closures(
-    year: Optional[int] = None,
-    include_inactive: bool = False,
-    service: ConfigService = Depends(get_config_service),
-):
-    """List company closures for a year."""
-    from datetime import datetime
-    year = year or datetime.now().year
-    closures = await service.get_closures(year, include_inactive)
-    return CompanyClosureListResponse(items=closures, year=year, total=len(closures))
-
-
-@router.post("/closures", response_model=CompanyClosureResponse, status_code=201)
-async def create_closure(
-    data: CompanyClosureCreate,
-    token: TokenPayload = Depends(require_admin),
-    service: ConfigService = Depends(get_config_service),
-):
-    """Create company closure. Admin only."""
-    try:
-        return await service.create_closure(data, created_by=token.sub)
-    except ConflictError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.get("/closures/{id}", response_model=CompanyClosureResponse)
-async def get_closure(
-    id: UUID,
-    token: TokenPayload = Depends(get_current_token),
-    service: ConfigService = Depends(get_config_service),
-):
-    """Get closure by ID."""
-    closure = await service.get_closure(id)
-    if not closure:
-        raise HTTPException(status_code=404, detail="Closure not found")
-    return closure
-
-
-@router.put("/closures/{id}", response_model=CompanyClosureResponse)
-async def update_closure(
-    id: UUID,
-    data: CompanyClosureUpdate,
-    token: TokenPayload = Depends(require_admin),
-    service: ConfigService = Depends(get_config_service),
-):
-    """Update closure. Admin only."""
-    try:
-        return await service.update_closure(id, data)
-    except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-
-@router.delete("/closures/{id}", response_model=MessageResponse)
-async def delete_closure(
-    id: UUID,
-    token: TokenPayload = Depends(require_admin),
-    service: ConfigService = Depends(get_config_service),
-):
-    """Delete closure. Admin only."""
-    try:
-        await service.delete_closure(id)
-        return MessageResponse(message="Closure deleted")
-    except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
 
 
 # ═══════════════════════════════════════════════════════════
@@ -378,7 +239,7 @@ async def create_expense_type(
 ):
     """Create new expense type. Admin only."""
     try:
-        return await service.create_expense_type(data)
+        return await service.create_expense_type(data, actor_id=token.user_id)
     except ConflictError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
@@ -403,7 +264,7 @@ async def create_allowance_rule(
 ):
     """Create new allowance rule. Admin only."""
     try:
-        return await service.create_allowance_rule(data)
+        return await service.create_allowance_rule(data, actor_id=token.user_id)
     except ConflictError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
@@ -441,7 +302,7 @@ async def create_calculation_mode(
 ):
     """Create new calculation mode. Admin only."""
     try:
-        return await service.create_calculation_mode(data)
+        return await service.create_calculation_mode(data, actor_id=token.user_id)
     except ConflictError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
@@ -455,7 +316,7 @@ async def update_calculation_mode(
 ):
     """Update calculation mode. Admin only."""
     try:
-        return await service.update_calculation_mode(id, data)
+        return await service.update_calculation_mode(id, data, actor_id=token.user_id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -468,7 +329,7 @@ async def delete_calculation_mode(
 ):
     """Deactivate calculation mode. Admin only."""
     try:
-        await service.delete_calculation_mode(id)
+        await service.delete_calculation_mode(id, actor_id=token.user_id)
         return MessageResponse(message="Calculation mode deactivated")
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -495,7 +356,7 @@ from src.services.config.schemas import (
 @router.get("/national-contracts", response_model=NationalContractListResponse)
 async def list_national_contracts(
     active_only: bool = True,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ConfigService = Depends(get_config_service),
 ):
     """List all National Contracts (CCNL)."""
@@ -506,7 +367,7 @@ async def list_national_contracts(
 @router.get("/national-contracts/{id}", response_model=NationalContractResponse)
 async def get_national_contract(
     id: UUID,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ConfigService = Depends(get_config_service),
 ):
     """Get National Contract by ID."""
@@ -524,7 +385,7 @@ async def create_national_contract(
 ):
     """Create new National Contract (CCNL). Admin only."""
     try:
-        return await service.create_national_contract(data)
+        return await service.create_national_contract(data, user_id=token.user_id)
     except ConflictError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
@@ -538,7 +399,7 @@ async def update_national_contract(
 ):
     """Update National Contract. Admin only."""
     try:
-        return await service.update_national_contract(id, data)
+        return await service.update_national_contract(id, data, user_id=token.user_id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -551,7 +412,7 @@ async def delete_national_contract(
 ):
     """Deactivate National Contract. Admin only."""
     try:
-        await service.delete_national_contract(id)
+        await service.delete_national_contract(id, user_id=token.user_id)
         return MessageResponse(message="National Contract deactivated")
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -564,7 +425,7 @@ async def delete_national_contract(
 @router.get("/national-contracts/{contract_id}/versions", response_model=NationalContractVersionListResponse)
 async def list_contract_versions(
     contract_id: UUID,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ConfigService = Depends(get_config_service),
 ):
     """List all versions of a National Contract."""
@@ -576,7 +437,7 @@ async def list_contract_versions(
 async def get_current_contract_version(
     contract_id: UUID,
     reference_date: Optional[date] = None,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ConfigService = Depends(get_config_service),
 ):
     """Get the version valid at a specific date (defaults to today)."""
@@ -591,7 +452,7 @@ async def get_current_contract_version(
 @router.get("/national-contracts/versions/{version_id}", response_model=NationalContractVersionResponse)
 async def get_contract_version(
     version_id: UUID,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ConfigService = Depends(get_config_service),
 ):
     """Get a specific version by ID."""
@@ -613,7 +474,7 @@ async def create_contract_version(
     Previous versions will have their valid_to date automatically updated.
     """
     try:
-        return await service.create_contract_version(data, created_by=token.sub)
+        return await service.create_contract_version(data, created_by=token.user_id)
     except ConflictError as e:
         raise HTTPException(status_code=409, detail=str(e))
     except NotFoundError as e:
@@ -632,7 +493,7 @@ async def update_contract_version(
     Warning: Modifying historical versions may affect past calculations.
     """
     try:
-        return await service.update_contract_version(version_id, data)
+        return await service.update_contract_version(version_id, data, user_id=token.user_id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -648,7 +509,7 @@ async def delete_contract_version(
     Warning: This is a hard delete. Use with caution.
     """
     try:
-        await service.delete_contract_version(version_id)
+        await service.delete_contract_version(version_id, user_id=token.user_id)
         return MessageResponse(message="Version deleted")
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -657,7 +518,7 @@ async def delete_contract_version(
 
 @router.get("/contract-types", response_model=list[ContractTypeResponse])
 async def list_contract_types(
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ConfigService = Depends(get_config_service),
 ):
     """List all available contract types."""
@@ -671,7 +532,7 @@ async def create_contract_type_config(
     service: ConfigService = Depends(get_config_service),
 ):
     """Create a contract type configuration override."""
-    return await service.create_contract_type_config(data)
+    return await service.create_contract_type_config(data, actor_id=token.user_id)
 
 
 @router.delete("/national-contracts/type-configs/{id}", response_model=MessageResponse)
@@ -682,7 +543,7 @@ async def delete_contract_type_config(
 ):
     """Delete a contract type configuration override."""
     try:
-        await service.delete_contract_type_config(id)
+        await service.delete_contract_type_config(id, actor_id=token.user_id)
         return MessageResponse(message="Configuration deleted")
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -697,7 +558,7 @@ async def update_contract_type_config(
 ):
     """Update contract type specific parameters."""
     try:
-        return await service.update_contract_type_config(config_id, data)
+        return await service.update_contract_type_config(config_id, data, actor_id=token.user_id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -710,7 +571,7 @@ async def create_contract_level(
 ):
     """Create new contract level."""
     try:
-        return await service.create_national_contract_level(data)
+        return await service.create_national_contract_level(data, actor_id=token.user_id)
     except Exception as e:
         # Generic error handling as service methods might raise DB errors
         raise HTTPException(status_code=400, detail=str(e))
@@ -725,7 +586,7 @@ async def update_contract_level(
 ):
     """Update contract level."""
     try:
-        return await service.update_national_contract_level(level_id, data)
+        return await service.update_national_contract_level(level_id, data, actor_id=token.user_id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -738,7 +599,7 @@ async def delete_contract_level(
 ):
     """Delete contract level."""
     try:
-        await service.delete_national_contract_level(level_id)
+        await service.delete_national_contract_level(level_id, actor_id=token.user_id)
         return MessageResponse(message="Level deleted")
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

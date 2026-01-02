@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import get_current_token, require_admin, require_approver, TokenPayload
+from src.core.security import get_current_user, require_admin, require_approver, TokenPayload
 from src.core.exceptions import NotFoundError, BusinessRuleError, ValidationError
 from src.shared.schemas import MessageResponse, DataTableRequest
 from src.services.expenses.service import ExpenseService
@@ -52,11 +52,11 @@ async def get_expense_service(
 async def get_my_trips(
     year: Optional[int] = None,
     status: Optional[str] = Query(None),
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Get current user's trips."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     status_list = None
     if status:
@@ -70,11 +70,11 @@ async def get_my_trips(
 async def trips_datatable(
     request: DataTableRequest,
     status: Optional[str] = Query(None),
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Get trips for DataTable."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     status_list = None
     if status:
@@ -103,7 +103,7 @@ async def get_pending_trips(
 @router.get("/trips/{id}", response_model=BusinessTripResponse)
 async def get_trip(
     id: UUID,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Get trip by ID."""
@@ -116,11 +116,11 @@ async def get_trip(
 @router.post("/trips", response_model=BusinessTripResponse, status_code=201)
 async def create_trip(
     data: BusinessTripCreate,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Create business trip."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     return await service.create_trip(user_id, data)
 
 
@@ -128,11 +128,11 @@ async def create_trip(
 async def update_trip(
     id: UUID,
     data: BusinessTripUpdate,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Update trip (draft only)."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     try:
         return await service.update_trip(id, user_id, data)
@@ -143,11 +143,11 @@ async def update_trip(
 @router.post("/trips/{id}/submit", response_model=BusinessTripResponse)
 async def submit_trip(
     id: UUID,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Submit trip for approval."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     try:
         return await service.submit_trip(id, user_id)
@@ -163,7 +163,7 @@ async def approve_trip(
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Approve trip. Approver only."""
-    approver_id = UUID(token.keycloak_id)
+    approver_id = token.user_id
     
     try:
         return await service.approve_trip(id, approver_id, data)
@@ -179,7 +179,7 @@ async def reject_trip(
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Reject trip. Approver only."""
-    approver_id = UUID(token.keycloak_id)
+    approver_id = token.user_id
     
     try:
         return await service.reject_trip(id, approver_id, data)
@@ -190,14 +190,46 @@ async def reject_trip(
 @router.post("/trips/{id}/complete", response_model=BusinessTripResponse)
 async def complete_trip(
     id: UUID,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Mark trip as completed."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     try:
         return await service.complete_trip(id, user_id)
+    except (NotFoundError, BusinessRuleError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/trips/{id}", response_model=MessageResponse)
+async def delete_trip(
+    id: UUID,
+    token: TokenPayload = Depends(get_current_user),
+    service: ExpenseService = Depends(get_expense_service),
+):
+    """Delete trip (draft only)."""
+    user_id = token.user_id
+    
+    try:
+        await service.delete_trip(id, user_id)
+        return MessageResponse(message="Trip deleted")
+    except (NotFoundError, BusinessRuleError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/trips/{id}/cancel", response_model=BusinessTripResponse)
+async def cancel_trip(
+    id: UUID,
+    reason: str = Query(...),
+    token: TokenPayload = Depends(get_current_user),
+    service: ExpenseService = Depends(get_expense_service),
+):
+    """Cancel trip request."""
+    user_id = token.user_id
+    
+    try:
+        return await service.cancel_trip(id, user_id, reason)
     except (NotFoundError, BusinessRuleError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -206,11 +238,11 @@ async def complete_trip(
 async def upload_trip_attachment(
     id: UUID,
     file: UploadFile = File(...),
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Upload PDF attachment for a trip."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     content = await file.read()
     
     try:
@@ -230,7 +262,7 @@ async def upload_trip_attachment(
 @router.get("/trips/{trip_id}/allowances", response_model=list[DailyAllowanceResponse])
 async def get_trip_allowances(
     trip_id: UUID,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Get daily allowances for a trip."""
@@ -268,11 +300,11 @@ async def update_allowance(
 @router.get("/expenses", response_model=list[ExpenseReportListItem])
 async def get_my_reports(
     status: Optional[str] = Query(None),
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Get current user's expense reports."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     status_list = None
     if status:
@@ -295,7 +327,7 @@ async def get_pending_reports(
 @router.get("/expenses/{id}", response_model=ExpenseReportWithItems)
 async def get_report(
     id: UUID,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Get expense report with items."""
@@ -308,11 +340,11 @@ async def get_report(
 @router.post("/expenses", response_model=ExpenseReportResponse, status_code=201)
 async def create_report(
     data: ExpenseReportCreate,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Create expense report."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     try:
         return await service.create_report(user_id, data)
@@ -323,14 +355,46 @@ async def create_report(
 @router.post("/expenses/{id}/submit", response_model=ExpenseReportResponse)
 async def submit_report(
     id: UUID,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Submit report for approval."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     try:
         return await service.submit_report(id, user_id)
+    except (NotFoundError, BusinessRuleError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/expenses/{id}", response_model=MessageResponse)
+async def delete_report(
+    id: UUID,
+    token: TokenPayload = Depends(get_current_user),
+    service: ExpenseService = Depends(get_expense_service),
+):
+    """Delete expense report (draft only)."""
+    user_id = token.user_id
+    
+    try:
+        await service.delete_report(id, user_id)
+        return MessageResponse(message="Report deleted")
+    except (NotFoundError, BusinessRuleError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/expenses/{id}/cancel", response_model=ExpenseReportResponse)
+async def cancel_report(
+    id: UUID,
+    reason: str = Query(...),
+    token: TokenPayload = Depends(get_current_user),
+    service: ExpenseService = Depends(get_expense_service),
+):
+    """Cancel expense report."""
+    user_id = token.user_id
+    
+    try:
+        return await service.cancel_report(id, user_id, reason)
     except (NotFoundError, BusinessRuleError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -343,7 +407,7 @@ async def approve_report(
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Approve expense report. Approver only."""
-    approver_id = UUID(token.keycloak_id)
+    approver_id = token.user_id
     
     try:
         return await service.approve_report(id, approver_id, data)
@@ -359,7 +423,7 @@ async def reject_report(
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Reject expense report. Approver only."""
-    approver_id = UUID(token.keycloak_id)
+    approver_id = token.user_id
     
     try:
         return await service.reject_report(id, approver_id, data)
@@ -385,11 +449,11 @@ async def mark_paid(
 async def upload_report_attachment(
     id: UUID,
     file: UploadFile = File(...),
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Upload PDF attachment for an expense report."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     content = await file.read()
     
     try:
@@ -409,11 +473,11 @@ async def upload_report_attachment(
 @router.post("/expenses/items", response_model=ExpenseItemResponse, status_code=201)
 async def add_item(
     data: ExpenseItemCreate,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Add expense item."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     try:
         return await service.add_item(user_id, data)
@@ -425,11 +489,11 @@ async def add_item(
 async def update_item(
     id: UUID,
     data: ExpenseItemUpdate,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Update expense item."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     try:
         return await service.update_item(id, user_id, data)
@@ -440,11 +504,11 @@ async def update_item(
 @router.delete("/expenses/items/{id}", response_model=MessageResponse)
 async def delete_item(
     id: UUID,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Delete expense item."""
-    user_id = UUID(token.keycloak_id)
+    user_id = token.user_id
     
     try:
         await service.delete_item(id, user_id)
