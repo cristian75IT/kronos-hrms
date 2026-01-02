@@ -28,7 +28,7 @@ export function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      await login(username, password);
+      await login(username.trim(), password.trim());
     } catch (err) {
       console.error(err);
       setError('Credenziali non valide. Riprova.');
@@ -45,7 +45,7 @@ export function LoginPage() {
             K
           </div>
           <h2 className="text-3xl font-extrabold text-gray-900">KRONOS</h2>
-          <p className="mt-2 text-sm text-gray-600">Enterprise HR Management System</p>
+          <p className="mt-2 text-sm text-gray-600">HR Management System</p>
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>

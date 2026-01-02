@@ -72,6 +72,7 @@ async def verify_tables():
         ("notifications", "notifications"),
         ("audit", "audit_logs"),
         ("wallet", "employee_wallets"),
+        ("wallet", "trip_wallets"),
     ]
     
     async with engine.begin() as conn:

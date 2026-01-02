@@ -4,6 +4,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { leavesService } from '../services/leaves.service';
 import { tripsService, reportsService } from '../services/expenses.service';
+import { walletsService } from '../services/wallets.service';
 import { userService } from '../services/userService';
 import { configService } from '../services/config.service';
 import { useToast } from '../context/ToastContext';
@@ -14,6 +15,8 @@ import type {
     ExpenseReport,
     ExpenseItem,
     UserWithProfile,
+    TripWallet,
+    TripWalletTransaction,
 } from '../types';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -38,6 +41,8 @@ export const queryKeys = {
     reports: ['expense-reports'] as const,
     report: (id: string) => ['expense-reports', id] as const,
     pendingReports: ['expense-reports', 'pending'] as const,
+    tripWallet: (tripId: string) => ['trip-wallet', tripId] as const,
+    tripTransactions: (tripId: string) => ['trip-wallet', tripId, 'transactions'] as const,
 
     // Users
     users: ['users'] as const,
@@ -245,6 +250,22 @@ export function useUploadTripAttachment() {
             queryClient.invalidateQueries({ queryKey: queryKeys.trip(id) });
             queryClient.invalidateQueries({ queryKey: queryKeys.trips });
         },
+    });
+}
+
+export function useTripWallet(tripId: string) {
+    return useQuery<TripWallet>({
+        queryKey: queryKeys.tripWallet(tripId),
+        queryFn: () => walletsService.getTripWallet(tripId),
+        enabled: !!tripId,
+    });
+}
+
+export function useTripTransactions(tripId: string) {
+    return useQuery<TripWalletTransaction[]>({
+        queryKey: queryKeys.tripTransactions(tripId),
+        queryFn: () => walletsService.getTripTransactions(tripId),
+        enabled: !!tripId,
     });
 }
 

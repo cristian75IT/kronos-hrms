@@ -114,5 +114,10 @@ export const auditApi = axios.create({
     timeout: 10000,
 });
 
+export const walletsApi = axios.create({
+    baseURL: GATEWAY_URL,
+    timeout: 10000,
+});
+
 // Setup interceptors for all services
-[authApi, leavesApi, expensesApi, configApi, auditApi].forEach(setupInterceptors);
+[authApi, leavesApi, expensesApi, configApi, auditApi, walletsApi].forEach(setupInterceptors);

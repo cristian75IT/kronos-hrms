@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { useTrips } from '../../hooks/useApi';
+import { useTrips, useTripWallet, useTripTransactions } from '../../hooks/useApi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { tripsService } from '../../services/expenses.service';
@@ -37,10 +37,14 @@ export function TripDetailPage() {
     const toast = useToast();
     const { isApprover } = useAuth();
     const { data: trips, isLoading, refetch } = useTrips();
-    const [activeTab, setActiveTab] = useState<'details' | 'expenses' | 'allowances'>('details');
+
+    const [activeTab, setActiveTab] = useState<'details' | 'expenses' | 'allowances' | 'wallet'>('details');
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [showRejectModal, setShowRejectModal] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
+
+    const { data: wallet } = useTripWallet(id || '');
+    const { data: transactions } = useTripTransactions(id || '');
 
     // Find the specific trip
     const trip = trips?.find(t => t.id === id);
@@ -273,8 +277,8 @@ export function TripDetailPage() {
                     <div className="flex p-1 space-x-1 bg-gray-100/80 rounded-xl mb-6 border border-gray-200">
                         <button
                             className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${activeTab === 'details'
-                                    ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5'
-                                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5'
+                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
                                 }`}
                             onClick={() => setActiveTab('details')}
                         >
@@ -283,8 +287,8 @@ export function TripDetailPage() {
                         </button>
                         <button
                             className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${activeTab === 'expenses'
-                                    ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5'
-                                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5'
+                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
                                 }`}
                             onClick={() => setActiveTab('expenses')}
                         >
@@ -293,13 +297,23 @@ export function TripDetailPage() {
                         </button>
                         <button
                             className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${activeTab === 'allowances'
-                                    ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5'
-                                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5'
+                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
                                 }`}
                             onClick={() => setActiveTab('allowances')}
                         >
                             <DollarSign size={16} />
                             Diarie
+                        </button>
+                        <button
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${activeTab === 'wallet'
+                                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5'
+                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                                }`}
+                            onClick={() => setActiveTab('wallet')}
+                        >
+                            <DollarSign size={16} />
+                            Contabilità
                         </button>
                     </div>
 
@@ -386,6 +400,130 @@ export function TripDetailPage() {
                                 <p className="text-gray-500 text-sm">
                                     Le diarie verranno calcolate automaticamente al completamento della trasferta.
                                 </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'wallet' && (
+                        <div className="space-y-6 animate-fadeInUp">
+                            {/* Wallet Summary Cards */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Budget Residuo</span>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className={`text-2xl font-black ${wallet && wallet.balance < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                                            €{wallet ? Number(wallet.balance).toFixed(2) : '0.00'}
+                                        </span>
+                                        <span className="text-sm text-gray-500 font-medium">/ €{wallet ? Number(wallet.budget).toFixed(0) : '0'}</span>
+                                    </div>
+                                    <div className="mt-3 w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                        <div
+                                            className={`h-full rounded-full ${wallet && (wallet.spent / wallet.budget) > 0.9 ? 'bg-red-500' : 'bg-indigo-600'}`}
+                                            style={{ width: `${wallet ? Math.min(100, (wallet.spent / wallet.budget) * 100) : 0}%` }}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Speso Totale</span>
+                                    <div className="flex items-baseline gap-1">
+                                        <span className="text-2xl font-black text-gray-900">€{wallet ? Number(wallet.spent).toFixed(2) : '0.00'}</span>
+                                    </div>
+                                    <div className="mt-2 flex gap-4">
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] text-gray-400 uppercase font-bold">Imponibile</span>
+                                            <span className="text-xs font-bold text-gray-700">€{wallet ? Number(wallet.total_taxable).toFixed(2) : '0.00'}</span>
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] text-gray-400 uppercase font-bold">Esente</span>
+                                            <span className="text-xs font-bold text-gray-700">€{wallet ? Number(wallet.total_non_taxable).toFixed(2) : '0.00'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Compliance</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-2xl font-black ${wallet && wallet.policy_violations_count > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                            {wallet ? wallet.policy_violations_count : 0}
+                                        </span>
+                                        <span className="text-xs font-bold text-gray-500 uppercase">Violazioni Policy</span>
+                                    </div>
+                                    {wallet && wallet.policy_violations_count > 0 && (
+                                        <div className="mt-2 flex items-center gap-1.5 text-amber-600">
+                                            <AlertCircle size={14} />
+                                            <span className="text-[10px] font-bold uppercase">Revisione HR suggerita</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Transactions Table */}
+                            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                                <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                                    <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Registro Transazioni</h3>
+                                    <span className="text-xs text-gray-500 font-medium">{transactions?.length || 0} movimenti</span>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-white">
+                                                <th className="px-6 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">Data</th>
+                                                <th className="px-6 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">Descrizione</th>
+                                                <th className="px-6 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">Categoria</th>
+                                                <th className="px-6 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 text-right">Importo</th>
+                                                <th className="px-6 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 text-center">Receipt</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {transactions && transactions.length > 0 ? (
+                                                transactions.map((tx) => (
+                                                    <tr key={tx.id} className="hover:bg-gray-50/50 transition-colors">
+                                                        <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-600">
+                                                            {format(new Date(tx.created_at), 'dd/MM/yyyy HH:mm')}
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-sm font-bold text-gray-900">{tx.description}</span>
+                                                                <span className="text-[10px] text-gray-400 font-medium uppercase">{tx.transaction_type}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 uppercase">
+                                                                {tx.category}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            <div className="flex flex-col items-end">
+                                                                <span className={`text-sm font-black ${tx.amount < 0 ? 'text-emerald-600' : 'text-gray-900'}`}>
+                                                                    {tx.amount < 0 ? '' : '-'} €{Math.abs(tx.amount).toFixed(2)}
+                                                                </span>
+                                                                {tx.tax_amount > 0 && (
+                                                                    <span className="text-[10px] text-gray-400">IVA: €{tx.tax_amount.toFixed(2)}</span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            {tx.has_receipt ? (
+                                                                <CheckCircle size={16} className="text-emerald-500 mx-auto" />
+                                                            ) : tx.transaction_type === 'expense_approval' ? (
+                                                                <span title="Ricevuta mancante">
+                                                                    <XCircle size={16} className="text-amber-500 mx-auto tooltip" />
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-gray-300">-</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan={5} className="px-6 py-12 text-center text-gray-400 text-sm italic">
+                                                        Nessun movimento contabile registrato
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     )}

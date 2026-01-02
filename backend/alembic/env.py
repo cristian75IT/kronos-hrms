@@ -22,7 +22,8 @@ from src.services.expenses.models import Base as ExpensesBase
 from src.services.config.models import Base as ConfigBase
 from src.services.notifications.models import Base as NotificationsBase
 from src.services.audit.models import Base as AuditBase
-from src.services.wallet.models import Base as WalletBase
+from src.services.leaves_wallet.models import Base as LeavesWalletBase
+from src.services.expensive_wallet.models import Base as ExpensiveWalletBase
 
 # Use a combined metadata
 from src.core.database import Base

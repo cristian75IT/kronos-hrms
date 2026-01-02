@@ -25,7 +25,7 @@ class EmployeeWallet(Base):
     """Employee time wallet containing Vacation, ROL, and Permits balances."""
     
     __tablename__ = "employee_wallets"
-    __table_args__ = {"schema": "time_wallet"}
+    __table_args__ = {"schema": "wallet"}
     
     id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -105,7 +105,7 @@ class WalletTransaction(Base):
     """Audit log for all wallet movements (accruals, deductions, adjustments)."""
     
     __tablename__ = "wallet_transactions"
-    __table_args__ = {"schema": "time_wallet"}
+    __table_args__ = {"schema": "wallet"}
     
     id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -114,7 +114,7 @@ class WalletTransaction(Base):
     )
     wallet_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("time_wallet.employee_wallets.id", ondelete="CASCADE"),
+        ForeignKey("wallet.employee_wallets.id", ondelete="CASCADE"),
         nullable=False,
     )
     
