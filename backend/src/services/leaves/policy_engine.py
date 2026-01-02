@@ -87,17 +87,26 @@ class PolicyEngine:
             balance_type = leave_type.get("balance_type")
             summary = await self._balance_service.get_balance_summary(user_id, start_date.year)
             
+            # Check global config for blocking behavior
+            block_on_insufficient = await self._config_client.get_sys_config(
+                "leaves.block_insufficient_balance", True
+            )
+
             if balance_type == "vacation":
                 # For validation, we use available which already accounts for pending
                 # Wait, does get_balance_summary.vacation_available account for pending?
                 # Let's check my implementation:
                 # vacation_available = vac_total (confirmed)
                 # I should probably subtract pending locally if I want strictly "available for NEW request"
-                available = summary.vacation_available - summary.vacation_pending
+                available = summary.vacation_total_available - summary.vacation_pending
                 
                 if days_requested > available and not leave_type.get("allow_negative_balance", False):
-                    balance_sufficient = False
-                    errors.append(f"Saldo ferie insufficiente. Disponibile (netto pendenti): {available}gg.")
+                    msg = f"Saldo ferie insufficiente. Disponibile (netto pendenti): {available}gg."
+                    if block_on_insufficient:
+                        balance_sufficient = False
+                        errors.append(msg)
+                    else:
+                        warnings.append(f"ATTENZIONE: {msg}")
                 
                 # We pass 'vacation' to breakdown, WalletService will handle the FIFO
                 balance_breakdown = {"vacation": float(days_requested)}
@@ -106,16 +115,24 @@ class PolicyEngine:
                 available = summary.rol_available - summary.rol_pending
                 hours_requested = days_requested * 8
                 if hours_requested > available and not leave_type.get("allow_negative_balance", False):
-                    balance_sufficient = False
-                    errors.append(f"Saldo ROL insufficiente. Disponibile (netto pendenti): {available}h.")
+                    msg = f"Saldo ROL insufficiente. Disponibile (netto pendenti): {available}h."
+                    if block_on_insufficient:
+                        balance_sufficient = False
+                        errors.append(msg)
+                    else:
+                        warnings.append(f"ATTENZIONE: {msg}")
                 balance_breakdown = {"rol": float(hours_requested)}
 
             elif balance_type == "permits":
                 available = summary.permits_available - summary.permits_pending
                 hours_requested = days_requested * 8
                 if hours_requested > available and not leave_type.get("allow_negative_balance", False):
-                    balance_sufficient = False
-                    errors.append(f"Saldo permessi insufficiente. Disponibile (netto pendenti): {available}h.")
+                    msg = f"Saldo permessi insufficiente. Disponibile (netto pendenti): {available}h."
+                    if block_on_insufficient:
+                        balance_sufficient = False
+                        errors.append(msg)
+                    else:
+                        warnings.append(f"ATTENZIONE: {msg}")
                 balance_breakdown = {"permits": float(hours_requested)}
 
         return PolicyValidationResult(

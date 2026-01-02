@@ -2,19 +2,32 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Optional, Dict, Any, List, Set, Union
 
-from src.shared.clients import ConfigClient
+from src.shared.clients import ConfigClient, CalendarClient
 
 class CalendarUtils:
-    """Utilities for calendar calculations (working days, holidays, closures)."""
+    """Utilities for calendar calculations (working days, holidays, closures).
+    
+    Now primarily uses the Calendar microservice, with fallback to Config service.
+    """
 
-    def __init__(self, config_client: ConfigClient):
-        self.config_client = config_client
+    def __init__(self, config_client: ConfigClient = None, calendar_client: CalendarClient = None):
+        self.config_client = config_client or ConfigClient()
+        self.calendar_client = calendar_client or CalendarClient()
+        # Flag to control which service to use
+        self._use_calendar_service = True
 
     async def get_system_config(self, key: str, default: Any = None) -> Any:
         return await self.config_client.get_sys_config(key, default)
 
     async def get_holidays(self, year: int, start_date: Optional[date] = None, end_date: Optional[date] = None) -> List[dict]:
         """Get holidays for a specific year, optionally filtering by date range."""
+        if self._use_calendar_service:
+            try:
+                holidays = await self.calendar_client.get_holidays(year, start_date, end_date)
+                if holidays:
+                    return holidays
+            except Exception:
+                pass  # Fallback to config client
         return await self.config_client.get_holidays(year, start_date, end_date)
 
     async def get_company_closures(self, start_date: date, end_date: date) -> List[dict]:
@@ -25,7 +38,15 @@ class CalendarUtils:
         
         all_closures = []
         for year in years:
-            closures = await self.config_client.get_company_closures(year)
+            closures = []
+            if self._use_calendar_service:
+                try:
+                    closures = await self.calendar_client.get_closures(year)
+                except Exception:
+                    closures = await self.config_client.get_company_closures(year)
+            else:
+                closures = await self.config_client.get_company_closures(year)
+            
             for closure in closures:
                 closure_start = closure.get("start_date")
                 closure_end = closure.get("end_date")
@@ -48,7 +69,7 @@ class CalendarUtils:
         
         holidays = []
         for year in years:
-            h_list = await self.config_client.get_holidays(year, start_date, end_date)
+            h_list = await self.get_holidays(year, start_date, end_date)
             holidays.extend(h_list)
 
         holiday_map = {}

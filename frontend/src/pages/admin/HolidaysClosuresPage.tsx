@@ -1,6 +1,8 @@
 /**
  * KRONOS - Holidays & Closures Management Page
  * Enterprise admin page for managing holidays (national, regional, local) and company closures
+ * 
+ * Now uses the Calendar microservice API instead of config-service
  */
 import { useState, useEffect } from 'react';
 import {
@@ -19,36 +21,14 @@ import {
     Copy,
     AlertCircle,
     Sparkles,
+    Download,
+    Link,
 } from 'lucide-react';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { useToast } from '../../context/ToastContext';
-import { configApi } from '../../services/api';
-
-interface Holiday {
-    id: string;
-    date: string;
-    name: string;
-    is_national: boolean;
-    is_regional: boolean;
-    region_code?: string;
-    location_id?: string;
-    year: number;
-    is_confirmed: boolean;
-    created_at: string;
-}
-
-interface CompanyClosure {
-    id: string;
-    name: string;
-    description?: string;
-    start_date: string;
-    end_date: string;
-    closure_type: 'total' | 'partial';
-    is_paid: boolean;
-    consumes_leave_balance: boolean;
-    created_at: string;
-}
+import { calendarService } from '../../services/calendar.service';
+import type { Holiday, Closure } from '../../services/calendar.service';
 
 type TabType = 'holidays' | 'closures';
 type HolidayFilter = 'all' | 'national' | 'local';
@@ -59,7 +39,7 @@ export function HolidaysClosuresPage() {
     const [activeTab, setActiveTab] = useState<TabType>('holidays');
     const [year, setYear] = useState(new Date().getFullYear());
     const [holidays, setHolidays] = useState<Holiday[]>([]);
-    const [closures, setClosures] = useState<CompanyClosure[]>([]);
+    const [closures, setClosures] = useState<Closure[]>([]);
     const [loading, setLoading] = useState(true);
     const [holidayFilter, setHolidayFilter] = useState<HolidayFilter>('all');
 
@@ -67,7 +47,7 @@ export function HolidaysClosuresPage() {
     const [showHolidayModal, setShowHolidayModal] = useState(false);
     const [showClosureModal, setShowClosureModal] = useState(false);
     const [editingHoliday, setEditingHoliday] = useState<Holiday | null>(null);
-    const [editingClosure, setEditingClosure] = useState<CompanyClosure | null>(null);
+    const [editingClosure, setEditingClosure] = useState<Closure | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
 
@@ -75,7 +55,7 @@ export function HolidaysClosuresPage() {
     const [holidayForm, setHolidayForm] = useState({
         date: '',
         name: '',
-        is_national: true,
+        scope: 'national' as 'national' | 'regional' | 'local' | 'company',
     });
 
     // Closure form
@@ -96,12 +76,12 @@ export function HolidaysClosuresPage() {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [holidaysRes, closuresRes] = await Promise.all([
-                configApi.get(`/holidays?year=${year}`),
-                configApi.get(`/closures?year=${year}`),
+            const [holidaysData, closuresData] = await Promise.all([
+                calendarService.getHolidays({ year }),
+                calendarService.getClosures({ year }),
             ]);
-            setHolidays(holidaysRes.data.items || []);
-            setClosures(closuresRes.data.items || []);
+            setHolidays(holidaysData || []);
+            setClosures(closuresData || []);
         } catch (error) {
             console.error('Failed to load data:', error);
             toast.error('Errore nel caricamento dei dati');
@@ -113,11 +93,12 @@ export function HolidaysClosuresPage() {
     const generateNationalHolidays = async () => {
         setIsGenerating(true);
         try {
-            await configApi.post('/holidays/generate', { year });
-            toast.success(`Festività nazionali ${year} generate con successo`);
+            const created = await calendarService.generateHolidaysForYear(year);
+            toast.success(`${created.length} festività nazionali ${year} generate con successo`);
             loadData();
-        } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Errore nella generazione');
+        } catch (error: unknown) {
+            const err = error as { response?: { data?: { detail?: string } } };
+            toast.error(err.response?.data?.detail || 'Errore nella generazione');
         } finally {
             setIsGenerating(false);
         }
@@ -128,37 +109,10 @@ export function HolidaysClosuresPage() {
 
         setIsGenerating(true);
         try {
-            // Get previous year holidays
-            const prevRes = await configApi.get(`/holidays?year=${year - 1}`);
-            const prevHolidays = prevRes.data.items || [];
-
-            let copied = 0;
-            for (const holiday of prevHolidays) {
-                // Calculate new date (same month/day, new year)
-                const oldDate = new Date(holiday.date);
-                const newDate = `${year}-${String(oldDate.getMonth() + 1).padStart(2, '0')}-${String(oldDate.getDate()).padStart(2, '0')}`;
-
-                // Check if already exists
-                const exists = holidays.some(h => h.date === newDate && h.name === holiday.name);
-                if (!exists) {
-                    try {
-                        await configApi.post('/holidays', {
-                            date: newDate,
-                            name: holiday.name,
-                            is_national: holiday.is_national,
-                            is_regional: holiday.is_regional || false,
-                            region_code: holiday.region_code,
-                        });
-                        copied++;
-                    } catch {
-                        // Skip duplicates
-                    }
-                }
-            }
-
+            const copied = await calendarService.copyHolidaysFromYear(year - 1, year);
             toast.success(`${copied} festività copiate dal ${year - 1}`);
             loadData();
-        } catch (error: any) {
+        } catch {
             toast.error('Errore nella copia');
         } finally {
             setIsGenerating(false);
@@ -167,10 +121,10 @@ export function HolidaysClosuresPage() {
 
     const confirmHoliday = async (holiday: Holiday) => {
         try {
-            await configApi.put(`/holidays/${holiday.id}`, { is_confirmed: true });
+            await calendarService.updateHoliday(holiday.id, { is_confirmed: true });
             toast.success('Festività confermata');
             loadData();
-        } catch (error) {
+        } catch {
             toast.error('Errore nella conferma');
         }
     };
@@ -179,17 +133,27 @@ export function HolidaysClosuresPage() {
         setIsSaving(true);
         try {
             if (editingHoliday) {
-                await configApi.put(`/holidays/${editingHoliday.id}`, holidayForm);
+                await calendarService.updateHoliday(editingHoliday.id, {
+                    date: holidayForm.date,
+                    name: holidayForm.name,
+                    scope: holidayForm.scope,
+                });
                 toast.success('Festività aggiornata');
             } else {
-                await configApi.post('/holidays', holidayForm);
+                await calendarService.createHoliday({
+                    date: holidayForm.date,
+                    name: holidayForm.name,
+                    year,
+                    scope: holidayForm.scope,
+                });
                 toast.success('Festività aggiunta');
             }
             setShowHolidayModal(false);
             setEditingHoliday(null);
             loadData();
-        } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Errore');
+        } catch (error: unknown) {
+            const err = error as { response?: { data?: { detail?: string } } };
+            toast.error(err.response?.data?.detail || 'Errore');
         } finally {
             setIsSaving(false);
         }
@@ -199,17 +163,21 @@ export function HolidaysClosuresPage() {
         setIsSaving(true);
         try {
             if (editingClosure) {
-                await configApi.put(`/closures/${editingClosure.id}`, closureForm);
+                await calendarService.updateClosure(editingClosure.id, closureForm);
                 toast.success('Chiusura aggiornata');
             } else {
-                await configApi.post('/closures', closureForm);
+                await calendarService.createClosure({
+                    ...closureForm,
+                    year,
+                });
                 toast.success('Chiusura pianificata');
             }
             setShowClosureModal(false);
             setEditingClosure(null);
             loadData();
-        } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Errore');
+        } catch (error: unknown) {
+            const err = error as { response?: { data?: { detail?: string } } };
+            toast.error(err.response?.data?.detail || 'Errore');
         } finally {
             setIsSaving(false);
         }
@@ -218,10 +186,10 @@ export function HolidaysClosuresPage() {
     const handleDeleteHoliday = async (id: string) => {
         if (!window.confirm('Eliminare questa festività?')) return;
         try {
-            await configApi.delete(`/holidays/${id}`);
+            await calendarService.deleteHoliday(id);
             toast.success('Festività eliminata');
             loadData();
-        } catch (error) {
+        } catch {
             toast.error('Errore');
         }
     };
@@ -229,17 +197,17 @@ export function HolidaysClosuresPage() {
     const handleDeleteClosure = async (id: string) => {
         if (!window.confirm('Eliminare questa chiusura?')) return;
         try {
-            await configApi.delete(`/closures/${id}`);
+            await calendarService.deleteClosure(id);
             toast.success('Chiusura eliminata');
             loadData();
-        } catch (error) {
+        } catch {
             toast.error('Errore');
         }
     };
 
     const openNewHoliday = () => {
         setEditingHoliday(null);
-        setHolidayForm({ date: '', name: '', is_national: true });
+        setHolidayForm({ date: '', name: '', scope: 'national' });
         setShowHolidayModal(true);
     };
 
@@ -248,7 +216,7 @@ export function HolidaysClosuresPage() {
         setHolidayForm({
             date: holiday.date,
             name: holiday.name,
-            is_national: holiday.is_national,
+            scope: holiday.scope,
         });
         setShowHolidayModal(true);
     };
@@ -267,7 +235,7 @@ export function HolidaysClosuresPage() {
         setShowClosureModal(true);
     };
 
-    const openEditClosure = (closure: CompanyClosure) => {
+    const openEditClosure = (closure: Closure) => {
         setEditingClosure(closure);
         setClosureForm({
             name: closure.name,
@@ -283,8 +251,8 @@ export function HolidaysClosuresPage() {
 
     const filteredHolidays = holidays.filter(h => {
         if (holidayFilter === 'all') return true;
-        if (holidayFilter === 'national') return h.is_national;
-        if (holidayFilter === 'local') return !h.is_national;
+        if (holidayFilter === 'national') return h.scope === 'national';
+        if (holidayFilter === 'local') return h.scope !== 'national';
         return true;
     }).sort((a, b) => a.date.localeCompare(b.date));
 
@@ -328,6 +296,59 @@ export function HolidaysClosuresPage() {
                     >
                         <ChevronRight size={18} />
                     </button>
+                </div>
+
+                {/* Export Dropdown */}
+                <div className="relative group">
+                    <button
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg transition-colors shadow-sm"
+                    >
+                        <Download size={16} />
+                        Esporta iCal
+                    </button>
+                    <div className="absolute right-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                        <div className="p-3 border-b border-gray-100">
+                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Sincronizza con Calendar</p>
+                        </div>
+                        <div className="p-2 space-y-1">
+                            <button
+                                onClick={() => calendarService.downloadHolidaysIcs(year)}
+                                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 rounded-lg transition-colors text-left"
+                            >
+                                <Flag size={16} className="text-red-500" />
+                                <div>
+                                    <div className="font-medium">Festività {year}</div>
+                                    <div className="text-xs text-gray-400">Scarica file .ics</div>
+                                </div>
+                            </button>
+                            <button
+                                onClick={() => calendarService.downloadClosuresIcs(year)}
+                                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 rounded-lg transition-colors text-left"
+                            >
+                                <Building size={16} className="text-purple-500" />
+                                <div>
+                                    <div className="font-medium">Chiusure {year}</div>
+                                    <div className="text-xs text-gray-400">Scarica file .ics</div>
+                                </div>
+                            </button>
+                            <button
+                                onClick={() => calendarService.downloadCombinedIcs(year)}
+                                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 rounded-lg transition-colors text-left"
+                            >
+                                <Calendar size={16} className="text-indigo-500" />
+                                <div>
+                                    <div className="font-medium">Calendario Completo {year}</div>
+                                    <div className="text-xs text-gray-400">Festività + Chiusure</div>
+                                </div>
+                            </button>
+                        </div>
+                        <div className="p-3 border-t border-gray-100 bg-gray-50/50 rounded-b-xl">
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                                <Link size={12} />
+                                <span>Aggiungi a Google Calendar, Outlook o Apple Calendar</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -420,17 +441,18 @@ export function HolidaysClosuresPage() {
                         <div className="divide-y divide-gray-100">
                             {filteredHolidays.map(holiday => (
                                 <div key={holiday.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors">
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${holiday.is_national
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${holiday.scope === 'national'
                                         ? 'bg-red-100 text-red-600'
                                         : 'bg-orange-100 text-orange-600'
                                         }`}>
-                                        {holiday.is_national ? <Flag size={20} /> : <MapPin size={20} />}
+                                        {holiday.scope === 'national' ? <Flag size={20} /> : <MapPin size={20} />}
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
                                             <span className="font-semibold text-gray-900">{holiday.name}</span>
-                                            {holiday.is_national && <span className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded">Nazionale</span>}
-                                            {!holiday.is_national && <span className="px-2 py-0.5 text-xs bg-orange-100 text-orange-700 rounded">Locale</span>}
+                                            {holiday.scope === 'national' && <span className="px-2 py-0.5 text-xs bg-red-100 text-red-700 rounded">Nazionale</span>}
+                                            {holiday.scope === 'regional' && <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded">Regionale</span>}
+                                            {(holiday.scope === 'local' || holiday.scope === 'company') && <span className="px-2 py-0.5 text-xs bg-orange-100 text-orange-700 rounded">Locale</span>}
                                             {!holiday.is_confirmed && (
                                                 <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-700 rounded flex items-center gap-1">
                                                     <AlertCircle size={10} />
@@ -595,8 +617,8 @@ export function HolidaysClosuresPage() {
                                         <input
                                             type="radio"
                                             name="holidayType"
-                                            checked={holidayForm.is_national}
-                                            onChange={() => setHolidayForm({ ...holidayForm, is_national: true })}
+                                            checked={holidayForm.scope === 'national'}
+                                            onChange={() => setHolidayForm({ ...holidayForm, scope: 'national' })}
                                             className="border-gray-300 text-indigo-600"
                                         />
                                         <span className="text-sm">🇮🇹 Festività Nazionale</span>
@@ -605,8 +627,18 @@ export function HolidaysClosuresPage() {
                                         <input
                                             type="radio"
                                             name="holidayType"
-                                            checked={!holidayForm.is_national}
-                                            onChange={() => setHolidayForm({ ...holidayForm, is_national: false })}
+                                            checked={holidayForm.scope === 'regional'}
+                                            onChange={() => setHolidayForm({ ...holidayForm, scope: 'regional' })}
+                                            className="border-gray-300 text-indigo-600"
+                                        />
+                                        <span className="text-sm">🏛️ Festività Regionale</span>
+                                    </label>
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="holidayType"
+                                            checked={holidayForm.scope === 'local' || holidayForm.scope === 'company'}
+                                            onChange={() => setHolidayForm({ ...holidayForm, scope: 'local' })}
                                             className="border-gray-300 text-indigo-600"
                                         />
                                         <span className="text-sm">📍 Festività Locale (es. Santo Patrono)</span>

@@ -34,7 +34,10 @@ async def get_my_balance(
 ):
     """Get current user's balance."""
     user_id = token.user_id
-    return await service.get_balance(user_id, year)
+    balance = await service.get_balance(user_id, year)
+    if not balance:
+        raise HTTPException(status_code=404, detail="Balance not found")
+    return balance
 
 
 @router.get("/balances/me/summary", response_model=BalanceSummary)
@@ -56,7 +59,10 @@ async def get_user_balance(
     service: LeaveBalanceService = Depends(get_balance_service),
 ):
     """Get a user's balance. Admin only."""
-    return await service.get_balance(user_id, year)
+    balance = await service.get_balance(user_id, year)
+    if not balance:
+        raise HTTPException(status_code=404, detail="Balance not found")
+    return balance
 
 
 @router.post("/balances/{user_id}/adjust", response_model=LeaveBalanceResponse)

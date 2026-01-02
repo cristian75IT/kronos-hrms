@@ -311,3 +311,135 @@ class ExpensiveWalletClient:
         except Exception as e:
             logger.error(f"ExpensiveWalletClient error get_transactions: {e}")
         return []
+
+
+class CalendarClient:
+    """Client for Calendar Service interactions."""
+    
+    def __init__(self):
+        self.base_url = settings.calendar_service_url if hasattr(settings, 'calendar_service_url') else "http://calendar-service:8009"
+
+    async def get_holidays(
+        self, 
+        year: int, 
+        start_date: Optional[date] = None, 
+        end_date: Optional[date] = None
+    ) -> list[dict]:
+        """Get holidays from calendar service."""
+        try:
+            params = {"year": year}
+            if start_date:
+                params["start_date"] = start_date.isoformat()
+            if end_date:
+                params["end_date"] = end_date.isoformat()
+                
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/holidays",
+                    params=params,
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    return data if isinstance(data, list) else data.get("items", [])
+        except Exception as e:
+            logger.error(f"CalendarClient error get_holidays: {e}")
+        return []
+
+    async def get_closures(self, year: int) -> list[dict]:
+        """Get company closures from calendar service."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/closures",
+                    params={"year": year},
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    return data if isinstance(data, list) else data.get("items", [])
+        except Exception as e:
+            logger.error(f"CalendarClient error get_closures: {e}")
+        return []
+
+    async def get_calendar_range(
+        self, 
+        start_date: date, 
+        end_date: date,
+        location_id: Optional[UUID] = None
+    ) -> Optional[dict]:
+        """Get aggregated calendar view for a date range."""
+        try:
+            params = {
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+            }
+            if location_id:
+                params["location_id"] = str(location_id)
+                
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/calendar/range",
+                    params=params,
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"CalendarClient error get_calendar_range: {e}")
+        return None
+
+    async def calculate_working_days(
+        self,
+        start_date: date,
+        end_date: date,
+        location_id: Optional[UUID] = None,
+        exclude_closures: bool = True,
+        exclude_holidays: bool = True,
+    ) -> Optional[dict]:
+        """Calculate working days between two dates."""
+        try:
+            payload = {
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "exclude_closures": exclude_closures,
+                "exclude_holidays": exclude_holidays,
+            }
+            if location_id:
+                payload["location_id"] = str(location_id)
+                
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/calendar/working-days",
+                    json=payload,
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"CalendarClient error calculate_working_days: {e}")
+        return None
+
+    async def is_working_day(
+        self,
+        check_date: date,
+        location_id: Optional[UUID] = None,
+    ) -> bool:
+        """Check if a specific date is a working day."""
+        try:
+            params = {}
+            if location_id:
+                params["location_id"] = str(location_id)
+                
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/calendar/working-days/check/{check_date.isoformat()}",
+                    params=params if params else None,
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    return data.get("is_working_day", True)
+        except Exception as e:
+            logger.error(f"CalendarClient error is_working_day: {e}")
+        return True  # Default to working day on error

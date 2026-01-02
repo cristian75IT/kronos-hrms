@@ -92,6 +92,7 @@ services:
       - AUDIT_SERVICE_URL=http://audit-service:8007
       - NOTIFICATION_SERVICE_URL=http://notification-service:8005
       - LEAVES_WALLET_SERVICE_URL=http://leaves-wallet-service:8008
+      - CALENDAR_SERVICE_URL=http://calendar-service:8009
       - KEYCLOAK_URL=http://keycloak:8080/
       - KEYCLOAK_REALM=kronos
       - KEYCLOAK_CLIENT_ID=kronos-backend
@@ -250,6 +251,35 @@ services:
     ports:
       - "8008:8008"
     command: uvicorn src.services.leaves_wallet.main:app --host 0.0.0.0 --port 8008 --reload
+    volumes:
+      - ./backend:/app
+    networks:
+      - kronos-internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  calendar-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kronos-calendar
+    environment:
+      - SERVICE_NAME=calendar-service
+      - DATABASE_URL=postgresql+asyncpg://kronos:kronos_dev@postgres:5432/kronos
+      - DATABASE_SCHEMA=calendar
+      - REDIS_URL=redis://redis:6379/7
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - KEYCLOAK_URL=http://keycloak:8080/
+      - KEYCLOAK_REALM=kronos
+      - KEYCLOAK_CLIENT_ID=kronos-backend
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    ports:
+      - "8009:8009"
+    command: uvicorn src.services.calendar.main:app --host 0.0.0.0 --port 8009 --reload
     volumes:
       - ./backend:/app
     networks:

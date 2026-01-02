@@ -97,6 +97,9 @@ class Settings(BaseSettings):
     leaves_wallet_service_url: str = Field(
         default="http://localhost:8008", alias="LEAVES_WALLET_SERVICE_URL"
     )
+    calendar_service_url: str = Field(
+        default="http://localhost:8009", alias="CALENDAR_SERVICE_URL"
+    )
 
     @computed_field
     @property
