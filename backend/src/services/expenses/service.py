@@ -473,20 +473,25 @@ class ExpenseService:
             approver_notes=data.notes,
         )
         
-        # Register in Trip Wallet
-        try:
-            await self._wallet_client.create_transaction(
-                report.trip_id,
-                {
-                    "transaction_type": "expense_approval",
-                    "amount": float(approved_amount),
-                    "reference_id": str(id),
-                    "description": f"Approved expense report {report.report_number}",
-                    "created_by": str(approver_id)
-                }
-            )
-        except Exception as e:
-            self._audit.log_error(f"Failed to register expense in wallet for report {id}: {e}")
+        # Register items in Trip Wallet for granular tracking
+        for item in report.items:
+            if item.is_approved:
+                try:
+                    await self._wallet_client.create_transaction(
+                        report.trip_id,
+                        {
+                            "transaction_type": "expense_approval",
+                            "amount": float(item.amount_eur),
+                            "category": self._map_expense_category(item.expense_type_code),
+                            "reference_id": str(item.id),
+                            "description": item.description,
+                            "has_receipt": item.receipt_path is not None,
+                            "is_reimbursable": True, # Default for expense items
+                            "created_by": str(approver_id)
+                        }
+                    )
+                except Exception as e:
+                    self._audit.log_error(f"Failed to register item {item.id} in wallet: {e}")
         
         return await self.get_report(id)
 
@@ -519,18 +524,18 @@ class ExpenseService:
             payment_reference=data.payment_reference,
         )
         
-        # Register payment in Wallet (optional, if we want to track payments)
+        # Register payment in Wallet
         try:
-            # Reimbursing the net amount to the employee
             amount = report.approved_amount or report.total_amount
             await self._wallet_client.create_transaction(
                 report.trip_id,
                 {
-                    "transaction_type": "reimbursement_payment",
+                    "transaction_type": "refund", # In wallet terms, a reimbursement reduces the liability or closes the cycle
                     "amount": float(amount),
+                    "category": "PAYMENT",
                     "reference_id": str(id),
-                    "description": f"Payment for report {report.report_number}",
-                    "created_by": None # System or Admin
+                    "description": f"Liquidazione Nota Spese {report.report_number}",
+                    "created_by": None
                 }
             )
         except Exception as e:
@@ -710,4 +715,16 @@ class ExpenseService:
     async def _get_user_email(self, user_id: UUID) -> Optional[str]:
         """Get user email from auth service."""
         return await self._auth_client.get_user_email(user_id)
-        return None
+
+    def _map_expense_category(self, code: str) -> str:
+        """Map internal expense type codes to wallet categories."""
+        mapping = {
+            "VIT": "FOOD",
+            "ALL": "HOTEL",
+            "TRA": "TRANSPORT",
+            "AUT": "TRANSPORT",
+            "PAR": "TRANSPORT",
+            "TEL": "COMMUNICATION",
+            "DIV": "OTHER"
+        }
+        return mapping.get(code, "OTHER")

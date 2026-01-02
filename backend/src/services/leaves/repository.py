@@ -12,8 +12,6 @@ from src.services.leaves.models import (
     LeaveRequest,
     LeaveRequestStatus,
     LeaveRequestHistory,
-    LeaveBalance,
-    BalanceTransaction,
 )
 from src.shared.schemas import DataTableRequest
 
@@ -255,107 +253,4 @@ class LeaveRequestRepository:
         return history
 
 
-class LeaveBalanceRepository:
-    """Repository for leave balances."""
-
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
-
-    async def get(self, id: UUID) -> Optional[LeaveBalance]:
-        """Get balance by ID."""
-        result = await self._session.execute(
-            select(LeaveBalance).where(LeaveBalance.id == id)
-        )
-        return result.scalar_one_or_none()
-
-    async def get_by_user_year(
-        self,
-        user_id: UUID,
-        year: int,
-    ) -> Optional[LeaveBalance]:
-        """Get balance for user and year."""
-        result = await self._session.execute(
-            select(LeaveBalance).where(
-                and_(
-                    LeaveBalance.user_id == user_id,
-                    LeaveBalance.year == year,
-                )
-            )
-        )
-        return result.scalar_one_or_none()
-
-    async def get_or_create(
-        self,
-        user_id: UUID,
-        year: int,
-    ) -> LeaveBalance:
-        """Get existing balance or create new one."""
-        balance = await self.get_by_user_year(user_id, year)
-        if balance:
-            return balance
-        
-        balance = LeaveBalance(user_id=user_id, year=year)
-        self._session.add(balance)
-        await self._session.flush()
-        await self._session.refresh(balance)
-        return balance
-
-    async def update(self, id: UUID, **kwargs: Any) -> Optional[LeaveBalance]:
-        """Update balance."""
-        balance = await self.get(id)
-        if not balance:
-            return None
-        
-        for field, value in kwargs.items():
-            if hasattr(balance, field) and value is not None:
-                setattr(balance, field, value)
-        
-        await self._session.flush()
-        await self._session.refresh(balance)
-        return balance
-
-    async def add_transaction(
-        self,
-        balance_id: UUID,
-        transaction_type: str,
-        balance_type: str,
-        amount: Decimal,
-        balance_after: Optional[Decimal] = None,
-        leave_request_id: Optional[UUID] = None,
-        reason: Optional[str] = None,
-        expiry_date: Optional[date] = None,
-        created_by: Optional[UUID] = None,
-    ) -> BalanceTransaction:
-        """Add balance transaction for audit."""
-        if balance_after is None:
-            # Fallback to current balance total if not provided
-            balance_after = Decimal(0) # In a real scenario we might fetch the balance here
-            
-        transaction = BalanceTransaction(
-            balance_id=balance_id,
-            leave_request_id=leave_request_id,
-            transaction_type=transaction_type,
-            balance_type=balance_type,
-            amount=amount,
-            remaining_amount=max(Decimal(0), amount),
-            balance_after=balance_after,
-            reason=reason,
-            expiry_date=expiry_date,
-            created_by=created_by,
-        )
-        self._session.add(transaction)
-        await self._session.flush()
-        await self._session.refresh(transaction)
-        return transaction
-
-    async def get_transactions(
-        self,
-        balance_id: UUID,
-    ) -> list[BalanceTransaction]:
-        """Get all transactions for a balance."""
-        result = await self._session.execute(
-            select(BalanceTransaction)
-            .where(BalanceTransaction.balance_id == balance_id)
-            .order_by(BalanceTransaction.created_at.desc())
-        )
-        return list(result.scalars().all())
+# LeaveBalanceRepository removed. All balance operations are now delegated to LeavesWalletClient via LeaveBalanceService.

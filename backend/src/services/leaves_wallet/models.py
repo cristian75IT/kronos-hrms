@@ -57,6 +57,15 @@ class EmployeeWallet(Base):
     # bank_hours_total: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=0)
     
     # Metadata
+    # Wellbeing & Compliance (EU Standards)
+    legal_minimum_required: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=20) # e.g. 20 days/year
+    legal_minimum_taken: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=0)
+    
+    # Financial Metadata (HR Liabilities)
+    hourly_rate_snapshot: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
+    
+    # Metadata
+    status: Mapped[str] = mapped_column(String(20), default="ACTIVE") # ACTIVE, FROZEN, CLOSED
     ap_expiry_date: Mapped[Optional[date]] = mapped_column(Date)
     last_accrual_date: Mapped[Optional[date]] = mapped_column(Date)
     notes: Mapped[Optional[str]] = mapped_column(Text)
@@ -123,12 +132,20 @@ class WalletTransaction(Base):
     # Amount (positive = add, negative = subtract)
     amount: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False)
     
+    # Financial impact (ISO 30414 mapping)
+    monetary_value: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2))
+    exchange_rate_to_hours: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 4))
+    
     # Snapshot after transaction
     balance_after: Mapped[Decimal] = mapped_column(Numeric(7, 2), nullable=False)
     
     # For FIFO tracking and expiration
     remaining_amount: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=0)
     expiry_date: Mapped[Optional[date]] = mapped_column(Date)
+    
+    # Codified Category for BI Reporting
+    category: Mapped[Optional[str]] = mapped_column(String(30)) 
+    # e.g., ACCRUAL, CONSUMPTION, EXPIRATION, REIMBURSEMENT, TRANSFER
     
     # Metadata
     description: Mapped[Optional[str]] = mapped_column(Text)

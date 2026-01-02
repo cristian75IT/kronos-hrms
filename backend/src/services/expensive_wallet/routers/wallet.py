@@ -37,7 +37,12 @@ async def create_transaction(
             amount=data.amount,
             reference_id=data.reference_id,
             description=data.description,
-            created_by=data.created_by
+            created_by=data.created_by,
+            category=data.category,
+            tax_rate=data.tax_rate,
+            is_taxable=data.is_taxable,
+            is_reimbursable=data.is_reimbursable,
+            has_receipt=data.has_receipt
         )
         await db.commit()
         return wallet
@@ -60,3 +65,13 @@ async def initialize_wallet(
     wallet = await service.create_wallet(trip_id, user_id, Decimal(str(budget)))
     await db.commit()
     return wallet
+@router.get("/{trip_id}/transactions", response_model=List[TripWalletTransactionResponse])
+async def get_transactions(trip_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Get all transactions for a trip wallet."""
+    # First get the wallet
+    service = TripWalletService(db)
+    wallet = await service.get_wallet(trip_id)
+    if not wallet:
+        raise HTTPException(status_code=404, detail="Wallet not found")
+    
+    return await service.get_transactions(wallet.id)

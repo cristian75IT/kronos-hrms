@@ -298,3 +298,16 @@ class ExpensiveWalletClient:
         except Exception as e:
             logger.error(f"ExpensiveWalletClient error initialize_wallet: {e}")
         return None
+    async def get_transactions(self, trip_id: UUID) -> list:
+        """Get expense wallet transactions for a trip."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/expensive-wallets/{trip_id}/transactions",
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"ExpensiveWalletClient error get_transactions: {e}")
+        return []

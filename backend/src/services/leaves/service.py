@@ -18,8 +18,8 @@ from src.core.exceptions import (
 )
 from src.services.auth.models import EmployeeContract, ContractType, User, UserProfile
 from src.services.config.models import NationalContract, NationalContractVersion, NationalContractTypeConfig
-from src.services.leaves.models import LeaveRequest, LeaveRequestStatus, ConditionType, LeaveBalance, BalanceTransaction
-from src.services.leaves.repository import LeaveRequestRepository, LeaveBalanceRepository
+from src.services.leaves.models import LeaveRequest, LeaveRequestStatus, ConditionType
+from src.services.leaves.repository import LeaveRequestRepository
 from src.services.leaves.policy_engine import PolicyEngine
 from src.services.leaves.strategies import StrategyFactory
 from src.services.leaves.schemas import (

@@ -38,6 +38,14 @@ class TripWallet(Base):
     total_budget: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
     total_advances: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
     total_expenses: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
+    total_taxable: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
+    total_non_taxable: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
+    
+    # HR Compliance & Localization
+    currency: Mapped[str] = mapped_column(String(3), default="EUR")
+    status: Mapped[str] = mapped_column(String(20), default="OPEN") # OPEN, SUBMITTED, SETTLED, AUDIT_PENDING
+    policy_violations_count: Mapped[int] = mapped_column(Integer, default=0)
+    is_reconciled: Mapped[bool] = mapped_column(Boolean, default=False)
     
     # Status
     created_at: Mapped[datetime] = mapped_column(
@@ -89,6 +97,17 @@ class TripWalletTransaction(Base):
     # Types: 'budget_allocation', 'advance_payment', 'expense_approval', 'reimbursement_payment'
     
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    
+    # Financial Standards (VAT/Taxation)
+    category: Mapped[Optional[str]] = mapped_column(String(30)) # FOOD, HOTEL, TRANSPORT, OTHER
+    tax_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
+    tax_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2))
+    
+    # HR Policy
+    is_reimbursable: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_taxable: Mapped[bool] = mapped_column(Boolean, default=False)
+    has_receipt: Mapped[bool] = mapped_column(Boolean, default=True)
+    compliance_flags: Mapped[Optional[str]] = mapped_column(Text) # JSON or Comma separated strings
     
     # Reference to external entities (e.g. ExpenseItem ID, Payment ID)
     reference_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))

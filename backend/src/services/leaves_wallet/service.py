@@ -44,12 +44,27 @@ class WalletService:
         amount = transaction.amount
         balance_type = transaction.balance_type
         
-        tx_id = None
+        # Map category automatically if not provided
+        category = transaction.category
+        if not category:
+            if transaction.transaction_type == 'deduction':
+                category = 'CONSUMPTION'
+            elif transaction.transaction_type == 'accrual':
+                category = 'ACCRUAL'
+            elif transaction.transaction_type == 'adjustment':
+                category = 'ADJUSTMENT'
+            elif transaction.transaction_type == 'refund':
+                category = 'SETTLEMENT'
         
         if transaction.transaction_type == 'deduction':
             await self._handle_deduction(wallet, balance_type, abs(amount))
             final_amount = -abs(amount)
             remaining_amount = Decimal(0)
+            
+            # Compliance: Track mandatory minimum rest (only for vacation)
+            if balance_type in ['vacation', 'vacation_ac', 'vacation_ap']:
+                wallet.legal_minimum_taken += abs(amount)
+                
         elif transaction.transaction_type in ['accrual', 'adjustment', 'refund', 'carry_over']:
             await self._handle_addition(wallet, balance_type, abs(amount))
             final_amount = abs(amount)
@@ -65,8 +80,10 @@ class WalletService:
             reference_id=transaction.reference_id,
             transaction_type=transaction.transaction_type,
             balance_type=balance_type,
+            category=category,
             amount=final_amount,
             remaining_amount=remaining_amount,
+            monetary_value=transaction.monetary_value,
             balance_after=balance_after,
             expiry_date=transaction.expiry_date if hasattr(transaction, 'expiry_date') else None,
             description=transaction.description,

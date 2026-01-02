@@ -15,6 +15,8 @@ class WalletTransactionResponse(BaseModel):
     remaining_amount: Decimal
     balance_after: Decimal
     expiry_date: Optional[date] = None
+    category: Optional[str] = None
+    monetary_value: Optional[Decimal] = None
     description: Optional[str] = None
     created_at: datetime
 
@@ -49,6 +51,12 @@ class WalletResponse(BaseModel):
     
     last_accrual_date: Optional[date] = None
     
+    # HR Compliance
+    legal_minimum_required: Decimal
+    legal_minimum_taken: Decimal
+    status: str
+    hourly_rate_snapshot: Optional[Decimal] = None
+    
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -60,6 +68,8 @@ class TransactionCreate(BaseModel):
     amount: Decimal
     expiry_date: Optional[date] = None
     description: Optional[str] = None
+    category: Optional[str] = None # e.g. ACCRUAL, CONSUMPTION
+    monetary_value: Optional[Decimal] = None
     created_by: Optional[UUID] = None
 
 
