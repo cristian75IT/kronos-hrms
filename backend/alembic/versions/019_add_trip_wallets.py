@@ -23,15 +23,15 @@ def upgrade() -> None:
     op.execute("DROP TABLE IF EXISTS wallet.trip_wallets CASCADE")
 
     # Add missing columns to employee_wallets (previously in time_wallet schema, now unified)
-    op.add_column('employee_wallets', sa.Column('legal_minimum_required', sa.Numeric(precision=5, scale=2), server_default='20', nullable=False), schema='wallet')
-    op.add_column('employee_wallets', sa.Column('legal_minimum_taken', sa.Numeric(precision=5, scale=2), server_default='0', nullable=False), schema='wallet')
-    op.add_column('employee_wallets', sa.Column('hourly_rate_snapshot', sa.Numeric(precision=10, scale=2), nullable=True), schema='wallet')
-    op.add_column('employee_wallets', sa.Column('status', sa.String(length=20), server_default='ACTIVE', nullable=False), schema='wallet')
+    op.add_column('employee_wallets', sa.Column('legal_minimum_required', sa.Numeric(precision=5, scale=2), server_default='20', nullable=False), schema='time_wallet')
+    op.add_column('employee_wallets', sa.Column('legal_minimum_taken', sa.Numeric(precision=5, scale=2), server_default='0', nullable=False), schema='time_wallet')
+    op.add_column('employee_wallets', sa.Column('hourly_rate_snapshot', sa.Numeric(precision=10, scale=2), nullable=True), schema='time_wallet')
+    op.add_column('employee_wallets', sa.Column('status', sa.String(length=20), server_default='ACTIVE', nullable=False), schema='time_wallet')
 
     # Add missing columns to wallet_transactions (previously in time_wallet schema, now unified)
-    op.add_column('wallet_transactions', sa.Column('category', sa.String(length=30), nullable=True), schema='wallet')
-    op.add_column('wallet_transactions', sa.Column('monetary_value', sa.Numeric(precision=12, scale=2), nullable=True), schema='wallet')
-    op.add_column('wallet_transactions', sa.Column('exchange_rate_to_hours', sa.Numeric(precision=10, scale=4), nullable=True), schema='wallet')
+    op.add_column('wallet_transactions', sa.Column('category', sa.String(length=30), nullable=True), schema='time_wallet')
+    op.add_column('wallet_transactions', sa.Column('monetary_value', sa.Numeric(precision=12, scale=2), nullable=True), schema='time_wallet')
+    op.add_column('wallet_transactions', sa.Column('exchange_rate_to_hours', sa.Numeric(precision=10, scale=4), nullable=True), schema='time_wallet')
 
     # Trip Wallets table
     op.create_table(

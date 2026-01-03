@@ -24,7 +24,7 @@ import { it } from 'date-fns/locale';
 export function DashboardPage() {
   const navigate = useNavigate();
   const { user, isApprover } = useAuth();
-  const { data: balance, isLoading: balanceLoading } = useBalanceSummary();
+  const { data: balance, isLoading: balanceLoading } = useBalanceSummary(user?.id);
   const { data: pendingApprovals } = usePendingApprovals();
   const { data: recentRequests } = useLeaveRequests(new Date().getFullYear());
 

@@ -52,15 +52,31 @@ export const auditService = {
         return response.data;
     },
 
-    // ═══════════════════════════════════════════════════════════
-    // Enterprise Statistics
-    // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════
+    // Audit Trail (Entity History)
+    // ═══════════════════════════════════════════════════════════════════
 
-    /**
-     * Get audit statistics summary
-     */
-    getStatsSummary: async (days: number = 7): Promise<AuditStatsSummary> => {
-        const response = await auditApi.get(`${ENDPOINT}/stats/summary`, { params: { days } });
+    getEntityHistory: async (entityType: string, entityId: string): Promise<any[]> => {
+        const response = await auditApi.get(`/trail/${entityType}/${entityId}/history`);
+        return response.data;
+    },
+
+    getEntityVersion: async (entityType: string, entityId: string, version: number): Promise<any> => {
+        const response = await auditApi.get(`/trail/${entityType}/${entityId}/version/${version}`);
+        return response.data;
+    },
+
+    getUserChanges: async (userId: string, limit: number = 20): Promise<any[]> => {
+        const response = await auditApi.get(`/trail/user/${userId}/changes`, { params: { limit } });
+        return response.data;
+    },
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Enterprise Stats
+    // ═══════════════════════════════════════════════════════════════════
+
+    getStatsSummary: async (): Promise<any> => {
+        const response = await auditApi.get('/enterprise/stats/summary');
         return response.data;
     },
 

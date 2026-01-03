@@ -1,83 +1,38 @@
-"""KRONOS Calendar Service - Calendar View Router."""
-from typing import Optional
+"""KRONOS Calendar Service - Calendar Enterprise Router."""
+from typing import Optional, List
 from uuid import UUID
 from datetime import date
 
-from fastapi import APIRouter, Depends, Query
-
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
 from src.core.security import get_current_user, TokenPayload
 from ..schemas import (
-    CalendarRangeView,
-    WorkingDayExceptionCreate,
-    WorkingDayExceptionResponse,
-    UserCalendarCreate,
-    UserCalendarUpdate,
-    UserCalendarResponse,
-    CalendarShareCreate,
-    CalendarShareResponse,
     WorkingDaysRequest,
     WorkingDaysResponse,
+    CalendarCreate,
+    CalendarUpdate,
+    CalendarResponse,
+    CalendarShareCreate,
+    CalendarShareResponse,
+    EventCreate,
+    EventUpdate,
+    EventResponse,
+    WorkingDayExceptionCreate,
+    WorkingDayExceptionResponse,
+    ClosureCreate,
+    ClosureUpdate,
+    ClosureResponse,
+    CalendarRangeView,
 )
 from ..service import CalendarService
 
 router = APIRouter()
 
-
-@router.get("/range", response_model=CalendarRangeView)
-async def get_calendar_range(
-    start_date: date = Query(..., description="Start date of the range"),
-    end_date: date = Query(..., description="End date of the range"),
-    location_id: Optional[UUID] = Query(None, description="Location filter"),
-    db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
-):
-    """Get aggregated calendar view for a date range.
-    
-    Returns all holidays, closures, and events within the specified range,
-    along with working day information.
-    """
-    service = CalendarService(db)
-    result = await service.get_calendar_range(
-        start_date=start_date,
-        end_date=end_date,
-        user_id=current_user.user_id,
-        location_id=location_id,
-    )
-    return result
-
-
-@router.get("/date/{check_date}")
-async def get_calendar_date(
-    check_date: date,
-    location_id: Optional[UUID] = Query(None, description="Location filter"),
-    db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
-):
-    """Get calendar information for a specific date.
-    
-    Returns whether it's a working day and all items scheduled.
-    """
-    service = CalendarService(db)
-    result = await service.get_calendar_range(
-        start_date=check_date,
-        end_date=check_date,
-        user_id=current_user.user_id,
-        location_id=location_id,
-    )
-    
-    if result.days:
-        return result.days[0]
-    
-    return {
-        "date": check_date,
-        "is_working_day": True,
-        "is_holiday": False,
-        "items": [],
-    }
-
+# ════════════════════════════════════════════════
+# WORKING DAYS CALCULATIONS
+# ════════════════════════════════════════════════
 
 @router.post("/working-days", response_model=WorkingDaysResponse)
 async def calculate_working_days(
@@ -85,14 +40,7 @@ async def calculate_working_days(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    """Calculate the number of working days between two dates.
-    
-    Takes into account:
-    - Weekends (based on configured working week)
-    - National and regional holidays
-    - Company closures
-    - Working day exceptions
-    """
+    """Calculate the number of working days between two dates."""
     service = CalendarService(db)
     result = await service.calculate_working_days(
         start_date=request.start_date,
@@ -103,138 +51,135 @@ async def calculate_working_days(
     )
     return result
 
+@router.get("/holidays-list", response_model=List[dict])
+async def list_holidays(
+    year: int = Query(...),
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    """List expanded system holidays for a specific year/range."""
+    service = CalendarService(db)
+    holidays = await service.get_system_holidays(year)
+    # Filter by date range if provided
+    if start_date:
+        holidays = [h for h in holidays if h['date'] >= start_date]
+    if end_date:
+        holidays = [h for h in holidays if h['date'] <= end_date]
+    return holidays
+
+@router.get("/closures-list", response_model=List[dict])
+async def list_closures(
+    year: int = Query(...),
+    location_id: Optional[UUID] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    """List closures for a location in a specific year."""
+    service = CalendarService(db)
+    closures = await service.get_location_closures(year, location_id)
+    return closures
 
 @router.get("/working-days/check/{check_date}")
 async def is_working_day(
     check_date: date,
-    location_id: Optional[UUID] = Query(None, description="Location filter"),
+    location_id: Optional[UUID] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
     """Check if a specific date is a working day."""
     service = CalendarService(db)
     is_working = await service.is_working_day(check_date, location_id)
-    
     return {
         "date": check_date,
         "is_working_day": is_working,
     }
 
+# ════════════════════════════════════════════════
+# UNIFIED CALENDARS CRUD
+# ════════════════════════════════════════════════
 
-@router.get("/exceptions", response_model=list[WorkingDayExceptionResponse])
-async def list_working_day_exceptions(
-    year: int = Query(..., description="Year to filter"),
-    location_id: Optional[UUID] = Query(None, description="Location filter"),
+@router.get("/calendars", response_model=List[CalendarResponse])
+async def get_calendars(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    """Get all working day exceptions for a year."""
+    """List all calendars visible to the user."""
     service = CalendarService(db)
-    exceptions = await service.get_working_day_exceptions(year, location_id)
-    return exceptions
-
-
-@router.post("/exceptions", response_model=WorkingDayExceptionResponse, status_code=201)
-async def create_working_day_exception(
-    data: WorkingDayExceptionCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
-):
-    """Create a working day exception.
+    calendars = await service.get_calendars(current_user.user_id)
     
-    Use this to mark a normally non-working day as working (e.g., Saturday work recovery)
-    or vice versa.
-    """
-    from src.core.security import require_admin
-    # Note: In production, this would require admin check
-    
-    service = CalendarService(db)
-    exception = await service.create_working_day_exception(
-        data=data,
-        created_by=current_user.user_id,
-    )
-    return exception
-
-
-@router.delete("/exceptions/{exception_id}", status_code=204)
-async def delete_working_day_exception(
-    exception_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
-):
-    """Delete a working day exception."""
-    from src.core.security import require_hr
-    # This requires HR or Admin
-    
-    service = CalendarService(db)
-    success = await service.delete_working_day_exception(exception_id)
-    
-    if not success:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Exception not found")
-    
-    return None
-
-
-@router.get("/user-calendars", response_model=list[UserCalendarResponse])
-async def list_user_calendars(
-    db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
-):
-    """List all custom calendars for the current user."""
-    service = CalendarService(db)
-    calendars = await service.get_user_calendars(current_user.user_id)
-    
+    # Map to response and set is_owner
     results = []
-    for cal in calendars:
-        res = UserCalendarResponse.model_validate(cal)
-        res.is_owner = cal.user_id == current_user.user_id
-        results.append(res)
+    for c in calendars:
+        # Pydantic's from_attributes handles the ORM->Pydantic conversion of base fields
+        # But we need to manually set is_owner because it's not on the model
+        # We can construct the dict first or validate then update
+        
+        # Validating from ORM object directly might skip is_owner if it's not on ORM
+        # So we validate, then update. But Pydantic models are immutable if frozen?
+        # Default is mutable.
+        cal_resp = CalendarResponse.model_validate(c)
+        cal_resp.is_owner = (c.owner_id == current_user.user_id)
+        results.append(cal_resp)
+        
     return results
 
-
-@router.post("/user-calendars", response_model=UserCalendarResponse)
-async def create_user_calendar(
-    data: UserCalendarCreate,
+@router.get("/range", response_model=CalendarRangeView)
+async def get_calendar_range(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    location_id: Optional[UUID] = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    """Create a new custom calendar."""
+    """Get aggregated calendar view for a date range."""
     service = CalendarService(db)
-    return await service.create_user_calendar(current_user.user_id, data)
+    return await service.get_calendar_range(
+        user_id=current_user.user_id,
+        start_date=start_date,
+        end_date=end_date,
+        location_id=location_id
+    )
 
+@router.post("/calendars", response_model=CalendarResponse, status_code=201)
+async def create_calendar(
+    data: CalendarCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    """Create a new calendar."""
+    service = CalendarService(db)
+    return await service.create_calendar(current_user.user_id, data)
 
-@router.put("/user-calendars/{calendar_id}", response_model=UserCalendarResponse)
-async def update_user_calendar(
+@router.put("/calendars/{calendar_id}", response_model=CalendarResponse)
+async def update_calendar(
     calendar_id: UUID,
-    data: UserCalendarUpdate,
+    data: CalendarUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    """Update a custom calendar."""
+    """Update a calendar."""
     service = CalendarService(db)
-    calendar = await service.update_user_calendar(calendar_id, current_user.user_id, data)
-    if not calendar:
-        from fastapi import HTTPException
+    updated = await service.update_calendar(current_user.user_id, calendar_id, data)
+    if not updated:
         raise HTTPException(status_code=404, detail="Calendar not found")
-    return calendar
+    return updated
 
-
-@router.delete("/user-calendars/{calendar_id}", status_code=204)
-async def delete_user_calendar(
+@router.delete("/calendars/{calendar_id}", status_code=204)
+async def delete_calendar(
     calendar_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    """Delete a custom calendar."""
+    """Delete a calendar."""
     service = CalendarService(db)
-    success = await service.delete_user_calendar(calendar_id, current_user.user_id)
+    success = await service.delete_calendar(current_user.user_id, calendar_id)
     if not success:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Calendar not found")
     return None
 
-@router.post("/user-calendars/{calendar_id}/share", response_model=CalendarShareResponse)
+@router.post("/calendars/{calendar_id}/share", response_model=CalendarShareResponse)
 async def share_calendar(
     calendar_id: UUID,
     data: CalendarShareCreate,
@@ -243,26 +188,24 @@ async def share_calendar(
 ):
     """Share a calendar with another user."""
     service = CalendarService(db)
-    share = await service.share_calendar(
-        calendar_id=calendar_id,
-        user_id=current_user.user_id,
-        shared_with_user_id=data.shared_with_user_id,
-        can_edit=data.can_edit
+    shared = await service.share_calendar(
+        calendar_id=calendar_id, 
+        user_id=current_user.user_id, 
+        shared_with_user_id=data.user_id, 
+        permission=data.permission
     )
-    if not share:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Calendar not found or you are not the owner")
-    return share
+    if not shared:
+        raise HTTPException(status_code=404, detail="Calendar not found or error")
+    return shared
 
-
-@router.delete("/user-calendars/{calendar_id}/share/{shared_user_id}", status_code=204)
+@router.delete("/calendars/{calendar_id}/share/{shared_user_id}", status_code=204)
 async def unshare_calendar(
     calendar_id: UUID,
     shared_user_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
-    """Remove a calendar share."""
+    """Unshare a calendar."""
     service = CalendarService(db)
     success = await service.unshare_calendar(
         calendar_id=calendar_id,
@@ -270,6 +213,149 @@ async def unshare_calendar(
         shared_with_user_id=shared_user_id
     )
     if not success:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Share not found or you are not the owner")
+        raise HTTPException(status_code=404, detail="Share not found or error")
+    return None
+
+# ════════════════════════════════════════════════
+# EVENTS
+# ════════════════════════════════════════════════
+
+@router.get("/events", response_model=List[EventResponse])
+async def list_events(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    event_type: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    """Get all events visible to the user."""
+    service = CalendarService(db)
+    return await service.get_visible_events(
+        user_id=current_user.user_id,
+        start_date=start_date,
+        end_date=end_date,
+        event_type=event_type
+    )
+
+@router.get("/events/{event_id}", response_model=EventResponse)
+async def get_event(
+    event_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    service = CalendarService(db)
+    event = await service.get_event(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    # TODO: Add visibility check here if not already handled or needed
+    return event
+
+@router.post("/events", response_model=EventResponse, status_code=201)
+async def create_event(
+    data: EventCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    service = CalendarService(db)
+    try:
+        return await service.create_event(current_user.user_id, data)
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+@router.put("/events/{event_id}", response_model=EventResponse)
+async def update_event(
+    event_id: UUID,
+    data: EventUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    service = CalendarService(db)
+    updated = await service.update_event(event_id, data, current_user.user_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Event not found or permission denied")
+    return updated
+
+@router.delete("/events/{event_id}", status_code=204)
+async def delete_event(
+    event_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    service = CalendarService(db)
+    success = await service.delete_event(event_id, current_user.user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Event not found or permission denied")
+    return None
+
+# ════════════════════════════════════════════════
+# WORKING DAY EXCEPTIONS
+# ════════════════════════════════════════════════
+
+@router.get("/exceptions", response_model=List[WorkingDayExceptionResponse])
+async def list_exceptions(
+    year: int = Query(...),
+    location_id: Optional[UUID] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    service = CalendarService(db)
+    return await service.get_working_day_exceptions(year, location_id)
+
+@router.post("/exceptions", response_model=WorkingDayExceptionResponse, status_code=201)
+async def create_exception(
+    data: WorkingDayExceptionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    service = CalendarService(db)
+    return await service.create_working_day_exception(data)
+
+@router.delete("/exceptions/{exception_id}", status_code=204)
+async def delete_exception(
+    exception_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    service = CalendarService(db)
+    success = await service.delete_working_day_exception(exception_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Exception not found")
+    return None
+
+# ════════════════════════════════════════════════
+# CLOSURES CRUD
+# ════════════════════════════════════════════════
+
+@router.post("/closures", response_model=ClosureResponse, status_code=201)
+async def create_closure(
+    data: ClosureCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    service = CalendarService(db)
+    return await service.create_closure(data)
+
+@router.put("/closures/{closure_id}", response_model=ClosureResponse)
+async def update_closure(
+    closure_id: UUID,
+    data: ClosureUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    service = CalendarService(db)
+    updated = await service.update_closure(closure_id, data)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Closure not found")
+    return updated
+
+@router.delete("/closures/{closure_id}", status_code=204)
+async def delete_closure(
+    closure_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(get_current_user),
+):
+    service = CalendarService(db)
+    success = await service.delete_closure(closure_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Closure not found")
     return None

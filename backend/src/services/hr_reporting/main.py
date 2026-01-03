@@ -7,7 +7,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.core.config import settings
-from .routers import dashboard_router, reports_router, admin_router
+from .routers import (
+    dashboard_router,
+    reports_router,
+    admin_router,
+    training_router,
+    hr_management_router,
+)
 
 app = FastAPI(
     title="KRONOS HR Reporting Service",
@@ -31,6 +37,8 @@ app.add_middleware(
 app.include_router(dashboard_router, prefix="/api/v1/hr")
 app.include_router(reports_router, prefix="/api/v1/hr")
 app.include_router(admin_router, prefix="/api/v1/hr")
+app.include_router(training_router, prefix="/api/v1/hr")
+app.include_router(hr_management_router, prefix="/api/v1/hr")
 
 
 @app.get("/health")

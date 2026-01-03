@@ -193,8 +193,10 @@ class HRReportingService:
         today = date.today()
         period = f"{today.year}-{today.month:02d}"
         
-        # Get compliance issues
-        issues_data = await self._aggregator.get_compliance_issues()
+        # Get compliance data (issues and checks)
+        comp_data = await self._aggregator.get_compliance_data()
+        issues_data = comp_data.get("issues", [])
+        checks_data = comp_data.get("checks", [])
         
         issues = [
             ComplianceIssue(
@@ -208,6 +210,9 @@ class HRReportingService:
             )
             for i in issues_data
         ]
+        
+        from .schemas import ComplianceCheck
+        checks = [ComplianceCheck(**c) for c in checks_data]
         
         # Calculate statistics
         critical_count = len([i for i in issues if i.severity == "critical"])
@@ -239,6 +244,7 @@ class HRReportingService:
             period=period,
             compliance_status=status,
             issues=issues,
+            checks=checks,
             statistics=statistics,
         )
     
@@ -405,9 +411,9 @@ class HRReportingService:
         
         # Update snapshot
         snapshot.total_employees = workforce.get("total_employees", 0)
-        snapshot.employees_on_leave = workforce.get("on_leave_today", 0)
-        snapshot.employees_on_trip = workforce.get("on_trip_today", 0)
-        snapshot.employees_sick = workforce.get("sick_today", 0)
+        snapshot.employees_on_leave = workforce.get("on_leave", 0)
+        snapshot.employees_on_trip = workforce.get("on_trip", 0)
+        snapshot.employees_sick = workforce.get("sick_leave", 0)
         snapshot.absence_rate = Decimal(str(workforce.get("absence_rate", 0)))
         snapshot.pending_leave_requests = approvals.get("leave_requests", 0)
         snapshot.pending_expense_reports = approvals.get("expense_reports", 0)

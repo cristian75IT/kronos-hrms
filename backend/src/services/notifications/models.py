@@ -318,3 +318,62 @@ class EmailLog(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+
+class EmailProviderSettings(Base):
+    """Database-stored email provider configuration.
+    
+    Stores Brevo API credentials and sender info, editable by admin.
+    Only one active configuration per provider should exist.
+    """
+    
+    __tablename__ = "email_provider_settings"
+    __table_args__ = {"schema": "notifications"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    
+    # Provider identification
+    provider: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="brevo",
+    )
+    
+    # API credentials (should be encrypted at rest in production)
+    api_key: Mapped[str] = mapped_column(Text, nullable=False)
+    
+    # Sender configuration
+    sender_email: Mapped[str] = mapped_column(String(255), nullable=False)
+    sender_name: Mapped[str] = mapped_column(String(100), nullable=False, default="KRONOS HR")
+    
+    # Reply-to configuration
+    reply_to_email: Mapped[Optional[str]] = mapped_column(String(255))
+    reply_to_name: Mapped[Optional[str]] = mapped_column(String(100))
+    
+    # Operating modes
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    test_mode: Mapped[bool] = mapped_column(Boolean, default=False)
+    test_email: Mapped[Optional[str]] = mapped_column(String(255))  # Redirect all emails here in test mode
+    
+    # Webhook for delivery tracking
+    webhook_secret: Mapped[Optional[str]] = mapped_column(String(100))
+    
+    # Rate limiting
+    daily_limit: Mapped[Optional[int]] = mapped_column(Integer)
+    emails_sent_today: Mapped[int] = mapped_column(Integer, default=0)
+    last_reset_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    
+    # Audit
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )

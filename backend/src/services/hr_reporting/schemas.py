@@ -18,10 +18,11 @@ from pydantic import BaseModel, Field
 class WorkforceStatus(BaseModel):
     """Current workforce status."""
     total_employees: int
-    on_leave_today: int
-    on_trip_today: int
-    working_remotely: int = 0
-    sick_today: int = 0
+    active_now: int
+    on_leave: int
+    on_trip: int
+    remote_working: int = 0
+    sick_leave: int = 0
     absence_rate: float
 
 
@@ -141,6 +142,16 @@ class ComplianceIssue(BaseModel):
     deadline: Optional[date] = None
     days_missing: Optional[float] = None
     severity: str = "warning"
+    resolved: bool = False
+
+class ComplianceCheck(BaseModel):
+    """Detailed compliance check result."""
+    id: str  # e.g. "VACATION_AP", "LUL", "SAFETY"
+    name: str
+    description: str
+    status: str  # PASS, WARN, CRIT
+    result_value: Optional[str] = None
+    details: Optional[List[str]] = None
 
 
 class ComplianceStatistics(BaseModel):
@@ -156,6 +167,7 @@ class ComplianceReportResponse(BaseModel):
     period: str
     compliance_status: str  # OK, WARNING, CRITICAL
     issues: List[ComplianceIssue]
+    checks: List[ComplianceCheck]
     statistics: ComplianceStatistics
 
 
@@ -273,3 +285,301 @@ class AlertResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ═══════════════════════════════════════════════════════════
+# Training & Safety Schemas (D.Lgs. 81/08)
+# ═══════════════════════════════════════════════════════════
+
+class TrainingRecordBase(BaseModel):
+    """Base training record."""
+    training_type: str
+    training_name: str
+    description: Optional[str] = None
+    provider_name: Optional[str] = None
+    provider_code: Optional[str] = None
+    training_date: date
+    expiry_date: Optional[date] = None
+    hours: Optional[int] = None
+    certificate_number: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class TrainingRecordCreate(TrainingRecordBase):
+    """Create training record request."""
+    employee_id: UUID
+
+
+class TrainingRecordUpdate(BaseModel):
+    """Update training record request."""
+    training_type: Optional[str] = None
+    training_name: Optional[str] = None
+    description: Optional[str] = None
+    provider_name: Optional[str] = None
+    provider_code: Optional[str] = None
+    training_date: Optional[date] = None
+    expiry_date: Optional[date] = None
+    hours: Optional[int] = None
+    certificate_number: Optional[str] = None
+    certificate_path: Optional[str] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class TrainingRecordResponse(TrainingRecordBase):
+    """Training record response."""
+    id: UUID
+    employee_id: UUID
+    status: str
+    certificate_path: Optional[str] = None
+    recorded_by: Optional[UUID] = None
+    created_at: datetime
+    updated_at: datetime
+    
+    # Computed fields
+    days_until_expiry: Optional[int] = None
+    is_expired: bool = False
+    is_expiring_soon: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class MedicalRecordBase(BaseModel):
+    """Base medical record."""
+    visit_type: str
+    visit_date: date
+    next_visit_date: Optional[date] = None
+    fitness_result: str
+    restrictions: Optional[str] = None
+    doctor_name: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class MedicalRecordCreate(MedicalRecordBase):
+    """Create medical record request."""
+    employee_id: UUID
+
+
+class MedicalRecordUpdate(BaseModel):
+    """Update medical record."""
+    visit_type: Optional[str] = None
+    visit_date: Optional[date] = None
+    next_visit_date: Optional[date] = None
+    fitness_result: Optional[str] = None
+    restrictions: Optional[str] = None
+    doctor_name: Optional[str] = None
+    document_path: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class MedicalRecordResponse(MedicalRecordBase):
+    """Medical record response."""
+    id: UUID
+    employee_id: UUID
+    document_path: Optional[str] = None
+    recorded_by: Optional[UUID] = None
+    created_at: datetime
+    updated_at: datetime
+    
+    # Computed
+    days_until_next_visit: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SafetyComplianceResponse(BaseModel):
+    """Employee safety compliance summary."""
+    id: UUID
+    employee_id: UUID
+    employee_name: Optional[str] = None
+    
+    # Overall status
+    is_compliant: bool
+    compliance_score: int
+    
+    # Training status
+    has_formazione_generale: bool
+    has_formazione_specifica: bool
+    trainings_expiring_soon: int
+    trainings_expired: int
+    
+    # Medical status
+    medical_fitness_valid: bool
+    medical_next_visit: Optional[date] = None
+    medical_restrictions: Optional[str] = None
+    
+    # Issues
+    last_check_date: Optional[date] = None
+    issues: Optional[List[Dict[str, Any]]] = None
+    
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TrainingOverviewResponse(BaseModel):
+    """Training overview for all employees."""
+    total_employees: int
+    fully_compliant: int
+    partially_compliant: int
+    non_compliant: int
+    
+    trainings_expiring_30_days: int
+    trainings_expired: int
+    medical_visits_due: int
+    
+    compliance_by_type: Dict[str, int]  # {training_type: count_with_valid}
+    employees: List[SafetyComplianceResponse]
+
+
+class TrainingExpiringItem(BaseModel):
+    """Training record expiring soon."""
+    id: UUID
+    employee_id: UUID
+    employee_name: str
+    training_type: str
+    training_name: str
+    expiry_date: date
+    days_remaining: int
+
+
+# ═══════════════════════════════════════════════════════════
+# HR Management Schemas (DataTable endpoints)
+# ═══════════════════════════════════════════════════════════
+
+class HRLeaveItem(BaseModel):
+    """Leave item for HR management view."""
+    id: UUID
+    employee_id: UUID
+    employee_name: str
+    employee_email: Optional[str] = None
+    department: Optional[str] = None
+    leave_type: str
+    leave_type_name: str
+    start_date: date
+    end_date: date
+    days_count: float
+    hours_count: Optional[float] = None
+    status: str
+    approved_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    notes: Optional[str] = None
+    created_at: datetime
+
+
+class HRTripItem(BaseModel):
+    """Trip item for HR management view."""
+    id: UUID
+    employee_id: UUID
+    employee_name: str
+    employee_email: Optional[str] = None
+    department: Optional[str] = None
+    destination: str
+    purpose: Optional[str] = None
+    start_date: date
+    end_date: date
+    days_count: int
+    daily_allowance: float
+    total_allowance: float
+    status: str
+    approved_by: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime
+
+
+class HRExpenseItem(BaseModel):
+    """Expense report item for HR management view."""
+    id: UUID
+    employee_id: UUID
+    employee_name: str
+    employee_email: Optional[str] = None
+    department: Optional[str] = None
+    trip_id: Optional[UUID] = None
+    trip_destination: Optional[str] = None
+    total_amount: float
+    items_count: int
+    status: str
+    submitted_at: Optional[datetime] = None
+    approved_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    paid_at: Optional[datetime] = None
+    notes: Optional[str] = None
+    created_at: datetime
+
+
+class DataTableRequest(BaseModel):
+    """DataTable server-side request."""
+    draw: int = 1
+    start: int = 0
+    length: int = 25
+    search_value: Optional[str] = None
+    order_column: Optional[str] = None
+    order_dir: str = "asc"
+    filters: Dict[str, Any] = {}
+
+
+class DataTableResponse(BaseModel):
+    """DataTable server-side response."""
+    draw: int
+    recordsTotal: int
+    recordsFiltered: int
+    data: List[Any]
+
+
+# ═══════════════════════════════════════════════════════════
+# Attendance Report Schemas (moved from leaves)
+# ═══════════════════════════════════════════════════════════
+
+class AttendanceItem(BaseModel):
+    """Single employee attendance record."""
+    user_id: UUID
+    full_name: str
+    department: Optional[str] = None
+    status: str  # "Presente", "Ferie", "Malattia", etc.
+    hours_worked: float
+    leave_request_id: Optional[UUID] = None
+    leave_type: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class DailyAttendanceResponse(BaseModel):
+    """Daily attendance report response."""
+    date: date
+    total_employees: int
+    total_present: int
+    total_absent: int
+    absence_rate: float
+    items: List[AttendanceItem]
+
+
+class AggregateAttendanceItem(BaseModel):
+    """Aggregate attendance per employee."""
+    user_id: UUID
+    full_name: str
+    department: Optional[str] = None
+    worked_days: int
+    total_days: int  # Working days in period
+    vacation_days: float
+    holiday_days: float
+    rol_hours: float
+    permit_hours: float
+    sick_days: float
+    other_absences: float
+
+
+class AggregateAttendanceRequest(BaseModel):
+    """Request for aggregate attendance."""
+    start_date: date
+    end_date: date
+    department: Optional[str] = None
+
+
+class AggregateAttendanceResponse(BaseModel):
+    """Aggregate attendance report."""
+    start_date: date
+    end_date: date
+    working_days: int
+    items: List[AggregateAttendanceItem]

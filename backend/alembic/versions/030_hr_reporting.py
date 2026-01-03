@@ -1,7 +1,7 @@
 """Create HR Reporting schema and tables
 
 Revision ID: 030_hr_reporting
-Revises: 20260102_2300
+Revises: 029_enterprise_leave
 Create Date: 2026-01-03
 
 """
@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 # revision identifiers, used by Alembic.
 revision = '030_hr_reporting'
-down_revision = '20260102_2300_seed_generic_tmpl'
+down_revision = '029_enterprise_leave'
 branch_labels = None
 depends_on = None
 

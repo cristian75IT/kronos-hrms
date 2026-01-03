@@ -1,161 +1,225 @@
-"""KRONOS Calendar Service - Pydantic Schemas."""
+"""KRONOS Calendar Service - Enterprise Schemas."""
 from datetime import date, datetime, time
-from typing import Optional, List
+import datetime as dt # Explicit import as alias
+from typing import Optional, List, Dict, Any, Union
 from uuid import UUID
-from pydantic import BaseModel, Field, ConfigDict
+from enum import Enum
+from decimal import Decimal
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 # ═══════════════════════════════════════════════════════════
-# HOLIDAY SCHEMAS
+# ENUMS
 # ═══════════════════════════════════════════════════════════
 
-class HolidayBase(BaseModel):
-    """Base schema for holidays."""
+class CalendarType(str, Enum):
+    SYSTEM = "system"
+    LOCATION = "location"
+    PERSONAL = "personal"
+    TEAM = "team"
+
+class CalendarPermission(str, Enum):
+    READ = "read"
+    WRITE = "write"
+    ADMIN = "admin"
+
+class RecurrenceType(str, Enum):
+    NONE = "none"
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+    YEARLY = "yearly"
+    EASTER_RELATIVE = "easter_relative" # e.g. Good Friday
+
+class CalendarItemType(str, Enum):
+    HOLIDAY = "holiday"
+    CLOSURE = "closure"
+    EVENT = "event"
+    LEAVE = "leave"
+    TRIP = "trip"
+    BIRTHDAY = "birthday"
+
+
+# ═══════════════════════════════════════════════════════════
+# WORK WEEK PROFILES
+# ═══════════════════════════════════════════════════════════
+
+class DayConfig(BaseModel):
+    is_working: bool
+    hours: float = 8.0
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+
+class WorkWeekProfileBase(BaseModel):
+    code: str = Field(..., max_length=50)
     name: str = Field(..., max_length=100)
     description: Optional[str] = None
-    date: date
-    year: int
-    scope: str = Field(default="national", pattern="^(national|regional|local|company)$")
-    location_id: Optional[UUID] = None
-    region_code: Optional[str] = Field(None, max_length=10)
-    is_recurring: bool = False
-    recurrence_rule: Optional[str] = None
+    weekly_config: Dict[str, DayConfig] = Field(..., description="Map of 'monday', 'tuesday' etc to config")
+    total_weekly_hours: Decimal = Field(default=40.0)
+    is_default: bool = False
+    is_active: bool = True
 
+class WorkWeekProfileCreate(WorkWeekProfileBase):
+    pass
+
+class WorkWeekProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    weekly_config: Optional[Dict[str, DayConfig]] = None
+    total_weekly_hours: Optional[Decimal] = None
+    is_default: Optional[bool] = None
+    is_active: Optional[bool] = None
+
+class WorkWeekProfileResponse(WorkWeekProfileBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+# ═══════════════════════════════════════════════════════════
+# HOLIDAY PROFILES & HOLIDAYS
+# ═══════════════════════════════════════════════════════════
+
+class HolidayProfileBase(BaseModel):
+    code: str = Field(..., max_length=50)
+    name: str = Field(..., max_length=100)
+    country_code: Optional[str] = Field(None, min_length=2, max_length=2)
+    region_code: Optional[str] = None
+    is_active: bool = True
+
+class HolidayProfileCreate(HolidayProfileBase):
+    pass
+
+class HolidayProfileUpdate(BaseModel):
+    code: Optional[str] = None
+    name: Optional[str] = None
+    country_code: Optional[str] = None
+    region_code: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class HolidayProfileResponse(HolidayProfileBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    calendar_id: Optional[UUID] = None
+    created_at: datetime
+
+class RecurrenceRule(BaseModel):
+    type: RecurrenceType = RecurrenceType.YEARLY
+    month: Optional[int] = None # 1-12
+    day: Optional[int] = None # 1-31
+    weekday: Optional[int] = None # 0-6 (Mon-Sun)
+    position: Optional[int] = None # 1 (1st), -1 (last)
+    easter_offset: Optional[int] = None # Days from Easter
+
+class HolidayBase(BaseModel):
+    name: str = Field(..., max_length=100)
+    date: Optional[dt.date] = None # For fixed holidays or specific year instances
+    is_recurring: bool = False
+    recurrence_rule: Optional[Union[RecurrenceRule, Dict[str, Any]]] = None
+    is_active: bool = True
 
 class HolidayCreate(HolidayBase):
-    """Schema for creating a holiday."""
-    pass
-
+    profile_id: Optional[UUID] = None
 
 class HolidayUpdate(BaseModel):
-    """Schema for updating a holiday."""
-    name: Optional[str] = Field(None, max_length=100)
-    description: Optional[str] = None
+    name: Optional[str] = None
     date: Optional[date] = None
-    scope: Optional[str] = None
-    location_id: Optional[UUID] = None
-    region_code: Optional[str] = None
     is_recurring: Optional[bool] = None
-    recurrence_rule: Optional[str] = None
-    is_confirmed: Optional[bool] = None
+    recurrence_rule: Optional[Union[RecurrenceRule, Dict[str, Any]]] = None
     is_active: Optional[bool] = None
-
 
 class HolidayResponse(HolidayBase):
-    """Schema for holiday response."""
     model_config = ConfigDict(from_attributes=True)
-    
     id: UUID
-    is_confirmed: bool = True
-    is_active: bool = True
+    profile_id: Optional[UUID] = None
     created_at: datetime
-    updated_at: datetime
 
 
 # ═══════════════════════════════════════════════════════════
-# CLOSURE SCHEMAS
+# UNIFIED CALENDAR
 # ═══════════════════════════════════════════════════════════
 
-class ClosureBase(BaseModel):
-    """Base schema for company closures."""
-    name: str = Field(..., max_length=200)
-    description: Optional[str] = None
-    start_date: date
-    end_date: date
-    year: int
-    closure_type: str = Field(default="total", pattern="^(total|partial)$")
-    affected_departments: Optional[List[str]] = None
-    affected_locations: Optional[List[UUID]] = None
-    is_paid: bool = True
-    consumes_leave_balance: bool = False
-    leave_type_code: Optional[str] = None
-
-
-class ClosureCreate(ClosureBase):
-    """Schema for creating a closure."""
-    pass
-
-
-class ClosureUpdate(BaseModel):
-    """Schema for updating a closure."""
-    name: Optional[str] = Field(None, max_length=200)
-    description: Optional[str] = None
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
-    closure_type: Optional[str] = None
-    affected_departments: Optional[List[str]] = None
-    affected_locations: Optional[List[UUID]] = None
-    is_paid: Optional[bool] = None
-    consumes_leave_balance: Optional[bool] = None
-    leave_type_code: Optional[str] = None
-    is_active: Optional[bool] = None
-
-
-class ClosureResponse(ClosureBase):
-    """Schema for closure response."""
-    model_config = ConfigDict(from_attributes=True)
-    
-    id: UUID
-    is_active: bool = True
-    created_by: Optional[UUID] = None
-    created_at: datetime
-    updated_at: datetime
-
-
-# ═══════════════════════════════════════════════════════════
-# USER CALENDAR SCHEMAS
-# ═══════════════════════════════════════════════════════════
- 
 class CalendarShareBase(BaseModel):
-    """Base schema for calendar sharing."""
-    shared_with_user_id: UUID
-    can_edit: bool = False
+    user_id: UUID
+    permission: CalendarPermission = CalendarPermission.READ
+    is_mandatory: bool = False
 
 class CalendarShareCreate(CalendarShareBase):
-    """Schema for creating a calendar share."""
     pass
 
 class CalendarShareResponse(CalendarShareBase):
-    """Schema for calendar share response."""
     model_config = ConfigDict(from_attributes=True)
     id: UUID
+    calendar_id: UUID
     created_at: datetime
 
-class UserCalendarBase(BaseModel):
-    """Base schema for custom calendars."""
-    name: str = Field(..., max_length=50)
+class CalendarBase(BaseModel):
+    name: str = Field(..., max_length=100)
     description: Optional[str] = None
-    color: str = Field(default="#4F46E5", pattern="^#[0-9A-Fa-f]{6}$")
+    color: str = Field(default="#4F46E5")
+    type: CalendarType = CalendarType.PERSONAL
     is_active: bool = True
+    is_public: bool = False
 
-class UserCalendarCreate(UserCalendarBase):
-    """Schema for creating a custom calendar."""
+class CalendarCreate(CalendarBase):
     pass
 
-class UserCalendarUpdate(BaseModel):
-    """Schema for updating a custom calendar."""
-    name: Optional[str] = Field(None, max_length=50)
+class CalendarUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=100)
     description: Optional[str] = None
     color: Optional[str] = None
     is_active: Optional[bool] = None
+    is_public: Optional[bool] = None
 
-class UserCalendarResponse(UserCalendarBase):
-    """Schema for custom calendar response."""
+class CalendarResponse(CalendarBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    owner_id: Optional[UUID] = None
+    shared_with: List[CalendarShareResponse] = Field(default=[], alias="shares")
+    created_at: datetime
+    updated_at: datetime
+    is_owner: bool = False
+    
+    # Allow alias for shares
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
+
+
+# ═══════════════════════════════════════════════════════════
+# LOCATION CALENDAR
+# ═══════════════════════════════════════════════════════════
+
+class LocationCalendarCreate(BaseModel):
+    location_id: UUID
+    work_week_profile_id: UUID
+    timezone: str = "Europe/Rome"
+
+class LocationCalendarUpdate(BaseModel):
+    work_week_profile_id: Optional[UUID] = None
+    timezone: Optional[str] = None
+
+class LocationCalendarResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    location_id: UUID
+    work_week_profile_id: UUID
+    timezone: str
+    created_at: datetime
+    updated_at: datetime
+
+
+# ═══════════════════════════════════════════════════════════
+# EVENTS
+# ═══════════════════════════════════════════════════════════
+
+class ParticipantResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     user_id: UUID
-    created_at: datetime
-    updated_at: datetime
-    shared_with: List[CalendarShareResponse] = []
-    is_owner: bool = True
-
-
-# ═══════════════════════════════════════════════════════════
-# EVENT SCHEMAS
-# ═══════════════════════════════════════════════════════════
+    response_status: str
+    is_organizer: bool
 
 class EventBase(BaseModel):
-    """Base schema for calendar events."""
     title: str = Field(..., max_length=200)
     description: Optional[str] = None
     start_date: date
@@ -164,121 +228,61 @@ class EventBase(BaseModel):
     end_time: Optional[time] = None
     is_all_day: bool = True
     event_type: str = Field(default="generic")
-    visibility: str = Field(default="private", pattern="^(private|team|public)$")
-    location: Optional[str] = None
-    is_virtual: bool = False
-    meeting_url: Optional[str] = None
+    visibility: str = Field(default="private")
+    calendar_id: UUID
     is_recurring: bool = False
     recurrence_rule: Optional[str] = None
-    color: str = Field(default="#3B82F6", pattern="^#[0-9A-Fa-f]{6}$")
-    calendar_id: Optional[UUID] = None
-    alert_before_minutes: Optional[int] = Field(default=2880, ge=0, le=10080)  # Max 1 week
-
 
 class EventCreate(EventBase):
-    """Schema for creating an event."""
     participant_ids: Optional[List[UUID]] = None
 
-
 class EventUpdate(BaseModel):
-    """Schema for updating an event."""
-    title: Optional[str] = Field(None, max_length=200)
+    title: Optional[str] = None
     description: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     start_time: Optional[time] = None
     end_time: Optional[time] = None
     is_all_day: Optional[bool] = None
-    event_type: Optional[str] = None
-    visibility: Optional[str] = None
-    location: Optional[str] = None
-    is_virtual: Optional[bool] = None
-    meeting_url: Optional[str] = None
-    is_recurring: Optional[bool] = None
-    recurrence_rule: Optional[str] = None
-    color: Optional[str] = None
     calendar_id: Optional[UUID] = None
-    status: Optional[str] = None
-    alert_before_minutes: Optional[int] = Field(None, ge=0, le=10080)
-
-
-class ParticipantResponse(BaseModel):
-    """Schema for event participant."""
-    model_config = ConfigDict(from_attributes=True)
-    
-    id: UUID
-    user_id: UUID
-    response_status: str
-    is_organizer: bool
-    is_optional: bool
-    responded_at: Optional[datetime] = None
-
+    participants: Optional[List[UUID]] = None
 
 class EventResponse(EventBase):
-    """Schema for event response."""
     model_config = ConfigDict(from_attributes=True)
-    
     id: UUID
-    user_id: Optional[UUID] = None
-    status: str = "confirmed"
-    parent_event_id: Optional[UUID] = None
     created_by: Optional[UUID] = None
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
     participants: List[ParticipantResponse] = []
-    alert_before_minutes: Optional[int] = 2880
-
-
-# ═══════════════════════════════════════════════════════════
-# WORKING DAY EXCEPTION SCHEMAS
-# ═══════════════════════════════════════════════════════════
-
-class WorkingDayExceptionCreate(BaseModel):
-    """Schema for creating a working day exception."""
-    date: date
-    year: int
-    exception_type: str = Field(..., pattern="^(working|non_working)$")
-    reason: Optional[str] = Field(None, max_length=200)
-    location_id: Optional[UUID] = None
-    department_code: Optional[str] = None
-
-
-class WorkingDayExceptionResponse(BaseModel):
-    """Schema for working day exception response."""
-    model_config = ConfigDict(from_attributes=True)
     
-    id: UUID
-    date: date
-    year: int
-    exception_type: str
-    reason: Optional[str] = None
-    location_id: Optional[UUID] = None
-    department_code: Optional[str] = None
-    created_at: datetime
+    # Computed fields for view convenience
+    color: Optional[str] = None 
 
 
 # ═══════════════════════════════════════════════════════════
-# AGGREGATED CALENDAR VIEW
+# VIEWS & CALCULATIONS
 # ═══════════════════════════════════════════════════════════
 
 class CalendarDayItem(BaseModel):
     """Single item in a calendar day view."""
     id: UUID
     title: str
-    item_type: str  # holiday, closure, event, leave, trip
+    item_type: CalendarItemType
     start_date: date
     end_date: date
     color: str
+    is_all_day: bool = True
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
     metadata: Optional[dict] = None
-
 
 class CalendarDayView(BaseModel):
     """Aggregated view of a single day."""
     date: date
     is_working_day: bool
     is_holiday: bool
+    holiday_name: Optional[str] = None
     items: List[CalendarDayItem] = []
-
 
 class CalendarRangeView(BaseModel):
     """Aggregated calendar view for a date range."""
@@ -287,18 +291,14 @@ class CalendarRangeView(BaseModel):
     days: List[CalendarDayView] = []
     working_days_count: int = 0
 
-
 class WorkingDaysRequest(BaseModel):
-    """Request for calculating working days."""
     start_date: date
     end_date: date
     location_id: Optional[UUID] = None
     exclude_closures: bool = True
     exclude_holidays: bool = True
 
-
 class WorkingDaysResponse(BaseModel):
-    """Response for working days calculation."""
     start_date: date
     end_date: date
     total_calendar_days: int
@@ -306,3 +306,44 @@ class WorkingDaysResponse(BaseModel):
     holidays: List[date] = []
     closure_days: List[date] = []
     weekend_days: List[date] = []
+
+# Legacy support for closure routes (if kept)
+class ClosureBase(BaseModel):
+    name: str
+    start_date: date
+    end_date: date
+
+class ClosureCreate(ClosureBase):
+    pass
+
+class ClosureUpdate(BaseModel):
+    name: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+
+class ClosureResponse(ClosureBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    created_at: datetime
+
+# ═══════════════════════════════════════════════════════════
+# WORKING DAY EXCEPTIONS
+# ═══════════════════════════════════════════════════════════
+
+class WorkingDayExceptionBase(BaseModel):
+    date: date
+    exception_type: str = Field(..., pattern="^(working|non_working)$")
+    reason: Optional[str] = Field(None, max_length=200)
+    location_id: Optional[UUID] = None
+
+class WorkingDayExceptionCreate(WorkingDayExceptionBase):
+    pass
+
+class WorkingDayExceptionUpdate(BaseModel):
+    exception_type: Optional[str] = Field(None, pattern="^(working|non_working)$")
+    reason: Optional[str] = Field(None, max_length=200)
+
+class WorkingDayExceptionResponse(WorkingDayExceptionBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    created_at: datetime

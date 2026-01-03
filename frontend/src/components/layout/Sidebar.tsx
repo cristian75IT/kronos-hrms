@@ -20,6 +20,11 @@ import {
   Activity,
   Bell,
   Mail,
+  History as HistoryIcon,
+  GraduationCap,
+  TreePalm,
+  Plane,
+  Receipt,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { clsx } from 'clsx';
@@ -53,10 +58,16 @@ const adminItems: NavItem[] = [
   { label: 'Contratti CCNL', path: '/admin/national-contracts', icon: <FileText size={20} />, roles: ['admin', 'hr'] },
   { label: 'Strumenti Admin', path: '/admin/tools', icon: <Settings size={20} />, roles: ['admin'] },
   { label: 'Audit Log', path: '/admin/audit-logs', icon: <Terminal size={20} />, roles: ['admin'] },
+  { label: 'Audit Trail', path: '/admin/audit-trail', icon: <HistoryIcon size={20} />, roles: ['admin'] },
 ];
 
 const hrItems: NavItem[] = [
+  { label: 'HR Console', path: '/hr/console', icon: <LayoutDashboard size={20} />, roles: ['admin', 'hr'] },
   { label: 'Report Presenze', path: '/hr/reports', icon: <Activity size={20} />, roles: ['admin', 'hr'] },
+  { label: 'Formazione', path: '/hr/training', icon: <GraduationCap size={20} />, roles: ['admin', 'hr'] },
+  { label: 'Gestione Ferie', path: '/hr/leaves', icon: <TreePalm size={20} />, roles: ['admin', 'hr'] },
+  { label: 'Gestione Trasferte', path: '/hr/trips', icon: <Plane size={20} />, roles: ['admin', 'hr'] },
+  { label: 'Gestione Spese', path: '/hr/expenses', icon: <Receipt size={20} />, roles: ['admin', 'hr'] },
 ];
 
 export function Sidebar() {

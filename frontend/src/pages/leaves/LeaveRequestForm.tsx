@@ -53,6 +53,7 @@ export function LeaveRequestForm() {
                 start_half_day: existingLeave.start_half_day,
                 end_half_day: existingLeave.end_half_day,
                 employee_notes: existingLeave.employee_notes || '',
+                protocol_number: existingLeave.protocol_number || '',
             });
         }
     }, [existingLeave, reset]);
@@ -126,6 +127,9 @@ export function LeaveRequestForm() {
         const timeoutId = setTimeout(calculate, 300); // Simple debounce
         return () => clearTimeout(timeoutId);
     }, [startDate, endDate, startHalfDay, endHalfDay, leaveTypeId]);
+
+    const selectedType = leaveTypes.find(t => t.id === leaveTypeId);
+    const requiresProtocol = selectedType?.requires_protocol || false;
 
     const onSubmit = (data: LeaveRequestCreate) => {
         if (isEditing && id) {
@@ -258,6 +262,28 @@ export function LeaveRequestForm() {
                             )}
                         </div>
                     </div>
+
+                    {/* Protocol Number (INPS) - Only if required */}
+                    {requiresProtocol && (
+                        <div className="animate-slideIn">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Codice iNPS / Protocollo Telematico
+                            </label>
+                            <input
+                                type="text"
+                                {...register('protocol_number', {
+                                    required: requiresProtocol ? 'Il codice iNPS è obbligatorio per la malattia' : false,
+                                    minLength: { value: 5, message: 'Il codice deve essere di almeno 5 caratteri' }
+                                })}
+                                className={`block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${errors.protocol_number ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}`}
+                                placeholder="Esempio: MAL12345678"
+                            />
+                            <p className="mt-1 text-xs text-gray-500">
+                                Inserisci il protocollo telematico fornito dal medico o dall'iNPS.
+                            </p>
+                            {errors.protocol_number && <span className="text-red-600 text-xs mt-1 flex items-center gap-1"><AlertCircle size={12} /> {errors.protocol_number?.message}</span>}
+                        </div>
+                    )}
 
                     {/* Notes */}
                     <div>

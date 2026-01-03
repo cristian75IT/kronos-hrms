@@ -25,6 +25,7 @@ class LeaveRequestBase(BaseModel):
     start_half_day: bool = False
     end_half_day: bool = False
     employee_notes: Optional[str] = None
+    protocol_number: Optional[str] = Field(None, description="Codice iNPS / Protocollo Telematico")
     
     @field_validator("end_date")
     @classmethod
@@ -49,6 +50,7 @@ class LeaveRequestUpdate(BaseModel):
     start_half_day: Optional[bool] = None
     end_half_day: Optional[bool] = None
     employee_notes: Optional[str] = None
+    protocol_number: Optional[str] = Field(None, description="Codice iNPS / Protocollo Telematico")
 
 
 class LeaveRequestResponse(LeaveRequestBase, IDMixin, BaseSchema):

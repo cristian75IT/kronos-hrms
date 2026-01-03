@@ -4,6 +4,7 @@ from .closures import router as closures_router
 from .events import router as events_router
 from .calendar import router as calendar_router
 from .export import router as export_router
+from .admin import router as admin_router
 
 from fastapi import APIRouter
 
@@ -15,3 +16,4 @@ api_router.include_router(closures_router, prefix="/closures", tags=["Closures"]
 api_router.include_router(events_router, prefix="/events", tags=["Events"])
 api_router.include_router(calendar_router, prefix="/calendar", tags=["Calendar"])
 api_router.include_router(export_router, prefix="/export", tags=["Export"])
+api_router.include_router(admin_router, prefix="/admin", tags=["Admin"])

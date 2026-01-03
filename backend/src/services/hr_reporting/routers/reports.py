@@ -12,9 +12,10 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import require_admin, TokenPayload
+from src.core.security import require_admin, require_hr, TokenPayload
 
 from ..service import HRReportingService
+from ..aggregator import HRDataAggregator
 from ..schemas import (
     MonthlyReportResponse,
     ComplianceReportResponse,
@@ -22,6 +23,11 @@ from ..schemas import (
     ReportRequest,
     CustomReportRequest,
     ExportResponse,
+    DailyAttendanceResponse,
+    AggregateAttendanceResponse,
+    AggregateAttendanceRequest,
+    AttendanceItem,
+    AggregateAttendanceItem,
 )
 
 router = APIRouter(prefix="/reports", tags=["HR Reports"])
@@ -263,3 +269,149 @@ async def export_pdf(
         "format": "pdf",
         "message": "PDF export will be available at the download URL",
     }
+
+
+# ═══════════════════════════════════════════════════════════
+# Attendance Reports
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/attendance/daily", response_model=DailyAttendanceResponse)
+async def get_daily_attendance(
+    target_date: date = Query(default=None),
+    department: Optional[str] = Query(default=None),
+    current_user: TokenPayload = Depends(require_hr),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get daily attendance report.
+    
+    Shows which employees are present, on leave, or absent for a given date.
+    Used by HR Reports page for daily attendance view.
+    """
+    if target_date is None:
+        target_date = date.today()
+    
+    aggregator = HRDataAggregator()
+    
+    try:
+        # Get workforce status for the date
+        workforce = await aggregator.get_workforce_status(target_date)
+        
+        # Get employee details with attendance status
+        employees = await aggregator.get_daily_attendance_details(
+            target_date=target_date,
+            department=department,
+        )
+        
+        items = []
+        for emp in employees:
+            items.append(AttendanceItem(
+                user_id=emp["user_id"],
+                full_name=emp["full_name"],
+                department=emp.get("department"),
+                status=emp["status"],
+                hours_worked=emp.get("hours_worked", 8.0),
+                leave_request_id=emp.get("leave_request_id"),
+                leave_type=emp.get("leave_type"),
+                notes=emp.get("notes"),
+            ))
+        
+        return DailyAttendanceResponse(
+            date=target_date,
+            total_employees=workforce.get("total_employees", len(items)),
+            total_present=sum(1 for i in items if "Presente" in i.status),
+            total_absent=sum(1 for i in items if "Presente" not in i.status),
+            absence_rate=round(
+                sum(1 for i in items if "Presente" not in i.status) / max(len(items), 1) * 100, 1
+            ),
+            items=items,
+        )
+    except Exception as e:
+        # Fallback to empty response
+        return DailyAttendanceResponse(
+            date=target_date,
+            total_employees=0,
+            total_present=0,
+            total_absent=0,
+            absence_rate=0.0,
+            items=[],
+        )
+
+
+@router.post("/attendance/aggregate", response_model=AggregateAttendanceResponse)
+async def get_aggregate_attendance(
+    request: AggregateAttendanceRequest,
+    current_user: TokenPayload = Depends(require_hr),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get aggregate attendance report for a date range.
+    
+    Returns per-employee statistics including worked days, vacation days,
+    sick days, etc. for the specified period.
+    """
+    aggregator = HRDataAggregator()
+    
+    try:
+        # Calculate working days in period
+        from src.shared.clients import CalendarClient
+        calendar_client = CalendarClient()
+        working_days = await calendar_client.get_working_days_count(
+            request.start_date,
+            request.end_date,
+        )
+        
+        employees_data = await aggregator.get_aggregate_attendance_details(
+            start_date=request.start_date,
+            end_date=request.end_date,
+            department=request.department,
+        )
+        
+        items = []
+        for emp in employees_data:
+            items.append(AggregateAttendanceItem(
+                user_id=emp["user_id"],
+                full_name=emp["full_name"],
+                department=emp.get("department"),
+                worked_days=emp.get("worked_days", 0),
+                total_days=working_days,
+                vacation_days=emp.get("vacation_days", 0),
+                holiday_days=emp.get("holiday_days", 0),
+                rol_hours=emp.get("rol_hours", 0),
+                permit_hours=emp.get("permit_hours", 0),
+                sick_days=emp.get("sick_days", 0),
+                other_absences=emp.get("other_absences", 0),
+            ))
+        
+        return AggregateAttendanceResponse(
+            start_date=request.start_date,
+            end_date=request.end_date,
+            working_days=working_days,
+            items=items,
+        )
+    except Exception as e:
+        # Fallback to empty response
+        return AggregateAttendanceResponse(
+            start_date=request.start_date,
+            end_date=request.end_date,
+            working_days=0,
+            items=[],
+        )
+
+
+# Alias for GET request (backwards compatibility)
+@router.get("/attendance/aggregate", response_model=AggregateAttendanceResponse)
+async def get_aggregate_attendance_get(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    department: Optional[str] = Query(default=None),
+    current_user: TokenPayload = Depends(require_hr),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get aggregate attendance report via GET request."""
+    request = AggregateAttendanceRequest(
+        start_date=start_date,
+        end_date=end_date,
+        department=department,
+    )
+    return await get_aggregate_attendance(request, current_user, db)

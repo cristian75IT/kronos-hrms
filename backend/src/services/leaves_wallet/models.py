@@ -25,7 +25,7 @@ class EmployeeWallet(Base):
     """Employee time wallet containing Vacation, ROL, and Permits balances."""
     
     __tablename__ = "employee_wallets"
-    __table_args__ = {"schema": "wallet"}
+    __table_args__ = {"schema": "time_wallet"}
     
     id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -105,7 +105,7 @@ class WalletTransaction(Base):
     """Audit log for all wallet movements (accruals, deductions, adjustments)."""
     
     __tablename__ = "wallet_transactions"
-    __table_args__ = {"schema": "wallet"}
+    __table_args__ = {"schema": "time_wallet"}
     
     id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),

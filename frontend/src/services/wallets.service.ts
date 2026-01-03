@@ -22,6 +22,11 @@ export const walletsService = {
         return response.data;
     },
 
+    getTripWalletSummary: async (tripId: string): Promise<any> => {
+        const response = await walletsApi.get(`/expensive-wallets/${tripId}/summary`);
+        return response.data;
+    },
+
     initializeTripWallet: async (tripId: string, userId: string, budget: number): Promise<TripWallet> => {
         const response = await walletsApi.post(`/expensive-wallets/initialize/${tripId}`, null, {
             params: { user_id: userId, budget }
@@ -37,6 +42,17 @@ export const walletsService = {
         const params = year ? { year } : {};
         const response = await walletsApi.get(`/leaves-wallets/${userId}`, { params });
         return response.data;
+    },
+
+    getLeavesBalanceSummary: async (userId: string, year?: number): Promise<any> => {
+        const params = year ? { year } : {};
+        const response = await walletsApi.get(`/leaves-wallets/${userId}/summary`, { params });
+        return response.data;
+    },
+
+    getLeavesAvailableBalance: async (userId: string, balanceType: string): Promise<number> => {
+        const response = await walletsApi.get(`/leaves-wallets/${userId}/available/${balanceType}`);
+        return response.data.available;
     },
 
     getLeavesTransactions: async (walletId: string): Promise<any[]> => {

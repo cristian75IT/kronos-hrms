@@ -35,8 +35,14 @@ import { WikiCalculations } from './pages/wiki/WikiCalculations';
 import { WikiManagement } from './pages/wiki/WikiManagement';
 import { WikiConfig } from './pages/wiki/WikiConfig';
 import { HRReportsPage } from './pages/hr/HRReportsPage';
+import { HRConsolePage } from './pages/hr/HRConsolePage';
 import { AuditLogPage } from './pages/admin/AuditLogPage';
+import { AuditTrailPage } from './pages/admin/AuditTrailPage';
 import { EmailLogsPage } from './pages/admin/EmailLogsPage';
+import { HRTrainingPage } from './pages/hr/HRTrainingPage';
+import { HRLeavesManagement } from './pages/hr/HRLeavesManagement';
+import { HRTripsManagement } from './pages/hr/HRTripsManagement';
+import { HRExpensesManagement } from './pages/hr/HRExpensesManagement';
 
 function App() {
   return (
@@ -93,10 +99,16 @@ function App() {
                 <Route path="/admin/notifications" element={<ProtectedRoute roles={['admin', 'hr']}><NotificationCenterPage /></ProtectedRoute>} />
                 <Route path="/admin/tools" element={<ProtectedRoute roles={['admin']}><AdminToolsPage /></ProtectedRoute>} />
                 <Route path="/admin/audit-logs" element={<ProtectedRoute roles={['admin']}><AuditLogPage /></ProtectedRoute>} />
+                <Route path="/admin/audit-trail" element={<ProtectedRoute roles={['admin']}><AuditTrailPage /></ProtectedRoute>} />
                 <Route path="/admin/email-logs" element={<ProtectedRoute roles={['admin', 'hr']}><EmailLogsPage /></ProtectedRoute>} />
 
                 {/* HR */}
+                <Route path="/hr/console" element={<ProtectedRoute roles={['hr', 'admin']}><HRConsolePage /></ProtectedRoute>} />
                 <Route path="/hr/reports" element={<ProtectedRoute roles={['hr', 'admin']}><HRReportsPage /></ProtectedRoute>} />
+                <Route path="/hr/training" element={<ProtectedRoute roles={['hr', 'admin']}><HRTrainingPage /></ProtectedRoute>} />
+                <Route path="/hr/leaves" element={<ProtectedRoute roles={['hr', 'admin']}><HRLeavesManagement /></ProtectedRoute>} />
+                <Route path="/hr/trips" element={<ProtectedRoute roles={['hr', 'admin']}><HRTripsManagement /></ProtectedRoute>} />
+                <Route path="/hr/expenses" element={<ProtectedRoute roles={['hr', 'admin']}><HRExpensesManagement /></ProtectedRoute>} />
 
                 {/* Wiki & Knowledge Base */}
                 <Route path="/wiki" element={<WikiIndex />} />

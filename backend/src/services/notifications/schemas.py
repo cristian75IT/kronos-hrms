@@ -254,3 +254,65 @@ class EmailLogResponse(IDMixin, BaseSchema):
     
     created_at: datetime
     updated_at: datetime
+
+
+# ═══════════════════════════════════════════════════════════
+# Email Provider Settings Schemas
+# ═══════════════════════════════════════════════════════════
+
+class EmailProviderSettingsBase(BaseModel):
+    """Base email provider settings schema."""
+    
+    provider: str = Field(default="brevo", max_length=20)
+    api_key: str = Field(..., min_length=1)
+    sender_email: str = Field(..., max_length=255)
+    sender_name: str = Field(default="KRONOS HR", max_length=100)
+    reply_to_email: Optional[str] = Field(None, max_length=255)
+    reply_to_name: Optional[str] = Field(None, max_length=100)
+    is_active: bool = True
+    test_mode: bool = False
+    test_email: Optional[str] = Field(None, max_length=255)
+    daily_limit: Optional[int] = None
+
+
+class EmailProviderSettingsCreate(EmailProviderSettingsBase):
+    """Schema for creating provider settings."""
+    pass
+
+
+class EmailProviderSettingsUpdate(BaseModel):
+    """Schema for updating provider settings."""
+    
+    api_key: Optional[str] = None
+    sender_email: Optional[str] = None
+    sender_name: Optional[str] = None
+    reply_to_email: Optional[str] = None
+    reply_to_name: Optional[str] = None
+    is_active: Optional[bool] = None
+    test_mode: Optional[bool] = None
+    test_email: Optional[str] = None
+    daily_limit: Optional[int] = None
+
+
+class EmailProviderSettingsResponse(IDMixin, BaseSchema):
+    """Response schema for provider settings (API key masked)."""
+    
+    provider: str
+    api_key_masked: str  # Show only last 4 chars
+    sender_email: str
+    sender_name: str
+    reply_to_email: Optional[str] = None
+    reply_to_name: Optional[str] = None
+    is_active: bool
+    test_mode: bool
+    test_email: Optional[str] = None
+    daily_limit: Optional[int] = None
+    emails_sent_today: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class TestEmailRequest(BaseModel):
+    """Request to send a test email."""
+    
+    to_email: str = Field(..., max_length=255)

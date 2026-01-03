@@ -171,6 +171,13 @@ class LeaveService:
                 rule="OVERLAP_EXISTING",
             )
 
+        # Validate protocol requirement (INPS code for sick leave)
+        if leave_type.get("requires_protocol") and not data.protocol_number:
+            raise BusinessRuleError(
+                f"Il codice iNPS (protocollo telematico) è obbligatorio per le richieste di {leave_type.get('name')}.",
+                rule="PROTOCOL_REQUIRED"
+            )
+
         
         # Calculate days
         days = await self._calculate_days(
@@ -192,6 +199,7 @@ class LeaveService:
             end_half_day=data.end_half_day,
             days_requested=days,
             employee_notes=data.employee_notes,
+            protocol_number=data.protocol_number,
             status=LeaveRequestStatus.DRAFT,
         )
 
@@ -263,6 +271,18 @@ class LeaveService:
             update_data["days_requested"] = await self._calculate_days(
                 start, end, start_half, end_half, user_id
             )
+        
+        # Re-validate protocol if leave type or protocol changed
+        if "leave_type_id" in update_data or "protocol_number" in update_data:
+            lt_id = update_data.get("leave_type_id", request.leave_type_id)
+            protocol = update_data.get("protocol_number", request.protocol_number)
+            
+            leave_type = await self._config_client.get_leave_type(lt_id)
+            if leave_type and leave_type.get("requires_protocol") and not protocol:
+                raise BusinessRuleError(
+                    f"Il codice iNPS (protocollo telematico) è obbligatorio per le richieste di {leave_type.get('name')}.",
+                    rule="PROTOCOL_REQUIRED"
+                )
         
         updated_request = await self._request_repo.update(id, **update_data)
 

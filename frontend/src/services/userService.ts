@@ -77,4 +77,24 @@ export const userService = {
         const response = await authApi.put(`/contract-types/${id}`, data);
         return response.data;
     },
+
+    // Training
+    getTrainings: async (userId: string): Promise<any[]> => {
+        const response = await authApi.get(`/users/${userId}/trainings`);
+        return response.data;
+    },
+
+    createTraining: async (data: any): Promise<any> => {
+        const response = await authApi.post('/trainings', data);
+        return response.data;
+    },
+
+    updateTraining: async (id: string, data: any): Promise<any> => {
+        const response = await authApi.put(`/trainings/${id}`, data);
+        return response.data;
+    },
+
+    deleteTraining: async (id: string): Promise<void> => {
+        await authApi.delete(`/trainings/${id}`);
+    },
 };

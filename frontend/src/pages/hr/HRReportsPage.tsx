@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Download, Search, User, CheckCircle, XCircle, BarChart2, Calendar as CalendarIcon } from 'lucide-react';
-import { leavesService } from '../../services/leaves.service';
+import hrReportingService from '../../services/hrReporting.service';
 import type { DailyAttendanceResponse, AggregateReportResponse } from '../../types';
 import { useToast } from '../../context/ToastContext';
 import { clsx } from 'clsx';
@@ -28,7 +28,7 @@ export function HRReportsPage() {
     const loadDailyData = async () => {
         setIsLoading(true);
         try {
-            const result = await leavesService.getDailyAttendance(date, department || undefined);
+            const result = await hrReportingService.getDailyAttendance(date, department || undefined);
             setDailyData(result);
         } catch (error) {
             console.error(error);
@@ -41,7 +41,7 @@ export function HRReportsPage() {
     const loadAggregateData = async () => {
         setIsLoading(true);
         try {
-            const result = await leavesService.getAggregateAttendance({
+            const result = await hrReportingService.getAggregateAttendance({
                 start_date: startDate,
                 end_date: endDate,
                 department: department || undefined

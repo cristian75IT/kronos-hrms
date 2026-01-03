@@ -338,3 +338,45 @@ class KeycloakSyncResponse(BaseModel):
     updated: int
     deactivated: int
     errors: list[str] = []
+
+
+# ═══════════════════════════════════════════════════════════
+# Employee Training Schemas
+# ═══════════════════════════════════════════════════════════
+
+class EmployeeTrainingBase(BaseModel):
+    """Base employee training schema."""
+    
+    training_type: str = Field(..., max_length=50)
+    description: Optional[str] = Field(None, max_length=200)
+    issue_date: date
+    expiry_date: Optional[date] = None
+    certificate_id: Optional[str] = Field(None, max_length=100)
+    hours: Optional[int] = Field(None, ge=0)
+    provider: Optional[str] = Field(None, max_length=200)
+    document_path: Optional[str] = None
+
+
+class EmployeeTrainingCreate(EmployeeTrainingBase):
+    """Schema for creating employee training."""
+    
+    user_id: UUID
+
+
+class EmployeeTrainingUpdate(BaseModel):
+    """Schema for updating employee training."""
+    
+    training_type: Optional[str] = None
+    description: Optional[str] = None
+    issue_date: Optional[date] = None
+    expiry_date: Optional[date] = None
+    certificate_id: Optional[str] = None
+    hours: Optional[int] = None
+    provider: Optional[str] = None
+    document_path: Optional[str] = None
+
+
+class EmployeeTrainingResponse(EmployeeTrainingBase, IDMixin, TimestampMixin, BaseSchema):
+    """Response schema for employee training."""
+    
+    user_id: UUID

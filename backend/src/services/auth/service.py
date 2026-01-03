@@ -15,6 +15,7 @@ from src.services.auth.repository import (
     ContractTypeRepository,
     WorkScheduleRepository,
     EmployeeContractRepository,
+    EmployeeTrainingRepository,
 )
 from src.services.auth.schemas import (
     UserCreate,
@@ -27,6 +28,8 @@ from src.services.auth.schemas import (
     ContractTypeUpdate,
     WorkScheduleCreate,
     EmployeeContractCreate,
+    EmployeeTrainingCreate,
+    EmployeeTrainingUpdate,
     KeycloakSyncRequest,
     KeycloakSyncResponse,
 )
@@ -46,6 +49,7 @@ class UserService:
         self._schedule_repo = WorkScheduleRepository(session)
         self._schedule_repo = WorkScheduleRepository(session)
         self._emp_contract_repo = EmployeeContractRepository(session)
+        self._training_repo = EmployeeTrainingRepository(session)
         self._audit = get_audit_logger("auth-service")
 
 
@@ -456,3 +460,63 @@ class UserService:
             request_data=data.model_dump(mode="json")
         )
         return contract
+
+    # ═══════════════════════════════════════════════════════════
+    # Employee Training Operations
+    # ═══════════════════════════════════════════════════════════
+
+    async def get_employee_trainings(self, user_id: UUID):
+        """Get all training records for a user."""
+        return await self._training_repo.get_by_user(user_id)
+
+    async def create_employee_training(self, data: EmployeeTrainingCreate, actor_id: Optional[UUID] = None):
+        """Create new training record."""
+        # Verify user exists
+        user = await self._user_repo.get(data.user_id)
+        if not user:
+            raise NotFoundError("User not found", entity_type="User", entity_id=str(data.user_id))
+            
+        training = await self._training_repo.create(**data.model_dump())
+        
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="CREATE",
+            resource_type="EMPLOYEE_TRAINING",
+            resource_id=str(training.id),
+            description=f"Created training {training.training_type} for user {user.full_name}",
+            request_data=data.model_dump(mode="json")
+        )
+        return training
+
+    async def update_employee_training(self, id: UUID, data: EmployeeTrainingUpdate, actor_id: Optional[UUID] = None):
+        """Update training record."""
+        training = await self._training_repo.update(id, **data.model_dump(exclude_unset=True))
+        if not training:
+            raise NotFoundError("Training record not found", entity_type="EmployeeTraining", entity_id=str(id))
+            
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="UPDATE",
+            resource_type="EMPLOYEE_TRAINING",
+            resource_id=str(id),
+            description=f"Updated training record: {training.training_type}",
+            request_data=data.model_dump(mode="json", exclude_unset=True)
+        )
+        return training
+
+    async def delete_employee_training(self, id: UUID, actor_id: Optional[UUID] = None):
+        """Delete training record."""
+        training = await self._training_repo.get(id)
+        if not training:
+            raise NotFoundError("Training record not found", entity_type="EmployeeTraining", entity_id=str(id))
+            
+        result = await self._training_repo.delete(id)
+        
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="DELETE",
+            resource_type="EMPLOYEE_TRAINING",
+            resource_id=str(id),
+            description=f"Deleted training record: {training.training_type}",
+        )
+        return result

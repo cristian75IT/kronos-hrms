@@ -87,20 +87,20 @@ export function useApprovalHistory(params?: { status?: string; year?: number; li
     });
 }
 
-export function useLeaveBalance(year?: number) {
+export function useLeaveBalance(year?: number, userId?: string) {
     return useQuery({
-        queryKey: queryKeys.leaveBalance(year),
-        queryFn: () => leavesService.getMyBalance(year),
+        queryKey: [...queryKeys.leaveBalance(year), userId],
+        queryFn: () => leavesService.getMyBalance(year, userId),
     });
 }
 
-export function useBalanceSummary() {
+export function useBalanceSummary(userId?: string) {
     const toast = useToast();
     return useQuery({
-        queryKey: queryKeys.balanceSummary,
+        queryKey: [...queryKeys.balanceSummary, userId],
         queryFn: async () => {
             try {
-                return await leavesService.getBalanceSummary();
+                return await leavesService.getBalanceSummary(userId);
             } catch (error: any) {
                 toast.error(
                     'Errore durante il recupero del saldo ferie. Per favore, ricarica la pagina.'

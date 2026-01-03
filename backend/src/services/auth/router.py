@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import get_current_token, require_admin, require_manager, TokenPayload
+from src.core.security import get_current_token, get_current_user, require_admin, require_manager, TokenPayload
 from src.core.exceptions import NotFoundError, ConflictError
 from src.shared.schemas import MessageResponse, DataTableRequest
 from src.services.auth.service import UserService
@@ -28,6 +28,9 @@ from src.services.auth.schemas import (
     WorkScheduleCreate,
     EmployeeContractCreate,
     EmployeeContractResponse,
+    EmployeeTrainingCreate,
+    EmployeeTrainingUpdate,
+    EmployeeTrainingResponse,
     KeycloakSyncRequest,
     KeycloakSyncResponse,
 )
@@ -48,7 +51,7 @@ async def get_user_service(
 # ═══════════════════════════════════════════════════════════
 
 @router.get("/auth/me", response_model=CurrentUserResponse)
-async def get_current_user(
+async def read_current_user(
     token: TokenPayload = Depends(get_current_token),
     service: UserService = Depends(get_user_service),
 ):
@@ -331,7 +334,7 @@ async def create_user_contract(
 @router.get("/contract-types", response_model=list[ContractTypeResponse])
 async def list_contract_types(
     active_only: bool = True,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: UserService = Depends(get_user_service),
 ):
     """List all contract types."""
@@ -366,7 +369,7 @@ async def update_contract_type(
 @router.get("/work-schedules", response_model=list[WorkScheduleResponse])
 async def list_work_schedules(
     active_only: bool = True,
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: UserService = Depends(get_user_service),
 ):
     """List all work schedules."""
@@ -381,3 +384,67 @@ async def create_work_schedule(
 ):
     """Create new work schedule. Admin only."""
     return await service.create_work_schedule(data, actor_id=token.user_id)
+
+
+# ═══════════════════════════════════════════════════════════
+# Employee Training Endpoints
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/users/{user_id}/trainings", response_model=list[EmployeeTrainingResponse])
+async def get_user_trainings(
+    user_id: UUID,
+    token: TokenPayload = Depends(get_current_user),
+    service: UserService = Depends(get_user_service),
+):
+    """Get all training records for a user."""
+    # Check if current user is HR/Admin or the user themselves
+    if not (token.is_hr or token.is_admin or token.user_id == user_id):
+         raise HTTPException(status_code=403, detail="Not authorized to view these training records")
+         
+    return await service.get_employee_trainings(user_id)
+
+
+@router.post("/trainings", response_model=EmployeeTrainingResponse, status_code=201)
+async def create_training(
+    data: EmployeeTrainingCreate,
+    token: TokenPayload = Depends(get_current_user),
+    service: UserService = Depends(get_user_service),
+):
+    """Create new training record. HR or Admin only."""
+    if not (token.is_hr or token.is_admin):
+        raise HTTPException(status_code=403, detail="Only HR or Admin can manage training records")
+             
+    return await service.create_employee_training(data, actor_id=token.user_id)
+
+
+@router.put("/trainings/{id}", response_model=EmployeeTrainingResponse)
+async def update_training(
+    id: UUID,
+    data: EmployeeTrainingUpdate,
+    token: TokenPayload = Depends(get_current_user),
+    service: UserService = Depends(get_user_service),
+):
+    """Update training record. HR or Admin only."""
+    if not (token.is_hr or token.is_admin):
+        raise HTTPException(status_code=403, detail="Only HR or Admin can manage training records")
+        
+    try:
+        return await service.update_employee_training(id, data, actor_id=token.user_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/trainings/{id}", status_code=204)
+async def delete_training(
+    id: UUID,
+    token: TokenPayload = Depends(get_current_user),
+    service: UserService = Depends(get_user_service),
+):
+    """Delete training record. HR or Admin only."""
+    if not (token.is_hr or token.is_admin):
+        raise HTTPException(status_code=403, detail="Only HR or Admin can manage training records")
+        
+    try:
+        await service.delete_employee_training(id, actor_id=token.user_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))

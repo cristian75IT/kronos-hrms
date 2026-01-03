@@ -38,8 +38,13 @@ echo -e "\n${YELLOW}🌱 Seeding database...${NC}"
 echo "   - Creating schemas (auth, leaves, expenses, config, notifications, audit)"
 echo "   - Running Alembic migrations"
 echo "   - Seeding leave types, holidays, national contracts (CCNL)"
-# Eseguiamo lo script python dentro il container auth-service che ha accesso al codice e DB
+# Eseguiamo gli script python dentro il container auth-service
+echo "   - Running database initialization (init_db.py)..."
 if docker exec kronos-auth python scripts/init_db.py; then
+    echo "   - Running enterprise calendar seed..."
+    docker exec kronos-auth python scripts/seed_enterprise_calendar_data.py
+    echo "   - Running enterprise data seed (users, wallets, reporting)..."
+    docker exec kronos-auth python scripts/seed_enterprise_data.py
     echo -e "${GREEN}✓ Database initialized and seeded successfully!${NC}"
 else
     echo -e "${RED}❌ Database initialization failed.${NC}"

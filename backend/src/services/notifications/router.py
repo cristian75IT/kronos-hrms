@@ -29,10 +29,15 @@ from src.services.notifications.schemas import (
     PushSubscriptionCreate,
     PushSubscriptionResponse,
     EmailLogResponse,
+    EmailProviderSettingsResponse,
+    EmailProviderSettingsCreate,
+    EmailProviderSettingsUpdate,
+    TestEmailRequest,
 )
 from src.services.notifications.repository import (
     PushSubscriptionRepository,
     EmailLogRepository,
+    EmailProviderSettingsRepository,
 )
 
 
@@ -67,21 +72,21 @@ async def get_my_notifications(
     unread_only: bool = False,
     limit: int = 50,
     channel: Optional[str] = None,
-    token: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Get current user's notifications."""
-    notifications = await service.get_user_notifications(token.user_id, unread_only, limit, channel)
+    notifications = await service.get_user_notifications(current_user.user_id, unread_only, limit, channel)
     return [NotificationListItem.model_validate(n) for n in notifications]
 
 
 @router.get("/notifications/unread-count", response_model=UnreadCountResponse)
 async def get_unread_count(
-    token: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Get unread notification count."""
-    count = await service.count_unread(token.user_id)
+    count = await service.count_unread(current_user.user_id)
     return UnreadCountResponse(count=count)
 
 
@@ -93,7 +98,7 @@ async def get_notification_history(
     notification_type: Optional[str] = None,
     status: Optional[str] = None,
     channel: Optional[str] = None,
-    token: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_admin),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Get history of sent notifications. Admin only."""
@@ -110,7 +115,7 @@ async def get_notification_history(
 @router.post("/notifications/history/datatable", response_model=DataTableResponse[NotificationResponse])
 async def get_notification_history_datatable(
     data: NotificationDataTableRequest,
-    token: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_admin),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Get history of sent notifications for DataTables."""
@@ -145,21 +150,21 @@ async def get_notification_history_datatable(
 
 @router.get("/notifications/preferences", response_model=UserPreferencesResponse)
 async def get_my_preferences(
-    token: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Get current user's notification preferences."""
-    return await service.get_preferences(token.user_id)
+    return await service.get_preferences(current_user.user_id)
 
 
 @router.put("/notifications/preferences", response_model=UserPreferencesResponse)
 async def update_my_preferences(
     data: UserPreferencesUpdate,
-    token: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Update current user's notification preferences."""
-    return await service.update_preferences(token.user_id, data)
+    return await service.update_preferences(current_user.user_id, data)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -173,12 +178,12 @@ async def get_email_logs(
     to_email: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
-    token: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
     """Get email logs history. Admin only."""
     repo = EmailLogRepository(session)
-    if not (token.is_admin or token.is_hr):
+    if not (current_user.is_admin or current_user.is_hr):
         raise HTTPException(status_code=403, detail="Admin or HR role required")
     return await repo.get_history(
         limit=limit,
@@ -192,12 +197,12 @@ async def get_email_logs(
 @router.get("/notifications/email-logs/stats", response_model=dict)
 async def get_email_stats(
     days: int = 7,
-    token: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
     """Get email delivery statistics. Admin only."""
     repo = EmailLogRepository(session)
-    if not (token.is_admin or token.is_hr):
+    if not (current_user.is_admin or current_user.is_hr):
         raise HTTPException(status_code=403, detail="Admin or HR role required")
     return await repo.get_stats(days=days)
 
@@ -205,24 +210,11 @@ async def get_email_stats(
 @router.post("/notifications/email-logs/{id}/retry", response_model=EmailLogResponse)
 async def retry_email(
     id: UUID,
-    token: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_admin),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Manually retry a failed email. Admin only."""
     return await service.retry_email(id)
-
-
-@router.get("/notifications/{id}", response_model=NotificationResponse)
-async def get_notification(
-    id: UUID,
-    token: TokenPayload = Depends(get_current_user),
-    service: NotificationService = Depends(get_notification_service),
-):
-    """Get notification by ID."""
-    try:
-        return await service.get_notification(id)
-    except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.post("/notifications", response_model=NotificationResponse, status_code=201)
@@ -240,28 +232,28 @@ async def create_notification(
 @router.post("/notifications/mark-read", response_model=MessageResponse)
 async def mark_read(
     data: MarkReadRequest,
-    token: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Mark notifications as read."""
-    count = await service.mark_read(data.notification_ids, token.user_id)
+    count = await service.mark_read(data.notification_ids, current_user.user_id)
     return MessageResponse(message=f"Marked {count} notifications as read")
 
 
 @router.post("/notifications/mark-all-read", response_model=MessageResponse)
 async def mark_all_read(
-    token: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Mark all notifications as read."""
-    count = await service.mark_all_read(token.user_id)
+    count = await service.mark_all_read(current_user.user_id)
     return MessageResponse(message=f"Marked {count} notifications as read")
 
 
 @router.post("/notifications/bulk", response_model=BulkNotificationResponse)
 async def send_bulk(
     data: BulkNotificationRequest,
-    token: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_admin),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Send bulk notifications. Admin only."""
@@ -288,7 +280,7 @@ async def send_email(
 @router.get("/notifications/templates", response_model=list[EmailTemplateResponse])
 async def get_templates(
     active_only: bool = True,
-    token: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_admin),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Get all email templates. Admin only."""
@@ -298,7 +290,7 @@ async def get_templates(
 @router.get("/notifications/templates/{id}", response_model=EmailTemplateResponse)
 async def get_template(
     id: UUID,
-    token: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_admin),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Get template by ID. Admin only."""
@@ -311,7 +303,7 @@ async def get_template(
 @router.post("/notifications/templates", response_model=EmailTemplateResponse, status_code=201)
 async def create_template(
     data: EmailTemplateCreate,
-    token: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_admin),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Create email template. Admin only."""
@@ -322,14 +314,29 @@ async def create_template(
 async def update_template(
     id: UUID,
     data: EmailTemplateUpdate,
-    token: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_admin),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Update email template. Admin only."""
     try:
-        return await service.update_template(id, data, user_id=token.user_id)
+        return await service.update_template(id, data, user_id=current_user.user_id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/notifications/templates/{id}/sync", response_model=dict)
+async def sync_template_to_brevo(
+    id: UUID,
+    current_user: TokenPayload = Depends(require_admin),
+    service: NotificationService = Depends(get_notification_service),
+):
+    """Sync template to Brevo. Admin only."""
+    try:
+        return await service.sync_template_to_brevo(id, user_id=current_user.user_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ═══════════════════════════════════════════════════════════
@@ -339,13 +346,13 @@ async def update_template(
 @router.post("/notifications/push-subscriptions", response_model=PushSubscriptionResponse, status_code=201)
 async def subscribe_to_push(
     data: PushSubscriptionCreate,
-    token: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
     """Subscribe to Web Push notifications."""
     repo = PushSubscriptionRepository(session)
     subscription = await repo.create(
-        user_id=token.user_id,
+        user_id=current_user.user_id,
         endpoint=data.endpoint,
         p256dh=data.p256dh,
         auth=data.auth,
@@ -356,18 +363,18 @@ async def subscribe_to_push(
 
 @router.get("/notifications/push-subscriptions", response_model=list[PushSubscriptionResponse])
 async def get_my_push_subscriptions(
-    token: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
     """Get current user's push subscriptions."""
     repo = PushSubscriptionRepository(session)
-    return await repo.get_by_user(token.user_id)
+    return await repo.get_by_user(current_user.user_id)
 
 
 @router.delete("/notifications/push-subscriptions/{id}", response_model=MessageResponse)
 async def unsubscribe_from_push(
     id: UUID,
-    token: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
     """Unsubscribe from Web Push notifications."""
@@ -378,4 +385,147 @@ async def unsubscribe_from_push(
     return MessageResponse(message="Unsubscribed from push notifications")
 
 
+# ═══════════════════════════════════════════════════════════
+# Email Provider Settings Endpoints (Admin Only)
+# ═══════════════════════════════════════════════════════════
 
+@router.get("/notifications/settings", response_model=EmailProviderSettingsResponse)
+async def get_email_provider_settings(
+    current_user: TokenPayload = Depends(require_admin),
+    session: AsyncSession = Depends(get_db),
+):
+    """Get active email provider settings. Admin only."""
+    repo = EmailProviderSettingsRepository(session)
+    settings = await repo.get_by_provider("brevo")
+    if not settings:
+        raise HTTPException(status_code=404, detail="Email provider not configured")
+    
+    # Mask API key for security
+    api_key_masked = f"...{settings.api_key[-4:]}" if settings.api_key else ""
+    
+    return EmailProviderSettingsResponse(
+        id=settings.id,
+        provider=settings.provider,
+        api_key_masked=api_key_masked,
+        sender_email=settings.sender_email,
+        sender_name=settings.sender_name,
+        reply_to_email=settings.reply_to_email,
+        reply_to_name=settings.reply_to_name,
+        is_active=settings.is_active,
+        test_mode=settings.test_mode,
+        test_email=settings.test_email,
+        daily_limit=settings.daily_limit,
+        emails_sent_today=settings.emails_sent_today or 0,
+        created_at=settings.created_at,
+        updated_at=settings.updated_at,
+    )
+
+
+@router.post("/notifications/settings", response_model=EmailProviderSettingsResponse, status_code=201)
+async def create_email_provider_settings(
+    data: EmailProviderSettingsCreate,
+    current_user: TokenPayload = Depends(require_admin),
+    session: AsyncSession = Depends(get_db),
+):
+    """Create email provider settings. Admin only."""
+    repo = EmailProviderSettingsRepository(session)
+    
+    # Check if settings already exist
+    existing = await repo.get_active(data.provider)
+    if existing:
+        raise HTTPException(status_code=400, detail="Settings for this provider already exist. Use PUT to update.")
+    
+    settings = await repo.create(**data.model_dump())
+    await session.commit()
+    
+    api_key_masked = f"...{settings.api_key[-4:]}" if settings.api_key else ""
+    
+    return EmailProviderSettingsResponse(
+        id=settings.id,
+        provider=settings.provider,
+        api_key_masked=api_key_masked,
+        sender_email=settings.sender_email,
+        sender_name=settings.sender_name,
+        reply_to_email=settings.reply_to_email,
+        reply_to_name=settings.reply_to_name,
+        is_active=settings.is_active,
+        test_mode=settings.test_mode,
+        test_email=settings.test_email,
+        daily_limit=settings.daily_limit,
+        emails_sent_today=settings.emails_sent_today or 0,
+        created_at=settings.created_at,
+        updated_at=settings.updated_at,
+    )
+
+
+@router.put("/notifications/settings/{id}", response_model=EmailProviderSettingsResponse)
+async def update_email_provider_settings(
+    id: UUID,
+    data: EmailProviderSettingsUpdate,
+    current_user: TokenPayload = Depends(require_admin),
+    session: AsyncSession = Depends(get_db),
+):
+    """Update email provider settings. Admin only."""
+    repo = EmailProviderSettingsRepository(session)
+    settings = await repo.update(id, **data.model_dump(exclude_unset=True))
+    
+    if not settings:
+        raise HTTPException(status_code=404, detail="Settings not found")
+    
+    await session.commit()
+    
+    api_key_masked = f"...{settings.api_key[-4:]}" if settings.api_key else ""
+    
+    return EmailProviderSettingsResponse(
+        id=settings.id,
+        provider=settings.provider,
+        api_key_masked=api_key_masked,
+        sender_email=settings.sender_email,
+        sender_name=settings.sender_name,
+        reply_to_email=settings.reply_to_email,
+        reply_to_name=settings.reply_to_name,
+        is_active=settings.is_active,
+        test_mode=settings.test_mode,
+        test_email=settings.test_email,
+        daily_limit=settings.daily_limit,
+        emails_sent_today=settings.emails_sent_today or 0,
+        created_at=settings.created_at,
+        updated_at=settings.updated_at,
+    )
+
+
+@router.post("/notifications/settings/test", response_model=SendEmailResponse)
+async def test_email_settings(
+    data: TestEmailRequest,
+    current_user: TokenPayload = Depends(require_admin),
+    session: AsyncSession = Depends(get_db),
+    service: NotificationService = Depends(get_notification_service),
+):
+    """Send a test email to verify settings. Admin only."""
+    # Use the generic_notification template or create inline
+    result = await service.send_email(SendEmailRequest(
+        to_email=data.to_email,
+        template_code="generic_notification",
+        variables={
+            "title": "Test Email from KRONOS",
+            "message": "This is a test email to verify your email provider configuration.",
+        }
+    ))
+    return result
+
+
+# ═══════════════════════════════════════════════════════════
+# Generic Notification Endpoint (Must be last to avoid conflicts)
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/notifications/{id}", response_model=NotificationResponse)
+async def get_notification(
+    id: UUID,
+    current_user: TokenPayload = Depends(get_current_user),
+    service: NotificationService = Depends(get_notification_service),
+):
+    """Get notification by ID."""
+    try:
+        return await service.get_notification(id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))

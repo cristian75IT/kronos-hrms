@@ -91,6 +91,42 @@ export interface EmployeeContract {
     contract_type?: ContractType;
 }
 
+export interface EmployeeTraining {
+    id: string;
+    user_id: string;
+    training_type: string;
+    description?: string;
+    issue_date: string;
+    expiry_date?: string;
+    certificate_id?: string;
+    hours?: number;
+    provider?: string;
+    document_path?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface EmployeeTrainingCreate {
+    user_id: string;
+    training_type: string;
+    description?: string;
+    issue_date: string;
+    expiry_date?: string;
+    certificate_id?: string;
+    hours?: number;
+    provider?: string;
+}
+
+export interface EmployeeTrainingUpdate {
+    training_type?: string;
+    description?: string;
+    issue_date?: string;
+    expiry_date?: string;
+    certificate_id?: string;
+    hours?: number;
+    provider?: string;
+}
+
 
 // ═══════════════════════════════════════════════════════════════════
 // National Contracts (CCNL)
@@ -264,6 +300,7 @@ export interface LeaveType {
     balance_type?: 'vacation' | 'rol' | 'permits';
     requires_approval: boolean;
     requires_attachment: boolean;
+    requires_protocol: boolean;
     max_consecutive_days?: number;
     min_notice_days?: number;
     is_active: boolean;
@@ -325,6 +362,7 @@ export interface LeaveRequest {
     condition_type?: ConditionType;
     condition_details?: string;
     condition_accepted?: boolean;
+    protocol_number?: string;
     submitted_at?: string;
     created_at: string;
     updated_at: string;
@@ -337,6 +375,7 @@ export interface LeaveRequestCreate {
     start_half_day?: boolean;
     end_half_day?: boolean;
     employee_notes?: string;
+    protocol_number?: string;
 }
 
 export interface LeaveRequestUpdate {
@@ -345,6 +384,7 @@ export interface LeaveRequestUpdate {
     start_half_day?: boolean;
     end_half_day?: boolean;
     employee_notes?: string;
+    protocol_number?: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -640,4 +680,129 @@ export interface AggregateReportResponse {
     start_date: string;
     end_date: string;
     items: AggregateReportItem[];
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// HR Reporting & Dashboard Types
+// ═══════════════════════════════════════════════════════════════════
+
+export interface WorkforceStatus {
+    total_employees: number;
+    active_now: number;
+    on_leave: number;
+    on_trip: number;
+    sick_leave: number;
+    remote_working: number;
+    absence_rate: number;
+}
+
+export interface HrPendingApprovals {
+    total: number;
+    leave_requests: number;
+    expense_reports: number;
+    trip_requests: number;
+    // contracts: number; // Not currently provided by backend
+    // other: number;
+    // oldest_request_days: number; // Not currently provided by backend
+}
+
+export interface HrAlert {
+    id: string;
+    type: string;
+    title: string;
+    description: string;
+    severity: 'info' | 'warning' | 'critical';
+    employee_id?: string;
+    employee_name?: string;
+    department_id?: string;
+    department_name?: string;
+    created_at: string;
+    action_required: boolean;
+    action_deadline?: string;
+    is_acknowledged: boolean;
+    is_resolved: boolean;
+}
+
+export interface DashboardOverview {
+    date: string;
+    workforce: WorkforceStatus;
+    pending_approvals: HrPendingApprovals;
+    alerts: HrAlert[];
+    quick_stats: {
+        today_leaves: number;
+        week_leaves: number;
+        today_trips: number;
+        week_trips: number;
+    };
+}
+
+export interface HrDailySnapshot {
+    id: string;
+    created_at: string;
+    snapshot_date: string;
+    total_employees: number;
+    on_leave: number;
+    on_trip: number;
+    sick_leave: number;
+    remote_working: number;
+    absence_rate: number;
+    metrics: Record<string, any>;
+}
+
+export interface MonthlyReportResponse {
+    id: string;
+    year: number;
+    month: number;
+    generated_at: string;
+    generated_by: string;
+    status: string;
+    employee_count: number;
+    employees: any[]; // Detailed employee monthly data
+    summary: Record<string, any>;
+}
+
+export interface ComplianceIssue {
+    employee_id: string;
+    employee_name: string;
+    type: string;
+    description: string;
+    deadline?: string;
+    days_missing?: number;
+    severity: 'info' | 'warning' | 'critical' | string;
+    resolved: boolean;
+}
+
+export interface ComplianceCheck {
+    id: string;
+    name: string;
+    description: string;
+    status: 'PASS' | 'WARN' | 'CRIT';
+    result_value?: string;
+    details?: string[];
+}
+
+export interface ComplianceStatistics {
+    employees_compliant: number;
+    employees_at_risk: number;
+    employees_critical: number;
+    compliance_rate: number;
+}
+
+export interface ComplianceReportResponse {
+    period: string;
+    compliance_status: 'OK' | 'WARNING' | 'CRITICAL' | string;
+    issues: ComplianceIssue[];
+    checks: ComplianceCheck[];
+    statistics: ComplianceStatistics;
+}
+
+export interface BudgetReportResponse {
+    year: number;
+    generated_at: string;
+    total_budget: number;
+    spent_amount: number;
+    remaining_amount: number;
+    utilization_rate: number;
+    breakdown_by_department: Record<string, number>;
+    breakdown_by_category: Record<string, number>;
 }

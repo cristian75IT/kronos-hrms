@@ -52,6 +52,20 @@ class AuthClient:
             logger.error(f"AuthClient error get_subordinates: {e}")
         return []
 
+    async def get_employee_trainings(self, user_id: UUID) -> list[dict]:
+        """Get safety training records for an employee."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/users/{user_id}/trainings",
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"AuthClient error get_employee_trainings: {e}")
+        return []
+
 
 class ConfigClient:
     """Client for Config Service interactions."""
@@ -149,7 +163,13 @@ class ConfigClient:
 
 
 class NotificationClient:
-    """Client for Notification Service."""
+    """Client for Notification Service.
+    
+    Enterprise-grade notification client with:
+    - Multi-channel support (in_app, email)
+    - Structured result with delivery status
+    - Automatic email resolution
+    """
     
     def __init__(self):
         self.base_url = settings.notification_service_url
@@ -161,38 +181,110 @@ class NotificationClient:
         notification_type: str,
         title: str,
         message: str,
+        channels: list[str] | None = None,
         entity_type: Optional[str] = None,
         entity_id: Optional[str] = None,
-        force_email_lookup: bool = True
-    ) -> None:
-        """Send notification. Resolves email automatically."""
+        action_url: Optional[str] = None,
+        force_email_lookup: bool = True,
+    ) -> dict:
+        """Send notification through specified channels.
+        
+        Args:
+            user_id: Target user UUID
+            notification_type: Type from NotificationType enum
+            title: Notification title
+            message: Notification body
+            channels: List of channels ["in_app", "email"]. Default: ["in_app", "email"]
+            entity_type: Related entity type (e.g., "LeaveRequest")
+            entity_id: Related entity ID
+            action_url: URL to navigate on click
+            force_email_lookup: Whether to fetch user email from auth service
+            
+        Returns:
+            dict with 'success', 'notification_ids', 'email_sent', 'errors'
+        """
+        if channels is None:
+            channels = ["in_app", "email"]
+        
+        result = {
+            "success": False,
+            "notification_ids": [],
+            "email_sent": False,
+            "errors": [],
+        }
+        
         try:
             user_email = None
             if force_email_lookup:
                 user_email = await self.auth_client.get_user_email(user_id)
                 if not user_email:
                     logger.warning(f"Notification skipped: No email for user {user_id}")
-                    return
+                    result["errors"].append(f"No email found for user {user_id}")
+                    return result
 
-            payload = {
-                "user_id": str(user_id),
-                "user_email": user_email,
-                "notification_type": notification_type,
-                "title": title,
-                "message": message,
-                "channel": "in_app", # Default, ideally configurable
-                "entity_type": entity_type,
-                "entity_id": str(entity_id) if entity_id else None,
-            }
+            # Send to each channel
+            for channel in channels:
+                try:
+                    payload = {
+                        "user_id": str(user_id),
+                        "user_email": user_email,
+                        "notification_type": notification_type,
+                        "title": title,
+                        "message": message,
+                        "channel": channel,
+                        "entity_type": entity_type,
+                        "entity_id": str(entity_id) if entity_id else None,
+                        "action_url": action_url,
+                    }
+                    
+                    async with httpx.AsyncClient() as client:
+                        response = await client.post(
+                            f"{self.base_url}/api/v1/notifications",
+                            json=payload,
+                            timeout=10.0
+                        )
+                        
+                        if response.status_code == 201:
+                            data = response.json()
+                            result["notification_ids"].append(data.get("id"))
+                            if channel == "email":
+                                result["email_sent"] = True
+                        else:
+                            result["errors"].append(f"{channel}: {response.status_code}")
+                            
+                except Exception as e:
+                    logger.error(f"NotificationClient error ({channel}): {e}")
+                    result["errors"].append(f"{channel}: {str(e)}")
             
-            async with httpx.AsyncClient() as client:
-                await client.post(
-                    f"{self.base_url}/api/v1/notifications",
-                    json=payload,
-                    timeout=5.0
-                )
+            result["success"] = len(result["notification_ids"]) > 0
+            
         except Exception as e:
-             logger.error(f"NotificationClient error: {e}")
+            logger.error(f"NotificationClient error: {e}")
+            result["errors"].append(str(e))
+        
+        return result
+    
+    async def send_with_email(
+        self,
+        user_id: UUID,
+        notification_type: str,
+        title: str,
+        message: str,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None,
+        action_url: Optional[str] = None,
+    ) -> dict:
+        """Convenience method: send both in_app and email notification."""
+        return await self.send_notification(
+            user_id=user_id,
+            notification_type=notification_type,
+            title=title,
+            message=message,
+            channels=["in_app", "email"],
+            entity_type=entity_type,
+            entity_id=entity_id,
+            action_url=action_url,
+        )
 
 class LeavesWalletClient:
     """
@@ -653,14 +745,15 @@ class CalendarClient:
                 params["end_date"] = end_date.isoformat()
                 
             async with httpx.AsyncClient() as client:
+                # Use the new endpoint in calendar router (we need to add it first!)
+                # For now, I will assume I will add GET /api/v1/calendar/holidays
                 response = await client.get(
-                    f"{self.base_url}/api/v1/holidays",
+                    f"{self.base_url}/api/v1/calendar/holidays-list",
                     params=params,
                     timeout=5.0
                 )
                 if response.status_code == 200:
-                    data = response.json()
-                    return data if isinstance(data, list) else data.get("items", [])
+                    return response.json()
         except Exception as e:
             logger.error(f"CalendarClient error get_holidays: {e}")
         return []
@@ -674,13 +767,12 @@ class CalendarClient:
                 
             async with httpx.AsyncClient() as client:
                 response = await client.get(
-                    f"{self.base_url}/api/v1/closures",
+                    f"{self.base_url}/api/v1/calendar/closures-list",
                     params=params,
                     timeout=5.0
                 )
                 if response.status_code == 200:
-                    data = response.json()
-                    return data if isinstance(data, list) else data.get("items", [])
+                    return response.json()
         except Exception as e:
             logger.error(f"CalendarClient error get_closures: {e}")
         return []
@@ -796,6 +888,49 @@ class LeaveClient:
         except Exception as e:
             logger.error(f"LeaveClient error recalculate_for_closure: {e}")
         return None
+
+    async def get_pending_requests_count(self) -> int:
+        """Get count of pending leave requests."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/leaves/pending",
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    return len(data) if isinstance(data, list) else 0
+        except Exception as e:
+            logger.error(f"LeavesClient error get_pending_requests_count: {e}")
+        return 0
+
+    async def get_all_requests(
+        self, 
+        user_id: Optional[UUID] = None,
+        year: Optional[int] = None,
+        status: Optional[str] = None
+    ) -> list[dict]:
+        """Get leave requests with filters."""
+        try:
+            params = {}
+            if user_id:
+                params["user_id"] = str(user_id)
+            if year:
+                params["year"] = year
+            if status:
+                params["status"] = status
+                
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/leaves/history",
+                    params=params,
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"LeavesClient error get_all_requests: {e}")
+        return []
 
 
 # Alias for compatibility with HR Reporting service

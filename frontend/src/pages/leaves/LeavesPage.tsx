@@ -10,22 +10,54 @@ import {
   Clock,
   FileText,
   ArrowRight,
+  TrendingUp,
+  History,
+  X
 } from 'lucide-react';
 import { useLeaveRequests, useBalanceSummary } from '../../hooks/useApi';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../../components/common';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
+import { walletsService } from '../../services/wallets.service';
+import { useToast } from '../../context/ToastContext';
 
 export function LeavesPage() {
   const [currentYear] = useState(new Date().getFullYear());
-  useAuth();
+  const { user } = useAuth();
+  const toast = useToast();
 
-  const { data: balance } = useBalanceSummary();
+  const { data: balance } = useBalanceSummary(user?.id);
   const { data: requests } = useLeaveRequests();
+
+  const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
+  const [walletTransactions, setWalletTransactions] = useState<any[]>([]);
+  const [isLoadingWallet, setIsLoadingWallet] = useState(false);
 
   const pendingCount = requests?.filter(r => r.status === 'pending').length || 0;
   const approvedCount = requests?.filter(r => r.status === 'approved').length || 0;
+
+  const loadWalletDetails = async () => {
+    if (!user?.id) return;
+    setIsLoadingWallet(true);
+    try {
+      const wallet = await walletsService.getLeavesWallet(user.id, currentYear);
+      if (wallet?.id) {
+        const transactions = await walletsService.getLeavesTransactions(wallet.id);
+        setWalletTransactions(transactions);
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Errore caricamento dettagli wallet');
+    } finally {
+      setIsLoadingWallet(false);
+    }
+  };
+
+  const openWalletModal = () => {
+    setIsWalletModalOpen(true);
+    loadWalletDetails();
+  };
 
   return (
     <div className="space-y-6 animate-fadeIn pb-8">
@@ -36,6 +68,14 @@ export function LeavesPage() {
           <p className="text-sm text-gray-500">Gestisci le tue richieste di ferie e permessi</p>
         </div>
         <div className="flex gap-3">
+          <Button
+            variant="secondary"
+            onClick={openWalletModal}
+            icon={<History size={18} />}
+            className="shrink-0"
+          >
+            Storico Saldi
+          </Button>
           <Button
             as={Link}
             to="/calendar"
@@ -161,11 +201,72 @@ export function LeavesPage() {
           )}
         </div>
       </div>
+
+      {/* Wallet Transactions Modal */}
+      {isWalletModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden animate-scaleIn flex flex-col max-h-[85vh]">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 shrink-0">
+              <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                <TrendingUp className="text-indigo-600" size={20} />
+                Storico Movimenti Wallet
+              </h3>
+              <button onClick={() => setIsWalletModalOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-0">
+              {isLoadingWallet ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <div className="animate-spin text-indigo-600"><History size={32} /></div>
+                  <span className="text-sm text-gray-500">Caricamento movimenti...</span>
+                </div>
+              ) : walletTransactions.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">Nessun movimento registrato.</div>
+              ) : (
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantità</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Causale</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {walletTransactions.map((tx: any) => (
+                      <tr key={tx.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
+                          {format(new Date(tx.created_at), 'dd/MM/yyyy HH:mm', { locale: it })}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-xs font-semibold text-gray-700">
+                          {tx.transaction_type}
+                        </td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${tx.amount >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {tx.amount > 0 ? '+' : ''}{tx.amount}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 max-w-xs truncate">
+                          {tx.reason || '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end shrink-0">
+              <Button variant="secondary" onClick={() => setIsWalletModalOpen(false)}>Chiudi</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// Helper functions
+// Helper functions (same as before)
 function getStatusBadge(status: string): string {
   const map: Record<string, string> = {
     draft: 'bg-gray-100 text-gray-700 border-gray-200',

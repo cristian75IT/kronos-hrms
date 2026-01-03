@@ -18,6 +18,7 @@ from src.services.notifications.repository import (
     EmailTemplateRepository,
     UserPreferenceRepository,
     EmailLogRepository,
+    EmailProviderSettingsRepository,
 )
 from src.services.notifications.models import EmailLogStatus
 from src.services.notifications.schemas import (
@@ -42,7 +43,9 @@ class NotificationService:
         self._template_repo = EmailTemplateRepository(session)
         self._preference_repo = UserPreferenceRepository(session)
         self._email_log_repo = EmailLogRepository(session)
+        self._settings_repo = EmailProviderSettingsRepository(session)
         self._audit_logger = get_audit_logger("notification-service")
+        self._cached_settings = None  # Cache loaded settings
 
     # ═══════════════════════════════════════════════════════════
     # Notification Operations
@@ -496,7 +499,13 @@ class NotificationService:
         await self._session.commit()
 
         # 2. Check API Key
-        if not settings.brevo_api_key:
+        # Check DB settings first (cached if available)
+        if not self._cached_settings:
+            self._cached_settings = await self._settings_repo.get_active("brevo")
+        
+        provider_settings = self._cached_settings
+
+        if not provider_settings or not provider_settings.api_key:
             error_msg = "Brevo API Key is not configured. Emails cannot be sent."
             logger.error(f"Email sending failed: {error_msg}")
             
@@ -612,21 +621,51 @@ class NotificationService:
         variables: dict,
         to_name: Optional[str] = None,
     ) -> dict:
-        """Send email via Brevo API."""
+        """Send email via Brevo API using database-stored credentials."""
+        
+        # Fetch settings from database (with caching)
+        if not self._cached_settings:
+            self._cached_settings = await self._settings_repo.get_active("brevo")
+        
+        provider_settings = self._cached_settings
+        
+        if not provider_settings:
+            raise ValueError("Email provider not configured. Configure Brevo settings in Admin.")
+        
+        if not provider_settings.api_key:
+            raise ValueError("Brevo API key not configured.")
+        
+        # Check rate limiting
+        if provider_settings.daily_limit:
+            can_send = await self._settings_repo.can_send_email(provider_settings.id)
+            if not can_send:
+                raise ValueError(f"Daily email limit ({provider_settings.daily_limit}) reached.")
+        
+        # Apply test mode: redirect all emails to test address
+        actual_to_email = to_email
+        if provider_settings.test_mode and provider_settings.test_email:
+            actual_to_email = provider_settings.test_email
         
         headers = {
-            "api-key": settings.brevo_api_key,
+            "api-key": provider_settings.api_key,
             "Content-Type": "application/json",
         }
         
         payload = {
-            "to": [{"email": to_email, "name": to_name or to_email}],
+            "to": [{"email": actual_to_email, "name": to_name or actual_to_email}],
             "sender": {
-                "email": settings.brevo_sender_email,
-                "name": settings.brevo_sender_name,
+                "email": provider_settings.sender_email,
+                "name": provider_settings.sender_name,
             },
             "params": variables,
         }
+        
+        # Add reply-to if configured
+        if provider_settings.reply_to_email:
+            payload["replyTo"] = {
+                "email": provider_settings.reply_to_email,
+                "name": provider_settings.reply_to_name or provider_settings.reply_to_email,
+            }
         
         if template.brevo_template_id:
             # Use Brevo template
@@ -653,6 +692,10 @@ class NotificationService:
                 timeout=30.0,
             )
             response.raise_for_status()
+            
+            # Increment email counter
+            await self._settings_repo.increment_emails_sent(provider_settings.id)
+            
             return response.json()
 
     async def _send_push_notification(self, notification) -> None:
@@ -783,6 +826,84 @@ class NotificationService:
             request_data=data.model_dump(mode="json")
         )
         return template
+
+    async def sync_template_to_brevo(self, id: UUID, user_id: Optional[UUID] = None) -> dict:
+        """Sync a local template to Brevo.
+        
+        Creates or updates the template in Brevo and stores the brevo_template_id.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        template = await self._template_repo.get(id)
+        if not template:
+            raise NotFoundError("Template not found")
+        
+        # Get provider settings
+        provider_settings = await self._settings_repo.get_active("brevo")
+        if not provider_settings or not provider_settings.api_key:
+            raise ValueError("Brevo API key not configured")
+        
+        headers = {
+            "api-key": provider_settings.api_key,
+            "Content-Type": "application/json",
+        }
+        
+        # Prepare template payload for Brevo
+        brevo_payload = {
+            "sender": {
+                "email": provider_settings.sender_email,
+                "name": provider_settings.sender_name,
+            },
+            "templateName": template.code,
+            "subject": template.subject or "{{title}}",
+            "htmlContent": template.html_content or "<p>{{message}}</p>",
+        }
+        
+        if provider_settings.reply_to_email:
+            brevo_payload["replyTo"] = provider_settings.reply_to_email
+        
+        async with httpx.AsyncClient() as client:
+            if template.brevo_template_id:
+                # Update existing template
+                logger.info(f"Updating Brevo template {template.brevo_template_id}")
+                response = await client.put(
+                    f"https://api.brevo.com/v3/smtp/templates/{template.brevo_template_id}",
+                    headers=headers,
+                    json=brevo_payload,
+                    timeout=30.0,
+                )
+                response.raise_for_status()
+                result = {"updated": True, "brevo_template_id": template.brevo_template_id}
+            else:
+                # Create new template
+                logger.info(f"Creating new Brevo template for {template.code}")
+                response = await client.post(
+                    "https://api.brevo.com/v3/smtp/templates",
+                    headers=headers,
+                    json=brevo_payload,
+                    timeout=30.0,
+                )
+                response.raise_for_status()
+                data = response.json()
+                brevo_id = data.get("id")
+                
+                # Store the brevo_template_id
+                await self._template_repo.update(id, brevo_template_id=brevo_id)
+                await self._session.commit()
+                
+                result = {"created": True, "brevo_template_id": brevo_id}
+        
+        await self._audit_logger.log_action(
+            user_id=user_id,
+            action="SYNC_TO_BREVO",
+            resource_type="EMAIL_TEMPLATE",
+            resource_id=str(id),
+            description=f"Synced template {template.code} to Brevo",
+            request_data=result
+        )
+        
+        return result
 
     # ═══════════════════════════════════════════════════════════
     # Preferences Operations

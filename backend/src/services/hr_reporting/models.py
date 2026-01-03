@@ -255,3 +255,217 @@ class EmployeeMonthlyStats(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+
+# ============================================================================
+# Training and Safety Models (D.Lgs. 81/08 Compliance)
+# ============================================================================
+
+class TrainingType(str, enum.Enum):
+    """Types of training per D.Lgs. 81/08."""
+    GENERALE = "generale"              # Formazione generale (4h)
+    SPECIFICA_BASSO = "specifica_basso"  # Rischio basso (4h)
+    SPECIFICA_MEDIO = "specifica_medio"  # Rischio medio (8h)
+    SPECIFICA_ALTO = "specifica_alto"    # Rischio alto (12h)
+    ANTINCENDIO = "antincendio"         # Antincendio
+    PRIMO_SOCCORSO = "primo_soccorso"   # Primo soccorso
+    PREPOSTO = "preposto"               # Formazione preposti
+    DIRIGENTE = "dirigente"             # Formazione dirigenti
+    RLS = "rls"                         # Rappresentante lavoratori sicurezza
+    RSPP = "rspp"                       # Responsabile SPP
+    LAVORO_ALTEZZA = "lavoro_altezza"   # Lavori in quota
+    CARRELLI = "carrelli"               # Carrelli elevatori
+    PLE = "ple"                         # Piattaforme elevabili
+    ELETTRICO = "elettrico"             # Rischio elettrico
+    ALTRO = "altro"                     # Altra formazione
+
+
+class TrainingStatus(str, enum.Enum):
+    """Training record status."""
+    VALIDO = "valido"
+    IN_SCADENZA = "in_scadenza"   # Expiring within 60 days
+    SCADUTO = "scaduto"
+    PROGRAMMATO = "programmato"   # Scheduled but not completed
+
+
+class TrainingRecord(Base):
+    """
+    Employee training record.
+    
+    Tracks all safety training per D.Lgs. 81/08 with expiration dates,
+    certification documents, and renewal requirements.
+    """
+    __tablename__ = "training_records"
+    __table_args__ = {"schema": "hr_reporting"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    
+    # Employee reference
+    employee_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), 
+        nullable=False, 
+        index=True
+    )
+    
+    # Training type and details
+    training_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    training_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    
+    # Training provider
+    provider_name: Mapped[Optional[str]] = mapped_column(String(200))
+    provider_code: Mapped[Optional[str]] = mapped_column(String(50))  # Ente accreditato
+    
+    # Dates
+    training_date: Mapped[date] = mapped_column(Date, nullable=False)
+    expiry_date: Mapped[Optional[date]] = mapped_column(Date, index=True)
+    hours: Mapped[Optional[int]] = mapped_column(Integer)
+    
+    # Status
+    status: Mapped[str] = mapped_column(String(20), default="valido", index=True)
+    
+    # Certification
+    certificate_number: Mapped[Optional[str]] = mapped_column(String(100))
+    certificate_path: Mapped[Optional[str]] = mapped_column(String(500))  # MinIO path
+    
+    # Audit info
+    recorded_by: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class MedicalVisitType(str, enum.Enum):
+    """Types of medical visits (Sorveglianza sanitaria)."""
+    PREVENTIVA = "preventiva"           # Visita preventiva
+    PERIODICA = "periodica"             # Visita periodica
+    STRAORDINARIA = "straordinaria"     # Visita straordinaria
+    CAMBIO_MANSIONE = "cambio_mansione" # Cambio mansione
+    FINE_RAPPORTO = "fine_rapporto"     # Cessazione rapporto
+
+
+class MedicalFitnessType(str, enum.Enum):
+    """Medical fitness judgements."""
+    IDONEO = "idoneo"                   # Fully fit
+    IDONEO_PARZIALE = "idoneo_parziale" # Partially fit with restrictions
+    IDONEO_TEMPORANEO = "idoneo_temporaneo"  # Temporarily fit
+    NON_IDONEO_TEMP = "non_idoneo_temp"      # Temporarily unfit
+    NON_IDONEO_PERM = "non_idoneo_perm"      # Permanently unfit
+
+
+class MedicalRecord(Base):
+    """
+    Employee medical visit record.
+    
+    Tracks sorveglianza sanitaria visits, fitness judgements, and 
+    any work restrictions per D.Lgs. 81/08.
+    """
+    __tablename__ = "medical_records"
+    __table_args__ = {"schema": "hr_reporting"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    
+    employee_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), 
+        nullable=False, 
+        index=True
+    )
+    
+    # Visit details
+    visit_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    visit_date: Mapped[date] = mapped_column(Date, nullable=False)
+    next_visit_date: Mapped[Optional[date]] = mapped_column(Date, index=True)
+    
+    # Fitness result
+    fitness_result: Mapped[str] = mapped_column(String(50), nullable=False)
+    restrictions: Mapped[Optional[str]] = mapped_column(Text)  # Prescrizioni/limitazioni
+    
+    # Doctor info
+    doctor_name: Mapped[Optional[str]] = mapped_column(String(200))
+    
+    # Document path
+    document_path: Mapped[Optional[str]] = mapped_column(String(500))
+    
+    # Audit
+    recorded_by: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class SafetyCompliance(Base):
+    """
+    Employee safety compliance overview.
+    
+    Aggregated compliance status per employee for D.Lgs. 81/08.
+    Updated via background task periodically.
+    """
+    __tablename__ = "safety_compliance"
+    __table_args__ = {"schema": "hr_reporting"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    
+    employee_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), 
+        nullable=False, 
+        unique=True,
+        index=True
+    )
+    
+    # Overall status
+    is_compliant: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    compliance_score: Mapped[int] = mapped_column(Integer, default=100)  # 0-100
+    
+    # Training status
+    has_formazione_generale: Mapped[bool] = mapped_column(Boolean, default=False)
+    has_formazione_specifica: Mapped[bool] = mapped_column(Boolean, default=False)
+    trainings_expiring_soon: Mapped[int] = mapped_column(Integer, default=0)
+    trainings_expired: Mapped[int] = mapped_column(Integer, default=0)
+    
+    # Medical status
+    medical_fitness_valid: Mapped[bool] = mapped_column(Boolean, default=False)
+    medical_next_visit: Mapped[Optional[date]] = mapped_column(Date)
+    medical_restrictions: Mapped[Optional[str]] = mapped_column(Text)
+    
+    # Last check and issues
+    last_check_date: Mapped[Optional[date]] = mapped_column(Date)
+    issues: Mapped[Optional[dict]] = mapped_column(JSONB)  # List of compliance issues
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )

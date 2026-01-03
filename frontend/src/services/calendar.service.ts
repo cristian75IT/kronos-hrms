@@ -154,11 +154,14 @@ export interface CalendarDayView {
 
 export interface UserCalendar {
     id: string;
-    user_id: string;
+    user_id: string; // Mapped from owner_id
+    owner_id?: string; // Original backend field
     name: string;
     description?: string;
     color: string;
     is_active: boolean;
+    is_public?: boolean;
+    type?: 'PERSONAL' | 'TEAM' | 'LOCATION' | 'SYSTEM';
     created_at: string;
     updated_at: string;
     shared_with?: CalendarShare[];
@@ -242,42 +245,45 @@ export interface WorkingDayExceptionCreate {
 // ═══════════════════════════════════════════════════════════
 
 export const calendarService = {
-    // Holidays
+    // Holidays (Unified Calendar)
     getHolidays: async (params?: {
         year?: number;
-        scope?: string;
-        location_id?: string;
-        include_inactive?: boolean;
+        start_date?: string;
+        end_date?: string;
     }): Promise<Holiday[]> => {
-        const response = await api.get(`/holidays`, { params });
+        // Use new list endpoint
+        const response = await api.get(`/calendar/holidays-list`, { params });
         return response.data;
     },
 
     getHoliday: async (id: string): Promise<Holiday> => {
-        const response = await api.get(`/holidays/${id}`);
+        // TODO: This might need admin endpoint if managing items directly
+        // For now stubbed or legacy
+        const response = await api.get(`/calendar/holidays/${id}`);
         return response.data;
     },
 
-    createHoliday: async (data: HolidayCreate): Promise<Holiday> => {
-        const response = await api.post(`/holidays`, data);
-        return response.data;
+    createHoliday: async (_data: HolidayCreate): Promise<Holiday> => {
+        // Requires Admin profile management usually. 
+        // We map this to creating a holiday in a default profile? 
+        // Or fail. 
+        throw new Error("Use Admin Profile Management to create holidays");
     },
 
-    updateHoliday: async (id: string, data: HolidayUpdate): Promise<Holiday> => {
-        const response = await api.put(`/holidays/${id}`, data);
-        return response.data;
+    updateHoliday: async (_id: string, _data: HolidayUpdate): Promise<Holiday> => {
+        throw new Error("Use Admin Profile Management to update holidays");
     },
 
-    deleteHoliday: async (id: string): Promise<void> => {
-        await api.delete(`/holidays/${id}`);
+    deleteHoliday: async (_id: string): Promise<void> => {
+        throw new Error("Use Admin Profile Management to delete holidays");
     },
 
     // Closures
     getClosures: async (params?: {
         year?: number;
-        include_inactive?: boolean;
+        location_id?: string;
     }): Promise<Closure[]> => {
-        const response = await api.get(`/closures`, { params });
+        const response = await api.get(`/calendar/closures-list`, { params });
         return response.data;
     },
 
@@ -307,12 +313,12 @@ export const calendarService = {
         event_type?: string;
         include_public?: boolean;
     }): Promise<CalendarEvent[]> => {
-        const response = await api.get(`/events`, { params });
+        const response = await api.get(`/calendar/events`, { params });
         return response.data;
     },
 
     getEvent: async (id: string): Promise<CalendarEvent> => {
-        const response = await api.get(`/events/${id}`);
+        const response = await api.get(`/calendar/events/${id}`);
         return response.data;
     },
 
@@ -333,17 +339,17 @@ export const calendarService = {
         calendar_id?: string;
         participant_ids?: string[];
     }): Promise<CalendarEvent> => {
-        const response = await api.post(`/events`, data);
+        const response = await api.post(`/calendar/events`, data);
         return response.data;
     },
 
     updateEvent: async (id: string, data: Partial<CalendarEvent>): Promise<CalendarEvent> => {
-        const response = await api.put(`/events/${id}`, data);
+        const response = await api.put(`/calendar/events/${id}`, data);
         return response.data;
     },
 
     deleteEvent: async (id: string): Promise<void> => {
-        await api.delete(`/events/${id}`);
+        await api.delete(`/calendar/events/${id}`);
     },
 
     respondToEvent: async (id: string, response: 'accepted' | 'declined' | 'tentative'): Promise<void> => {
@@ -398,33 +404,44 @@ export const calendarService = {
         await api.delete(`/calendar/exceptions/${id}`);
     },
 
-    // User Calendars
+    // User Calendars (Unified)
     getUserCalendars: async (): Promise<UserCalendar[]> => {
-        const response = await api.get(`/calendar/user-calendars`);
-        return response.data;
+        const response = await api.get(`/calendar/calendars`);
+        // Map backend 'owner_id' to frontend 'user_id' for compatibility
+        return response.data.map((c: any) => ({
+            ...c,
+            user_id: c.owner_id,
+            // ensure color is present
+            color: c.color || '#4F46E5'
+        }));
     },
 
     createUserCalendar: async (data: UserCalendarCreate): Promise<UserCalendar> => {
-        const response = await api.post(`/calendar/user-calendars`, data);
-        return response.data;
+        const response = await api.post(`/calendar/calendars`, {
+            ...data,
+            type: 'PERSONAL'
+        });
+        const c = response.data;
+        return { ...c, user_id: c.owner_id };
     },
 
     updateUserCalendar: async (id: string, data: UserCalendarUpdate): Promise<UserCalendar> => {
-        const response = await api.put(`/calendar/user-calendars/${id}`, data);
-        return response.data;
+        const response = await api.put(`/calendar/calendars/${id}`, data);
+        const c = response.data;
+        return { ...c, user_id: c.owner_id };
     },
 
     deleteUserCalendar: async (id: string): Promise<void> => {
-        await api.delete(`/calendar/user-calendars/${id}`);
+        await api.delete(`/calendar/calendars/${id}`);
     },
 
     shareCalendar: async (calendarId: string, data: CalendarShareCreate): Promise<CalendarShare> => {
-        const response = await api.post(`/calendar/user-calendars/${calendarId}/share`, data);
+        const response = await api.post(`/calendar/calendars/${calendarId}/share`, data);
         return response.data;
     },
 
     unshareCalendar: async (calendarId: string, sharedUserId: string): Promise<void> => {
-        await api.delete(`/calendar/user-calendars/${calendarId}/share/${sharedUserId}`);
+        await api.delete(`/calendar/calendars/${calendarId}/share/${sharedUserId}`);
     },
 
 

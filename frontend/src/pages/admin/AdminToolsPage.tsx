@@ -14,12 +14,15 @@ import {
     Users,
     ArrowRight,
     X,
-    Check
+    Check,
+    Mail
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { leavesService } from '../../services/leaves.service';
 import { Button } from '../../components/common';
 import { configService } from '../../services/config.service';
+import { EmailSettingsPanel } from '../../components/admin/EmailSettingsPanel';
+import { EmailTemplatesPanel } from '../../components/admin/EmailTemplatesPanel';
 
 interface NotificationSetting {
     key: string;
@@ -41,7 +44,7 @@ interface EmployeePreview {
 
 export function AdminToolsPage() {
     const toast = useToast();
-    const [activeTab, setActiveTab] = useState<'maintenance' | 'notifications'>('notifications');
+    const [activeTab, setActiveTab] = useState<'maintenance' | 'notifications' | 'email'>('notifications');
     const [isProcessing, setIsProcessing] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [previewMode, setPreviewMode] = useState<'recalc' | 'rollover' | null>(null);
@@ -207,6 +210,12 @@ export function AdminToolsPage() {
                         className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'maintenance' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
                         <RefreshCcw size={16} /> Manutenzione
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('email')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'email' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <Mail size={16} /> Email
                     </button>
                 </div>
             </div>
@@ -494,6 +503,13 @@ export function AdminToolsPage() {
                             )}
                         </div>
                     )}
+                </div>
+            )}
+
+            {activeTab === 'email' && (
+                <div className="space-y-6">
+                    <EmailSettingsPanel />
+                    <EmailTemplatesPanel />
                 </div>
             )}
         </div>

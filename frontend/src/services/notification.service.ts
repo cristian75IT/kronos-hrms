@@ -160,6 +160,53 @@ const notificationService = {
         const response = await api.post<EmailLog>(`/notifications/email-logs/${id}/retry`);
         return response.data;
     },
+
+    // Email Provider Settings
+    getProviderSettings: async () => {
+        const response = await api.get<EmailProviderSettings>('/notifications/settings');
+        return response.data;
+    },
+
+    createProviderSettings: async (data: EmailProviderSettingsCreate) => {
+        const response = await api.post<EmailProviderSettings>('/notifications/settings', data);
+        return response.data;
+    },
+
+    updateProviderSettings: async (id: string, data: EmailProviderSettingsUpdate) => {
+        const response = await api.put<EmailProviderSettings>(`/notifications/settings/${id}`, data);
+        return response.data;
+    },
+
+    testEmailSettings: async (email: string) => {
+        const response = await api.post<{ success: boolean; error?: string }>('/notifications/settings/test', { to_email: email });
+        return response.data;
+    },
+
+    // Templates
+    getTemplates: async (activeOnly = true) => {
+        const response = await api.get<EmailTemplate[]>('/notifications/templates', { params: { active_only: activeOnly } });
+        return response.data;
+    },
+
+    getTemplate: async (id: string) => {
+        const response = await api.get<EmailTemplate>(`/notifications/templates/${id}`);
+        return response.data;
+    },
+
+    createTemplate: async (data: EmailTemplateCreate) => {
+        const response = await api.post<EmailTemplate>('/notifications/templates', data);
+        return response.data;
+    },
+
+    updateTemplate: async (id: string, data: EmailTemplateUpdate) => {
+        const response = await api.put<EmailTemplate>(`/notifications/templates/${id}`, data);
+        return response.data;
+    },
+
+    syncTemplateToBrevo: async (id: string) => {
+        const response = await api.post<{ created?: boolean; updated?: boolean; brevo_template_id: number }>(`/notifications/templates/${id}/sync`);
+        return response.data;
+    },
 };
 
 export interface EmailLog {
@@ -177,6 +224,87 @@ export interface EmailLog {
     next_retry_at?: string;
     created_at: string;
     updated_at: string;
+}
+
+export interface EmailProviderSettings {
+    id: string;
+    provider: string;
+    api_key_masked: string;
+    sender_email: string;
+    sender_name: string;
+    reply_to_email?: string;
+    reply_to_name?: string;
+    is_active: boolean;
+    test_mode: boolean;
+    test_email?: string;
+    daily_limit?: number;
+    emails_sent_today: number;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface EmailProviderSettingsCreate {
+    provider?: string;
+    api_key: string;
+    sender_email: string;
+    sender_name?: string;
+    reply_to_email?: string;
+    reply_to_name?: string;
+    is_active?: boolean;
+    test_mode?: boolean;
+    test_email?: string;
+    daily_limit?: number;
+}
+
+export interface EmailProviderSettingsUpdate {
+    api_key?: string;
+    sender_email?: string;
+    sender_name?: string;
+    reply_to_email?: string;
+    reply_to_name?: string;
+    is_active?: boolean;
+    test_mode?: boolean;
+    test_email?: string;
+    daily_limit?: number;
+}
+
+export interface EmailTemplate {
+    id: string;
+    code: string;
+    name: string;
+    description?: string;
+    notification_type: string;
+    brevo_template_id?: number;
+    subject?: string;
+    html_content?: string;
+    text_content?: string;
+    available_variables?: string[];
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface EmailTemplateCreate {
+    code: string;
+    name: string;
+    description?: string;
+    notification_type: string;
+    brevo_template_id?: number;
+    subject?: string;
+    html_content?: string;
+    text_content?: string;
+    available_variables?: string[];
+}
+
+export interface EmailTemplateUpdate {
+    name?: string;
+    description?: string;
+    brevo_template_id?: number;
+    subject?: string;
+    html_content?: string;
+    text_content?: string;
+    available_variables?: string[];
+    is_active?: boolean;
 }
 
 export default notificationService;
