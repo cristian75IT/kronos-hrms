@@ -193,3 +193,149 @@ async def get_user_changes(
     """Get all changes made by a user. Admin only."""
     changes = await service.get_user_changes(user_id, limit)
     return [AuditTrailListItem.model_validate(c) for c in changes]
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Enterprise Endpoints
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/audit/stats/summary")
+async def get_audit_stats_summary(
+    days: int = Query(default=7, le=90, description="Number of days to include"),
+    token: TokenPayload = Depends(require_admin),
+    svc: AuditService = Depends(get_audit_service),
+):
+    """Get audit statistics summary. Admin only."""
+    return await svc.get_stats_summary(days)
+
+
+@router.get("/audit/stats/by-service")
+async def get_stats_by_service(
+    days: int = Query(default=7, le=90),
+    token: TokenPayload = Depends(require_admin),
+    svc: AuditService = Depends(get_audit_service),
+):
+    """Get audit stats grouped by service. Admin only."""
+    return await svc.get_stats_by_service(days)
+
+
+@router.get("/audit/stats/by-action")
+async def get_stats_by_action(
+    days: int = Query(default=7, le=90),
+    service_name: Optional[str] = None,
+    token: TokenPayload = Depends(require_admin),
+    svc: AuditService = Depends(get_audit_service),
+):
+    """Get audit stats grouped by action. Admin only."""
+    return await svc.get_stats_by_action(days, service_name)
+
+
+@router.get("/audit/export")
+async def export_audit_logs(
+    format: str = Query(default="json", regex="^(json|csv)$"),
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    service_name: Optional[str] = None,
+    resource_type: Optional[str] = None,
+    limit: int = Query(default=1000, le=10000),
+    token: TokenPayload = Depends(require_admin),
+    svc: AuditService = Depends(get_audit_service),
+):
+    """Export audit logs for compliance. Admin only."""
+    from datetime import datetime
+    from fastapi.responses import StreamingResponse
+    import csv
+    import io
+    import json
+    
+    # Parse dates
+    start = datetime.fromisoformat(start_date) if start_date else None
+    end = datetime.fromisoformat(end_date) if end_date else None
+    
+    filters = AuditLogFilter(
+        service_name=service_name,
+        resource_type=resource_type,
+        start_date=start,
+        end_date=end,
+    )
+    
+    logs = await svc.get_logs(filters, limit=limit, offset=0)
+    
+    if format == "csv":
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Header
+        writer.writerow([
+            "ID", "Timestamp", "User Email", "Service", "Action",
+            "Resource Type", "Resource ID", "Status", "Description"
+        ])
+        
+        # Data
+        for log in logs:
+            writer.writerow([
+                str(log.id),
+                log.created_at.isoformat(),
+                log.user_email or "",
+                log.service_name,
+                log.action,
+                log.resource_type,
+                log.resource_id or "",
+                log.status,
+                log.description or "",
+            ])
+        
+        output.seek(0)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=audit_export.csv"}
+        )
+    else:
+        # JSON export
+        data = [
+            {
+                "id": str(log.id),
+                "timestamp": log.created_at.isoformat(),
+                "user_email": log.user_email,
+                "service_name": log.service_name,
+                "action": log.action,
+                "resource_type": log.resource_type,
+                "resource_id": log.resource_id,
+                "status": log.status,
+                "description": log.description,
+            }
+            for log in logs
+        ]
+        
+        output = io.BytesIO()
+        output.write(json.dumps(data, indent=2, ensure_ascii=False).encode('utf-8'))
+        output.seek(0)
+        
+        return StreamingResponse(
+            output,
+            media_type="application/json",
+            headers={"Content-Disposition": "attachment; filename=audit_export.json"}
+        )
+
+
+@router.post("/audit/archive")
+async def archive_old_logs(
+    retention_days: int = Query(default=90, ge=30, le=365),
+    token: TokenPayload = Depends(require_admin),
+    svc: AuditService = Depends(get_audit_service),
+):
+    """Archive old audit logs. Admin only."""
+    archived_count = await svc.archive_logs(retention_days)
+    return {"archived_count": archived_count, "retention_days": retention_days}
+
+
+@router.post("/audit/purge-archives")
+async def purge_old_archives(
+    archive_retention_days: int = Query(default=365, ge=180, le=2555),
+    token: TokenPayload = Depends(require_admin),
+    svc: AuditService = Depends(get_audit_service),
+):
+    """Purge old archived logs for GDPR compliance. Admin only."""
+    purged_count = await svc.purge_archives(archive_retention_days)
+    return {"purged_count": purged_count, "archive_retention_days": archive_retention_days}

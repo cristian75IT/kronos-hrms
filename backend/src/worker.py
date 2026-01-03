@@ -22,6 +22,7 @@ celery_app.conf.update(
     # Auto-discover tasks from all services
     imports=[
         "src.services.notifications.tasks",
+        "src.services.audit.tasks",
         # Add other service tasks here as needed
     ],
     # Cron tasks (Beat)
@@ -42,5 +43,17 @@ celery_app.conf.update(
             "task": "notifications.process_email_retries",
             "schedule": 300.0,   # Every 5 minutes
         },
+        # Audit Data Retention - runs daily at 3 AM
+        "audit-archive-old-logs": {
+            "task": "audit.archive_old_logs",
+            "schedule": 86400.0,  # Daily
+            "options": {"queue": "maintenance"},
+        },
+        # Audit Stats Refresh - runs every 6 hours
+        "audit-refresh-stats": {
+            "task": "audit.refresh_daily_stats",
+            "schedule": 21600.0,  # Every 6 hours
+        },
     },
 )
+

@@ -5,7 +5,7 @@ from typing import Optional, Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import select, or_, func
+from sqlalchemy import select, or_, func, and_
 from sqlalchemy.orm import selectinload, contains_eager
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,7 +18,14 @@ from src.core.exceptions import (
 )
 from src.services.auth.models import EmployeeContract, ContractType, User, UserProfile
 from src.services.config.models import NationalContract, NationalContractVersion, NationalContractTypeConfig
-from src.services.leaves.models import LeaveRequest, LeaveRequestStatus, ConditionType
+from src.services.leaves.models import (
+    LeaveRequest, 
+    LeaveRequestStatus, 
+    ConditionType,
+    LeaveInterruption,
+    ApprovalDelegation,
+    BalanceReservation,
+)
 from src.services.leaves.repository import LeaveRequestRepository
 from src.services.leaves.policy_engine import PolicyEngine
 from src.services.leaves.strategies import StrategyFactory
@@ -44,6 +51,11 @@ from src.services.leaves.schemas import (
     AggregateReportRequest,
     AggregateReportResponse,
     AggregateReportItem,
+    # Enterprise schemas
+    PartialRecallRequest,
+    SicknessInterruptionRequest,
+    ModifyApprovedRequest,
+    VoluntaryWorkRequest,
 )
 from src.shared.schemas import DataTableRequest
 from src.shared.audit_client import get_audit_logger
@@ -52,6 +64,8 @@ from src.services.leaves.calendar_utils import CalendarUtils
 from src.services.leaves.report_service import LeaveReportService
 from src.services.leaves.balance_service import LeaveBalanceService
 from src.services.leaves.notification_handler import LeaveNotificationHandler
+
+
 
 
 class LeaveService:
@@ -999,4 +1013,718 @@ class LeaveService:
         await self._session.commit()
         
         return updates
+
+    # ═══════════════════════════════════════════════════════════
+    # Enterprise Features - Interruptions
+    # ═══════════════════════════════════════════════════════════
+
+    async def create_partial_recall(
+        self,
+        request_id: UUID,
+        manager_id: UUID,
+        data: PartialRecallRequest,
+    ) -> LeaveInterruption:
+        """
+        Create a partial recall - employee works specific days during vacation.
+        
+        Unlike full recall which ends the vacation, this only interrupts specific days.
+        The vacation continues after the recalled day(s).
+        """
+        request = await self.get_request(request_id)
+        
+        if request.status not in [LeaveRequestStatus.APPROVED, LeaveRequestStatus.APPROVED_CONDITIONAL]:
+            raise BusinessRuleError("Solo le richieste approvate possono essere richiamate")
+        
+        # Validate all recall days are within the leave period
+        for day in data.recall_days:
+            if day < request.start_date or day > request.end_date:
+                raise BusinessRuleError(
+                    f"Il giorno {day.isoformat()} non rientra nel periodo di ferie "
+                    f"({request.start_date.isoformat()} - {request.end_date.isoformat()})"
+                )
+        
+        # Calculate days to refund (each recalled day = 1 day refunded)
+        days_to_refund = await self._calculate_recalled_days(data.recall_days, request.user_id)
+        
+        # Create interruption record
+        interruption = LeaveInterruption(
+            leave_request_id=request_id,
+            interruption_type="PARTIAL_RECALL",
+            start_date=min(data.recall_days),
+            end_date=max(data.recall_days),
+            specific_days=[d.isoformat() for d in data.recall_days],
+            days_refunded=days_to_refund,
+            initiated_by=manager_id,
+            initiated_by_role="MANAGER",
+            reason=data.reason,
+            status="ACTIVE",
+        )
+        
+        self._session.add(interruption)
+        await self._session.flush()
+        
+        # Refund balance
+        if request.balance_deducted and days_to_refund > 0:
+            await self._balance_service.restore_partial_balance(request, days_to_refund)
+            interruption.refund_transaction_id = None  # Would be set from wallet response
+        
+        # Mark request as having interruptions
+        request.has_interruptions = True
+        
+        # Audit
+        await self._audit.log_action(
+            user_id=manager_id,
+            action="PARTIAL_RECALL",
+            resource_type="LEAVE_REQUEST",
+            resource_id=str(request_id),
+            description=f"Partial recall for {len(data.recall_days)} days",
+            request_data={
+                "recall_days": [d.isoformat() for d in data.recall_days],
+                "days_refunded": float(days_to_refund),
+                "reason": data.reason,
+            },
+        )
+        
+        return interruption
+
+    async def create_sickness_interruption(
+        self,
+        request_id: UUID,
+        user_id: UUID,
+        data: SicknessInterruptionRequest,
+    ) -> LeaveInterruption:
+        """
+        Record sickness during vacation.
+        
+        Per Italian law (Art. 6 D.Lgs 66/2003), sick days during vacation
+        are NOT counted as vacation days. This creates an interruption
+        record and refunds the sick days to the employee's balance.
+        """
+        request = await self.get_request(request_id)
+        
+        if request.status not in [LeaveRequestStatus.APPROVED, LeaveRequestStatus.APPROVED_CONDITIONAL]:
+            raise BusinessRuleError("Solo le ferie approvate possono essere interrotte")
+        
+        # Validate sick period is within leave period
+        if data.sick_start_date < request.start_date or data.sick_end_date > request.end_date:
+            raise BusinessRuleError(
+                f"Il periodo di malattia deve rientrare nel periodo di ferie "
+                f"({request.start_date.isoformat()} - {request.end_date.isoformat()})"
+            )
+        
+        # Check for overlapping sickness interruptions
+        existing = await self._session.execute(
+            select(LeaveInterruption).where(
+                and_(
+                    LeaveInterruption.leave_request_id == request_id,
+                    LeaveInterruption.interruption_type == "SICKNESS",
+                    LeaveInterruption.status == "ACTIVE",
+                    LeaveInterruption.start_date <= data.sick_end_date,
+                    LeaveInterruption.end_date >= data.sick_start_date,
+                )
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise BusinessRuleError("Esiste già una registrazione di malattia per questo periodo")
+        
+        # Calculate days to refund
+        days_to_refund = await self._calculate_days(
+            data.sick_start_date,
+            data.sick_end_date,
+            False,  # Full days
+            False,
+            request.user_id,
+        )
+        
+        # Create interruption record
+        interruption = LeaveInterruption(
+            leave_request_id=request_id,
+            interruption_type="SICKNESS",
+            start_date=data.sick_start_date,
+            end_date=data.sick_end_date,
+            days_refunded=days_to_refund,
+            protocol_number=data.protocol_number,
+            attachment_path=data.attachment_path,
+            initiated_by=user_id,
+            initiated_by_role="EMPLOYEE",
+            reason=data.notes,
+            status="ACTIVE",
+        )
+        
+        self._session.add(interruption)
+        await self._session.flush()
+        
+        # Refund balance
+        if request.balance_deducted and days_to_refund > 0:
+            await self._balance_service.restore_partial_balance(request, days_to_refund)
+        
+        # Mark request as having interruptions
+        request.has_interruptions = True
+        
+        # Audit
+        await self._audit.log_action(
+            user_id=user_id,
+            action="SICKNESS_INTERRUPTION",
+            resource_type="LEAVE_REQUEST",
+            resource_id=str(request_id),
+            description=f"Sickness during vacation: {data.sick_start_date} - {data.sick_end_date}",
+            request_data={
+                "sick_start": data.sick_start_date.isoformat(),
+                "sick_end": data.sick_end_date.isoformat(),
+                "protocol": data.protocol_number,
+                "days_refunded": float(days_to_refund),
+            },
+        )
+        
+        return interruption
+
+    async def report_user_sickness(
+        self,
+        request_id: UUID,
+        user_id: UUID,
+        data: SicknessInterruptionRequest,
+    ) -> LeaveInterruption:
+        """
+        Employee reports sickness during their own vacation.
+        
+        Wrapper for create_sickness_interruption with ownership check.
+        """
+        request = await self.get_request(request_id)
+        
+        if request.user_id != user_id:
+            raise BusinessRuleError("Non puoi segnalare malattia per la richiesta di un altro utente")
+        
+        return await self.create_sickness_interruption(request_id, user_id, data)
+
+    async def get_request_interruptions(self, request_id: UUID) -> list[LeaveInterruption]:
+        """Get all interruptions for a leave request."""
+        result = await self._session.execute(
+            select(LeaveInterruption)
+            .where(LeaveInterruption.leave_request_id == request_id)
+            .order_by(LeaveInterruption.start_date)
+        )
+        return list(result.scalars().all())
+
+    async def _calculate_recalled_days(self, days: list[date], user_id: UUID) -> Decimal:
+        """Calculate working days to refund for recalled days."""
+        # Each recalled day that is a working day = 1 day refund
+        total = Decimal("0")
+        for day in days:
+            day_count = await self._calculate_days(day, day, False, False, user_id)
+            total += day_count
+        return total
+
+    # ═══════════════════════════════════════════════════════════
+    # Enterprise Features - Delegation Support
+    # ═══════════════════════════════════════════════════════════
+
+    async def get_delegated_pending_requests(self, delegate_id: UUID) -> list[LeaveRequest]:
+        """
+        Get pending requests that a delegate can approve on behalf of others.
+        
+        Finds all active delegations where this user is the delegate,
+        then finds pending requests for those delegators' subordinates.
+        """
+        today = date.today()
+        
+        # Find active delegations for this user
+        delegations = await self._session.execute(
+            select(ApprovalDelegation).where(
+                and_(
+                    ApprovalDelegation.delegate_id == delegate_id,
+                    ApprovalDelegation.is_active == True,
+                    ApprovalDelegation.delegation_type == "FULL",
+                    ApprovalDelegation.start_date <= today,
+                    ApprovalDelegation.end_date >= today,
+                )
+            )
+        )
+        active_delegations = delegations.scalars().all()
+        
+        if not active_delegations:
+            return []
+        
+        # Get pending requests for each delegator
+        all_requests = []
+        for delegation in active_delegations:
+            # Get the delegator's pending requests
+            delegator_requests = await self.get_pending_approval(approver_id=delegation.delegator_id)
+            
+            # Filter by leave type scope if specified
+            if delegation.scope_leave_types:
+                delegator_requests = [
+                    r for r in delegator_requests 
+                    if r.leave_type_code in delegation.scope_leave_types
+                ]
+            
+            all_requests.extend(delegator_requests)
+        
+        return all_requests
+
+    async def get_pending_datatable(
+        self,
+        request: DataTableRequest,
+        approver_id: UUID,
+        include_delegated: bool = True,
+    ):
+        """Get pending requests for DataTable with pagination."""
+        # This would need a more sophisticated implementation for true pagination
+        # For now, we get all and then paginate in memory
+        direct = await self.get_pending_approval(approver_id=approver_id)
+        
+        if include_delegated:
+            delegated = await self.get_delegated_pending_requests(approver_id)
+            direct.extend(delegated)
+        
+        # Apply pagination
+        start = request.start or 0
+        length = request.length or 10
+        
+        from src.services.leaves.schemas import LeaveRequestListItem
+        
+        return {
+            "draw": request.draw,
+            "recordsTotal": len(direct),
+            "recordsFiltered": len(direct),
+            "data": [
+                LeaveRequestListItem.model_validate(r, from_attributes=True) 
+                for r in direct[start:start + length]
+            ],
+        }
+
+    # ═══════════════════════════════════════════════════════════
+    # Enterprise Features - Modify Approved Request
+    # ═══════════════════════════════════════════════════════════
+
+    async def modify_approved_request(
+        self,
+        request_id: UUID,
+        modifier_id: UUID,
+        data: ModifyApprovedRequest,
+    ) -> LeaveRequest:
+        """
+        Modify an already approved request (only future dates).
+        
+        Creates full audit trail of changes with before/after values.
+        Adjusts balance if days change.
+        """
+        request = await self.get_request(request_id)
+        
+        if request.status not in [LeaveRequestStatus.APPROVED, LeaveRequestStatus.APPROVED_CONDITIONAL]:
+            raise BusinessRuleError("Solo le richieste approvate possono essere modificate")
+        
+        # Only future requests can be modified
+        if request.start_date <= date.today():
+            raise BusinessRuleError(
+                "Non è possibile modificare una richiesta già iniziata. "
+                "Usare il richiamo o l'interruzione."
+            )
+        
+        # Store original values for audit
+        original = {
+            "start_date": request.start_date.isoformat(),
+            "end_date": request.end_date.isoformat(),
+            "start_half_day": request.start_half_day,
+            "end_half_day": request.end_half_day,
+            "days_requested": float(request.days_requested),
+        }
+        
+        # Apply changes
+        new_start = data.new_start_date or request.start_date
+        new_end = data.new_end_date or request.end_date
+        new_start_half = data.new_start_half_day if data.new_start_half_day is not None else request.start_half_day
+        new_end_half = data.new_end_half_day if data.new_end_half_day is not None else request.end_half_day
+        
+        # Validate new dates
+        if new_end < new_start:
+            raise BusinessRuleError("La data di fine deve essere successiva alla data di inizio")
+        
+        if new_start < date.today():
+            raise BusinessRuleError("La nuova data di inizio deve essere futura")
+        
+        # Calculate new days
+        new_days = await self._calculate_days(new_start, new_end, new_start_half, new_end_half, request.user_id)
+        old_days = request.days_requested
+        
+        # Update request
+        request.start_date = new_start
+        request.end_date = new_end
+        request.start_half_day = new_start_half
+        request.end_half_day = new_end_half
+        request.days_requested = new_days
+        
+        # Adjust balance if days changed
+        days_diff = new_days - old_days
+        if days_diff != 0 and request.balance_deducted:
+            if days_diff > 0:
+                # Need more days - deduct additional
+                await self._balance_service.deduct_balance(
+                    request,
+                    {request.leave_type_code.lower(): float(days_diff)},
+                )
+            else:
+                # Need fewer days - refund
+                await self._balance_service.restore_partial_balance(request, abs(days_diff))
+        
+        # Add history
+        await self._request_repo.add_history(
+            leave_request_id=request_id,
+            from_status=request.status,
+            to_status=request.status,  # Status doesn't change
+            changed_by=modifier_id,
+            reason=f"Modifica richiesta: {data.reason}",
+        )
+        
+        # Audit with before/after
+        await self._audit.log_action(
+            user_id=modifier_id,
+            action="MODIFY_APPROVED",
+            resource_type="LEAVE_REQUEST",
+            resource_id=str(request_id),
+            description=f"Modified approved request: {data.reason}",
+            request_data={
+                "original": original,
+                "modified": {
+                    "start_date": new_start.isoformat(),
+                    "end_date": new_end.isoformat(),
+                    "start_half_day": new_start_half,
+                    "end_half_day": new_end_half,
+                    "days_requested": float(new_days),
+                },
+                "days_adjustment": float(days_diff),
+                "reason": data.reason,
+            },
+        )
+        
+        return request
+
+    # ═══════════════════════════════════════════════════════════
+    # Enterprise Features - Calendar
+    # ═══════════════════════════════════════════════════════════
+
+    async def get_user_calendar(
+        self,
+        user_id: UUID,
+        start_date: date,
+        end_date: date,
+        include_holidays: bool = True,
+    ) -> CalendarResponse:
+        """Get calendar for a specific user."""
+        # Get user's leave requests
+        requests = await self._request_repo.get_by_user(
+            user_id,
+            year=start_date.year,
+            status=[LeaveRequestStatus.APPROVED, LeaveRequestStatus.PENDING, LeaveRequestStatus.APPROVED_CONDITIONAL],
+        )
+        
+        events = [
+            CalendarEvent(
+                id=str(r.id),
+                title=f"{r.leave_type_code} - {r.status.value}",
+                start=r.start_date,
+                end=r.end_date,
+                allDay=True,
+                color=self._get_event_color(r.status, r.leave_type_code),
+                extendedProps={"status": r.status.value, "type": r.leave_type_code},
+            )
+            for r in requests
+            if r.start_date <= end_date and r.end_date >= start_date
+        ]
+        
+        holidays = []
+        closures = []
+        
+        if include_holidays:
+            # Get holidays from config service
+            holidays_data = await self._config_client.get_holidays(start_date.year)
+            holidays = [
+                CalendarEvent(
+                    id=f"holiday-{h.get('date')}",
+                    title=h.get("name", "Festività"),
+                    start=date.fromisoformat(h.get("date")),
+                    end=date.fromisoformat(h.get("date")),
+                    allDay=True,
+                    color="#EF4444",
+                    extendedProps={"type": "holiday"},
+                )
+                for h in (holidays_data or [])
+            ]
+        
+        return CalendarResponse(events=events, holidays=holidays, closures=closures)
+
+    async def get_team_calendar(
+        self,
+        manager_id: UUID,
+        start_date: date,
+        end_date: date,
+    ) -> dict:
+        """Get calendar view for manager's team."""
+        # Get subordinates
+        subordinates = await self._get_subordinates(manager_id)
+        
+        all_events = []
+        
+        for sub_id in subordinates:
+            # Get each subordinate's calendar
+            sub_calendar = await self.get_user_calendar(sub_id, start_date, end_date, include_holidays=False)
+            for event in sub_calendar.events:
+                event.extendedProps["user_id"] = str(sub_id)
+            all_events.extend(sub_calendar.events)
+        
+        return {
+            "events": all_events,
+            "team_size": len(subordinates),
+            "period": {"start": start_date.isoformat(), "end": end_date.isoformat()},
+        }
+
+    # ═══════════════════════════════════════════════════════════
+    # Enterprise Features - Voluntary Work (Employee Requests)
+    # ═══════════════════════════════════════════════════════════
+
+    async def request_voluntary_work(
+        self,
+        request_id: UUID,
+        user_id: UUID,
+        data: VoluntaryWorkRequest,
+    ) -> LeaveInterruption:
+        """
+        Employee requests to convert vacation days to working days.
+        
+        Creates an interruption with status PENDING_APPROVAL.
+        Manager must approve before the balance is refunded.
+        """
+        request = await self.get_request(request_id)
+        
+        # Ownership check
+        if request.user_id != user_id:
+            raise BusinessRuleError("Non puoi richiedere lavoro per la richiesta di un altro utente")
+        
+        if request.status not in [LeaveRequestStatus.APPROVED, LeaveRequestStatus.APPROVED_CONDITIONAL]:
+            raise BusinessRuleError("Solo le ferie approvate possono essere convertite in giorni lavorativi")
+        
+        # Validate all work days are within the leave period
+        for day in data.work_days:
+            if day < request.start_date or day > request.end_date:
+                raise BusinessRuleError(
+                    f"Il giorno {day.isoformat()} non rientra nel periodo di ferie "
+                    f"({request.start_date.isoformat()} - {request.end_date.isoformat()})"
+                )
+        
+        # Check if days are in the future
+        today = date.today()
+        past_days = [d for d in data.work_days if d <= today]
+        if past_days:
+            raise BusinessRuleError(
+                f"Non puoi richiedere lavoro per giorni passati o odierni: {[d.isoformat() for d in past_days]}"
+            )
+        
+        # Check for existing pending requests on same days
+        existing = await self._session.execute(
+            select(LeaveInterruption).where(
+                and_(
+                    LeaveInterruption.leave_request_id == request_id,
+                    LeaveInterruption.interruption_type == "VOLUNTARY_WORK",
+                    LeaveInterruption.status == "PENDING_APPROVAL",
+                )
+            )
+        )
+        existing_interruption = existing.scalar_one_or_none()
+        if existing_interruption:
+            # Check for overlapping days
+            existing_days = set(existing_interruption.specific_days or [])
+            new_days = set(d.isoformat() for d in data.work_days)
+            overlap = existing_days & new_days
+            if overlap:
+                raise BusinessRuleError(
+                    f"Esiste già una richiesta pendente per i giorni: {list(overlap)}"
+                )
+        
+        # Calculate days to potentially refund
+        days_to_refund = await self._calculate_recalled_days(data.work_days, user_id)
+        
+        # Create interruption with PENDING_APPROVAL status
+        interruption = LeaveInterruption(
+            leave_request_id=request_id,
+            interruption_type="VOLUNTARY_WORK",
+            start_date=min(data.work_days),
+            end_date=max(data.work_days),
+            specific_days=[d.isoformat() for d in data.work_days],
+            days_refunded=Decimal("0"),  # Not refunded until approved
+            initiated_by=user_id,
+            initiated_by_role="EMPLOYEE",
+            reason=data.reason,
+            status="PENDING_APPROVAL",  # Requires manager approval
+        )
+        
+        self._session.add(interruption)
+        await self._session.flush()
+        
+        # Audit
+        await self._audit.log_action(
+            user_id=user_id,
+            action="VOLUNTARY_WORK_REQUEST",
+            resource_type="LEAVE_REQUEST",
+            resource_id=str(request_id),
+            description=f"Employee requests to work {len(data.work_days)} day(s) during vacation",
+            request_data={
+                "work_days": [d.isoformat() for d in data.work_days],
+                "potential_days_refund": float(days_to_refund),
+                "reason": data.reason,
+            },
+        )
+        
+        # Notify manager
+        await self._notifier.notify_voluntary_work_request(request, interruption)
+        
+        return interruption
+
+    async def get_voluntary_work_requests(self, request_id: UUID) -> list[LeaveInterruption]:
+        """Get all voluntary work requests for a leave request."""
+        result = await self._session.execute(
+            select(LeaveInterruption)
+            .where(
+                LeaveInterruption.leave_request_id == request_id,
+                LeaveInterruption.interruption_type == "VOLUNTARY_WORK",
+            )
+            .order_by(LeaveInterruption.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def get_pending_voluntary_work_requests(self, manager_id: UUID) -> list[LeaveInterruption]:
+        """Get all pending voluntary work requests for manager's subordinates."""
+        # Get subordinates
+        subordinates = await self._get_subordinates(manager_id)
+        
+        if not subordinates:
+            return []
+        
+        # Find pending VOLUNTARY_WORK interruptions for subordinates' requests
+        result = await self._session.execute(
+            select(LeaveInterruption)
+            .join(LeaveRequest, LeaveInterruption.leave_request_id == LeaveRequest.id)
+            .where(
+                LeaveRequest.user_id.in_(subordinates),
+                LeaveInterruption.interruption_type == "VOLUNTARY_WORK",
+                LeaveInterruption.status == "PENDING_APPROVAL",
+            )
+            .order_by(LeaveInterruption.created_at.asc())
+        )
+        return list(result.scalars().all())
+
+    async def approve_voluntary_work(
+        self,
+        interruption_id: UUID,
+        approver_id: UUID,
+        notes: Optional[str] = None,
+    ) -> LeaveInterruption:
+        """
+        Manager approves employee's request to work during vacation.
+        
+        Upon approval:
+        - Status changes to APPROVED
+        - Vacation days are refunded to balance
+        - Leave request marked as having interruptions
+        """
+        result = await self._session.execute(
+            select(LeaveInterruption).where(LeaveInterruption.id == interruption_id)
+        )
+        interruption = result.scalar_one_or_none()
+        
+        if not interruption:
+            raise NotFoundError("Voluntary work request not found", entity_type="LeaveInterruption", entity_id=str(interruption_id))
+        
+        if interruption.interruption_type != "VOLUNTARY_WORK":
+            raise BusinessRuleError("Questo non è una richiesta di lavoro volontario")
+        
+        if interruption.status != "PENDING_APPROVAL":
+            raise BusinessRuleError(f"La richiesta non è in attesa di approvazione (stato: {interruption.status})")
+        
+        # Get the leave request
+        request = await self.get_request(interruption.leave_request_id)
+        
+        # Calculate days to refund
+        work_days = [date.fromisoformat(d) for d in (interruption.specific_days or [])]
+        days_to_refund = await self._calculate_recalled_days(work_days, request.user_id)
+        
+        # Update interruption
+        interruption.status = "APPROVED"
+        interruption.days_refunded = days_to_refund
+        
+        # Refund balance
+        if request.balance_deducted and days_to_refund > 0:
+            await self._balance_service.restore_partial_balance(request, days_to_refund)
+        
+        # Mark request as having interruptions
+        request.has_interruptions = True
+        
+        # Audit
+        await self._audit.log_action(
+            user_id=approver_id,
+            action="VOLUNTARY_WORK_APPROVED",
+            resource_type="LEAVE_INTERRUPTION",
+            resource_id=str(interruption_id),
+            description=f"Approved voluntary work request for {len(work_days)} day(s)",
+            request_data={
+                "work_days": [d.isoformat() for d in work_days],
+                "days_refunded": float(days_to_refund),
+                "employee_id": str(request.user_id),
+                "notes": notes,
+            },
+        )
+        
+        # Notify employee
+        await self._notifier.notify_voluntary_work_approved(request, interruption)
+        
+        return interruption
+
+    async def reject_voluntary_work(
+        self,
+        interruption_id: UUID,
+        approver_id: UUID,
+        reason: str,
+    ) -> None:
+        """
+        Manager rejects employee's request to work during vacation.
+        
+        The vacation remains as originally approved.
+        """
+        result = await self._session.execute(
+            select(LeaveInterruption).where(LeaveInterruption.id == interruption_id)
+        )
+        interruption = result.scalar_one_or_none()
+        
+        if not interruption:
+            raise NotFoundError("Voluntary work request not found", entity_type="LeaveInterruption", entity_id=str(interruption_id))
+        
+        if interruption.interruption_type != "VOLUNTARY_WORK":
+            raise BusinessRuleError("Questo non è una richiesta di lavoro volontario")
+        
+        if interruption.status != "PENDING_APPROVAL":
+            raise BusinessRuleError(f"La richiesta non è in attesa di approvazione (stato: {interruption.status})")
+        
+        # Get the leave request for audit
+        request = await self.get_request(interruption.leave_request_id)
+        
+        # Update interruption
+        interruption.status = "REJECTED"
+        interruption.reason = f"{interruption.reason}\n\n[RIFIUTO] {reason}" if interruption.reason else f"[RIFIUTO] {reason}"
+        
+        # Audit
+        await self._audit.log_action(
+            user_id=approver_id,
+            action="VOLUNTARY_WORK_REJECTED",
+            resource_type="LEAVE_INTERRUPTION",
+            resource_id=str(interruption_id),
+            description=f"Rejected voluntary work request",
+            request_data={
+                "work_days": interruption.specific_days,
+                "employee_id": str(request.user_id),
+                "rejection_reason": reason,
+            },
+        )
+        
+        # Notify employee
+        await self._notifier.notify_voluntary_work_rejected(request, interruption, reason)
+
+
 

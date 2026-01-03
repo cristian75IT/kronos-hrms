@@ -92,3 +92,64 @@ class LeaveNotificationHandler:
             entity_type="LeaveRequest",
             entity_id=str(request.id),
         )
+
+    # ═══════════════════════════════════════════════════════════
+    # Voluntary Work Notifications
+    # ═══════════════════════════════════════════════════════════
+
+    async def notify_voluntary_work_request(self, request: LeaveRequest, interruption):
+        """Notify manager about employee's request to work during vacation."""
+        # Get the manager from the request (would need to fetch from auth service)
+        # For now, we use a placeholder
+        try:
+            await self._client.send_notification(
+                user_id=request.approved_by or request.user_id,  # Fallback to user if no approver
+                notification_type="voluntary_work_request",
+                title="Richiesta lavoro volontario",
+                message=(
+                    f"Il dipendente ha richiesto di lavorare durante le ferie approvate "
+                    f"({request.start_date.strftime('%d/%m/%Y')} - {request.end_date.strftime('%d/%m/%Y')}). "
+                    f"Giorni richiesti: {len(interruption.specific_days or [])}. "
+                    f"Motivo: {interruption.reason}"
+                ),
+                entity_type="LeaveInterruption",
+                entity_id=str(interruption.id),
+            )
+        except Exception:
+            pass  # Non-critical notification
+
+    async def notify_voluntary_work_approved(self, request: LeaveRequest, interruption):
+        """Notify employee that their voluntary work request was approved."""
+        work_days = interruption.specific_days or []
+        days_display = ", ".join(work_days[:3])
+        if len(work_days) > 3:
+            days_display += f" (+{len(work_days) - 3} altri)"
+        
+        await self._client.send_notification(
+            user_id=request.user_id,
+            notification_type="voluntary_work_approved",
+            title="Richiesta lavoro approvata",
+            message=(
+                f"La tua richiesta di lavorare durante le ferie è stata approvata. "
+                f"Giorni: {days_display}. "
+                f"I giorni di ferie ({interruption.days_refunded}) sono stati riaccreditati al tuo saldo."
+            ),
+            entity_type="LeaveInterruption",
+            entity_id=str(interruption.id),
+        )
+
+    async def notify_voluntary_work_rejected(self, request: LeaveRequest, interruption, reason: str):
+        """Notify employee that their voluntary work request was rejected."""
+        await self._client.send_notification(
+            user_id=request.user_id,
+            notification_type="voluntary_work_rejected",
+            title="Richiesta lavoro rifiutata",
+            message=(
+                f"La tua richiesta di lavorare durante le ferie è stata rifiutata. "
+                f"Motivo: {reason}. "
+                f"Le tue ferie rimangono secondo il piano originale approvato."
+            ),
+            entity_type="LeaveInterruption",
+            entity_id=str(interruption.id),
+        )
+

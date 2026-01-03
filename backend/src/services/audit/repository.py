@@ -3,7 +3,8 @@ from datetime import datetime
 from typing import Any, Optional
 from uuid import UUID
 
-from sqlalchemy import select, func, and_, desc
+from sqlalchemy import select, func, and_, desc, text as sa_text
+import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.services.audit.models import AuditLog, AuditTrail
@@ -193,6 +194,145 @@ class AuditLogRepository:
             .limit(limit)
         )
         return list(result.scalars().all())
+
+    # ─────────────────────────────────────────────────────────────
+    # Enterprise Statistics
+    # ─────────────────────────────────────────────────────────────
+
+    async def get_stats_summary(self, days: int = 7) -> dict:
+        """Get summary statistics for the last N days."""
+        from datetime import datetime, timedelta
+        
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        
+        # Total count
+        total_result = await self._session.execute(
+            select(func.count(AuditLog.id))
+            .where(AuditLog.created_at >= cutoff)
+        )
+        total = total_result.scalar() or 0
+        
+        # By status
+        status_result = await self._session.execute(
+            select(AuditLog.status, func.count(AuditLog.id))
+            .where(AuditLog.created_at >= cutoff)
+            .group_by(AuditLog.status)
+        )
+        by_status = {row[0]: row[1] for row in status_result.all()}
+        
+        # Unique users
+        users_result = await self._session.execute(
+            select(func.count(func.distinct(AuditLog.user_id)))
+            .where(AuditLog.created_at >= cutoff)
+            .where(AuditLog.user_id.isnot(None))
+        )
+        unique_users = users_result.scalar() or 0
+        
+        # Unique services
+        services_result = await self._session.execute(
+            select(func.count(func.distinct(AuditLog.service_name)))
+            .where(AuditLog.created_at >= cutoff)
+        )
+        unique_services = services_result.scalar() or 0
+        
+        return {
+            "period_days": days,
+            "total_events": total,
+            "by_status": by_status,
+            "unique_users": unique_users,
+            "unique_services": unique_services,
+            "success_rate": round(by_status.get("SUCCESS", 0) / total * 100, 2) if total > 0 else 0,
+        }
+
+    async def get_stats_by_service(self, days: int = 7) -> list[dict]:
+        """Get statistics grouped by service."""
+        from datetime import datetime, timedelta
+        
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        
+        result = await self._session.execute(
+            select(
+                AuditLog.service_name,
+                func.count(AuditLog.id).label("total"),
+                func.count(AuditLog.id).filter(AuditLog.status == "SUCCESS").label("success"),
+                func.count(AuditLog.id).filter(AuditLog.status == "FAILURE").label("failure"),
+                func.count(AuditLog.id).filter(AuditLog.status == "ERROR").label("error"),
+            )
+            .where(AuditLog.created_at >= cutoff)
+            .group_by(AuditLog.service_name)
+            .order_by(func.count(AuditLog.id).desc())
+        )
+        
+        return [
+            {
+                "service_name": row[0],
+                "total": row[1],
+                "success": row[2],
+                "failure": row[3],
+                "error": row[4],
+                "success_rate": round(row[2] / row[1] * 100, 2) if row[1] > 0 else 0,
+            }
+            for row in result.all()
+        ]
+
+    async def get_stats_by_action(
+        self, 
+        days: int = 7, 
+        service_name: Optional[str] = None
+    ) -> list[dict]:
+        """Get statistics grouped by action."""
+        from datetime import datetime, timedelta
+        
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        
+        query = (
+            select(
+                AuditLog.action,
+                AuditLog.resource_type,
+                func.count(AuditLog.id).label("total"),
+            )
+            .where(AuditLog.created_at >= cutoff)
+        )
+        
+        if service_name:
+            query = query.where(AuditLog.service_name == service_name)
+        
+        query = query.group_by(AuditLog.action, AuditLog.resource_type).order_by(func.count(AuditLog.id).desc()).limit(50)
+        
+        result = await self._session.execute(query)
+        
+        return [
+            {
+                "action": row[0],
+                "resource_type": row[1],
+                "count": row[2],
+            }
+            for row in result.all()
+        ]
+
+    # ─────────────────────────────────────────────────────────────
+    # Data Retention
+    # ─────────────────────────────────────────────────────────────
+
+    async def archive_old_logs(self, retention_days: int = 90) -> int:
+        """Archive old logs using the DB function."""
+        result = await self._session.execute(
+            sa.text("SELECT audit.archive_old_logs(:days)"),
+            {"days": retention_days}
+        )
+        await self._session.commit()
+        return result.scalar() or 0
+
+    async def purge_archives(self, archive_retention_days: int = 365) -> int:
+        """Purge old archives using the DB function."""
+        result = await self._session.execute(
+            sa.text("SELECT audit.purge_archives(:days)"),
+            {"days": archive_retention_days}
+        )
+        await self._session.commit()
+        return result.scalar() or 0
+
+
 
 
 class AuditTrailRepository:

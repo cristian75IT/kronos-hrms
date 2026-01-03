@@ -195,7 +195,14 @@ class NotificationClient:
              logger.error(f"NotificationClient error: {e}")
 
 class LeavesWalletClient:
-    """Client for Leaves Wallet Service (Ferie, ROL, Permessi)."""
+    """
+    Client for Leaves Wallet Service (Ferie, ROL, Permessi).
+    
+    Enterprise-grade client with:
+    - Balance queries
+    - Reservation system integration
+    - Transaction processing
+    """
     
     def __init__(self):
         self.base_url = settings.leaves_wallet_service_url
@@ -208,7 +215,6 @@ class LeavesWalletClient:
                 params["year"] = year
             
             async with httpx.AsyncClient() as client:
-                # Note: The endpoint path might still be /wallets/ for now unless changed in the microservice
                 response = await client.get(
                     f"{self.base_url}/api/v1/leaves-wallets/{user_id}",
                     params=params,
@@ -219,6 +225,77 @@ class LeavesWalletClient:
         except Exception as e:
             logger.error(f"LeavesWalletClient error get_wallet: {e}")
         return None
+
+    async def get_balance_summary(self, user_id: UUID, year: int = None) -> Optional[dict]:
+        """Get comprehensive balance summary."""
+        try:
+            params = {"year": year} if year else {}
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/leaves-wallets/{user_id}/summary",
+                    params=params,
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"LeavesWalletClient error get_balance_summary: {e}")
+        return None
+
+    async def get_available_balance(
+        self, 
+        user_id: UUID, 
+        balance_type: str,
+        year: int = None,
+        exclude_reserved: bool = True,
+    ) -> Optional[float]:
+        """Get available balance for a specific type."""
+        try:
+            params = {"exclude_reserved": exclude_reserved}
+            if year:
+                params["year"] = year
+                
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/leaves-wallets/{user_id}/available/{balance_type}",
+                    params=params,
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json().get("available")
+        except Exception as e:
+            logger.error(f"LeavesWalletClient error get_available_balance: {e}")
+        return None
+
+    async def check_balance_sufficient(
+        self,
+        user_id: UUID,
+        balance_type: str,
+        amount: float,
+        year: int = None,
+    ) -> tuple[bool, float]:
+        """Check if balance is sufficient for a request."""
+        try:
+            params = {
+                "user_id": str(user_id),
+                "balance_type": balance_type,
+                "amount": amount,
+            }
+            if year:
+                params["year"] = year
+                
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/leaves-wallets/internal/check",
+                    params=params,
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    return (data.get("sufficient", False), data.get("available", 0))
+        except Exception as e:
+            logger.error(f"LeavesWalletClient error check_balance_sufficient: {e}")
+        return (False, 0.0)
 
     async def create_transaction(self, user_id: UUID, data: dict) -> Optional[dict]:
         """Create a wallet transaction."""
@@ -235,12 +312,70 @@ class LeavesWalletClient:
             logger.error(f"LeavesWalletClient error create_transaction: {e}")
         return None
 
-    async def get_transactions(self, identifier: UUID) -> list:
+    async def reserve_balance(
+        self,
+        user_id: UUID,
+        balance_type: str,
+        amount: float,
+        reference_id: UUID,
+        expiry_date: Optional[date] = None,
+    ) -> Optional[dict]:
+        """Reserve balance for a pending request."""
+        try:
+            params = {
+                "user_id": str(user_id),
+                "balance_type": balance_type,
+                "amount": amount,
+                "reference_id": str(reference_id),
+            }
+            if expiry_date:
+                params["expiry_date"] = expiry_date.isoformat()
+                
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/leaves-wallets/internal/reserve",
+                    params=params,
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"LeavesWalletClient error reserve_balance: {e}")
+        return None
+
+    async def confirm_reservation(self, reference_id: UUID) -> bool:
+        """Confirm a reservation when request is approved."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/leaves-wallets/internal/confirm/{reference_id}",
+                    timeout=5.0
+                )
+                return response.status_code == 200
+        except Exception as e:
+            logger.error(f"LeavesWalletClient error confirm_reservation: {e}")
+        return False
+
+    async def cancel_reservation(self, reference_id: UUID) -> bool:
+        """Cancel a reservation when request is rejected."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/leaves-wallets/internal/cancel/{reference_id}",
+                    timeout=5.0
+                )
+                return response.status_code == 200
+        except Exception as e:
+            logger.error(f"LeavesWalletClient error cancel_reservation: {e}")
+        return False
+
+    async def get_transactions(self, identifier: UUID, limit: int = 100) -> list:
         """Get wallet transactions by wallet_id."""
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     f"{self.base_url}/api/v1/leaves-wallets/transactions/{identifier}",
+                    params={"limit": limit},
                     timeout=5.0
                 )
                 if response.status_code == 200:

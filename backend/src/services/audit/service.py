@@ -193,3 +193,36 @@ class AuditService:
             service_name=service_name,
             request_id=request_id,
         )
+
+    # ═══════════════════════════════════════════════════════════
+    # Enterprise Statistics
+    # ═══════════════════════════════════════════════════════════
+
+    async def get_stats_summary(self, days: int = 7) -> dict:
+        """Get audit statistics summary."""
+        return await self._log_repo.get_stats_summary(days)
+
+    async def get_stats_by_service(self, days: int = 7) -> list[dict]:
+        """Get audit stats grouped by service."""
+        return await self._log_repo.get_stats_by_service(days)
+
+    async def get_stats_by_action(
+        self, 
+        days: int = 7, 
+        service_name: Optional[str] = None
+    ) -> list[dict]:
+        """Get audit stats grouped by action."""
+        return await self._log_repo.get_stats_by_action(days, service_name)
+
+    # ═══════════════════════════════════════════════════════════
+    # Data Retention
+    # ═══════════════════════════════════════════════════════════
+
+    async def archive_logs(self, retention_days: int = 90) -> int:
+        """Archive old audit logs."""
+        return await self._log_repo.archive_old_logs(retention_days)
+
+    async def purge_archives(self, archive_retention_days: int = 365) -> int:
+        """Purge old archived logs for GDPR compliance."""
+        return await self._log_repo.purge_archives(archive_retention_days)
+
