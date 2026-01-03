@@ -317,6 +317,50 @@ services:
 
     restart: unless-stopped
 
+  hr-reporting-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kronos-hr-reporting
+    environment:
+      - SERVICE_NAME=hr-reporting-service
+      - DATABASE_URL=postgresql+asyncpg://kronos:kronos_dev@postgres:5432/kronos
+      - DATABASE_SCHEMA=hr_reporting
+      - REDIS_URL=redis://redis:6379/11
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - LEAVE_SERVICE_URL=http://leave-service:8002
+      - EXPENSE_SERVICE_URL=http://expense-service:8003
+      - CONFIG_SERVICE_URL=http://config-service:8004
+      - AUDIT_SERVICE_URL=http://audit-service:8007
+      - LEAVES_WALLET_SERVICE_URL=http://leaves-wallet-service:8008
+      - CALENDAR_SERVICE_URL=http://calendar-service:8009
+      - EXPENSIVE_WALLET_SERVICE_URL=http://expensive-wallet-service:8006
+      - KEYCLOAK_URL=http://keycloak:8080/
+      - KEYCLOAK_REALM=kronos
+      - KEYCLOAK_CLIENT_ID=kronos-backend
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    ports:
+      - "8011:8011"
+    command: uvicorn src.services.hr_reporting.main:app --host 0.0.0.0 --port 8011 --reload
+    volumes:
+      - ./backend:/app
+    networks:
+      - kronos-internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      leave-service:
+        condition: service_started
+      expense-service:
+        condition: service_started
+      audit-service:
+        condition: service_started
+    restart: unless-stopped
+
   celery-worker:
     build:
       context: ./backend

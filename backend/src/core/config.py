@@ -101,7 +101,13 @@ class Settings(BaseSettings):
         default="http://localhost:8009", alias="CALENDAR_SERVICE_URL"
     )
     leave_service_url: str = Field(
-        default="http://localhost:8001", alias="LEAVE_SERVICE_URL"
+        default="http://localhost:8002", alias="LEAVE_SERVICE_URL"
+    )
+    expense_service_url: str = Field(
+        default="http://localhost:8003", alias="EXPENSE_SERVICE_URL"
+    )
+    hr_reporting_service_url: str = Field(
+        default="http://localhost:8011", alias="HR_REPORTING_SERVICE_URL"
     )
 
     # ─────────────────────────────────────────────────────────────

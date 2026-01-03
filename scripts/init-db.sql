@@ -14,6 +14,7 @@ CREATE SCHEMA IF NOT EXISTS expenses;
 CREATE SCHEMA IF NOT EXISTS config;
 CREATE SCHEMA IF NOT EXISTS notifications;
 CREATE SCHEMA IF NOT EXISTS audit;
+CREATE SCHEMA IF NOT EXISTS hr_reporting;
 
 -- Grant privileges
 GRANT ALL ON SCHEMA auth TO kronos;
@@ -22,13 +23,15 @@ GRANT ALL ON SCHEMA expenses TO kronos;
 GRANT ALL ON SCHEMA config TO kronos;
 GRANT ALL ON SCHEMA notifications TO kronos;
 GRANT ALL ON SCHEMA audit TO kronos;
+GRANT ALL ON SCHEMA hr_reporting TO kronos;
 
 -- Set search path
-ALTER DATABASE kronos SET search_path TO public, auth, leaves, expenses, config, notifications, audit;
+ALTER DATABASE kronos SET search_path TO public, auth, leaves, expenses, config, notifications, audit, hr_reporting;
 
 -- Log initialization
 DO $$
 BEGIN
-    RAISE NOTICE 'KRONOS database initialized with schemas: auth, leaves, expenses, config, notifications, audit';
+    RAISE NOTICE 'KRONOS database initialized with schemas: auth, leaves, expenses, config, notifications, audit, hr_reporting';
 END
 $$;
+

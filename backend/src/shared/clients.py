@@ -385,13 +385,21 @@ class LeavesWalletClient:
         return []
 
 class ExpensiveWalletClient:
-    """Client for NEW Trips Expense Wallet Service (Trasferte)."""
+    """
+    Client for Trip Wallet Service (Trasferte).
+    
+    Enterprise-grade client with:
+    - Wallet queries and summaries
+    - Budget reservation system
+    - Policy limit checking
+    - Reconciliation and settlement
+    """
     
     def __init__(self):
         self.base_url = settings.expensive_wallet_service_url
         
     async def get_status(self, trip_id: UUID) -> Optional[dict]:
-        """Get expensive wallet status for a trip."""
+        """Get wallet status for a trip."""
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
@@ -403,6 +411,20 @@ class ExpensiveWalletClient:
                 logger.warning(f"ExpensiveWalletClient get_status {trip_id} returned {response.status_code}")
         except Exception as e:
             logger.error(f"ExpensiveWalletClient error get_status: {e}")
+        return None
+
+    async def get_wallet_summary(self, trip_id: UUID) -> Optional[dict]:
+        """Get comprehensive wallet summary."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/expensive-wallets/{trip_id}/summary",
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"ExpensiveWalletClient error get_wallet_summary: {e}")
         return None
 
     async def create_transaction(self, trip_id: UUID, data: dict) -> Optional[dict]:
@@ -437,12 +459,13 @@ class ExpensiveWalletClient:
             logger.error(f"ExpensiveWalletClient error initialize_wallet: {e}")
         return None
 
-    async def get_transactions(self, trip_id: UUID) -> list:
+    async def get_transactions(self, trip_id: UUID, limit: int = 100) -> list:
         """Get expense wallet transactions for a trip."""
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     f"{self.base_url}/api/v1/expensive-wallets/{trip_id}/transactions",
+                    params={"limit": limit},
                     timeout=5.0
                 )
                 if response.status_code == 200:
@@ -451,6 +474,162 @@ class ExpensiveWalletClient:
         except Exception as e:
             logger.error(f"ExpensiveWalletClient error get_transactions: {e}")
         return []
+
+    # ═══════════════════════════════════════════════════════════
+    # Budget Reservation (Internal API)
+    # ═══════════════════════════════════════════════════════════
+
+    async def check_budget_available(self, trip_id: UUID, amount: float) -> tuple[bool, float]:
+        """Check if budget is available for an expense."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/expensive-wallets/internal/{trip_id}/check-budget",
+                    params={"amount": amount},
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    return (data.get("available", False), data.get("available_amount", 0))
+        except Exception as e:
+            logger.error(f"ExpensiveWalletClient error check_budget_available: {e}")
+        return (False, 0.0)
+
+    async def reserve_budget(
+        self,
+        trip_id: UUID,
+        amount: float,
+        reference_id: UUID,
+        category: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Optional[dict]:
+        """Reserve budget for a pending expense."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/expensive-wallets/internal/{trip_id}/reserve",
+                    json={
+                        "amount": amount,
+                        "reference_id": str(reference_id),
+                        "category": category,
+                        "description": description,
+                    },
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"ExpensiveWalletClient error reserve_budget: {e}")
+        return None
+
+    async def confirm_expense(self, trip_id: UUID, reference_id: UUID) -> bool:
+        """Confirm a reserved expense."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/expensive-wallets/internal/{trip_id}/confirm/{reference_id}",
+                    timeout=5.0
+                )
+                return response.status_code == 200
+        except Exception as e:
+            logger.error(f"ExpensiveWalletClient error confirm_expense: {e}")
+        return False
+
+    async def cancel_expense(self, trip_id: UUID, reference_id: UUID) -> bool:
+        """Cancel a reserved expense."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/expensive-wallets/internal/{trip_id}/cancel/{reference_id}",
+                    timeout=5.0
+                )
+                return response.status_code == 200
+        except Exception as e:
+            logger.error(f"ExpensiveWalletClient error cancel_expense: {e}")
+        return False
+
+    async def check_policy_limit(
+        self,
+        trip_id: UUID,
+        category: str,
+        amount: float,
+    ) -> dict:
+        """Check if expense exceeds policy limits."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/expensive-wallets/internal/{trip_id}/check-policy",
+                    json={"category": category, "amount": amount},
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"ExpensiveWalletClient error check_policy_limit: {e}")
+        return {"allowed": True, "requires_approval": False}
+
+    # ═══════════════════════════════════════════════════════════
+    # Admin Operations
+    # ═══════════════════════════════════════════════════════════
+
+    async def reconcile_wallet(
+        self,
+        trip_id: UUID,
+        notes: Optional[str] = None,
+        adjustments: Optional[list] = None,
+    ) -> Optional[dict]:
+        """Reconcile a trip wallet."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/expensive-wallets/admin/{trip_id}/reconcile",
+                    json={"notes": notes, "adjustments": adjustments or []},
+                    timeout=10.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"ExpensiveWalletClient error reconcile_wallet: {e}")
+        return None
+
+    async def settle_wallet(
+        self,
+        trip_id: UUID,
+        payment_reference: Optional[str] = None,
+    ) -> Optional[dict]:
+        """Final settlement of a trip wallet."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/expensive-wallets/admin/{trip_id}/settle",
+                    json={"payment_reference": payment_reference},
+                    timeout=10.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"ExpensiveWalletClient error settle_wallet: {e}")
+        return None
+
+    async def update_budget(
+        self,
+        trip_id: UUID,
+        new_budget: float,
+        reason: str,
+    ) -> Optional[dict]:
+        """Update trip budget."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/expensive-wallets/admin/{trip_id}/update-budget",
+                    json={"new_budget": new_budget, "reason": reason},
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"ExpensiveWalletClient error update_budget: {e}")
+        return None
 
 
 class CalendarClient:
@@ -617,3 +796,82 @@ class LeaveClient:
         except Exception as e:
             logger.error(f"LeaveClient error recalculate_for_closure: {e}")
         return None
+
+
+# Alias for compatibility with HR Reporting service
+LeavesClient = LeaveClient
+
+
+class ExpenseClient:
+    """
+    Client for Expense Service interactions.
+    
+    Used by HR Reporting service for aggregating expense data.
+    """
+    
+    def __init__(self):
+        self.base_url = settings.expense_service_url if hasattr(settings, 'expense_service_url') else "http://localhost:8010"
+    
+    async def get_pending_reports_count(self) -> int:
+        """Get count of pending expense reports."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/expenses/reports/pending",
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    return len(data) if isinstance(data, list) else 0
+        except Exception as e:
+            logger.error(f"ExpenseClient error get_pending_reports_count: {e}")
+        return 0
+    
+    async def get_pending_trips_count(self) -> int:
+        """Get count of pending trip requests."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/expenses/trips/pending",
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    return len(data) if isinstance(data, list) else 0
+        except Exception as e:
+            logger.error(f"ExpenseClient error get_pending_trips_count: {e}")
+        return 0
+    
+    async def get_user_trips(self, user_id: UUID, year: Optional[int] = None) -> list:
+        """Get trips for a user."""
+        try:
+            params = {}
+            if year:
+                params["year"] = year
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/expenses/trips",
+                    params=params,
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"ExpenseClient error get_user_trips: {e}")
+        return []
+    
+    async def get_user_expense_reports(self, user_id: UUID, year: Optional[int] = None) -> list:
+        """Get expense reports for a user."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/expenses/reports/my",
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"ExpenseClient error get_user_expense_reports: {e}")
+        return []
+

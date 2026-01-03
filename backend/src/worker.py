@@ -23,6 +23,7 @@ celery_app.conf.update(
     imports=[
         "src.services.notifications.tasks",
         "src.services.audit.tasks",
+        "src.services.hr_reporting.tasks",
         # Add other service tasks here as needed
     ],
     # Cron tasks (Beat)
@@ -53,6 +54,27 @@ celery_app.conf.update(
         "audit-refresh-stats": {
             "task": "audit.refresh_daily_stats",
             "schedule": 21600.0,  # Every 6 hours
+        },
+        # ─────────────────────────────────────────────────────────────
+        # HR Reporting Tasks
+        # ─────────────────────────────────────────────────────────────
+        # Daily workforce snapshot - runs at 23:55 (end of day)
+        "hr-daily-snapshot": {
+            "task": "hr_reporting.create_daily_snapshot",
+            "schedule": 86400.0,  # Daily
+            "options": {"queue": "reporting"},
+        },
+        # Compliance check - runs daily at 8 AM
+        "hr-compliance-check": {
+            "task": "hr_reporting.run_compliance_check",
+            "schedule": 86400.0,  # Daily
+            "options": {"queue": "reporting"},
+        },
+        # Monthly stats calculation - runs on 1st of each month at 6 AM
+        "hr-monthly-stats": {
+            "task": "hr_reporting.calculate_monthly_stats",
+            "schedule": 2592000.0,  # Monthly (30 days)
+            "options": {"queue": "reporting"},
         },
     },
 )
