@@ -243,7 +243,7 @@ export function AdminToolsPage() {
                             </div>
                         </div>
                         <div className="divide-y divide-gray-100">
-                            {settings.filter(s => s.category === 'email').map(setting => (
+                            {settings.filter(s => s.category === 'email' && !s.key.startsWith('approval.')).map(setting => (
                                 <div key={setting.key} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                                     <div className="flex-1 min-w-0 mr-4">
                                         <p className="font-medium text-gray-900">{setting.label}</p>
@@ -267,7 +267,7 @@ export function AdminToolsPage() {
                             <p className="text-xs text-gray-500 mt-0.5">Impostazioni per le notifiche in-app e push</p>
                         </div>
                         <div className="divide-y divide-gray-100">
-                            {settings.filter(s => s.category === 'app').map(setting => (
+                            {settings.filter(s => s.category === 'app' && !s.key.startsWith('approval.')).map(setting => (
                                 <div key={setting.key} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                                     <div className="flex-1 min-w-0 mr-4">
                                         <p className="font-medium text-gray-900">{setting.label}</p>
@@ -293,7 +293,7 @@ export function AdminToolsPage() {
                             </div>
                         </div>
                         <div className="divide-y divide-gray-100">
-                            {settings.filter(s => s.category === 'business').map(setting => (
+                            {settings.filter(s => s.category === 'business' && !s.key.startsWith('approval.')).map(setting => (
                                 <div key={setting.key} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                                     <div className="flex-1 min-w-0 mr-4">
                                         <p className="font-medium text-gray-900">{setting.label}</p>

@@ -409,6 +409,69 @@ class NotificationService:
             await self._session.commit()
             raise e
 
+    async def get_email_events(self, log_id: UUID) -> list[dict]:
+        """Fetch email events from Brevo for a specific email log."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Get log
+        log = await self._email_log_repo.get(log_id)
+        if not log:
+            raise NotFoundError("Email log not found")
+        
+        # Get provider settings for API key
+        provider_settings = await self._settings_repo.get_active("brevo")
+        if not provider_settings or not provider_settings.api_key:
+            raise ValueError("Brevo API key not configured")
+        
+        headers = {
+            "api-key": provider_settings.api_key,
+            "Content-Type": "application/json",
+        }
+        
+        # Build query params - filter by email address
+        params = {
+            "email": log.to_email,
+            "limit": 50,
+            "sort": "desc",
+        }
+        
+        # If we have a message_id, we can filter by that too
+        if log.message_id:
+            params["messageId"] = log.message_id
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://api.brevo.com/v3/smtp/statistics/events",
+                headers=headers,
+                params=params,
+                timeout=30.0,
+            )
+            
+            if response.status_code >= 400:
+                error_body = response.text
+                logger.error(f"Brevo API error {response.status_code}: {error_body}")
+                raise ValueError(f"Errore API Brevo: {error_body}")
+            
+            data = response.json()
+            events = data.get("events", [])
+            
+            # Transform events for frontend display
+            result = []
+            for event in events:
+                result.append({
+                    "event": event.get("event"),
+                    "email": event.get("email"),
+                    "date": event.get("date"),
+                    "messageId": event.get("messageId"),
+                    "subject": event.get("subject"),
+                    "tag": event.get("tag"),
+                    "from": event.get("from"),
+                    "templateId": event.get("templateId"),
+                })
+            
+            return result
+
     async def _send_email_notification(self, notification) -> None:
         """Send email for a notification."""
         # 1. Get template for notification type
@@ -789,6 +852,41 @@ class NotificationService:
             result = result.replace(f"{{{{{key}}}}}", str(value or ""))
         return result
 
+    def _convert_to_brevo_syntax(self, content: str) -> str:
+        """Convert Handlebars-style syntax to Brevo (Jinja2) syntax.
+        
+        Brevo uses Jinja2-like templating:
+        - Variables: {{ variable }}
+        - Conditionals: {% if condition %}...{% endif %}
+        
+        Our templates use Handlebars-like syntax:
+        - Variables: {{variable}}
+        - Conditionals: {{#if variable}}...{{/if}}
+        """
+        import re
+        
+        result = content
+        
+        # Convert {{#if variable}} to {% if params.variable %}
+        result = re.sub(
+            r'\{\{#if\s+(\w+)\}\}',
+            r'{% if params.\1 %}',
+            result
+        )
+        
+        # Convert {{/if}} to {% endif %}
+        result = result.replace('{{/if}}', '{% endif %}')
+        
+        # Convert {{variable}} to {{ params.variable }}
+        # But skip variables that are already in params format
+        result = re.sub(
+            r'\{\{(\w+)\}\}',
+            r'{{ params.\1 }}',
+            result
+        )
+        
+        return result
+
     # ═══════════════════════════════════════════════════════════
     # Template Operations
     # ═══════════════════════════════════════════════════════════
@@ -849,6 +947,9 @@ class NotificationService:
             "Content-Type": "application/json",
         }
         
+        # Convert HTML content from Handlebars to Brevo (Jinja2) syntax
+        html_content = self._convert_to_brevo_syntax(template.html_content or "<p>{{message}}</p>")
+        
         # Prepare template payload for Brevo
         brevo_payload = {
             "sender": {
@@ -857,7 +958,7 @@ class NotificationService:
             },
             "templateName": template.code,
             "subject": template.subject or "{{title}}",
-            "htmlContent": template.html_content or "<p>{{message}}</p>",
+            "htmlContent": html_content,
         }
         
         if provider_settings.reply_to_email:
@@ -884,7 +985,16 @@ class NotificationService:
                     json=brevo_payload,
                     timeout=30.0,
                 )
-                response.raise_for_status()
+                if response.status_code >= 400:
+                    error_body = response.text
+                    logger.error(f"Brevo API error {response.status_code}: {error_body}")
+                    # Provide user-friendly messages for common errors
+                    if "Sender is invalid" in error_body:
+                        raise ValueError(
+                            f"Il mittente '{provider_settings.sender_email}' non è verificato in Brevo. "
+                            "Accedi al tuo account Brevo e verifica l'indirizzo email del mittente."
+                        )
+                    raise ValueError(f"Errore API Brevo: {error_body}")
                 data = response.json()
                 brevo_id = data.get("id")
                 

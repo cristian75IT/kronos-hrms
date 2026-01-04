@@ -595,6 +595,7 @@ class CalendarService:
                 date_instance = self._calculate_recurrence(h_def.recurrence_rule, year)
                 if date_instance:
                     expanded_holidays.append({
+                        "id": h_def.id,
                         "date": date_instance,
                         "name": h_def.name,
                         "is_recurring": True
@@ -602,6 +603,7 @@ class CalendarService:
             elif h_def.date:
                 if h_def.date.year == year:
                     expanded_holidays.append({
+                        "id": h_def.id,
                         "date": h_def.date,
                         "name": h_def.name,
                         "is_recurring": False

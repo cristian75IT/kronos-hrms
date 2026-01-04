@@ -7,10 +7,12 @@ import {
     Clock,
     AlertTriangle,
     Search,
-    RotateCw
+    RotateCw,
+    Activity,
+    X
 } from 'lucide-react';
 import notificationService from '../../services/notification.service';
-import type { EmailLog } from '../../services/notification.service';
+import type { EmailLog, EmailEvent } from '../../services/notification.service';
 import { useToast } from '../../context/ToastContext';
 
 export const EmailLogsPage: React.FC = () => {
@@ -21,6 +23,10 @@ export const EmailLogsPage: React.FC = () => {
     const [filterStatus, setFilterStatus] = useState<string>('');
     const [page, setPage] = useState(1);
     const [pageSize] = useState(50);
+    const [eventsModalOpen, setEventsModalOpen] = useState(false);
+    const [eventsLoading, setEventsLoading] = useState(false);
+    const [selectedLog, setSelectedLog] = useState<EmailLog | null>(null);
+    const [events, setEvents] = useState<EmailEvent[]>([]);
     const toast = useToast();
 
     const fetchLogs = async () => {
@@ -70,6 +76,48 @@ export const EmailLogsPage: React.FC = () => {
         }
     };
 
+    const handleViewEvents = async (log: EmailLog) => {
+        setSelectedLog(log);
+        setEventsModalOpen(true);
+        setEventsLoading(true);
+        try {
+            const data = await notificationService.getEmailEvents(log.id);
+            setEvents(data);
+        } catch (error) {
+            console.error(error);
+            toast.error('Errore nel caricamento degli eventi Brevo');
+            setEvents([]);
+        } finally {
+            setEventsLoading(false);
+        }
+    };
+
+    const getEventBadge = (event: string) => {
+        const styles: Record<string, { bg: string; text: string }> = {
+            'delivered': { bg: '#ecfdf5', text: '#059669' },
+            'opened': { bg: '#eff6ff', text: '#2563eb' },
+            'clicked': { bg: '#faf5ff', text: '#7c3aed' },
+            'sent': { bg: '#f0fdf4', text: '#16a34a' },
+            'bounced': { bg: '#fef2f2', text: '#dc2626' },
+            'hardBounce': { bg: '#fef2f2', text: '#dc2626' },
+            'softBounce': { bg: '#fffbeb', text: '#d97706' },
+            'spam': { bg: '#fef2f2', text: '#dc2626' },
+            'unsubscribed': { bg: '#f3f4f6', text: '#6b7280' },
+            'blocked': { bg: '#fef2f2', text: '#dc2626' },
+            'deferred': { bg: '#fffbeb', text: '#d97706' },
+        };
+        const style = styles[event] || { bg: '#f3f4f6', text: '#374151' };
+        return {
+            backgroundColor: style.bg,
+            color: style.text,
+            padding: '2px 8px',
+            borderRadius: '4px',
+            fontSize: '12px',
+            fontWeight: 500,
+            textTransform: 'uppercase' as const,
+        };
+    };
+
     const getStatusIcon = (status: string) => {
         switch (status) {
             case 'sent':
@@ -93,6 +141,17 @@ export const EmailLogsPage: React.FC = () => {
             year: 'numeric',
             hour: '2-digit',
             minute: '2-digit'
+        });
+    };
+
+    const formatEventDate = (dateString: string) => {
+        return new Date(dateString).toLocaleString('it-IT', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
         });
     };
 
@@ -216,16 +275,27 @@ export const EmailLogsPage: React.FC = () => {
                                         </td>
                                         <td>{formatDate(log.created_at)}</td>
                                         <td>
-                                            {log.status === 'failed' && (
-                                                <button
-                                                    className="retry-btn"
-                                                    onClick={() => handleRetry(log.id)}
-                                                    disabled={retrying === log.id}
-                                                    title="Riprova invio"
-                                                >
-                                                    <RotateCw size={16} className={retrying === log.id ? 'spinning' : ''} />
-                                                </button>
-                                            )}
+                                            <div className="action-buttons">
+                                                {log.status === 'sent' && (
+                                                    <button
+                                                        className="events-btn"
+                                                        onClick={() => handleViewEvents(log)}
+                                                        title="Visualizza eventi Brevo"
+                                                    >
+                                                        <Activity size={16} />
+                                                    </button>
+                                                )}
+                                                {log.status === 'failed' && (
+                                                    <button
+                                                        className="retry-btn"
+                                                        onClick={() => handleRetry(log.id)}
+                                                        disabled={retrying === log.id}
+                                                        title="Riprova invio"
+                                                    >
+                                                        <RotateCw size={16} className={retrying === log.id ? 'spinning' : ''} />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -252,6 +322,56 @@ export const EmailLogsPage: React.FC = () => {
                     </button>
                 </div>
             </div>
+
+            {/* Events Modal */}
+            {eventsModalOpen && (
+                <div className="modal-overlay" onClick={() => setEventsModalOpen(false)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h2>Eventi Brevo</h2>
+                            <button className="modal-close" onClick={() => setEventsModalOpen(false)}>
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="modal-body">
+                            {selectedLog && (
+                                <div className="modal-info">
+                                    <p><strong>Destinatario:</strong> {selectedLog.to_email}</p>
+                                    <p><strong>Template:</strong> {selectedLog.template_code}</p>
+                                    {selectedLog.message_id && (
+                                        <p><strong>Message ID:</strong> <code>{selectedLog.message_id}</code></p>
+                                    )}
+                                </div>
+                            )}
+                            {eventsLoading ? (
+                                <div className="loading-state">
+                                    <RefreshCw size={24} className="spinning" />
+                                    <span>Caricamento eventi...</span>
+                                </div>
+                            ) : events.length === 0 ? (
+                                <div className="empty-events">
+                                    <AlertTriangle size={24} />
+                                    <span>Nessun evento trovato</span>
+                                </div>
+                            ) : (
+                                <div className="events-list">
+                                    {events.map((event, idx) => (
+                                        <div key={idx} className="event-item">
+                                            <div className="event-badge">
+                                                <span style={getEventBadge(event.event)}>{event.event}</span>
+                                            </div>
+                                            <div className="event-details">
+                                                <span className="event-date">{formatEventDate(event.date)}</span>
+                                                {event.subject && <span className="event-subject">{event.subject}</span>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <style>{`
                 .email-logs-page {
@@ -482,6 +602,150 @@ export const EmailLogsPage: React.FC = () => {
                 .bg-red-50 { background: #fef2f2; }
                 .bg-amber-50 { background: #fffbeb; }
                 .bg-blue-50 { background: #eff6ff; }
+
+                .action-buttons {
+                    display: flex;
+                    gap: 8px;
+                }
+
+                .events-btn {
+                    padding: 6px;
+                    border: 1px solid #e5e7eb;
+                    background: white;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    color: #3b82f6;
+                    transition: all 0.2s;
+                }
+
+                .events-btn:hover {
+                    background: #eff6ff;
+                    border-color: #3b82f6;
+                }
+
+                .modal-overlay {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0, 0, 0, 0.5);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 1000;
+                }
+
+                .modal-content {
+                    background: white;
+                    border-radius: 12px;
+                    width: 90%;
+                    max-width: 600px;
+                    max-height: 80vh;
+                    overflow: hidden;
+                    display: flex;
+                    flex-direction: column;
+                    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+                }
+
+                .modal-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 16px 20px;
+                    border-bottom: 1px solid #e5e7eb;
+                }
+
+                .modal-header h2 {
+                    font-size: 18px;
+                    font-weight: 600;
+                    margin: 0;
+                }
+
+                .modal-close {
+                    padding: 4px;
+                    border: none;
+                    background: transparent;
+                    cursor: pointer;
+                    color: #6b7280;
+                    border-radius: 4px;
+                }
+
+                .modal-close:hover {
+                    background: #f3f4f6;
+                    color: #111827;
+                }
+
+                .modal-body {
+                    padding: 20px;
+                    overflow-y: auto;
+                }
+
+                .modal-info {
+                    background: #f9fafb;
+                    padding: 12px;
+                    border-radius: 8px;
+                    margin-bottom: 16px;
+                }
+
+                .modal-info p {
+                    margin: 4px 0;
+                    font-size: 14px;
+                }
+
+                .modal-info code {
+                    font-size: 12px;
+                    background: #e5e7eb;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                }
+
+                .loading-state,
+                .empty-events {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 32px;
+                    color: #6b7280;
+                }
+
+                .events-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                }
+
+                .event-item {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    padding: 12px;
+                    background: #f9fafb;
+                    border-radius: 8px;
+                    border: 1px solid #e5e7eb;
+                }
+
+                .event-badge {
+                    flex-shrink: 0;
+                }
+
+                .event-details {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 4px;
+                }
+
+                .event-date {
+                    font-size: 14px;
+                    font-weight: 500;
+                    color: #111827;
+                }
+
+                .event-subject {
+                    font-size: 13px;
+                    color: #6b7280;
+                }
 
                 .spinning {
                     animation: spin 1s linear infinite;

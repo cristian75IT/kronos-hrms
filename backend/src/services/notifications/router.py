@@ -217,6 +217,21 @@ async def retry_email(
     return await service.retry_email(id)
 
 
+@router.get("/notifications/email-logs/{id}/events", response_model=list[dict])
+async def get_email_events(
+    id: UUID,
+    current_user: TokenPayload = Depends(require_admin),
+    service: NotificationService = Depends(get_notification_service),
+):
+    """Get Brevo events for a specific email log. Admin only."""
+    try:
+        return await service.get_email_events(id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/notifications", response_model=NotificationResponse, status_code=201)
 async def create_notification(
     data: NotificationCreate,

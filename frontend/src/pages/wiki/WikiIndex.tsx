@@ -7,7 +7,9 @@ import {
     Settings,
     Users,
     FileText,
-    ChevronRight
+    ChevronRight,
+    Shield,
+    Activity
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -44,6 +46,22 @@ export function WikiIndex() {
             iconColor: 'bg-amber-500',
             link: '/wiki/config',
             keywords: ['Sedi', 'Aree', 'Festività']
+        },
+        {
+            title: 'Sicurezza & RBAC',
+            description: 'Approfondimento sul modello di permessi dinamici, gerarchie di ruoli e integrazione Keycloak.',
+            icon: Shield,
+            iconColor: 'bg-indigo-600',
+            link: '/wiki/security',
+            keywords: ['RBAC', 'Permessi', 'Scopes', 'Keycloak']
+        },
+        {
+            title: 'Reporting HR & Compliance',
+            description: 'Guida ai report di conformità (D.Lgs 81/08), dashboard workforce e snapshots giornalieri.',
+            icon: Activity,
+            iconColor: 'bg-rose-500',
+            link: '/wiki/reporting',
+            keywords: ['Reporting', 'Conformità', 'Snapshots', '81/08']
         }
     ];
 

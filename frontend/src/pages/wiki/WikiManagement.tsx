@@ -39,9 +39,9 @@ export function WikiManagement() {
         {
             title: 'Gestione Permessi Admin',
             icon: ShieldCheck,
-            iconColor: 'bg-purple-500',
-            desc: 'Assegnazione dei ruoli: Admin, HR Manager, Approver o Employee.',
-            details: 'I ruoli sono granulari e definiscono la visibilità sui reparti.'
+            iconColor: 'bg-indigo-500',
+            desc: 'Assegnazione dei ruoli e permessi dinamici con logica di Scopes (Global, Area, Own).',
+            details: 'La sincronizzazione con Keycloak è automatica. I permessi sono ereditati gerarchicamente.'
         }
     ];
 

@@ -85,6 +85,17 @@ export interface HistoryFilters {
     channel?: string;
 }
 
+export interface EmailEvent {
+    event: string;
+    email: string;
+    date: string;
+    messageId?: string;
+    subject?: string;
+    tag?: string;
+    from?: string;
+    templateId?: number;
+}
+
 const notificationService = {
     sendBulk: async (data: BulkNotificationRequest) => {
         await api.post('/notifications/bulk', data);
@@ -158,6 +169,11 @@ const notificationService = {
 
     retryEmail: async (id: string) => {
         const response = await api.post<EmailLog>(`/notifications/email-logs/${id}/retry`);
+        return response.data;
+    },
+
+    getEmailEvents: async (id: string): Promise<EmailEvent[]> => {
+        const response = await api.get<EmailEvent[]>(`/notifications/email-logs/${id}/events`);
         return response.data;
     },
 

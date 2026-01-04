@@ -34,6 +34,8 @@ import { WikiIndex } from './pages/wiki/WikiIndex';
 import { WikiCalculations } from './pages/wiki/WikiCalculations';
 import { WikiManagement } from './pages/wiki/WikiManagement';
 import { WikiConfig } from './pages/wiki/WikiConfig';
+import { WikiSecurity } from './pages/wiki/WikiSecurity';
+import { WikiHRReporting } from './pages/wiki/WikiHRReporting';
 import { HRReportsPage } from './pages/hr/HRReportsPage';
 import { HRConsolePage } from './pages/hr/HRConsolePage';
 import { AuditLogPage } from './pages/admin/AuditLogPage';
@@ -118,6 +120,8 @@ function App() {
                 <Route path="/wiki/calculations" element={<WikiCalculations />} />
                 <Route path="/wiki/management" element={<WikiManagement />} />
                 <Route path="/wiki/config" element={<WikiConfig />} />
+                <Route path="/wiki/security" element={<WikiSecurity />} />
+                <Route path="/wiki/reporting" element={<WikiHRReporting />} />
                 <Route path="/wiki/contracts" element={<WikiCalculations />} /> {/* Shared logic for now */}
 
                 {/* Approval Workflows */}
