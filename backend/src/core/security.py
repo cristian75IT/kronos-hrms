@@ -7,7 +7,9 @@ from fastapi.security import OAuth2PasswordBearer
 from keycloak import KeycloakOpenID
 from pydantic import BaseModel
 
+import httpx
 from src.core.config import settings
+from src.core.cache import cache_set, cache_get
 
 
 # OAuth2 scheme
@@ -50,6 +52,9 @@ class TokenPayload(BaseModel):
     db_is_approver: bool = False
     db_is_hr: bool = False
     
+    # Fine-grained permissions
+    permissions: list[str] = []
+    
     @property
     def keycloak_id(self) -> str:
         """Get Keycloak user ID (external identity)."""
@@ -60,7 +65,6 @@ class TokenPayload(BaseModel):
         """Get internal user ID for database operations.
         
         This is the ID to use in all leave_balances, leave_requests, etc.
-        Raises ValueError if not yet resolved (should never happen in normal flow).
         """
         if self.internal_user_id is None:
             raise ValueError(
@@ -79,6 +83,26 @@ class TokenPayload(BaseModel):
     def has_role(self, role: str) -> bool:
         """Check if user has a specific role."""
         return role in self.roles
+    
+    def has_permission(self, permission: str, required_scope: str = None) -> bool:
+        """Check if user has a specific permission code.
+        
+        Args:
+            permission: The permission code (e.g. 'leaves:approve')
+            required_scope: If provided, checks if user has this specific scope or GLOBAL.
+        """
+        if self.is_admin:
+            return True
+            
+        # Check for GLOBAL access first
+        if f"{permission}:GLOBAL" in self.permissions:
+            return True
+            
+        if required_scope:
+            return f"{permission}:{required_scope}" in self.permissions
+            
+        # If no scope specified, any scope for this permission returns True
+        return any(p.startswith(f"{permission}:") for p in self.permissions)
     
     @property
     def is_admin(self) -> bool:
@@ -145,18 +169,32 @@ async def get_current_token(
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
 ) -> TokenPayload:
-    """Get current user with resolved internal user ID.
+    """Get current user with resolved internal user ID and permissions.
     
     This is the primary dependency to use for endpoints that need user context.
     It decodes the JWT, then calls auth-service to resolve keycloak_id → internal_user_id.
     
     The internal_user_id is then accessible via token.user_id property.
+    This includes Redis caching to avoid frequent service-to-service calls.
     """
     import httpx
     
     payload = await decode_token(token)
     
-    # Resolve keycloak_id to internal_user_id via auth service
+    # 1. Try to get from Cache
+    cache_key = f"user_identity:{payload.keycloak_id}"
+    cached_data = await cache_get(cache_key, as_json=True)
+    
+    if cached_data:
+        payload.internal_user_id = UUID(cached_data["id"])
+        payload.db_is_admin = cached_data.get("is_admin", False)
+        payload.db_is_manager = cached_data.get("is_manager", False)
+        payload.db_is_approver = cached_data.get("is_approver", False)
+        payload.db_is_hr = cached_data.get("is_hr", False)
+        payload.permissions = cached_data.get("permissions", [])
+        return payload
+    
+    # 2. Resolve via Auth Service if not in cache
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
@@ -167,11 +205,17 @@ async def get_current_user(
             
             if response.status_code == 200:
                 user_data = response.json()
+                # Populate payload
                 payload.internal_user_id = UUID(user_data.get("id"))
                 payload.db_is_admin = user_data.get("is_admin", False)
                 payload.db_is_manager = user_data.get("is_manager", False)
                 payload.db_is_approver = user_data.get("is_approver", False)
                 payload.db_is_hr = user_data.get("is_hr", False)
+                payload.permissions = user_data.get("permissions", [])
+                
+                # Cache for 10 minutes
+                await cache_set(cache_key, user_data, expire_seconds=600)
+                
             elif response.status_code == 404:
                 # User not found in local DB - they may need to be synced
                 # For now, raise an error
@@ -191,6 +235,23 @@ async def get_current_user(
         )
     
     return payload
+
+
+def require_permission(permission_code: str, scope: str = None):
+    """Dependency factory for permission-based access control."""
+    async def permission_dependency(
+        token: TokenPayload = Depends(get_current_user),
+    ) -> TokenPayload:
+        if not token.has_permission(permission_code, scope):
+            detail = f"Missing required permission: {permission_code}"
+            if scope:
+                detail += f" ({scope})"
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=detail,
+            )
+        return token
+    return permission_dependency
 
 
 async def require_admin(

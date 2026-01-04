@@ -426,3 +426,55 @@ class EmployeeTraining(Base):
     
     # Relationships
     user: Mapped["User"] = relationship(back_populates="trainings")
+
+
+class Permission(Base):
+    """RBAC Permission (Resource + Action)."""
+    __tablename__ = "permissions"
+    __table_args__ = {"schema": "auth"}
+    
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    code: Mapped[str] = mapped_column(String, unique=True, nullable=False) # e.g. leaves:create
+    resource: Mapped[str] = mapped_column(String, nullable=False) # LEAVES
+    action: Mapped[str] = mapped_column(String, nullable=False) # CREATE
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String)
+    
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Role(Base):
+    """RBAC Role (Collection of Permissions)."""
+    __tablename__ = "roles"
+    __table_args__ = {"schema": "auth"}
+    
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    parent_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("auth.roles.id", ondelete="SET NULL"), nullable=True)
+    name: Mapped[str] = mapped_column(String, unique=True, nullable=False) # keycloak role name
+    display_name: Mapped[Optional[str]] = mapped_column(String)
+    description: Mapped[Optional[str]] = mapped_column(String)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Hierarchy
+    parent: Mapped[Optional["Role"]] = relationship("Role", remote_side=[id], back_populates="children")
+    children: Mapped[list["Role"]] = relationship("Role", back_populates="parent")
+
+    permissions: Mapped[list["Permission"]] = relationship(
+        secondary="auth.role_permissions",
+        # lazy="selectin"  <-- Removed to let Repository handle loading explicitly
+    )
+
+
+class RolePermission(Base):
+    """Link Table Role <-> Permission."""
+    __tablename__ = "role_permissions"
+    __table_args__ = {"schema": "auth"}
+    
+    role_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("auth.roles.id", ondelete="CASCADE"), primary_key=True)
+    permission_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("auth.permissions.id", ondelete="CASCADE"), primary_key=True)
+    scope: Mapped[str] = mapped_column(String, primary_key=True, default="GLOBAL") # GLOBAL, AREA, LOCATION, OWN
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+

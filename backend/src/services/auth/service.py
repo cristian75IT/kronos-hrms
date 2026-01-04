@@ -5,9 +5,11 @@ from uuid import UUID
 
 from keycloak import KeycloakAdmin, KeycloakOpenIDConnection
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 
 from src.core.config import settings
 from src.core.exceptions import NotFoundError, ConflictError
+from src.core.cache import cache_delete, cache_set
 from src.services.auth.repository import (
     UserRepository,
     AreaRepository,
@@ -16,6 +18,8 @@ from src.services.auth.repository import (
     WorkScheduleRepository,
     EmployeeContractRepository,
     EmployeeTrainingRepository,
+    RoleRepository,
+    PermissionRepository,
 )
 from src.services.auth.schemas import (
     UserCreate,
@@ -33,6 +37,7 @@ from src.services.auth.schemas import (
     KeycloakSyncRequest,
     KeycloakSyncResponse,
 )
+from src.services.auth.models import Role, Permission, RolePermission
 from src.shared.schemas import DataTableRequest
 from src.shared.audit_client import get_audit_logger
 
@@ -47,11 +52,26 @@ class UserService:
         self._location_repo = LocationRepository(session)
         self._contract_repo = ContractTypeRepository(session)
         self._schedule_repo = WorkScheduleRepository(session)
-        self._schedule_repo = WorkScheduleRepository(session)
+
         self._emp_contract_repo = EmployeeContractRepository(session)
         self._training_repo = EmployeeTrainingRepository(session)
         self._audit = get_audit_logger("auth-service")
 
+
+    # ═══════════════════════════════════════════════════════════
+    # Helpers
+    # ═══════════════════════════════════════════════════════════
+
+    def _get_keycloak_admin(self) -> KeycloakAdmin:
+        """Get authenticated Keycloak Admin client."""
+        connection = KeycloakOpenIDConnection(
+            server_url=settings.keycloak_url,
+            realm_name=settings.keycloak_realm,
+            client_id=settings.keycloak_client_id,
+            client_secret_key=settings.keycloak_client_secret,
+            verify=True
+        )
+        return KeycloakAdmin(connection=connection)
 
     # ═══════════════════════════════════════════════════════════
     # User Operations
@@ -100,21 +120,53 @@ class UserService:
             )
             return user
         
+        # Check if user exists by email (legacy user or seeded user)
+        if email:
+            existing_by_email = await self._user_repo.get_by_email(email)
+            if existing_by_email:
+                # Merge account: Update Keycloak ID and roles
+                await self._user_repo.update(
+                    existing_by_email.id,
+                    keycloak_id=keycloak_id,
+                    username=username or existing_by_email.username,
+                    first_name=first_name or existing_by_email.first_name,
+                    last_name=last_name or existing_by_email.last_name,
+                    is_admin="admin" in roles,
+                    is_manager="manager" in roles,
+                    is_approver="approver" in roles,
+                    is_hr="hr" in roles,
+                    is_employee="employee" in roles,
+                    last_sync_at=datetime.utcnow(),
+                )
+                return await self._user_repo.get_by_keycloak_id(keycloak_id)
+        
         # Create new user
-        return await self._user_repo.create(
+        # Handle username uniqueness
+        base_username = username or email
+        final_username = base_username
+        counter = 1
+        
+        while True:
+            existing_user = await self._user_repo.get_by_username(final_username)
+            if not existing_user:
+                break
+            final_username = f"{base_username}_{counter}"
+            counter += 1
+
+        await self._user_repo.create(
             keycloak_id=keycloak_id,
             email=email,
-            username=username or email,
+            username=final_username,
             first_name=first_name or email.split("@")[0],
             last_name=last_name or "",
             is_admin="admin" in roles,
             is_manager="manager" in roles,
             is_approver="approver" in roles,
-
             is_hr="hr" in roles,
             is_employee="employee" in roles,
             last_sync_at=datetime.utcnow(),
         )
+        return await self._user_repo.get_by_keycloak_id(keycloak_id)
 
     async def get_users(
         self,
@@ -142,20 +194,75 @@ class UserService:
         return await self._user_repo.get_approvers()
 
     async def update_user(self, id: UUID, data: UserUpdate, actor_id: Optional[UUID] = None):
-        """Update user."""
-        user = await self._user_repo.update(id, **data.model_dump(exclude_unset=True))
+        """Update user locally and in Keycloak."""
+        user = await self._user_repo.get(id)
         if not user:
-            raise NotFoundError("User not found", entity_type="User", entity_id=str(id))
+             raise NotFoundError("User not found", entity_type="User", entity_id=str(id))
+
+        # 1. Sync to Keycloak if linked and relevant fields changed
+        if user.keycloak_id:
+            try:
+                kc_updates = {}
+                if data.first_name is not None: kc_updates['firstName'] = data.first_name
+                if data.last_name is not None: kc_updates['lastName'] = data.last_name
+                if data.email is not None: kc_updates['email'] = data.email
+                if data.username is not None: kc_updates['username'] = data.username
+                
+                # Check for Role Changes
+                role_changes = {}
+                if data.is_employee is not None: role_changes['employee'] = data.is_employee
+                if data.is_admin is not None: role_changes['admin'] = data.is_admin
+                if data.is_manager is not None: role_changes['manager'] = data.is_manager
+                if data.is_approver is not None: role_changes['approver'] = data.is_approver
+                if data.is_hr is not None: role_changes['hr'] = data.is_hr
+
+                if kc_updates or role_changes:
+                    kc_admin = self._get_keycloak_admin()
+                    
+                    # Profile Update
+                    if kc_updates:
+                        kc_admin.update_user(user.keycloak_id, kc_updates)
+                    
+                    # Roles Update
+                    if role_changes:
+                        # Fetch IDs for roles (Keycloak needs Role Representation or Name? assign_realm_roles takes list of dicts)
+                        # We can use update_realm_roles logic or assign/remove.
+                        # Easier to get role definition first.
+                        for role_name, should_have in role_changes.items():
+                            try:
+                                role_def = kc_admin.get_realm_role(role_name)
+                                if should_have:
+                                    kc_admin.assign_realm_roles(user.keycloak_id, [role_def])
+                                else:
+                                    kc_admin.delete_realm_roles_of_user(user.keycloak_id, [role_def])
+                            except Exception as e:
+                                self._audit.log_action(
+                                    user_id=actor_id, action="ERROR", resource_type="KEYCLOAK_ROLE", 
+                                    description=f"Failed to sync role {role_name}: {e}"
+                                )
+
+            except Exception as e:
+                # Log but maybe don't block local update? Or Block?
+                # User asked to "Use Keycloak APIs". So failure should probably bubble up or be warned.
+                # I'll raise Conflict to alert the user.
+                raise ConflictError(f"Keycloak Update Failed: {str(e)}")
+
+        # 2. Local Update
+        updated_user = await self._user_repo.update(id, **data.model_dump(exclude_unset=True))
+        
+        # 3. Invalidate Cache
+        if updated_user.keycloak_id:
+            await cache_delete(f"user_identity:{updated_user.keycloak_id}")
             
         await self._audit.log_action(
             user_id=actor_id,
             action="UPDATE",
             resource_type="USER",
             resource_id=str(id),
-            description=f"Updated user: {user.full_name}",
+            description=f"Updated user: {updated_user.full_name}",
             request_data=data.model_dump(mode="json", exclude_unset=True)
         )
-        return user
+        return updated_user
 
     async def deactivate_user(self, id: UUID, actor_id: Optional[UUID] = None) -> bool:
         """Deactivate user."""
@@ -527,3 +634,69 @@ class UserService:
             description=f"Deleted training record: {training.training_type}",
         )
         return result
+
+
+
+class RBACService:
+    """Service for RBAC management."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+        self._role_repo = RoleRepository(session)
+        self._perm_repo = PermissionRepository(session)
+        self._audit = get_audit_logger("auth-service")
+
+    async def get_roles(self):
+        """Get all roles with permissions."""
+        roles = await self._role_repo.get_all()
+        print(f"DEBUG: Found {len(roles)} roles")
+        return roles
+
+    async def get_permissions(self):
+        """Get all available permissions."""
+        perms = await self._perm_repo.get_all()
+        print(f"DEBUG: Found {len(perms)} permissions")
+        return perms
+        
+    async def get_role(self, id: UUID):
+        """Get role details."""
+        role = await self._role_repo.get(id)
+        if not role:
+            raise NotFoundError("Role not found", entity_type="Role", entity_id=str(id))
+        return role
+
+    async def update_role_permissions(self, role_id: UUID, permission_ids: list[UUID], actor_id: Optional[UUID] = None):
+        """Update permissions for a role."""
+        role = await self._role_repo.get(role_id)
+        if not role:
+            raise NotFoundError("Role not found", entity_type="Role", entity_id=str(role_id))
+        
+        await self._role_repo.update_permissions(role_id, permission_ids)
+        
+        # Log
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="UPDATE_PERMISSIONS",
+            resource_type="ROLE",
+            resource_id=str(role_id),
+            description=f"Updated permissions for role {role.name}",
+            request_data={"permission_ids": [str(p) for p in permission_ids]}
+        )
+        # Return updated role
+        return await self._role_repo.get(role_id)
+
+    async def get_permissions_for_roles(self, role_names: list[str]) -> list[str]:
+        """Get all permission codes for a list of roles (hierarchical)."""
+        return await self._role_repo.get_permissions_for_roles(role_names)
+
+    async def check_access(self, role_names: list[str], permission_code: str) -> bool:
+        """Check if any of the roles (or their parents) has the required permission."""
+        if not role_names:
+            return False
+            
+        if "admin" in role_names:
+            return True
+            
+        permissions = await self._role_repo.get_permissions_for_roles(role_names)
+        # Check if any resolved permission starts with 'code:'
+        return any(p.startswith(f"{permission_code}:") for p in permissions)

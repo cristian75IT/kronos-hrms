@@ -96,6 +96,7 @@ class UserResponse(UserBase, IDMixin, BaseSchema):
     manager_id: Optional[UUID] = None
     last_sync_at: Optional[datetime] = None
     profile: Optional[UserProfileResponse] = None
+    permissions: list[str] = []
     created_at: datetime
     updated_at: datetime
 
@@ -139,6 +140,7 @@ class CurrentUserResponse(BaseModel):
 
     is_hr: bool
     is_employee: bool
+    permissions: list[str] = []
     location: Optional[str] = None
     manager: Optional[str] = None
 
@@ -396,3 +398,38 @@ class EmployeeTrainingResponse(EmployeeTrainingBase, IDMixin, TimestampMixin, Ba
     """Response schema for employee training."""
     
     user_id: UUID
+
+
+# ═══════════════════════════════════════════════════════════
+# RBAC Schemas
+# ═══════════════════════════════════════════════════════════
+
+class PermissionRead(BaseSchema, IDMixin):
+    """Schema for permission read."""
+    
+    code: str
+    resource: str
+    action: str
+    name: str
+    description: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class RoleRead(BaseSchema, IDMixin):
+    """Schema for role read."""
+    
+    name: str
+    display_name: Optional[str] = None
+    description: Optional[str] = None
+    is_system: bool
+    parent_id: Optional[UUID] = None
+    permissions: list[PermissionRead] = []
+    
+    model_config = {"from_attributes": True}
+
+
+class RolePermissionUpdate(BaseModel):
+    """Schema for updating role permissions."""
+    
+    permission_ids: list[UUID]
+

@@ -296,7 +296,7 @@ export function UsersPage() {
                                                 <div>
                                                     <div className="font-semibold text-gray-900 flex items-center gap-2">
                                                         {user.first_name} {user.last_name}
-                                                        {user.is_admin && <ShieldCheck size={14} className="text-indigo-600" title="Amministratore" />}
+                                                        {user.is_admin && <ShieldCheck size={14} className="text-indigo-600" />}
                                                     </div>
                                                     <div className="text-sm text-gray-500">{user.email}</div>
                                                 </div>
@@ -385,7 +385,7 @@ export function UsersPage() {
                                 </div>
                                 <h3 className="font-bold text-gray-900 flex items-center gap-2">
                                     {user.first_name} {user.last_name}
-                                    {user.is_admin && <ShieldCheck size={14} className="text-indigo-600" title="Amministratore" />}
+                                    {user.is_admin && <ShieldCheck size={14} className="text-indigo-600" />}
                                 </h3>
                                 <p className="text-sm text-gray-500 truncate">{user.email}</p>
                             </div>

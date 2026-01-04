@@ -114,7 +114,7 @@ class WalletTransaction(Base):
     )
     wallet_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("wallet.employee_wallets.id", ondelete="CASCADE"),
+        ForeignKey("time_wallet.employee_wallets.id", ondelete="CASCADE"),
         nullable=False,
     )
     

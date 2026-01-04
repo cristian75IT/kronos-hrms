@@ -8,7 +8,7 @@ from src.core.database import get_db
 from src.core.security import get_current_token, get_current_user, require_admin, require_manager, TokenPayload
 from src.core.exceptions import NotFoundError, ConflictError
 from src.shared.schemas import MessageResponse, DataTableRequest
-from src.services.auth.service import UserService
+from src.services.auth.service import UserService, RBACService
 from src.services.auth.schemas import (
     UserResponse,
     UserListItem,
@@ -33,10 +33,15 @@ from src.services.auth.schemas import (
     EmployeeTrainingResponse,
     KeycloakSyncRequest,
     KeycloakSyncResponse,
+    PermissionRead,
+    RoleRead,
+    RolePermissionUpdate,
 )
 
 
+import logging
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 async def get_user_service(
@@ -44,6 +49,13 @@ async def get_user_service(
 ) -> UserService:
     """Dependency for UserService."""
     return UserService(session)
+
+
+async def get_rbac_service(
+    session: AsyncSession = Depends(get_db),
+) -> RBACService:
+    """Dependency for RBACService."""
+    return RBACService(session)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -54,17 +66,26 @@ async def get_user_service(
 async def read_current_user(
     token: TokenPayload = Depends(get_current_token),
     service: UserService = Depends(get_user_service),
+    rbac_service: RBACService = Depends(get_rbac_service),
 ):
     """Get current authenticated user with profile."""
     # Ensure user exists in local DB (creates on first login)
+    # Robust name parsing
+    name_parts = token.name.split() if token.name else []
+    first_name = name_parts[0] if name_parts else ""
+    last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+
     user = await service.get_or_create_from_token(
         keycloak_id=token.keycloak_id,
         email=token.email or "",
         username=token.preferred_username or token.email or "",
-        first_name=token.name.split()[0] if token.name else "",
-        last_name=" ".join(token.name.split()[1:]) if token.name and len(token.name.split()) > 1 else "",
+        first_name=first_name,
+        last_name=last_name,
         roles=token.roles,
     )
+    
+    # Get permissions
+    permissions = await rbac_service.get_permissions_for_roles(token.roles)
     
     return CurrentUserResponse(
         id=user.id,
@@ -74,10 +95,12 @@ async def read_current_user(
         last_name=user.last_name,
         full_name=user.full_name,
         roles=token.roles,
+        permissions=permissions,
         is_admin=user.is_admin,
         is_manager=user.is_manager,
         is_approver=user.is_approver,
         is_hr=user.is_hr,
+        is_employee=user.is_employee,
         location=user.location.name if user.location else None,
         manager=user.manager.full_name if user.manager else None,
     )
@@ -143,14 +166,19 @@ async def get_approvers(
 async def get_user_by_keycloak_id(
     keycloak_id: str,
     service: UserService = Depends(get_user_service),
+    rbac_service: RBACService = Depends(get_rbac_service),
+    token: TokenPayload = Depends(get_current_token),
 ):
-    """Get user by Keycloak ID (internal use for identity resolution).
-    
-    This endpoint is called by other microservices to resolve
-    Keycloak external ID to internal database ID.
-    """
+    """Get user by Keycloak ID (internal use for identity resolution)."""
     try:
-        return await service.get_user_by_keycloak_id(keycloak_id)
+        user = await service.get_user_by_keycloak_id(keycloak_id)
+        # Fetch permissions for roles in the token
+        permissions = await rbac_service.get_permissions_for_roles(token.roles)
+        
+        # Hydrate response
+        response = UserResponse.model_validate(user)
+        response.permissions = permissions
+        return response
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -461,3 +489,68 @@ async def delete_training(
         await service.delete_employee_training(id, actor_id=token.user_id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════
+# RBAC Endpoints
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/roles", response_model=list[RoleRead])
+async def list_roles(
+    token: TokenPayload = Depends(require_admin),
+    service: RBACService = Depends(get_rbac_service),
+):
+    """List all RBAC roles with permissions. Admin only."""
+    logger.info("Entering list_roles endpoint")
+    try:
+        logger.info("Calling service.get_roles()")
+        roles = await service.get_roles()
+        logger.info(f"Got {len(roles)} roles. Validating...")
+        
+        # Force serialization to catch errors here
+        serialized = [RoleRead.model_validate(r) for r in roles]
+        logger.info("Validation successful")
+        return serialized
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        logger.error(f"CRASH in list_roles: {e}\n{tb}")
+        raise HTTPException(status_code=500, detail=f"Internal Error: {str(e)}")
+
+
+@router.get("/permissions", response_model=list[PermissionRead])
+async def list_permissions(
+    token: TokenPayload = Depends(require_admin),
+    service: RBACService = Depends(get_rbac_service),
+):
+    """List all available permissions. Admin only."""
+    logger.info("Entering list_permissions endpoint")
+    try:
+        logger.info("Calling service.get_permissions()")
+        perms = await service.get_permissions()
+        logger.info(f"Got {len(perms)} permissions. Validating...")
+        
+        # Force serialization to catch errors here
+        serialized = [PermissionRead.model_validate(p) for p in perms]
+        logger.info("Validation successful")
+        return serialized
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        logger.error(f"CRASH in list_permissions: {e}\n{tb}")
+        raise HTTPException(status_code=500, detail=f"Internal Error: {str(e)}")
+
+
+@router.put("/roles/{id}/permissions", response_model=RoleRead)
+async def update_role_permissions(
+    id: UUID,
+    data: RolePermissionUpdate,
+    token: TokenPayload = Depends(require_admin),
+    service: RBACService = Depends(get_rbac_service),
+):
+    """Update permissions for a role. Admin only."""
+    try:
+        return await service.update_role_permissions(id, data.permission_ids, actor_id=token.user_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+

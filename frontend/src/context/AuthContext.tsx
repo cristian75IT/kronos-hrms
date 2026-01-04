@@ -12,7 +12,9 @@ interface AuthContextType {
     isLoading: boolean;
     isAuthenticated: boolean;
     roles: string[];
+    permissions: string[];
     hasRole: (role: string) => boolean;
+    hasPermission: (permission: string, scope?: string) => boolean;
     isAdmin: boolean;
     isApprover: boolean;
     isHR: boolean;
@@ -32,6 +34,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const roles = user?.roles || [];
     const hasRole = (role: string): boolean =>
         roles.some(r => r.toLowerCase() === role.toLowerCase());
+
+    const permissions = user?.permissions || [];
+    const hasPermission = (permission: string, scope?: string): boolean => {
+        if (!user) return false;
+        if (isAdmin) return true; // Admins have all permissions
+
+        const searchStr = scope ? `${permission}:${scope.toUpperCase()}` : `${permission}:`;
+        return permissions.some(p => p.startsWith(searchStr) || p === permission);
+    };
 
     const isAdmin = user?.is_admin || hasRole('admin');
     const isApprover = user?.is_approver || hasRole('approver');
@@ -69,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         is_manager: profile.roles.includes('manager'),
                         is_approver: profile.roles.includes('approver'),
                         is_hr: profile.roles.includes('hr'),
+                        permissions: [], // Decoded from token might be empty if not synced
                     } as UserWithProfile);
                     setIsAuthenticated(true);
                 } else {
@@ -134,7 +146,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         isAuthenticated,
         roles,
+        permissions,
         hasRole,
+        hasPermission,
         isAdmin,
         isApprover,
         isHR,

@@ -45,6 +45,7 @@ import { HRTripsManagement } from './pages/hr/HRTripsManagement';
 import { HRExpensesManagement } from './pages/hr/HRExpensesManagement';
 import WorkflowConfigPage from './pages/admin/WorkflowConfigPage';
 import PendingApprovalsPage from './pages/approvals/PendingApprovalsPage';
+import RolesPage from './pages/admin/RolesPage';
 
 function App() {
   return (
@@ -121,6 +122,8 @@ function App() {
 
                 {/* Approval Workflows */}
                 <Route path="/admin/workflows" element={<ProtectedRoute roles={['admin']}><WorkflowConfigPage /></ProtectedRoute>} />
+                <Route path="/admin/roles" element={<ProtectedRoute roles={['admin']}><RolesPage /></ProtectedRoute>} />
+
                 <Route path="/approvals/pending" element={<ProtectedRoute roles={['approver']}><PendingApprovalsPage /></ProtectedRoute>} />
                 <Route path="/approvals" element={<Navigate to="/approvals/pending" replace />} />
 

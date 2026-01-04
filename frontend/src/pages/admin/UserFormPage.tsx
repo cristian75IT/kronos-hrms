@@ -18,7 +18,9 @@ import {
     AlertCircle,
     FileText,
     CheckCircle,
-    Clock
+    Clock,
+    RefreshCw,
+    BriefcaseBusiness
 } from 'lucide-react';
 import { userService } from '../../services/userService';
 import { configService } from '../../services/config.service';
@@ -43,6 +45,8 @@ interface UserFormValues {
     is_admin: boolean;
     is_manager: boolean;
     is_approver: boolean;
+    is_employee: boolean;
+    is_hr: boolean;
 
     // First Contract (Only for creation)
     has_contract?: boolean;
@@ -79,6 +83,8 @@ export function UserFormPage() {
             is_admin: false,
             is_manager: false,
             is_approver: false,
+            is_employee: true, // Default to Employee
+            is_hr: false,
             has_contract: true, // Default checked for new users
             weekly_hours: 40,
             contract_start_date: new Date().toISOString().split('T')[0],
@@ -141,9 +147,11 @@ export function UserFormPage() {
                 employee_code: user.profile?.employee_number || '',
 
                 // Roles -> booleans
-                is_admin: (user.roles || []).includes('admin'),
-                is_manager: (user.roles || []).includes('manager') || (user.roles || []).includes('hr'),
-                is_approver: (user.roles || []).includes('approver'),
+                is_admin: (user.roles || []).includes('admin') || !!user.is_admin,
+                is_manager: (user.roles || []).includes('manager') || !!user.is_manager,
+                is_approver: (user.roles || []).includes('approver') || !!user.is_approver,
+                is_employee: (user.roles || []).includes('employee') || !!user.is_employee,
+                is_hr: (user.roles || []).includes('hr') || !!user.is_hr,
 
                 // Disable contract fields in edit mode (handled separately)
                 has_contract: false
@@ -260,18 +268,35 @@ export function UserFormPage() {
                 </div>
             </header>
 
-            {/* Keycloak Management Warning */}
-            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded shadow-sm">
-                <div className="flex">
-                    <div className="flex-shrink-0">
-                        <Info className="h-5 w-5 text-blue-400" />
-                    </div>
-                    <div className="ml-3">
-                        <p className="text-sm text-blue-700">
-                            La gestione di identità (Nome, Email, Username, Ruoli) è centralizzata su <strong>Keycloak</strong>.
-                            Le modifiche locali a questi campi verranno sovrascritte al prossimo login.
-                            <br />Per creare nuovi utenti, utilizzare il pannello di Keycloak e poi sincronizzare.
+            {/* User Status Switch - Keycloak Sync */}
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm mb-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <BriefcaseBusiness className="text-indigo-600" size={24} />
+                            Stato e Ruolo Aziendale
+                        </h2>
+                        <p className="text-sm text-gray-500 mt-1">
+                            Definisce il tipo di contratto e l'accesso alle funzionalità HR.
+                            <br /><span className="text-xs text-indigo-600 font-medium flex items-center gap-1 mt-1"><RefreshCw size={12} /> Sincronizzato con Keycloak (Ruolo 'employee')</span>
                         </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-gray-100 p-1.5 rounded-xl self-start md:self-center">
+                        <button
+                            type="button"
+                            onClick={() => setValue('is_employee', false)}
+                            className={`px-6 py-2.5 rounded-lg text-sm font-semibold transition-all ${!watch('is_employee') ? 'bg-white shadow-md text-gray-900 ring-1 ring-black/5' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'}`}
+                        >
+                            Esterno / Consulente
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setValue('is_employee', true)}
+                            className={`px-6 py-2.5 rounded-lg text-sm font-semibold transition-all ${watch('is_employee') ? 'bg-indigo-600 shadow-md text-white ring-1 ring-indigo-600' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50'}`}
+                        >
+                            Dipendente
+                        </button>
                     </div>
                 </div>
             </div>
@@ -281,21 +306,20 @@ export function UserFormPage() {
                     {/* Main Column */}
                     <div className="space-y-6">
                         {/* Personal Info */}
-                        <section className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
+                        <section className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
                             <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
                             <div className="flex items-center gap-3 pb-4 mb-4 border-b border-gray-100 text-indigo-600">
                                 <User size={20} />
-                                <h2 className="text-lg font-semibold text-gray-900">Informazioni Personali</h2>
+                                <h2 className="text-lg font-semibold text-gray-900">Identità Keycloak</h2>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
                                     <label className="block text-sm font-medium text-gray-700">Nome <span className="text-red-500">*</span></label>
                                     <input
                                         type="text"
-                                        disabled
-                                        className="block w-full rounded-lg border-gray-300 shadow-sm bg-gray-100 text-gray-500 cursor-not-allowed sm:text-sm"
+                                        className={`block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${errors.first_name ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}`}
                                         placeholder="Mario"
-                                        {...register('first_name')}
+                                        {...register('first_name', { required: 'Nome richiesto' })}
                                     />
                                     {errors.first_name && (
                                         <p className="mt-1 text-sm text-red-600 flex items-center gap-1"><AlertCircle size={12} /> {errors.first_name?.message}</p>
@@ -305,10 +329,9 @@ export function UserFormPage() {
                                     <label className="block text-sm font-medium text-gray-700">Cognome <span className="text-red-500">*</span></label>
                                     <input
                                         type="text"
-                                        disabled
-                                        className="block w-full rounded-lg border-gray-300 shadow-sm bg-gray-100 text-gray-500 cursor-not-allowed sm:text-sm"
+                                        className={`block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${errors.last_name ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}`}
                                         placeholder="Rossi"
-                                        {...register('last_name')}
+                                        {...register('last_name', { required: 'Cognome richiesto' })}
                                     />
                                     {errors.last_name && (
                                         <p className="mt-1 text-sm text-red-600 flex items-center gap-1"><AlertCircle size={12} /> {errors.last_name?.message}</p>
@@ -322,10 +345,9 @@ export function UserFormPage() {
                                         </div>
                                         <input
                                             type="email"
-                                            disabled
-                                            className="block w-full rounded-lg border-gray-300 pl-10 bg-gray-100 text-gray-500 cursor-not-allowed sm:text-sm"
+                                            className={`block w-full rounded-lg border-gray-300 pl-10 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${errors.email ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}`}
                                             placeholder="mario.rossi@azienda.it"
-                                            {...register('email')}
+                                            {...register('email', { required: 'Email richiesta', pattern: { value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i, message: 'Email non valida' } })}
                                         />
                                     </div>
                                     {errors.email && (
@@ -400,8 +422,8 @@ export function UserFormPage() {
                             </div>
                         </section>
 
-                        {/* First Contract Section - ONLY FOR NEW USERS */}
-                        {!isEditing && (
+                        {/* First Contract Section - ONLY FOR NEW EMPLOYEES */}
+                        {!isEditing && watch('is_employee') && (
                             <section className={`bg-white p-6 rounded-xl border transition-all duration-300 ${watchHasContract ? 'border-emerald-200 shadow-md ring-1 ring-emerald-500/10' : 'border-gray-200'}`}>
                                 <div className="flex items-center justify-between pb-4 mb-4 border-b border-gray-100">
                                     <div className="flex items-center gap-3 text-emerald-700">
@@ -505,6 +527,51 @@ export function UserFormPage() {
                                 )}
                             </section>
                         )}
+
+                        {/* HR Platform Section - ONLY FOR EXISTING EMPLOYEES */}
+                        {isEditing && watch('is_employee') && (
+                            <section className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-1 h-full bg-purple-500"></div>
+                                <div className="flex items-center gap-3 pb-4 mb-4 border-b border-gray-100 text-purple-600">
+                                    <BriefcaseBusiness size={20} />
+                                    <h2 className="text-lg font-semibold text-gray-900">Piattaforma HR (Enterprise Link)</h2>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="p-5 bg-purple-50 rounded-lg border border-purple-100 hover:shadow-md transition-shadow cursor-pointer group">
+                                        <div className="flex justify-between items-start">
+                                            <h3 className="font-bold text-purple-900">Gestione Contratti</h3>
+                                            <FileText size={18} className="text-purple-400 group-hover:text-purple-600" />
+                                        </div>
+                                        <p className="text-sm text-purple-700 mt-2 mb-3">Visualizza storico contratti, livelli e ore settimanali.</p>
+                                        <Link to={`/admin/hr/contracts/${id}`} className="inline-flex items-center gap-1 text-sm font-bold text-purple-600 hover:text-purple-800">
+                                            Gestisci Contratti <ArrowLeft className="rotate-180" size={14} />
+                                        </Link>
+                                    </div>
+
+                                    <div className="p-5 bg-blue-50 rounded-lg border border-blue-100 hover:shadow-md transition-shadow cursor-pointer group">
+                                        <div className="flex justify-between items-start">
+                                            <h3 className="font-bold text-blue-900">Wallet Ferie & Permessi</h3>
+                                            <Clock size={18} className="text-blue-400 group-hover:text-blue-600" />
+                                        </div>
+                                        <p className="text-sm text-blue-700 mt-2 mb-3">Bilancio ore, ratei maturati e residui anni precedenti.</p>
+                                        <Link to={`/admin/hr/leaves/${id}`} className="inline-flex items-center gap-1 text-sm font-bold text-blue-600 hover:text-blue-800">
+                                            Vedi Wallet <ArrowLeft className="rotate-180" size={14} />
+                                        </Link>
+                                    </div>
+
+                                    <div className="p-5 bg-emerald-50 rounded-lg border border-emerald-100 hover:shadow-md transition-shadow cursor-pointer group">
+                                        <div className="flex justify-between items-start">
+                                            <h3 className="font-bold text-emerald-900">Formazione e Corsi</h3>
+                                            <CheckCircle size={18} className="text-emerald-400 group-hover:text-emerald-600" />
+                                        </div>
+                                        <p className="text-sm text-emerald-700 mt-2 mb-3">Storico corsi sicurezza e certificazioni obbligatorie.</p>
+                                        <Link to={`/admin/hr/training/${id}`} className="inline-flex items-center gap-1 text-sm font-bold text-emerald-600 hover:text-emerald-800">
+                                            Piano Formativo <ArrowLeft className="rotate-180" size={14} />
+                                        </Link>
+                                    </div>
+                                </div>
+                            </section>
+                        )}
                     </div>
 
                     {/* Sidebar */}
@@ -518,24 +585,31 @@ export function UserFormPage() {
                             </div>
                             <div className="space-y-3">
                                 <label className="flex items-start gap-4 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group">
-                                    <input type="checkbox" disabled className="mt-1 h-4 w-4 rounded border-gray-300 text-gray-400 bg-gray-100 cursor-not-allowed" {...register('is_admin')} />
+                                    <input type="checkbox" className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" {...register('is_admin')} />
                                     <div>
                                         <span className="block text-sm font-medium text-gray-900 group-hover:text-indigo-700">Amministratore</span>
                                         <span className="block text-xs text-gray-500 group-hover:text-indigo-600/70">Accesso completo al sistema</span>
                                     </div>
                                 </label>
                                 <label className="flex items-start gap-4 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group">
-                                    <input type="checkbox" disabled className="mt-1 h-4 w-4 rounded border-gray-300 text-gray-400 bg-gray-100 cursor-not-allowed" {...register('is_manager')} />
+                                    <input type="checkbox" className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" {...register('is_manager')} />
                                     <div>
                                         <span className="block text-sm font-medium text-gray-900 group-hover:text-indigo-700">Manager</span>
                                         <span className="block text-xs text-gray-500 group-hover:text-indigo-600/70">Gestione team e report</span>
                                     </div>
                                 </label>
                                 <label className="flex items-start gap-4 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group">
-                                    <input type="checkbox" disabled className="mt-1 h-4 w-4 rounded border-gray-300 text-gray-400 bg-gray-100 cursor-not-allowed" {...register('is_approver')} />
+                                    <input type="checkbox" className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" {...register('is_approver')} />
                                     <div>
                                         <span className="block text-sm font-medium text-gray-900 group-hover:text-indigo-700">Approvatore</span>
                                         <span className="block text-xs text-gray-500 group-hover:text-indigo-600/70">Approva ferie e richieste</span>
+                                    </div>
+                                </label>
+                                <label className="flex items-start gap-4 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group">
+                                    <input type="checkbox" className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" {...register('is_hr')} />
+                                    <div>
+                                        <span className="block text-sm font-medium text-gray-900 group-hover:text-indigo-700">HR Specialist</span>
+                                        <span className="block text-xs text-gray-500 group-hover:text-indigo-600/70">Gestione dipendenti e report</span>
                                     </div>
                                 </label>
                             </div>

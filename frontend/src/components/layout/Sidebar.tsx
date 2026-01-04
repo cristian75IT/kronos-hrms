@@ -26,6 +26,7 @@ import {
   Plane,
   Receipt,
   GitBranch,
+  Shield,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { clsx } from 'clsx';
@@ -61,6 +62,7 @@ const adminItems: NavItem[] = [
   { label: 'Strumenti Admin', path: '/admin/tools', icon: <Settings size={20} />, roles: ['admin'] },
   { label: 'Audit Log', path: '/admin/audit-logs', icon: <Terminal size={20} />, roles: ['admin'] },
   { label: 'Audit Trail', path: '/admin/audit-trail', icon: <HistoryIcon size={20} />, roles: ['admin'] },
+  { label: 'Gestione Ruoli', path: '/admin/roles', icon: <Shield size={20} />, roles: ['admin'] },
 ];
 
 const hrItems: NavItem[] = [
