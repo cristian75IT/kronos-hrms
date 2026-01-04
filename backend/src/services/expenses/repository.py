@@ -66,6 +66,22 @@ class BusinessTripRepository:
         )
         return list(result.scalars().all())
 
+    async def get_active_trips_for_date(self, target_date: date) -> list[BusinessTrip]:
+        """Get all approved/completed/ongoing trips for a specific date across all users."""
+        active_statuses = [TripStatus.APPROVED, TripStatus.COMPLETED, TripStatus.ONGOING]
+        
+        result = await self._session.execute(
+            select(BusinessTrip)
+            .where(
+                and_(
+                    BusinessTrip.status.in_(active_statuses),
+                    BusinessTrip.start_date <= target_date,
+                    BusinessTrip.end_date >= target_date
+                )
+            )
+        )
+        return list(result.scalars().all())
+
     async def get_datatable(
         self,
         request: DataTableRequest,
@@ -112,6 +128,16 @@ class BusinessTripRepository:
         
         await self._session.flush()
         return trip
+
+    async def delete(self, id: UUID) -> bool:
+        """Delete trip."""
+        trip = await self.get(id)
+        if not trip:
+            return False
+        
+        await self._session.delete(trip)
+        await self._session.flush()
+        return True
 
 
 class DailyAllowanceRepository:
@@ -225,6 +251,36 @@ class ExpenseReportRepository:
         )
         return list(result.scalars().all())
 
+    async def get_datatable(
+        self,
+        request: DataTableRequest,
+        user_id: Optional[UUID] = None,
+        status: Optional[list[ExpenseReportStatus]] = None,
+    ) -> tuple[list[ExpenseReport], int, int]:
+        """Get reports for DataTable."""
+        query = select(ExpenseReport).options(
+            selectinload(ExpenseReport.trip),
+            selectinload(ExpenseReport.items)
+        )
+        count_query = select(func.count(ExpenseReport.id))
+        
+        if user_id:
+            query = query.where(ExpenseReport.user_id == user_id)
+            count_query = count_query.where(ExpenseReport.user_id == user_id)
+        
+        if status:
+            query = query.where(ExpenseReport.status.in_(status))
+            count_query = count_query.where(ExpenseReport.status.in_(status))
+        
+        total_result = await self._session.execute(count_query)
+        total = total_result.scalar() or 0
+        
+        query = query.order_by(desc(ExpenseReport.created_at))
+        query = query.offset(request.start).limit(request.length)
+        
+        result = await self._session.execute(query)
+        return list(result.scalars().all()), total, total
+
     async def generate_report_number(self, year: int) -> str:
         """Generate unique report number."""
         # Get count of reports for this year
@@ -265,6 +321,16 @@ class ExpenseReportRepository:
         
         await self.update(id, total_amount=total)
         return total
+
+    async def delete(self, id: UUID) -> bool:
+        """Delete report."""
+        report = await self.get(id)
+        if not report:
+            return False
+        
+        await self._session.delete(report)
+        await self._session.flush()
+        return True
 
 
 class ExpenseItemRepository:

@@ -1,11 +1,8 @@
-/**
- * KRONOS - New Expense Report Form
- */
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { Calendar as CalendarIcon, Save, X, AlertCircle, FileText } from 'lucide-react';
 import { useCreateExpenseReport, useUploadReportAttachment, useTrips } from '../../hooks/useApi';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { formatApiError } from '../../utils/errorUtils';
 import { FileUpload } from '../../components/common/FileUpload';
@@ -24,16 +21,30 @@ export function ExpenseFormPage() {
     const uploadMutation = useUploadReportAttachment();
     const { data: trips, isLoading: isLoadingTrips } = useTrips('approved,completed');
     const [attachments, setAttachments] = useState<File[]>([]);
+    const [searchParams] = useSearchParams();
     const { success, error: showError } = useToast();
 
-    const { register, handleSubmit, watch, formState: { errors } } = useForm<ExpenseFormValues>({
+    const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<ExpenseFormValues>({
         defaultValues: {
+            trip_id: searchParams.get('trip_id') || '',
             period_start: new Date().toISOString().split('T')[0],
             period_end: new Date().toISOString().split('T')[0],
         }
     });
 
+    const selectedTripId = watch('trip_id');
     const startDate = watch('period_start');
+
+    // Handle trip selection changes to sync dates
+    useEffect(() => {
+        if (selectedTripId && trips) {
+            const trip = trips.find(t => t.id === selectedTripId);
+            if (trip) {
+                setValue('period_start', trip.start_date);
+                setValue('period_end', trip.end_date);
+            }
+        }
+    }, [selectedTripId, trips, setValue]);
 
     const uploadAttachments = async (reportId: string) => {
         for (const file of attachments) {

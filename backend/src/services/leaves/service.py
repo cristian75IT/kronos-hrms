@@ -79,10 +79,11 @@ class LeaveService:
         self._audit = get_audit_logger("leave-service")
         
         # Shared Clients
-        from src.shared.clients import AuthClient, ConfigClient, NotificationClient, LeavesWalletClient as WalletClient
+        from src.shared.clients import AuthClient, ConfigClient, NotificationClient, LeavesWalletClient as WalletClient, ApprovalClient
         self._auth_client = AuthClient()
         self._config_client = ConfigClient()
         self._wallet_client = WalletClient()
+        self._approval_client = ApprovalClient()
 
         self._notifier = LeaveNotificationHandler()
         self._calendar_utils = CalendarUtils(self._config_client)
@@ -144,6 +145,18 @@ class LeaveService:
     ) -> list[LeaveRequest]:
         """Get all requests with optional filters (for approval history)."""
         return await self._request_repo.get_all(status=status, year=year, limit=limit)
+
+    async def get_requests_by_range(
+        self,
+        start_date: date,
+        end_date: date,
+        user_ids: Optional[list[UUID]] = None,
+        status: Optional[list[LeaveRequestStatus]] = None,
+    ) -> list[LeaveRequest]:
+        """Get requests overlapping a date range."""
+        return await self._request_repo.get_by_date_range(
+            start_date, end_date, user_ids, status
+        )
 
     async def create_request(
         self,
@@ -351,12 +364,37 @@ class LeaveService:
             changed_by=user_id,
         )
         
+        # If requires approval, create approval request
+        if validation.requires_approval:
+            try:
+                # Get requester name
+                user_info = await self._auth_client.get_user_info(user_id)
+                requester_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip() if user_info else None
+                
+                # Create approval request
+                await self._approval_client.create_request(
+                    entity_type="LEAVE",
+                    entity_id=id,
+                    requester_id=user_id,
+                    title=f"Richiesta ferie: {request.start_date} - {request.end_date}",
+                    entity_ref=request.ref_code,
+                    requester_name=requester_name,
+                    description=request.notes,
+                    metadata={
+                        "days_requested": float(request.days_requested),
+                        "leave_type_id": str(request.leave_type_id),
+                    },
+                    callback_url=f"http://leave-service:8002/api/v1/leaves/internal/approval-callback/{id}",
+                )
+            except Exception as e:
+                # Log but don't fail - approval service may not be available
+                import logging
+                logging.getLogger(__name__).warning(f"Failed to create approval request: {e}")
+        
         # If auto-approved, deduct balance
         if new_status == LeaveRequestStatus.APPROVED:
             await self._deduct_balance(request, validation.balance_breakdown)
         
-        # Send notification
-        # Send notification
         # Send notification
         await self._notifier.notify_submission(request)
 

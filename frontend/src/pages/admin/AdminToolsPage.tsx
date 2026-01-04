@@ -23,6 +23,8 @@ import { Button } from '../../components/common';
 import { configService } from '../../services/config.service';
 import { EmailSettingsPanel } from '../../components/admin/EmailSettingsPanel';
 import { EmailTemplatesPanel } from '../../components/admin/EmailTemplatesPanel';
+import { Link } from 'react-router-dom';
+import { GitBranch } from 'lucide-react';
 
 interface NotificationSetting {
     key: string;
@@ -44,7 +46,7 @@ interface EmployeePreview {
 
 export function AdminToolsPage() {
     const toast = useToast();
-    const [activeTab, setActiveTab] = useState<'maintenance' | 'notifications' | 'email'>('notifications');
+    const [activeTab, setActiveTab] = useState<'maintenance' | 'notifications' | 'email' | 'approvals'>('notifications');
     const [isProcessing, setIsProcessing] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [previewMode, setPreviewMode] = useState<'recalc' | 'rollover' | null>(null);
@@ -59,6 +61,10 @@ export function AdminToolsPage() {
         { key: 'push_approvals', value: true, label: 'Notifiche App Approvatori', description: 'Notifiche push per gli approvatori in attesa.', category: 'app' },
         { key: 'leaves.block_insufficient_balance', value: true, label: 'Blocco Saldo Insufficiente', description: 'Impedisce l\'invio di richieste se il saldo disponibile non è sufficiente. Se disabilitato, mostra solo un avviso.', category: 'business' },
         { key: 'smart_deduction_enabled', value: false, label: 'Smart Deduction', description: 'Se abilitato, il sistema prioritizza lo scarico dei residui che scadono prima (es. ROL in scadenza).', category: 'business' },
+        // Approval settings
+        { key: 'approval.auto_escalate', value: true, label: 'Escalation Automatica', description: 'Scala automaticamente le approvazioni scadute al livello superiore.', category: 'business' },
+        { key: 'approval.reminder_enabled', value: true, label: 'Promemoria Approvazioni', description: 'Invia promemoria agli approvatori prima della scadenza.', category: 'email' },
+        { key: 'approval.allow_self_approval', value: false, label: 'Auto-Approvazione', description: 'Permette agli utenti di approvare le proprie richieste (sconsigliato).', category: 'business' },
     ]);
 
     useEffect(() => {
@@ -216,6 +222,12 @@ export function AdminToolsPage() {
                         className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'email' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
                         <Mail size={16} /> Email
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('approvals')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'approvals' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <GitBranch size={16} /> Approvazioni
                     </button>
                 </div>
             </div>
@@ -510,6 +522,65 @@ export function AdminToolsPage() {
                 <div className="space-y-6">
                     <EmailSettingsPanel />
                     <EmailTemplatesPanel />
+                </div>
+            )}
+
+            {activeTab === 'approvals' && (
+                <div className="space-y-6">
+                    {/* Workflow Configuration Link */}
+                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/50">
+                            <h3 className="font-semibold text-gray-900">Configurazione Workflow</h3>
+                            <p className="text-xs text-gray-500 mt-0.5">Gestisci i flussi di approvazione per ferie, trasferte e note spese</p>
+                        </div>
+                        <div className="p-6">
+                            <Link
+                                to="/admin/workflows"
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                            >
+                                <GitBranch size={18} />
+                                Gestisci Workflow
+                            </Link>
+                        </div>
+                    </div>
+
+                    {/* Approval Settings */}
+                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex items-center justify-between">
+                            <div>
+                                <h3 className="font-semibold text-gray-900">Impostazioni Approvazioni</h3>
+                                <p className="text-xs text-gray-500 mt-0.5">Configura il comportamento del sistema di approvazione</p>
+                            </div>
+                        </div>
+                        <div className="divide-y divide-gray-100">
+                            {settings.filter(s => s.key.startsWith('approval.')).map(setting => (
+                                <div key={setting.key} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                                    <div className="flex-1 min-w-0 mr-4">
+                                        <p className="font-medium text-gray-900">{setting.label}</p>
+                                        <p className="text-sm text-gray-500">{setting.description}</p>
+                                    </div>
+                                    <button
+                                        onClick={() => handleToggleSetting(setting.key)}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${setting.value ? 'bg-indigo-600' : 'bg-gray-200'}`}
+                                    >
+                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${setting.value ? 'translate-x-6' : 'translate-x-1'}`} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Save Button */}
+                    <div className="flex justify-end">
+                        <Button
+                            onClick={handleSaveSettings}
+                            disabled={isSaving}
+                            className="flex items-center gap-2"
+                        >
+                            {isSaving ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
+                            {isSaving ? 'Salvataggio...' : 'Salva Impostazioni'}
+                        </Button>
+                    </div>
                 </div>
             )}
         </div>

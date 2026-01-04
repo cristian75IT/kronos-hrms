@@ -109,6 +109,9 @@ class Settings(BaseSettings):
     hr_reporting_service_url: str = Field(
         default="http://localhost:8011", alias="HR_REPORTING_SERVICE_URL"
     )
+    approval_service_url: str = Field(
+        default="http://localhost:8012", alias="APPROVAL_SERVICE_URL"
+    )
 
     # ─────────────────────────────────────────────────────────────
     # VAPID (Web Push Notifications)

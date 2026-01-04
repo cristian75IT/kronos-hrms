@@ -2,6 +2,7 @@
  * KRONOS - Dashboard Page
  * Enterprise command center with premium aesthetics
  */
+import { useState, useEffect } from 'react';
 import {
   Calendar,
   Clock,
@@ -12,7 +13,8 @@ import {
   ChevronRight,
   Bell,
   Target,
-  CalendarDays
+  CalendarDays,
+  ListChecks
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useBalanceSummary, usePendingApprovals, useLeaveRequests } from '../hooks/useApi';
@@ -20,13 +22,24 @@ import { useAuth } from '../context/AuthContext';
 import type { LeaveRequest } from '../types';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
+import approvalsService from '../services/approvals.service';
+import type { PendingCountResponse } from '../services/approvals.service';
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { user, isApprover } = useAuth();
+  const { user, isApprover, isHR, isAdmin } = useAuth();
   const { data: balance, isLoading: balanceLoading } = useBalanceSummary(user?.id);
   const { data: pendingApprovals } = usePendingApprovals();
   const { data: recentRequests } = useLeaveRequests(new Date().getFullYear());
+
+  const [approvalCounts, setApprovalCounts] = useState<PendingCountResponse | null>(null);
+  const canSeeApprovals = isApprover || isHR || isAdmin;
+
+  useEffect(() => {
+    if (canSeeApprovals) {
+      approvalsService.getPendingCount().then(setApprovalCounts).catch(() => { });
+    }
+  }, [canSeeApprovals]);
 
   const currentDate = new Date();
   const greeting = currentDate.getHours() < 12 ? 'Buongiorno' : currentDate.getHours() < 18 ? 'Buon pomeriggio' : 'Buonasera';
@@ -147,6 +160,38 @@ export function DashboardPage() {
             Pianifica Ora
           </Link>
         </div>
+      )}
+
+      {/* Pending Approvals Widget - for Approvers/HR/Admin */}
+      {canSeeApprovals && approvalCounts && approvalCounts.total > 0 && (
+        <Link to="/approvals/pending" className="block">
+          <div className="p-5 rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 hover:border-indigo-300 hover:shadow-md transition-all">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-indigo-100 rounded-lg text-indigo-600">
+                <ListChecks size={24} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-gray-900">Approvazioni Centralizzate</h3>
+                <p className="text-sm text-gray-600">
+                  Hai <strong className="text-indigo-600">{approvalCounts.total}</strong> richieste in attesa di approvazione
+                  {approvalCounts.urgent > 0 && (
+                    <span className="ml-2 text-red-600">({approvalCounts.urgent} urgenti)</span>
+                  )}
+                </p>
+                {Object.keys(approvalCounts.by_type).length > 0 && (
+                  <div className="flex gap-3 mt-2">
+                    {Object.entries(approvalCounts.by_type).map(([type, count]) => (
+                      <span key={type} className="text-xs px-2 py-0.5 bg-white rounded-full border border-gray-200">
+                        {type === 'LEAVE' ? 'Ferie' : type === 'TRIP' ? 'Trasferte' : type === 'EXPENSE' ? 'Note Spese' : type}: {count}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <ArrowRight size={20} className="text-indigo-400" />
+            </div>
+          </div>
+        </Link>
       )}
 
       {/* Quick Actions & Recent Activity Grid */}

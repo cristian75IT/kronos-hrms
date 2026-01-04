@@ -215,7 +215,9 @@ class ExpenseType(Base):
     max_amount: Mapped[Optional[float]] = mapped_column(Numeric(10, 2))
     requires_receipt: Mapped[bool] = mapped_column(Boolean, default=True)
     km_reimbursement_rate: Mapped[Optional[float]] = mapped_column(Numeric(4, 2))  # For AUT type
+    is_taxable: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
     
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

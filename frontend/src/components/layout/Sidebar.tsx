@@ -25,6 +25,7 @@ import {
   TreePalm,
   Plane,
   Receipt,
+  GitBranch,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { clsx } from 'clsx';
@@ -47,11 +48,12 @@ const navItems: NavItem[] = [
 ];
 
 const approverItems: NavItem[] = [
-  { label: 'Approvazioni', path: '/approvals', icon: <Users size={20} />, roles: ['approver', 'admin'] },
+  { label: 'Approvazioni', path: '/approvals/pending', icon: <Users size={20} />, roles: ['approver', 'admin', 'hr'] },
 ];
 
 const adminItems: NavItem[] = [
   { label: 'Gestione Utenti', path: '/admin/users', icon: <Users size={20} />, roles: ['admin', 'hr'] },
+  { label: 'Workflow Approvazioni', path: '/admin/workflows', icon: <GitBranch size={20} />, roles: ['admin'] },
   { label: 'Centro Notifiche', path: '/admin/notifications', icon: <Bell size={20} />, roles: ['admin', 'hr'] },
   { label: 'Log Email', path: '/admin/email-logs', icon: <Mail size={20} />, roles: ['admin', 'hr'] },
   { label: 'Calendari di Sistema', path: '/admin/system-calendars', icon: <Calendar size={20} />, roles: ['admin', 'hr'] },

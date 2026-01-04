@@ -17,11 +17,16 @@ import { it } from 'date-fns/locale';
 // Types
 interface HRExpenseItem {
     id: string;
+    report_number: string;
+    title: string;
     employee_id: string;
     employee_name: string;
     department: string | null;
     trip_id: string | null;
+    trip_title: string | null;
     trip_destination: string | null;
+    trip_start_date: string | null;
+    trip_end_date: string | null;
     total_amount: number;
     items_count: number;
     status: string;
@@ -54,12 +59,32 @@ export function HRExpensesManagement() {
                 </div>
             )
         }),
-        columnHelper.accessor('trip_destination', {
-            header: 'Riferimento',
+        columnHelper.accessor('trip_title', {
+            header: 'Riferimento Missione',
             cell: info => (
-                info.getValue() ? (
-                    <span className="text-sm text-gray-700">Missione: <strong>{info.getValue()}</strong></span>
-                ) : <span className="text-gray-400 text-sm">Generico</span>
+                <div className="flex flex-col">
+                    {info.getValue() ? (
+                        <>
+                            <span className="text-sm font-bold text-gray-900">{info.getValue()}</span>
+                            <span className="text-[10px] text-gray-500">{info.row.original.trip_destination}</span>
+                        </>
+                    ) : (
+                        <span className="text-gray-400 text-sm italic">Generico</span>
+                    )}
+                </div>
+            )
+        }),
+        columnHelper.accessor('trip_start_date', {
+            header: 'Date Missione',
+            cell: info => (
+                <div className="text-[11px] leading-tight text-gray-600">
+                    {info.getValue() ? (
+                        <>
+                            <div>Inizio: <strong>{format(new Date(info.getValue()!), 'dd/MM/yy')}</strong></div>
+                            <div>Fine: <strong>{format(new Date(info.row.original.trip_end_date!), 'dd/MM/yy')}</strong></div>
+                        </>
+                    ) : '-'}
+                </div>
             )
         }),
         columnHelper.accessor('items_count', {
@@ -69,10 +94,9 @@ export function HRExpensesManagement() {
         columnHelper.accessor('total_amount', {
             header: 'Importo',
             cell: info => (
-                <div className="flex items-center gap-1 font-bold text-gray-900">
-                    <Euro size={12} className="text-gray-400" />
-                    {info.getValue().toFixed(2)}
-                </div>
+                <span className="font-mono font-bold text-gray-700 bg-gray-50 px-2 py-1 rounded border border-gray-200">
+                    € {Number(info.getValue()).toFixed(2)}
+                </span>
             )
         }),
         columnHelper.accessor('status', {
@@ -131,10 +155,10 @@ export function HRExpensesManagement() {
                         onChange={(e) => handleFilterChange('status', e.target.value)}
                     >
                         <option value="">Tutti gli stati</option>
-                        <option value="submitted">Inviate</option>
+                        <option value="submitted">In Attesa</option>
                         <option value="approved">Approvate</option>
-                        <option value="paid">Pagate</option>
                         <option value="rejected">Rifiutate</option>
+                        <option value="paid">Pagate</option>
                     </select>
                 </div>
 
@@ -155,11 +179,11 @@ export function HRExpensesManagement() {
                 </div>
                 <div className="p-4">
                     <ServerSideTable
-                        apiEndpoint="/hr/management/expenses/datatable"
-                        method="GET"
+                        apiEndpoint="/expenses/admin/datatable"
+                        method="POST"
                         columns={columns}
                         extraData={{
-                            status_filter: filters.status
+                            status: filters.status
                         }}
                         className="bg-white"
                     />

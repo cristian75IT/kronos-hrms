@@ -101,12 +101,24 @@ async def get_training_overview(
     )
     compliance_by_type = {row[0]: row[1] for row in type_result.all()}
     
+    # Fetch employee names from auth service
+    try:
+        from src.shared.clients import AuthClient
+        auth_client = AuthClient()
+        users = await auth_client.get_users()
+        user_map = {u["id"]: f"{u['first_name']} {u['last_name']}" for u in users}
+    except Exception as e:
+        logger.error(f"Error fetching users for training overview: {e}")
+        user_map = {}
+
     # Format employees list
     employees = []
     for c in all_compliance:
+        employee_id_str = str(c.employee_id)
         employees.append(SafetyComplianceResponse(
             id=c.id,
             employee_id=c.employee_id,
+            employee_name=user_map.get(employee_id_str, "Dipendente Sconosciuto"),
             is_compliant=c.is_compliant,
             compliance_score=c.compliance_score,
             has_formazione_generale=c.has_formazione_generale,
@@ -153,15 +165,22 @@ async def get_expiring_trainings(
             )
         ).order_by(TrainingRecord.expiry_date)
     )
-    trainings = result.scalars().all()
-    
-    # TODO: Fetch employee names from auth service
+    # Fetch employee names from auth service
+    try:
+        from src.shared.clients import AuthClient
+        auth_client = AuthClient()
+        users = await auth_client.get_users()
+        user_map = {u["id"]: f"{u['first_name']} {u['last_name']}" for u in users}
+    except Exception as e:
+        logger.error(f"Error fetching users for expiring trainings: {e}")
+        user_map = {}
+
     items = []
     for t in trainings:
         items.append(TrainingExpiringItem(
             id=t.id,
             employee_id=t.employee_id,
-            employee_name="",  # Will be enriched
+            employee_name=user_map.get(str(t.employee_id), "Dipendente Sconosciuto"),
             training_type=t.training_type,
             training_name=t.training_name,
             expiry_date=t.expiry_date,
@@ -603,6 +622,16 @@ async def get_training_datatable(
     result = await session.execute(query)
     records = result.scalars().all()
     
+    # Fetch employee names from auth service
+    try:
+        from src.shared.clients import AuthClient
+        auth_client = AuthClient()
+        users = await auth_client.get_users()
+        user_map = {u["id"]: f"{u['first_name']} {u['last_name']}" for u in users}
+    except Exception as e:
+        logger.error(f"Error fetching users for training datatable: {e}")
+        user_map = {}
+
     # Format data
     data = []
     today = date.today()
@@ -614,6 +643,7 @@ async def get_training_datatable(
         data.append({
             "id": str(r.id),
             "employee_id": str(r.employee_id),
+            "employee_name": user_map.get(str(r.employee_id), "Dipendente Sconosciuto"),
             "training_type": r.training_type,
             "training_name": r.training_name,
             "training_date": r.training_date.isoformat(),

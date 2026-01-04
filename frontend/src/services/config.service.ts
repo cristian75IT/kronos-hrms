@@ -132,4 +132,10 @@ export const configService = {
         const response = await configApi.delete(`/calculation-modes/${id}`);
         return response.data;
     },
+
+    // Expense Types
+    getExpenseTypes: async (activeOnly = true): Promise<any[]> => {
+        const response = await configApi.get('/expense-types', { params: { active_only: activeOnly } });
+        return response.data;
+    },
 };

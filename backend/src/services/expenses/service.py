@@ -37,6 +37,9 @@ from src.services.expenses.schemas import (
     ApproveReportRequest,
     RejectReportRequest,
     MarkPaidRequest,
+    TripDataTableRequest,
+    TripAdminDataTableItem,
+    ExpenseAdminDataTableItem,
 )
 from src.shared.schemas import DataTableRequest
 from src.shared.storage import storage_manager
@@ -56,10 +59,12 @@ class ExpenseService:
         self._audit = get_audit_logger("expense-service")
         
         # Shared Clients
+        from src.shared.clients import ApprovalClient
         self._auth_client = AuthClient()
         self._config_client = ConfigClient()
         self._notifications = NotificationClient()
         self._wallet_client = WalletClient()
+        self._approval_client = ApprovalClient()
 
     # ═══════════════════════════════════════════════════════════
     # Business Trip Operations
@@ -93,6 +98,43 @@ class ExpenseService:
     ):
         """Get trips for DataTable."""
         return await self._trip_repo.get_datatable(request, user_id, status)
+
+    async def get_admin_trips_datatable(self, request: TripDataTableRequest):
+        """Get trips for admin DataTable."""
+        status_list = None
+        if request.status:
+            status_list = [TripStatus(s.strip()) for s in request.status.split(",")]
+            
+        trips, total, filtered = await self._trip_repo.get_datatable(
+            request, 
+            user_id=None, 
+            status=status_list
+        )
+        
+        items = []
+        for trip in trips:
+            days = (trip.end_date - trip.start_date).days + 1
+            
+            user_name = "N/A"
+            try:
+                user_info = await self._auth_client.get_user_info(trip.user_id)
+                if user_info:
+                    user_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip()
+            except Exception:
+                pass
+            
+            item = TripAdminDataTableItem.model_validate(trip)
+            item.user_name = user_name
+            item.days_count = days
+            item.total_allowance = trip.estimated_budget or Decimal(0)
+            
+            items.append(item)
+            
+        return items, total, filtered
+        
+    async def get_active_trips_for_date(self, target_date: date):
+        """Get all approved/active trips for a specific date across all users."""
+        return await self._trip_repo.get_active_trips_for_date(target_date)
 
 
 
@@ -490,8 +532,78 @@ class ExpenseService:
         return await self._report_repo.get_by_user(user_id, status)
 
     async def get_pending_reports(self):
-        """Get reports pending approval."""
+        """Get expense reports pending approval."""
         return await self._report_repo.get_pending_approval()
+
+    async def get_admin_expenses_datatable(self, request: DataTableRequest, status: Optional[str] = None):
+        """Get expense reports for admin DataTable."""
+        # Try to get status from request body if not in query params
+        if not status and request.model_extra:
+            status = request.model_extra.get("status")
+            
+        status_list = None
+        if status:
+            if isinstance(status, str):
+                parts = [s.strip() for s in status.split(",") if s.strip()]
+                status_list = []
+                for s in parts:
+                    try:
+                        status_list.append(ExpenseReportStatus(s))
+                    except ValueError:
+                        pass
+            elif isinstance(status, list):
+                status_list = []
+                for s in status:
+                    if isinstance(s, str) and s:
+                        try:
+                            status_list.append(ExpenseReportStatus(s))
+                        except ValueError:
+                            pass
+            
+        reports, total, filtered = await self._report_repo.get_datatable(
+            request, 
+            user_id=None, 
+            status=status_list
+        )
+        
+        items = []
+        for report in reports:
+            user_name = "N/A"
+            department = None
+            try:
+                user_info = await self._auth_client.get_user_info(report.user_id)
+                if user_info:
+                    user_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip()
+                    department = user_info.get('department')
+            except Exception as e:
+                logger.error(f"Error fetching user info for {report.user_id}: {e}")
+                pass
+            
+            # Use Eager loaded trip or fetch it
+            # Safely handle potential None trip
+            trip = report.trip
+            
+            item = ExpenseAdminDataTableItem(
+                id=report.id,
+                report_number=report.report_number,
+                title=report.title,
+                employee_id=report.user_id,
+                employee_name=user_name,
+                department=department,
+                trip_id=report.trip_id,
+                trip_title=trip.title if trip else "Generico",
+                trip_destination=trip.destination if trip else None,
+                trip_start_date=trip.start_date if trip else None,
+                trip_end_date=trip.end_date if trip else None,
+                total_amount=report.total_amount or Decimal("0"),
+                items_count=len(report.items) if report.items is not None else 0,
+                status=report.status.value if hasattr(report.status, "value") else str(report.status),
+                submitted_at=report.created_at, # Using created_at as fallback for submitted_at
+                created_at=report.created_at
+            )
+            items.append(item)
+            
+        return items, total, filtered
 
     async def create_report(self, user_id: UUID, data: ExpenseReportCreate):
         """Create expense report."""
@@ -543,6 +655,27 @@ class ExpenseService:
         await self._report_repo.recalculate_total(id)
         
         await self._report_repo.update(id, status=ExpenseReportStatus.SUBMITTED)
+        
+        # Create approval request
+        try:
+            user_info = await self._auth_client.get_user_info(user_id)
+            requester_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip() if user_info else None
+            
+            await self._approval_client.create_request(
+                entity_type="EXPENSE",
+                entity_id=id,
+                requester_id=user_id,
+                title=f"Nota Spese: {report.report_number}",
+                entity_ref=report.report_number,
+                requester_name=requester_name,
+                description=report.description,
+                metadata={
+                    "total_amount": float(report.total_amount) if report.total_amount else 0,
+                },
+                callback_url=f"http://expense-service:8003/api/v1/expenses/internal/approval-callback/{id}",
+            )
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"Failed to create approval request: {e}")
         
         await self._audit.log_action(
             user_id=user_id,

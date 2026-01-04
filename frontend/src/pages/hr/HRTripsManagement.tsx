@@ -17,8 +17,8 @@ import { it } from 'date-fns/locale';
 // Types
 interface HRTripItem {
     id: string;
-    employee_id: string;
-    employee_name: string;
+    user_id: string;
+    user_name: string | null;
     department: string | null;
     destination: string;
     purpose: string | null;
@@ -42,7 +42,7 @@ export function HRTripsManagement() {
     };
 
     const columns = [
-        columnHelper.accessor('employee_name', {
+        columnHelper.accessor('user_name', {
             header: 'Dipendente',
             cell: info => (
                 <div className="flex items-center gap-2">
@@ -50,7 +50,7 @@ export function HRTripsManagement() {
                         <User size={14} />
                     </div>
                     <div>
-                        <div className="font-bold text-gray-900">{info.getValue()}</div>
+                        <div className="font-bold text-gray-900">{info.getValue() || 'N/A'}</div>
                         <div className="text-[10px] text-gray-500">{info.row.original.department || 'N/A'}</div>
                     </div>
                 </div>
@@ -76,10 +76,10 @@ export function HRTripsManagement() {
             )
         }),
         columnHelper.accessor('total_allowance', {
-            header: 'Diaria Totale',
+            header: 'Budget Est.',
             cell: info => (
                 <span className="font-mono font-bold text-gray-700 bg-gray-50 px-2 py-1 rounded border border-gray-200">
-                    € {info.getValue().toFixed(2)}
+                    € {info.getValue() ? Number(info.getValue()).toFixed(2) : '0.00'}
                 </span>
             )
         }),
@@ -103,7 +103,7 @@ export function HRTripsManagement() {
                 return (
                     <span className={`flex items-center gap-1.5 w-fit px-2.5 py-1 rounded-full text-xs font-bold capitalize ${colorClass}`}>
                         {icon}
-                        {status === 'pending' ? 'Richiesta' : status}
+                        {status === 'pending' ? 'Richiesta' : status === 'approved' ? 'Approvata' : status === 'rejected' ? 'Rifiutata' : status}
                     </span>
                 );
             }
@@ -155,13 +155,16 @@ export function HRTripsManagement() {
                 </div>
                 <div className="p-4">
                     <ServerSideTable
-                        apiEndpoint="/hr/management/trips/datatable"
-                        method="GET"
+                        apiEndpoint="/trips/admin/datatable"
+                        method="POST"
                         columns={columns}
                         extraData={{
-                            status_filter: filters.status
+                            status: filters.status
                         }}
                         className="bg-white"
+                        onRowClick={(/* row */) => {
+                            // Handler code
+                        }}
                     />
                 </div>
             </div>

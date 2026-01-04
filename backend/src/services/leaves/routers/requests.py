@@ -76,6 +76,48 @@ async def leaves_datatable(
     )
 
 
+
+# Schema for body-based filtering
+class LeaveDataTableRequest(DataTableRequest):
+    status: Optional[str] = None
+    year: Optional[int] = None
+
+
+@router.post("/leaves/admin/datatable", response_model=LeaveRequestDataTableResponse)
+async def leaves_admin_datatable(
+    request: LeaveDataTableRequest,
+    token: TokenPayload = Depends(require_approver),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Get ALL leave requests for DataTable (Admin/HR)."""
+    # No user_id filter -> get all
+    
+    status_list = None
+    if request.status:
+        status_list = [LeaveRequestStatus(s.strip()) for s in request.status.split(",")]
+    
+    requests, total, filtered = await service.get_requests_datatable(
+        request, None, status_list, request.year
+    )
+    
+    # Enrich with user names
+    data = []
+    for r in requests:
+        item = LeaveRequestListItem.model_validate(r)
+        # Fetch user info for display
+        user_info = await service._get_user_info(r.user_id)
+        if user_info:
+            item.user_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip()
+        data.append(item)
+    
+    return LeaveRequestDataTableResponse(
+        draw=request.draw,
+        recordsTotal=total,
+        recordsFiltered=filtered,
+        data=data,
+    )
+
+
 @router.get("/leaves/pending", response_model=list[LeaveRequestListItem])
 async def get_pending_approval(
     token: TokenPayload = Depends(require_approver),
@@ -384,6 +426,44 @@ async def validate_request(
 # ═══════════════════════════════════════════════════════════
 # Internal Endpoints (for inter-service communication)
 # ═══════════════════════════════════════════════════════════
+
+@router.get("/internal/pending-count", response_model=int)
+async def get_pending_count_internal(
+    service: LeaveService = Depends(get_leave_service),
+):
+    """Internal endpoint for pending count (HR Dashboard)."""
+    requests = await service.get_pending_approval()
+    return len(requests)
+
+
+@router.get("/internal/requests", response_model=list[LeaveRequestListItem])
+async def get_requests_internal(
+    start_date: date = Query(..., description="Start date"),
+    end_date: date = Query(..., description="End date"),
+    user_id: Optional[UUID] = Query(None, description="Filter by user"),
+    status: Optional[str] = Query(None, description="Comma-separated statuses"),
+    service: LeaveService = Depends(get_leave_service),
+):
+    """
+    Internal endpoint to fetch requests by date range without authentication 
+    (assumed protected by network/gateway).
+    Used by HR Reporting service.
+    """
+    status_list = None
+    if status:
+        status_list = [LeaveRequestStatus(s.strip()) for s in status.split(",")]
+    
+    user_ids = [user_id] if user_id else None
+    
+    requests = await service.get_requests_by_range(
+        start_date=start_date,
+        end_date=end_date,
+        user_ids=user_ids,
+        status=status_list
+    )
+    
+    return [LeaveRequestListItem.model_validate(r) for r in requests]
+
 
 @router.post("/internal/recalculate-for-closure")
 async def recalculate_for_closure(

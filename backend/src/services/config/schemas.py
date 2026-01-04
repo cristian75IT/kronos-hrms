@@ -238,7 +238,7 @@ class ExpenseTypeBase(BaseModel):
     
     code: str = Field(..., max_length=10)
     name: str = Field(..., max_length=100)
-    category: Optional[str] = Field(None, pattern="^(transport|lodging|meals|other)$")
+    category: Optional[str] = Field(None, pattern="^(transport|accommodation|lodging|meals|communication|supplies|other)$")
     max_amount: Optional[float] = Field(None, ge=0)
     requires_receipt: bool = True
     km_reimbursement_rate: Optional[float] = Field(None, ge=0)
@@ -253,6 +253,8 @@ class ExpenseTypeResponse(ExpenseTypeBase, IDMixin, BaseSchema):
     """Response schema for expense type."""
     
     is_active: bool
+    is_taxable: bool = False
+    sort_order: int = 0
 
 
 # ═══════════════════════════════════════════════════════════

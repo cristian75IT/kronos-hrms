@@ -1,4 +1,5 @@
 """KRONOS Expense Service - API Router."""
+from datetime import date
 from typing import Optional
 from uuid import UUID
 
@@ -31,6 +32,9 @@ from src.services.expenses.schemas import (
     ApproveReportRequest,
     RejectReportRequest,
     MarkPaidRequest,
+    TripDataTableRequest,
+    TripAdminDataTableResponse,
+    ExpenseAdminDataTableResponse,
 )
 
 
@@ -87,6 +91,23 @@ async def trips_datatable(
         recordsTotal=total,
         recordsFiltered=filtered,
         data=[BusinessTripListItem.model_validate(t) for t in trips],
+    )
+
+
+@router.post("/trips/admin/datatable", response_model=TripAdminDataTableResponse)
+async def trips_admin_datatable(
+    request: TripDataTableRequest,
+    token: TokenPayload = Depends(require_approver),
+    service: ExpenseService = Depends(get_expense_service),
+):
+    """Get trips for Admin DataTable (includes names)."""
+    trips, total, filtered = await service.get_admin_trips_datatable(request)
+    
+    return TripAdminDataTableResponse(
+        draw=request.draw,
+        recordsTotal=total,
+        recordsFiltered=filtered,
+        data=trips,
     )
 
 
@@ -256,6 +277,20 @@ async def upload_trip_attachment(
 
 
 # ═══════════════════════════════════════════════════════════
+# Internal / Aggregator Endpoints
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/internal/trips-for-date", response_model=list[BusinessTripListItem])
+async def get_trips_for_date(
+    target_date: date,
+    service: ExpenseService = Depends(get_expense_service),
+):
+    """Get all active trips for a specific date (Internal use)."""
+    trips = await service.get_active_trips_for_date(target_date)
+    return [BusinessTripListItem.model_validate(t) for t in trips]
+
+
+# ═══════════════════════════════════════════════════════════
 # Daily Allowance Endpoints
 # ═══════════════════════════════════════════════════════════
 
@@ -312,6 +347,24 @@ async def get_my_reports(
     
     reports = await service.get_user_reports(user_id, status_list)
     return [ExpenseReportListItem.model_validate(r) for r in reports]
+
+
+@router.post("/expenses/admin/datatable", response_model=ExpenseAdminDataTableResponse)
+async def expenses_admin_datatable(
+    request: DataTableRequest,
+    status: Optional[str] = Query(None),
+    token: TokenPayload = Depends(require_approver),
+    service: ExpenseService = Depends(get_expense_service),
+):
+    """Get expense reports for Admin DataTable."""
+    items, total, filtered = await service.get_admin_expenses_datatable(request, status)
+    
+    return ExpenseAdminDataTableResponse(
+        draw=request.draw,
+        recordsTotal=total,
+        recordsFiltered=filtered,
+        data=items,
+    )
 
 
 @router.get("/expenses/pending", response_model=list[ExpenseReportListItem])

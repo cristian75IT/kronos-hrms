@@ -41,9 +41,13 @@ export function HRTrainingPage() {
     const toast = useToast();
 
     const columns = [
+        columnHelper.accessor('employee_name' as any, {
+            header: 'Dipendente',
+            cell: info => <span className="font-bold text-gray-900">{info.getValue()}</span>
+        }),
         columnHelper.accessor('training_name', {
             header: 'Corso',
-            cell: info => <span className="font-medium text-gray-900">{info.getValue()}</span>
+            cell: info => <span className="font-medium text-gray-700">{info.getValue()}</span>
         }),
         columnHelper.accessor('training_type', {
             header: 'Tipo',

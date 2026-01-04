@@ -1,0 +1,598 @@
+"""
+KRONOS Approval Service - Business Logic Layer.
+
+Main service class for approval operations.
+"""
+import logging
+from datetime import datetime, timedelta
+from typing import Optional, List, Dict, Any
+from uuid import UUID
+import httpx
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.shared.clients import AuthClient, NotificationClient
+
+from .models import (
+    WorkflowConfig,
+    ApprovalRequest,
+    ApprovalDecision,
+    ApprovalHistory,
+    ApprovalReminder,
+    ApprovalStatus,
+    DecisionType,
+    HistoryAction,
+)
+from .repository import (
+    WorkflowConfigRepository,
+    ApprovalRequestRepository,
+    ApprovalDecisionRepository,
+    ApprovalHistoryRepository,
+    ApprovalReminderRepository,
+)
+from .workflow_engine import WorkflowEngine
+from .schemas import (
+    WorkflowConfigCreate,
+    WorkflowConfigUpdate,
+    WorkflowConfigResponse,
+    ApprovalRequestCreate,
+    ApprovalRequestResponse,
+    ApprovalDecisionCreate,
+    PendingApprovalItem,
+    PendingApprovalsResponse,
+    PendingCountResponse,
+    ApprovalCallbackPayload,
+    ApprovalStatusCheck,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class ApprovalService:
+    """
+    Main service for approval operations.
+    
+    Coordinates between repositories, workflow engine, and external services.
+    """
+    
+    def __init__(self, session: AsyncSession):
+        self._session = session
+        
+        # Repositories
+        self._config_repo = WorkflowConfigRepository(session)
+        self._request_repo = ApprovalRequestRepository(session)
+        self._decision_repo = ApprovalDecisionRepository(session)
+        self._history_repo = ApprovalHistoryRepository(session)
+        self._reminder_repo = ApprovalReminderRepository(session)
+        
+        # Workflow engine
+        self._engine = WorkflowEngine(
+            self._config_repo,
+            self._request_repo,
+            self._decision_repo,
+            self._history_repo,
+            self._reminder_repo,
+        )
+        
+        # External clients
+        self._auth_client = AuthClient()
+        self._notification_client = NotificationClient()
+    
+    # ═══════════════════════════════════════════════════════════
+    # Workflow Configuration
+    # ═══════════════════════════════════════════════════════════
+    
+    async def create_workflow_config(
+        self,
+        data: WorkflowConfigCreate,
+        created_by: Optional[UUID] = None,
+    ) -> WorkflowConfig:
+        """Create a new workflow configuration."""
+        config = WorkflowConfig(
+            entity_type=data.entity_type,
+            name=data.name,
+            description=data.description,
+            min_approvers=data.min_approvers,
+            max_approvers=data.max_approvers,
+            approval_mode=data.approval_mode,
+            approver_role_ids=data.approver_role_ids,
+            auto_assign_approvers=data.auto_assign_approvers,
+            allow_self_approval=data.allow_self_approval,
+            expiration_hours=data.expiration_hours,
+            expiration_action=data.expiration_action,
+            escalation_role_id=UUID(data.escalation_role_id) if data.escalation_role_id else None,
+            reminder_hours_before=data.reminder_hours_before,
+            send_reminders=data.send_reminders,
+            conditions=data.conditions.model_dump() if data.conditions else None,
+            priority=data.priority,
+            is_active=data.is_active,
+            is_default=data.is_default,
+            created_by=created_by,
+        )
+        
+        return await self._config_repo.create(config)
+    
+    async def get_workflow_config(self, config_id: UUID) -> Optional[WorkflowConfig]:
+        """Get workflow config by ID."""
+        return await self._config_repo.get_by_id(config_id)
+    
+    async def list_workflow_configs(
+        self,
+        entity_type: Optional[str] = None,
+        active_only: bool = True,
+    ) -> List[WorkflowConfig]:
+        """List workflow configurations."""
+        return await self._config_repo.list_all(
+            entity_type=entity_type,
+            active_only=active_only,
+        )
+    
+    async def update_workflow_config(
+        self,
+        config_id: UUID,
+        data: WorkflowConfigUpdate,
+    ) -> Optional[WorkflowConfig]:
+        """Update workflow configuration."""
+        config = await self._config_repo.get_by_id(config_id)
+        if not config:
+            return None
+        
+        update_data = data.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            if field == "conditions" and value:
+                value = value.model_dump() if hasattr(value, 'model_dump') else value
+            if field == "escalation_role_id" and value:
+                value = UUID(value) if isinstance(value, str) else value
+            setattr(config, field, value)
+        
+        return await self._config_repo.update(config)
+    
+    async def delete_workflow_config(self, config_id: UUID) -> bool:
+        """Deactivate workflow configuration."""
+        return await self._config_repo.soft_delete(config_id)
+    
+    # ═══════════════════════════════════════════════════════════
+    # Approval Requests
+    # ═══════════════════════════════════════════════════════════
+    
+    async def create_approval_request(
+        self,
+        data: ApprovalRequestCreate,
+    ) -> ApprovalRequest:
+        """
+        Create a new approval request.
+        
+        1. Selects appropriate workflow
+        2. Creates the request
+        3. Assigns approvers
+        4. Schedules reminders
+        5. Notifies approvers
+        """
+        # Check for existing request
+        existing = await self._request_repo.get_by_entity(
+            data.entity_type, data.entity_id
+        )
+        if existing and existing.status == ApprovalStatus.PENDING.value:
+            logger.warning(f"Approval request already exists for {data.entity_type}/{data.entity_id}")
+            return existing
+        
+        # Select workflow
+        workflow = None
+        if data.workflow_config_id:
+            workflow = await self._config_repo.get_by_id(data.workflow_config_id)
+        
+        if not workflow:
+            metadata = data.metadata or {}
+            workflow = await self._engine.select_workflow(data.entity_type, metadata)
+        
+        if not workflow:
+            raise ValueError(f"No workflow configured for entity type: {data.entity_type}")
+        
+        # Calculate expiration
+        expires_at = None
+        if workflow.expiration_hours:
+            expires_at = datetime.utcnow() + timedelta(hours=workflow.expiration_hours)
+        
+        # Create request
+        request = ApprovalRequest(
+            entity_type=data.entity_type,
+            entity_id=data.entity_id,
+            entity_ref=data.entity_ref,
+            workflow_config_id=workflow.id,
+            requester_id=data.requester_id,
+            requester_name=data.requester_name,
+            title=data.title,
+            description=data.description,
+            request_metadata=data.metadata,
+            callback_url=data.callback_url,
+            status=ApprovalStatus.PENDING.value,
+            required_approvals=workflow.min_approvers,
+            expires_at=expires_at,
+        )
+        
+        request = await self._request_repo.create(request)
+        
+        # Log creation
+        await self._history_repo.create(ApprovalHistory(
+            approval_request_id=request.id,
+            action=HistoryAction.CREATED.value,
+            actor_id=data.requester_id,
+            actor_name=data.requester_name,
+            actor_type="USER",
+        ))
+        
+        # Get approvers
+        approver_ids = list(data.approver_ids) if data.approver_ids else []
+        approver_info = {}
+        
+        if not approver_ids and workflow.approver_role_ids:
+            # Fetch users with specified roles from auth service
+            approver_ids, approver_info = await self._fetch_approvers_by_roles(
+                workflow.approver_role_ids,
+                exclude_user=data.requester_id if not workflow.allow_self_approval else None,
+                max_approvers=workflow.max_approvers,
+            )
+        
+        # Assign approvers
+        if approver_ids:
+            await self._engine.assign_approvers(
+                request, workflow, approver_ids, approver_info
+            )
+            
+            # Schedule reminders
+            await self._engine.schedule_reminders(request, workflow, approver_ids)
+            
+            # Notify approvers
+            await self._notify_approvers(request, approver_ids)
+        else:
+            logger.warning(f"No approvers found for request {request.id}")
+        
+        return request
+    
+    async def _fetch_approvers_by_roles(
+        self,
+        role_ids: List[str],
+        exclude_user: Optional[UUID] = None,
+        max_approvers: Optional[int] = None,
+    ) -> tuple[List[UUID], Dict[UUID, Dict[str, str]]]:
+        """Fetch users with specific roles from auth service."""
+        try:
+            users = await self._auth_client.get_users(active_only=True)
+            
+            approver_ids = []
+            approver_info = {}
+            
+            for user in users:
+                user_id = UUID(user["id"]) if isinstance(user["id"], str) else user["id"]
+                
+                # Check if user should be excluded
+                if exclude_user and user_id == exclude_user:
+                    continue
+                
+                # Check if user has any of the required roles
+                user_roles = user.get("roles", [])
+                user_role_ids = [r.get("id") if isinstance(r, dict) else r for r in user_roles]
+                
+                if any(str(rid) in [str(uid) for uid in user_role_ids] for rid in role_ids):
+                    approver_ids.append(user_id)
+                    approver_info[user_id] = {
+                        "name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+                        "role": user_roles[0].get("name") if user_roles and isinstance(user_roles[0], dict) else str(user_roles[0]) if user_roles else None,
+                    }
+                
+                # Limit approvers if max specified
+                if max_approvers and len(approver_ids) >= max_approvers:
+                    break
+            
+            return approver_ids, approver_info
+        
+        except Exception as e:
+            logger.error(f"Error fetching approvers: {e}")
+            return [], {}
+    
+    async def _notify_approvers(
+        self,
+        request: ApprovalRequest,
+        approver_ids: List[UUID],
+    ):
+        """Send notifications to approvers."""
+        try:
+            for approver_id in approver_ids:
+                await self._notification_client.send_notification(
+                    user_id=approver_id,
+                    title="Nuova Approvazione Richiesta",
+                    message=f"Hai una nuova richiesta da approvare: {request.title}",
+                    notification_type="APPROVAL_REQUEST",
+                    data={
+                        "approval_request_id": str(request.id),
+                        "entity_type": request.entity_type,
+                        "entity_id": str(request.entity_id),
+                    },
+                )
+        except Exception as e:
+            logger.error(f"Error notifying approvers: {e}")
+    
+    async def get_approval_request(
+        self,
+        request_id: UUID,
+        include_history: bool = False,
+    ) -> Optional[ApprovalRequest]:
+        """Get approval request by ID."""
+        return await self._request_repo.get_by_id(
+            request_id,
+            include_decisions=True,
+            include_history=include_history,
+        )
+    
+    async def get_approval_by_entity(
+        self,
+        entity_type: str,
+        entity_id: UUID,
+    ) -> Optional[ApprovalRequest]:
+        """Get approval request by entity."""
+        return await self._request_repo.get_by_entity(entity_type, entity_id)
+    
+    async def cancel_approval_request(
+        self,
+        request_id: UUID,
+        cancelled_by: UUID,
+        reason: Optional[str] = None,
+    ) -> bool:
+        """Cancel an approval request."""
+        request = await self._request_repo.get_by_id(request_id)
+        if not request:
+            return False
+        
+        if request.status != ApprovalStatus.PENDING.value:
+            raise ValueError("Can only cancel pending requests")
+        
+        request.status = ApprovalStatus.CANCELLED.value
+        request.resolved_at = datetime.utcnow()
+        request.resolution_notes = reason
+        
+        await self._request_repo.update(request)
+        
+        # Log history
+        await self._history_repo.create(ApprovalHistory(
+            approval_request_id=request.id,
+            action=HistoryAction.CANCELLED.value,
+            actor_id=cancelled_by,
+            actor_type="USER",
+            details={"reason": reason} if reason else None,
+        ))
+        
+        # Delete reminders
+        await self._reminder_repo.delete_for_request(request.id)
+        
+        # Trigger callback
+        await self._send_callback(request)
+        
+        return True
+    
+    # ═══════════════════════════════════════════════════════════
+    # Approver Actions
+    # ═══════════════════════════════════════════════════════════
+    
+    async def get_pending_approvals(
+        self,
+        approver_id: UUID,
+        entity_type: Optional[str] = None,
+    ) -> PendingApprovalsResponse:
+        """Get pending approvals for an approver."""
+        requests = await self._request_repo.get_pending_for_approver(
+            approver_id, entity_type
+        )
+        
+        now = datetime.utcnow()
+        items = []
+        urgent_count = 0
+        
+        for req in requests:
+            is_urgent = False
+            if req.expires_at:
+                hours_remaining = (req.expires_at - now).total_seconds() / 3600
+                is_urgent = hours_remaining < 24
+            
+            if is_urgent:
+                urgent_count += 1
+            
+            days_pending = (now - req.created_at).days
+            
+            items.append(PendingApprovalItem(
+                request_id=req.id,
+                entity_type=req.entity_type,
+                entity_id=req.entity_id,
+                entity_ref=req.entity_ref,
+                title=req.title,
+                description=req.description,
+                requester_name=req.requester_name,
+                approval_level=req.current_level,
+                is_urgent=is_urgent,
+                expires_at=req.expires_at,
+                days_pending=days_pending,
+                created_at=req.created_at,
+            ))
+        
+        return PendingApprovalsResponse(
+            total=len(items),
+            urgent_count=urgent_count,
+            items=items,
+        )
+    
+    async def get_pending_count(self, approver_id: UUID) -> PendingCountResponse:
+        """Get count of pending approvals."""
+        counts = await self._request_repo.count_pending_for_approver(approver_id)
+        
+        # Calculate urgent (would need additional query, simplify for now)
+        return PendingCountResponse(
+            total=counts.get("total", 0),
+            urgent=0,  # Would need separate calculation
+            by_type={k: v for k, v in counts.items() if k != "total"},
+        )
+    
+    async def approve_request(
+        self,
+        request_id: UUID,
+        approver_id: UUID,
+        notes: Optional[str] = None,
+    ) -> ApprovalRequest:
+        """Approve a request."""
+        request = await self._request_repo.get_by_id(request_id, include_decisions=True)
+        if not request:
+            raise ValueError("Approval request not found")
+        
+        request = await self._engine.process_decision(
+            request, approver_id, DecisionType.APPROVED.value, notes
+        )
+        
+        # If resolved, trigger callback
+        if request.status != ApprovalStatus.PENDING.value:
+            await self._send_callback(request)
+        
+        return request
+    
+    async def reject_request(
+        self,
+        request_id: UUID,
+        approver_id: UUID,
+        notes: Optional[str] = None,
+    ) -> ApprovalRequest:
+        """Reject a request."""
+        request = await self._request_repo.get_by_id(request_id, include_decisions=True)
+        if not request:
+            raise ValueError("Approval request not found")
+        
+        request = await self._engine.process_decision(
+            request, approver_id, DecisionType.REJECTED.value, notes
+        )
+        
+        # If resolved, trigger callback
+        if request.status != ApprovalStatus.PENDING.value:
+            await self._send_callback(request)
+        
+        return request
+    
+    async def delegate_request(
+        self,
+        request_id: UUID,
+        approver_id: UUID,
+        delegate_to_id: UUID,
+        delegate_to_name: Optional[str] = None,
+        notes: Optional[str] = None,
+    ) -> ApprovalRequest:
+        """Delegate approval to another user."""
+        request = await self._request_repo.get_by_id(request_id, include_decisions=True)
+        if not request:
+            raise ValueError("Approval request not found")
+        
+        # Get delegate info if not provided
+        if not delegate_to_name:
+            try:
+                user = await self._auth_client.get_user(delegate_to_id)
+                if user:
+                    delegate_to_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+            except Exception:
+                pass
+        
+        # Process delegation
+        request = await self._engine.process_decision(
+            request, approver_id, DecisionType.DELEGATED.value, notes,
+            delegated_to_id=delegate_to_id, delegated_to_name=delegate_to_name
+        )
+        
+        # Create new decision for delegate
+        decision = await self._decision_repo.get_by_request_and_approver(
+            request_id, approver_id
+        )
+        
+        new_decision = ApprovalDecision(
+            approval_request_id=request_id,
+            approver_id=delegate_to_id,
+            approver_name=delegate_to_name,
+            approval_level=decision.approval_level if decision else 1,
+        )
+        await self._decision_repo.create(new_decision)
+        
+        # Notify delegate
+        await self._notify_approvers(request, [delegate_to_id])
+        
+        return request
+    
+    # ═══════════════════════════════════════════════════════════
+    # Callbacks
+    # ═══════════════════════════════════════════════════════════
+    
+    async def _send_callback(self, request: ApprovalRequest):
+        """Send callback to originating service."""
+        if not request.callback_url:
+            return
+        
+        # Refresh decisions
+        request = await self._request_repo.get_by_id(request.id, include_decisions=True)
+        
+        payload = ApprovalCallbackPayload(
+            approval_request_id=request.id,
+            entity_type=request.entity_type,
+            entity_id=request.entity_id,
+            status=request.status,
+            resolved_at=request.resolved_at or datetime.utcnow(),
+            resolution_notes=request.resolution_notes,
+            final_decision_by=request.final_decision_by,
+            decisions=[
+                {
+                    "id": d.id,
+                    "approval_request_id": d.approval_request_id,
+                    "approver_id": d.approver_id,
+                    "approver_name": d.approver_name,
+                    "approver_role": d.approver_role,
+                    "approval_level": d.approval_level,
+                    "decision": d.decision,
+                    "decision_notes": d.decision_notes,
+                    "delegated_to_id": d.delegated_to_id,
+                    "delegated_to_name": d.delegated_to_name,
+                    "assigned_at": d.assigned_at,
+                    "decided_at": d.decided_at,
+                }
+                for d in request.decisions
+            ],
+        )
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    request.callback_url,
+                    json=payload.model_dump(mode="json"),
+                    timeout=10.0,
+                )
+                logger.info(f"Callback sent to {request.callback_url}: {response.status_code}")
+        except Exception as e:
+            logger.error(f"Failed to send callback: {e}")
+    
+    # ═══════════════════════════════════════════════════════════
+    # Status Checks
+    # ═══════════════════════════════════════════════════════════
+    
+    async def check_approval_status(
+        self,
+        entity_type: str,
+        entity_id: UUID,
+    ) -> ApprovalStatusCheck:
+        """Check if an entity has a pending approval."""
+        request = await self._request_repo.get_by_entity(entity_type, entity_id)
+        
+        if not request:
+            return ApprovalStatusCheck(
+                entity_type=entity_type,
+                entity_id=entity_id,
+                has_pending_request=False,
+            )
+        
+        return ApprovalStatusCheck(
+            entity_type=entity_type,
+            entity_id=entity_id,
+            has_pending_request=request.status == ApprovalStatus.PENDING.value,
+            approval_request_id=request.id,
+            status=request.status,
+            required_approvals=request.required_approvals,
+            received_approvals=request.received_approvals,
+        )

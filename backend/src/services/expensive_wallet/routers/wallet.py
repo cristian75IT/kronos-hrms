@@ -109,7 +109,8 @@ async def get_transactions(
     """Get all transactions for a trip wallet."""
     wallet = await service.get_wallet(trip_id)
     if not wallet:
-        raise HTTPException(status_code=404, detail="Wallet not found")
+        # Return empty list if wallet doesn't exist yet (no transactions)
+        return []
     
     return await service.get_transactions(wallet.id, limit)
 

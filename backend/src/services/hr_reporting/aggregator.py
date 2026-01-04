@@ -65,7 +65,8 @@ class HRDataAggregator:
             on_sick = leave_summary.get("on_sick", 0)
             
             # Get active trips
-            on_trip = await self._get_active_trips_count(target_date)
+            trips_on_date = await self._expense_client.get_trips_for_date(target_date)
+            on_trip = len(trips_on_date)
             
             # Calculate absence rate
             total_absent = on_leave + on_sick + on_trip
@@ -527,14 +528,29 @@ class HRDataAggregator:
     
     async def _get_leave_summary_for_date(self, target_date: date) -> Dict[str, Any]:
         """Get leave summary for a specific date."""
-        # This would call leaves service with appropriate filters
-        # For now returns placeholder
-        return {"on_leave": 0, "on_sick": 0}
+        try:
+            leaves = await self._leaves_client.get_leaves_for_date(target_date)
+            on_leave = 0
+            on_sick = 0
+            for l in leaves:
+                code = l.get("leave_type_code", "").upper()
+                if "MAL" in code:
+                    on_sick += 1
+                else:
+                    on_leave += 1
+            return {"on_leave": on_leave, "on_sick": on_sick}
+        except Exception as e:
+            logger.error(f"Error getting summary for date: {e}")
+            return {"on_leave": 0, "on_sick": 0}
     
     async def _get_active_trips_count(self, target_date: date) -> int:
         """Get count of active trips for a date."""
-        # This would call expense service
-        return 0
+        try:
+            trips = await self._expense_client.get_trips_for_date(target_date)
+            return len(trips)
+        except Exception as e:
+            logger.error(f"Error getting active trips count: {e}")
+            return 0
     
     async def _get_employee_leave_data(
         self,
@@ -543,14 +559,58 @@ class HRDataAggregator:
         end_date: date,
     ) -> Dict[str, Any]:
         """Get leave data for employee in date range."""
-        # This would call leaves service for approved requests
-        return {
+        result = {
             "vacation": {"days": 0, "hours": 0},
             "rol": {"days": 0, "hours": 0},
             "permits": {"days": 0, "hours": 0},
             "sick_leave": {"days": 0, "hours": 0},
             "other": {"days": 0, "hours": 0},
         }
+        
+        try:
+            leaves = await self._leaves_client.get_leaves_in_period(
+                start_date=start_date,
+                end_date=end_date,
+                user_id=employee_id,
+                status="approved,approved_conditional"
+            )
+            
+            for l in leaves:
+                req_start = date.fromisoformat(l["start_date"])
+                req_end = date.fromisoformat(l["end_date"])
+                
+                # Intersection
+                p_start = max(start_date, req_start)
+                p_end = min(end_date, req_end)
+                
+                if p_start > p_end:
+                    continue
+                    
+                days = 0
+                if req_start >= start_date and req_end <= end_date:
+                    days = float(l.get("days_requested", 0))
+                else:
+                    wd = await self._calendar_client.calculate_working_days(
+                        p_start, p_end
+                    )
+                    days = float(wd.get("days", 0) if wd else 0)
+                
+                hours = days * 8.0
+                
+                code = l.get("leave_type_code", "").upper()
+                cat = "other"
+                if any(x in code for x in ["FER", "VAC"]): cat = "vacation"
+                elif "ROL" in code: cat = "rol"
+                elif any(x in code for x in ["PER", "PM"]): cat = "permits"
+                elif "MAL" in code: cat = "sick_leave"
+                
+                result[cat]["days"] += days
+                result[cat]["hours"] += hours
+                
+        except Exception as e:
+            logger.error(f"Error fetching employee leave data: {e}")
+            
+        return result
     
     async def _get_employee_balance(self, employee_id: UUID) -> Dict[str, Any]:
         """Get current leave balance for employee."""

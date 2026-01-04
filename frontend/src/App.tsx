@@ -43,6 +43,8 @@ import { HRTrainingPage } from './pages/hr/HRTrainingPage';
 import { HRLeavesManagement } from './pages/hr/HRLeavesManagement';
 import { HRTripsManagement } from './pages/hr/HRTripsManagement';
 import { HRExpensesManagement } from './pages/hr/HRExpensesManagement';
+import WorkflowConfigPage from './pages/admin/WorkflowConfigPage';
+import PendingApprovalsPage from './pages/approvals/PendingApprovalsPage';
 
 function App() {
   return (
@@ -116,6 +118,11 @@ function App() {
                 <Route path="/wiki/management" element={<WikiManagement />} />
                 <Route path="/wiki/config" element={<WikiConfig />} />
                 <Route path="/wiki/contracts" element={<WikiCalculations />} /> {/* Shared logic for now */}
+
+                {/* Approval Workflows */}
+                <Route path="/admin/workflows" element={<ProtectedRoute roles={['admin']}><WorkflowConfigPage /></ProtectedRoute>} />
+                <Route path="/approvals/pending" element={<ProtectedRoute roles={['admin', 'hr', 'approver']}><PendingApprovalsPage /></ProtectedRoute>} />
+                <Route path="/approvals" element={<Navigate to="/approvals/pending" replace />} />
 
 
               </Route>

@@ -507,6 +507,13 @@ export function useUpdateContractType() {
     });
 }
 
+export function useExpenseTypes(activeOnly = true) {
+    return useQuery({
+        queryKey: ['expense-types', activeOnly],
+        queryFn: () => configService.getExpenseTypes(activeOnly),
+    });
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Config Hooks
 // ═══════════════════════════════════════════════════════════════════

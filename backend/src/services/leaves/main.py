@@ -11,6 +11,7 @@ from src.services.leaves.router import router
 from src.services.leaves.routers.user_actions import router as user_router
 from src.services.leaves.routers.approver_actions import router as approver_router
 from src.services.leaves.routers.delegation import router as delegation_router
+from src.services.leaves.routers.internal import router as internal_router
 # Import models to register them with SQLAlchemy metadata
 from src.services.leaves import models  # noqa: F401
 
@@ -47,6 +48,7 @@ app.include_router(router, prefix="/api/v1")
 app.include_router(user_router, prefix="/api/v1/leaves")
 app.include_router(approver_router, prefix="/api/v1/leaves")
 app.include_router(delegation_router, prefix="/api/v1/leaves")
+app.include_router(internal_router, prefix="/api/v1/leaves")
 
 
 # Add Request Context Middleware

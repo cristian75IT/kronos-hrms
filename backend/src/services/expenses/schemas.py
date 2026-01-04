@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from src.shared.schemas import BaseSchema, IDMixin, DataTableResponse
+from src.shared.schemas import BaseSchema, IDMixin, DataTableResponse, DataTableRequest
 from src.services.expenses.models import TripStatus, ExpenseReportStatus, DestinationType
 
 
@@ -89,8 +89,26 @@ class BusinessTripListItem(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class TripDataTableRequest(DataTableRequest):
+    """DataTable request including filters."""
+    status: Optional[str] = None
+
+
+class TripAdminDataTableItem(BusinessTripListItem):
+    """Trip item for admin datatable with user name."""
+    user_name: Optional[str] = None
+    days_count: int = 0
+    total_allowance: Decimal = Decimal(0)
+    created_at: datetime
+
+
 class TripDataTableResponse(DataTableResponse[BusinessTripListItem]):
-    """DataTable response for trips."""
+    """DataTable response for trips (user view)."""
+    pass
+
+
+class TripAdminDataTableResponse(DataTableResponse[TripAdminDataTableItem]):
+    """DataTable response for trips (admin view)."""
     pass
 
 
@@ -185,6 +203,32 @@ class ExpenseReportListItem(BaseModel):
     created_at: datetime
     
     model_config = {"from_attributes": True}
+
+
+class ExpenseAdminDataTableItem(BaseSchema):
+    """Expense report item for admin datatable."""
+    
+    id: UUID
+    report_number: str
+    title: str
+    employee_id: UUID
+    employee_name: str
+    department: Optional[str] = None
+    trip_id: Optional[UUID] = None
+    trip_title: Optional[str] = None
+    trip_destination: Optional[str] = None
+    trip_start_date: Optional[date] = None
+    trip_end_date: Optional[date] = None
+    total_amount: Decimal
+    items_count: int = 0
+    status: str
+    submitted_at: Optional[datetime] = None
+    created_at: datetime
+
+
+class ExpenseAdminDataTableResponse(DataTableResponse[ExpenseAdminDataTableItem]):
+    """DataTable response for expense reports (admin view)."""
+    pass
 
 
 # ═══════════════════════════════════════════════════════════

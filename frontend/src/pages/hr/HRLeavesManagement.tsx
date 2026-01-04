@@ -13,38 +13,45 @@ import { createColumnHelper } from '@tanstack/react-table';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 
-// Types
+// Types matching Backend LeaveRequestListItem
 interface HRLeaveItem {
     id: string;
-    employee_id: string;
-    employee_name: string;
-    department: string | null;
-    leave_type: string;
-    leave_type_name: string;
+    user_id: string;
+    user_name: string | null;
+    leave_type_code: string;
     start_date: string;
     end_date: string;
-    days_count: number;
-    hours_count: number | null;
+    days_requested: number;
     status: string;
     created_at: string;
+    // Frontend enrichment fields (if any)
+    department?: string;
 }
 
 const columnHelper = createColumnHelper<HRLeaveItem>();
+
+const LEAVE_TYPE_LABELS: Record<string, string> = {
+    'ferie': 'Ferie',
+    'rol': 'ROL',
+    'permesso': 'Permesso',
+    'malattia': 'Malattia',
+    'lutto': 'Lutto',
+    'matrimonio': 'Matrimonio',
+    'vacation': 'Ferie' // normalize if needed (backend usually sends 'vacation' or 'ferie' depending on seeds)
+};
 
 export function HRLeavesManagement() {
     const [filters, setFilters] = useState({
         status: '',
         leave_type: '',
-        search: '' // handled by global filter usually but can be custom
     });
 
-    // Function to handle filter changes could be added here
     const handleFilterChange = (key: string, value: string) => {
         setFilters(prev => ({ ...prev, [key]: value }));
     };
 
     const columns = [
-        columnHelper.accessor('employee_name', {
+        columnHelper.accessor('user_name', {
             header: 'Dipendente',
             cell: info => (
                 <div className="flex items-center gap-2">
@@ -52,15 +59,20 @@ export function HRLeavesManagement() {
                         <User size={14} />
                     </div>
                     <div>
-                        <div className="font-bold text-gray-900">{info.getValue()}</div>
-                        <div className="text-[10px] text-gray-500">{info.row.original.department || 'N/A'}</div>
+                        <div className="font-bold text-gray-900">{info.getValue() || 'N/A'}</div>
+                        {/* Department currently not available in backend response */}
+                        <div className="text-[10px] text-gray-500">Dipartimento N/A</div>
                     </div>
                 </div>
             )
         }),
-        columnHelper.accessor('leave_type_name', {
+        columnHelper.accessor('leave_type_code', {
             header: 'Tipo',
-            cell: info => <span className="font-medium text-gray-700">{info.getValue()}</span>
+            cell: info => {
+                const code = info.getValue()?.toLowerCase();
+                const label = LEAVE_TYPE_LABELS[code] || code || 'Altro';
+                return <span className="font-medium text-gray-700 capitalize">{label}</span>;
+            }
         }),
         columnHelper.accessor('start_date', {
             header: 'Periodo',
@@ -72,11 +84,11 @@ export function HRLeavesManagement() {
                 </div>
             )
         }),
-        columnHelper.accessor('days_count', {
+        columnHelper.accessor('days_requested', {
             header: 'Durata',
             cell: info => (
                 <span className="inline-flex items-center px-2 py-1 rounded-md bg-gray-50 text-gray-700 text-xs font-medium border border-gray-200">
-                    {info.getValue()} {info.getValue() === 1 ? 'giorno' : 'giorni'}
+                    {Number(info.getValue())} {Number(info.getValue()) === 1 ? 'giorno' : 'giorni'}
                 </span>
             )
         }),
@@ -100,7 +112,7 @@ export function HRLeavesManagement() {
                 return (
                     <span className={`flex items-center gap-1.5 w-fit px-2.5 py-1 rounded-full text-xs font-bold capitalize ${colorClass}`}>
                         {icon}
-                        {status === 'pending' ? 'In Attesa' : status === 'approved' ? 'Approvata' : 'Rifiutata'}
+                        {status === 'pending' ? 'In Attesa' : status === 'approved' ? 'Approvata' : status === 'rejected' ? 'Rifiutata' : status}
                     </span>
                 );
             }
@@ -154,7 +166,7 @@ export function HRLeavesManagement() {
                 </div>
 
                 <div className="w-full md:w-auto">
-                    <Button variant="secondary" onClick={() => setFilters({ status: '', leave_type: '', search: '' })}>
+                    <Button variant="secondary" onClick={() => setFilters({ status: '', leave_type: '' })}>
                         Reset Filtri
                     </Button>
                 </div>
@@ -170,18 +182,16 @@ export function HRLeavesManagement() {
                 </div>
                 <div className="p-4">
                     <ServerSideTable
-                        apiEndpoint="/hr/management/leaves/datatable"
-                        method="GET"
+                        apiEndpoint="/leaves/admin/datatable"
+                        method="POST"
                         columns={columns}
                         extraData={{
-                            status_filter: filters.status,
-                            leave_type_filter: filters.leave_type
+                            status: filters.status,
+                            leave_type: filters.leave_type
                         }}
                         className="bg-white"
                         onRowClick={(/* row */) => {
-                            // Navigate to detail or open modal
-                            // window.location.href = `/leaves/${row.id}`; 
-                            // Since we are HR, we might want a special HR detail view or reuse the existing one
+                            // Handler code
                         }}
                     />
                 </div>

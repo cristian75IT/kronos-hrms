@@ -361,7 +361,45 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  approval-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kronos-approvals
+    environment:
+      - SERVICE_NAME=approval-service
+      - DATABASE_URL=postgresql+asyncpg://kronos:kronos_dev@postgres:5432/kronos
+      - DATABASE_SCHEMA=approvals
+      - REDIS_URL=redis://redis:6379/12
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8005
+      - AUDIT_SERVICE_URL=http://audit-service:8007
+      - LEAVE_SERVICE_URL=http://leave-service:8002
+      - EXPENSE_SERVICE_URL=http://expense-service:8003
+      - KEYCLOAK_URL=http://keycloak:8080/
+      - KEYCLOAK_REALM=kronos
+      - KEYCLOAK_CLIENT_ID=kronos-backend
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    ports:
+      - "8012:8012"
+    command: uvicorn src.services.approvals.main:app --host 0.0.0.0 --port 8012 --reload
+    volumes:
+      - ./backend:/app
+    networks:
+      - kronos-internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+    restart: unless-stopped
+
   celery-worker:
+
     build:
       context: ./backend
       dockerfile: Dockerfile

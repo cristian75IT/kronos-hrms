@@ -442,7 +442,7 @@ export function TripDetailPage() {
                                 <p className="text-gray-500 text-sm mb-6">
                                     Le spese per questa trasferta appariranno qui una volta aggiunte alla nota spese.
                                 </p>
-                                <Link to="/expenses/new" className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors">
+                                <Link to={`/expenses/new?trip_id=${id}`} className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors">
                                     <Plus size={18} />
                                     Crea Nota Spese
                                 </Link>

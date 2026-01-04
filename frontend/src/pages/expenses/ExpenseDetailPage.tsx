@@ -25,6 +25,7 @@ import { useExpenseReport } from '../../hooks/useApi';
 import { useAuth, useIsApprover, useIsAdmin, useIsHR } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { reportsService } from '../../services/expenses.service';
+import { ExpenseItemModal } from '../../components/expenses/ExpenseItemModal';
 
 export function ExpenseDetailPage() {
     const { id } = useParams<{ id: string }>();
@@ -41,6 +42,7 @@ export function ExpenseDetailPage() {
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
     const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [showAddItemModal, setShowAddItemModal] = useState(false);
 
     // Check ownership
     const isOwner = user?.id === report?.user_id || user?.keycloak_id === report?.user_id;
@@ -236,7 +238,10 @@ export function ExpenseDetailPage() {
                                 <h3>Voci di Spesa</h3>
                             </div>
                             {report.status === 'draft' && (
-                                <button className="btn btn-primary btn-sm flex items-center gap-2">
+                                <button
+                                    className="btn btn-primary btn-sm flex items-center gap-2"
+                                    onClick={() => setShowAddItemModal(true)}
+                                >
                                     <Plus size={16} />
                                     Aggiungi Voce
                                 </button>
@@ -516,6 +521,12 @@ export function ExpenseDetailPage() {
                     </div>
                 </div>
             )}
+            {/* Add Item Modal */}
+            <ExpenseItemModal
+                isOpen={showAddItemModal}
+                onClose={() => setShowAddItemModal(false)}
+                reportId={id || ''}
+            />
         </div>
     );
 }

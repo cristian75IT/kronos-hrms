@@ -60,6 +60,15 @@ export function EmailSettingsPanel({ className }: EmailSettingsPanelProps) {
     };
 
     const handleSave = async () => {
+        if (!formData.sender_email || !formData.sender_name) {
+            toast.error('Email e Nome Mittente sono obbligatori');
+            return;
+        }
+        if (formData.test_mode && !formData.test_email) {
+            toast.error('Inserisci l\'email per la modalità test');
+            return;
+        }
+
         setSaving(true);
         try {
             if (isNewSettings) {
@@ -139,7 +148,7 @@ export function EmailSettingsPanel({ className }: EmailSettingsPanelProps) {
                 {/* API Key */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                        API Key Brevo
+                        API Key Brevo {isNewSettings && <span className="text-red-500">*</span>}
                     </label>
                     <div className="relative">
                         <input
@@ -164,7 +173,7 @@ export function EmailSettingsPanel({ className }: EmailSettingsPanelProps) {
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Email Mittente
+                            Email Mittente <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="email"
@@ -176,7 +185,7 @@ export function EmailSettingsPanel({ className }: EmailSettingsPanelProps) {
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Nome Mittente
+                            Nome Mittente <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="text"

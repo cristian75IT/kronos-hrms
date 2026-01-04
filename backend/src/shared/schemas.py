@@ -56,6 +56,7 @@ class DataTableRequest(BaseModel):
     This is the standard format sent by DataTables.net
     when serverSide: true is enabled.
     """
+    model_config = {"extra": "allow"}
     
     draw: int = Field(..., description="Draw counter for async requests")
     start: int = Field(default=0, description="First record offset")

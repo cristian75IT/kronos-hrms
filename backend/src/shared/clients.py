@@ -31,6 +31,25 @@ class AuthClient:
             logger.error(f"AuthClient error get_user_info: {e}")
         return None
 
+    async def get_user(self, user_id: UUID) -> Optional[dict]:
+        """Alias for get_user_info for aggregator compatibility."""
+        return await self.get_user_info(user_id)
+
+    async def get_users(self, active_only: bool = True) -> list[dict]:
+        """Get all users from auth service."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/users",
+                    params={"active_only": active_only, "limit": 1000},
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"AuthClient error get_users: {e}")
+        return []
+
     async def get_user_email(self, user_id: UUID) -> Optional[str]:
         """Get user email."""
         user = await self.get_user_info(user_id)
@@ -859,6 +878,13 @@ class CalendarClient:
             logger.error(f"CalendarClient error is_working_day: {e}")
         return True  # Default to working day on error
 
+    async def get_working_days_count(self, start_date: date, end_date: date) -> int:
+        """Wrapper for calculating working days count used by aggregator."""
+        res = await self.calculate_working_days(start_date, end_date)
+        if res:
+            return int(res.get("days", 0))
+        return 0
+
 
 class LeaveClient:
     """Client for Leave Service interactions (for inter-service communication)."""
@@ -894,12 +920,11 @@ class LeaveClient:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
-                    f"{self.base_url}/api/v1/leaves/pending",
+                    f"{self.base_url}/api/v1/leaves/internal/pending-count",
                     timeout=5.0
                 )
                 if response.status_code == 200:
-                    data = response.json()
-                    return len(data) if isinstance(data, list) else 0
+                    return int(response.json())
         except Exception as e:
             logger.error(f"LeavesClient error get_pending_requests_count: {e}")
         return 0
@@ -932,6 +957,41 @@ class LeaveClient:
             logger.error(f"LeavesClient error get_all_requests: {e}")
         return []
 
+    async def get_leaves_in_period(
+        self,
+        start_date: date,
+        end_date: date,
+        user_id: Optional[UUID] = None,
+        status: Optional[str] = None
+    ) -> list[dict]:
+        """Get leaves in period (internal use)."""
+        try:
+            params = {
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+            }
+            if user_id:
+                params["user_id"] = str(user_id)
+            if status:
+                params["status"] = status
+                
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/leaves/internal/requests",
+                    params=params,
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+                logger.warning(f"LeavesClient get_leaves_in_period returned {response.status_code}")
+        except Exception as e:
+            logger.error(f"LeavesClient error get_leaves_in_period: {e}")
+        return []
+
+    async def get_leaves_for_date(self, target_date: date) -> list[dict]:
+        """Get leaves for a specific date (internal)."""
+        return await self.get_leaves_in_period(target_date, target_date, status="approved,approved_conditional")
+
 
 # Alias for compatibility with HR Reporting service
 LeavesClient = LeaveClient
@@ -952,7 +1012,7 @@ class ExpenseClient:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
-                    f"{self.base_url}/api/v1/expenses/reports/pending",
+                    f"{self.base_url}/api/v1/expenses/pending",
                     timeout=5.0
                 )
                 if response.status_code == 200:
@@ -967,7 +1027,7 @@ class ExpenseClient:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
-                    f"{self.base_url}/api/v1/expenses/trips/pending",
+                    f"{self.base_url}/api/v1/trips/pending",
                     timeout=5.0
                 )
                 if response.status_code == 200:
@@ -1010,3 +1070,118 @@ class ExpenseClient:
             logger.error(f"ExpenseClient error get_user_expense_reports: {e}")
         return []
 
+    async def get_trips_for_date(self, target_date: date) -> list[dict]:
+        """Get all active trips for a specific date across all users."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/expenses/internal/trips-for-date",
+                    params={"target_date": target_date.isoformat()},
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"ExpenseClient error get_trips_for_date: {e}")
+        return []
+
+
+class ApprovalClient:
+    """Client for Approval Service interactions."""
+    
+    def __init__(self):
+        self.base_url = getattr(settings, 'approval_service_url', 'http://approval-service:8012')
+    
+    async def create_request(
+        self,
+        entity_type: str,
+        entity_id: UUID,
+        requester_id: UUID,
+        title: str,
+        entity_ref: Optional[str] = None,
+        requester_name: Optional[str] = None,
+        description: Optional[str] = None,
+        metadata: Optional[dict] = None,
+        callback_url: Optional[str] = None,
+        approver_ids: Optional[list[UUID]] = None,
+    ) -> Optional[dict]:
+        """Create an approval request."""
+        try:
+            payload = {
+                "entity_type": entity_type,
+                "entity_id": str(entity_id),
+                "entity_ref": entity_ref,
+                "requester_id": str(requester_id),
+                "requester_name": requester_name,
+                "title": title,
+                "description": description,
+                "metadata": metadata or {},
+                "callback_url": callback_url,
+            }
+            
+            if approver_ids:
+                payload["approver_ids"] = [str(a) for a in approver_ids]
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/approvals/internal/request",
+                    json=payload,
+                    timeout=10.0
+                )
+                if response.status_code in (200, 201):
+                    return response.json()
+                else:
+                    logger.error(f"ApprovalClient create_request failed: {response.status_code} - {response.text}")
+        except Exception as e:
+            logger.error(f"ApprovalClient error create_request: {e}")
+        return None
+    
+    async def check_status(self, entity_type: str, entity_id: UUID) -> Optional[dict]:
+        """Check approval status for an entity."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/approvals/internal/status/{entity_type}/{entity_id}",
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"ApprovalClient error check_status: {e}")
+        return None
+    
+    async def get_pending_count(self, user_id: UUID) -> dict:
+        """Get pending approval count for a user."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/approvals/decisions/pending/count",
+                    headers={"X-User-Id": str(user_id)},  # Would need proper auth
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"ApprovalClient error get_pending_count: {e}")
+        return {"total": 0, "urgent": 0, "by_type": {}}
+    
+    async def cancel_request(self, entity_type: str, entity_id: UUID, reason: Optional[str] = None) -> bool:
+        """Cancel an approval request by entity."""
+        try:
+            # First get the request
+            status = await self.check_status(entity_type, entity_id)
+            if not status or not status.get("approval_request_id"):
+                return False
+            
+            request_id = status["approval_request_id"]
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.delete(
+                    f"{self.base_url}/api/v1/approvals/requests/{request_id}",
+                    json={"reason": reason} if reason else None,
+                    timeout=5.0
+                )
+                return response.status_code == 204
+        except Exception as e:
+            logger.error(f"ApprovalClient error cancel_request: {e}")
+        return False
