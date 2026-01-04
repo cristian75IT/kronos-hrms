@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
 from src.core.config import settings
-from src.core.security import get_current_user, require_admin, TokenPayload
+from src.core.security import get_current_user, require_permission, TokenPayload
 from src.core.exceptions import NotFoundError, ConflictError
 from src.shared.schemas import MessageResponse
 from src.services.config.service import ConfigService
@@ -82,7 +82,7 @@ async def get_config_service(
 
 @router.post("/config/cache/clear", response_model=MessageResponse)
 async def clear_cache(
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Clear Redis cache. Admin only."""
@@ -120,7 +120,7 @@ async def get_config(
 @router.post("/config", response_model=SystemConfigResponse, status_code=201)
 async def create_config(
     data: SystemConfigCreate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Create new config entry. Admin only."""
@@ -134,7 +134,7 @@ async def create_config(
 async def update_config(
     key: str,
     data: SystemConfigUpdate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Update config value. Admin only."""
@@ -174,7 +174,7 @@ async def get_leave_type(
 @router.post("/leave-types", response_model=LeaveTypeResponse, status_code=201)
 async def create_leave_type(
     data: LeaveTypeCreate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Create new leave type. Admin only."""
@@ -188,7 +188,7 @@ async def create_leave_type(
 async def update_leave_type(
     id: UUID,
     data: LeaveTypeUpdate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Update leave type. Admin only."""
@@ -201,7 +201,7 @@ async def update_leave_type(
 @router.delete("/leave-types/{id}", response_model=MessageResponse)
 async def delete_leave_type(
     id: UUID,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Deactivate leave type. Admin only."""
@@ -234,7 +234,7 @@ async def list_expense_types(
 @router.post("/expense-types", response_model=ExpenseTypeResponse, status_code=201)
 async def create_expense_type(
     data: ExpenseTypeCreate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Create new expense type. Admin only."""
@@ -259,7 +259,7 @@ async def list_allowance_rules(
 @router.post("/allowance-rules", response_model=DailyAllowanceRuleResponse, status_code=201)
 async def create_allowance_rule(
     data: DailyAllowanceRuleCreate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Create new allowance rule. Admin only."""
@@ -297,7 +297,7 @@ async def get_calculation_mode(
 @router.post("/calculation-modes", response_model=CalculationModeResponse, status_code=201)
 async def create_calculation_mode(
     data: CalculationModeCreate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Create new calculation mode. Admin only."""
@@ -311,7 +311,7 @@ async def create_calculation_mode(
 async def update_calculation_mode(
     id: UUID,
     data: CalculationModeUpdate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Update calculation mode. Admin only."""
@@ -324,7 +324,7 @@ async def update_calculation_mode(
 @router.delete("/calculation-modes/{id}", response_model=MessageResponse)
 async def delete_calculation_mode(
     id: UUID,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Deactivate calculation mode. Admin only."""
@@ -380,7 +380,7 @@ async def get_national_contract(
 @router.post("/national-contracts", response_model=NationalContractResponse, status_code=201)
 async def create_national_contract(
     data: NationalContractCreate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Create new National Contract (CCNL). Admin only."""
@@ -394,7 +394,7 @@ async def create_national_contract(
 async def update_national_contract(
     id: UUID,
     data: NationalContractUpdate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Update National Contract. Admin only."""
@@ -407,7 +407,7 @@ async def update_national_contract(
 @router.delete("/national-contracts/{id}", response_model=MessageResponse)
 async def delete_national_contract(
     id: UUID,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Deactivate National Contract. Admin only."""
@@ -465,7 +465,7 @@ async def get_contract_version(
 @router.post("/national-contracts/versions", response_model=NationalContractVersionResponse, status_code=201)
 async def create_contract_version(
     data: NationalContractVersionCreate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Create new version for a National Contract. Admin only.
@@ -485,7 +485,7 @@ async def create_contract_version(
 async def update_contract_version(
     version_id: UUID,
     data: NationalContractVersionUpdate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Update a version. Admin only.
@@ -501,7 +501,7 @@ async def update_contract_version(
 @router.delete("/national-contracts/versions/{version_id}", response_model=MessageResponse)
 async def delete_contract_version(
     version_id: UUID,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Delete a version. Admin only.
@@ -528,7 +528,7 @@ async def list_contract_types(
 @router.post("/national-contracts/type-configs", response_model=NationalContractTypeConfigResponse)
 async def create_contract_type_config(
     data: NationalContractTypeConfigCreate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Create a contract type configuration override."""
@@ -538,7 +538,7 @@ async def create_contract_type_config(
 @router.delete("/national-contracts/type-configs/{id}", response_model=MessageResponse)
 async def delete_contract_type_config(
     id: UUID,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Delete a contract type configuration override."""
@@ -553,7 +553,7 @@ async def delete_contract_type_config(
 async def update_contract_type_config(
     config_id: UUID,
     data: NationalContractTypeConfigUpdate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Update contract type specific parameters."""
@@ -566,7 +566,7 @@ async def update_contract_type_config(
 @router.post("/national-contracts/levels", response_model=NationalContractLevelResponse, status_code=201)
 async def create_contract_level(
     data: NationalContractLevelCreate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Create new contract level."""
@@ -581,7 +581,7 @@ async def create_contract_level(
 async def update_contract_level(
     level_id: UUID,
     data: NationalContractLevelUpdate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Update contract level."""
@@ -594,7 +594,7 @@ async def update_contract_level(
 @router.delete("/national-contracts/levels/{level_id}", response_model=MessageResponse)
 async def delete_contract_level(
     level_id: UUID,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: ConfigService = Depends(get_config_service),
 ):
     """Delete contract level."""

@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from src.core.security import get_current_user, require_admin, TokenPayload
+from src.core.security import get_current_user, require_permission, TokenPayload
 from src.core.exceptions import ValidationError
 from src.shared.schemas import MessageResponse
 
@@ -55,7 +55,7 @@ async def get_my_balance_summary(
 async def get_user_balance(
     user_id: UUID,
     year: int = Query(default_factory=lambda: date.today().year),
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("leaves:manage")),
     service: LeaveBalanceService = Depends(get_balance_service),
 ):
     """Get a user's balance. Admin only."""
@@ -70,7 +70,7 @@ async def adjust_balance(
     user_id: UUID,
     data: BalanceAdjustment,
     year: int = Query(default_factory=lambda: date.today().year),
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("leaves:manage")),
     service: LeaveBalanceService = Depends(get_balance_service),
 ):
     """Manually adjust a user's balance. Admin only."""
@@ -85,7 +85,7 @@ async def adjust_balance(
 @router.get("/balances/transactions/{balance_id}")
 async def get_balance_transactions(
     balance_id: UUID,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("leaves:manage")),
     service: LeaveBalanceService = Depends(get_balance_service),
 ):
     """Get transactions for a balance. Admin only."""
@@ -95,7 +95,7 @@ async def get_balance_transactions(
 @router.post("/balances/accrual/recalculate", status_code=status.HTTP_204_NO_CONTENT)
 async def recalculate_accruals(
     year: int = Query(default_factory=lambda: date.today().year),
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("leaves:manage")),
     service: AccrualService = Depends(get_accrual_service),
 ):
     """Admin only: Recalculate accruals for all users based on contracts."""
@@ -106,7 +106,7 @@ async def recalculate_accruals(
 async def recalculate_user_accruals(
     user_id: UUID,
     year: int = Query(default_factory=lambda: date.today().year),
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("leaves:manage")),
     service: AccrualService = Depends(get_accrual_service),
 ):
     """Admin only: Recalculate accruals for a specific user."""
@@ -116,7 +116,7 @@ async def recalculate_user_accruals(
 @router.get("/balances/accrual/preview", response_model=RecalculatePreviewResponse)
 async def preview_recalculate(
     year: int = Query(default_factory=lambda: date.today().year),
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("leaves:manage")),
     service: AccrualService = Depends(get_accrual_service),
 ):
     """Admin only: Preview recalculation changes before applying."""
@@ -129,7 +129,7 @@ async def preview_recalculate(
 async def apply_recalculate_selected(
     data: ApplyChangesRequest,
     year: int = Query(default_factory=lambda: date.today().year),
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("leaves:manage")),
     service: AccrualService = Depends(get_accrual_service),
 ):
     """Admin only: Apply recalculation to selected users only."""
@@ -140,7 +140,7 @@ async def apply_recalculate_selected(
 @router.get("/balances/rollover/preview", response_model=RolloverPreviewResponse)
 async def preview_rollover(
     year: int = Query(..., description="Year to close (e.g. 2024)"),
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("leaves:manage")),
     service: LeaveBalanceService = Depends(get_balance_service),
 ):
     """Admin only: Preview rollover changes before applying."""
@@ -153,7 +153,7 @@ async def preview_rollover(
 async def apply_rollover_selected(
     data: ApplyChangesRequest,
     year: int = Query(..., description="Year to close (e.g. 2024)"),
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("leaves:manage")),
     service: LeaveBalanceService = Depends(get_balance_service),
 ):
     """Admin only: Apply rollover to selected users only."""
@@ -161,7 +161,7 @@ async def apply_rollover_selected(
     return MessageResponse(message=f"Rollover applicato a {count} dipendenti.")
 
 
-@router.post("/balances/process-accruals", response_model=MessageResponse, dependencies=[Depends(require_admin)])
+@router.post("/balances/process-accruals", response_model=MessageResponse, dependencies=[Depends(require_permission("leaves:manage"))])
 async def process_monthly_accruals(
     year: int = Query(..., description="Year to process"),
     month: int = Query(..., description="Month to process"),
@@ -172,7 +172,7 @@ async def process_monthly_accruals(
     return MessageResponse(message=f"Elaborazione completata per {count} dipendenti.")
 
 
-@router.post("/balances/process-expirations", response_model=MessageResponse, dependencies=[Depends(require_admin)])
+@router.post("/balances/process-expirations", response_model=MessageResponse, dependencies=[Depends(require_permission("leaves:manage"))])
 async def process_expirations(
     service: LeaveBalanceService = Depends(get_balance_service),
 ):
@@ -181,7 +181,7 @@ async def process_expirations(
     return MessageResponse(message=f"Elaborazione completata. Scaduti {count} pacchetti di ore/giorni.")
 
 
-@router.post("/balances/process-rollover", response_model=MessageResponse, dependencies=[Depends(require_admin)])
+@router.post("/balances/process-rollover", response_model=MessageResponse, dependencies=[Depends(require_permission("leaves:manage"))])
 async def process_rollover(
     year: int = Query(..., description="Year to close (e.g. 2024)"),
     service: LeaveBalanceService = Depends(get_balance_service),

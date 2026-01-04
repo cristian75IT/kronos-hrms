@@ -172,8 +172,10 @@ const notificationService = {
         return response.data;
     },
 
-    getEmailEvents: async (id: string): Promise<EmailEvent[]> => {
-        const response = await api.get<EmailEvent[]>(`/notifications/email-logs/${id}/events`);
+    getEmailEvents: async (id: string, permissive: boolean = false): Promise<EmailEvent[]> => {
+        const response = await api.get<EmailEvent[]>(`/notifications/email-logs/${id}/events`, {
+            params: { permissive }
+        });
         return response.data;
     },
 

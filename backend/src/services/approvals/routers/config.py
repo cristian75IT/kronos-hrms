@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import require_admin, TokenPayload
+from src.core.security import require_permission, TokenPayload
 
 from ..service import ApprovalService
 from ..schemas import (
@@ -40,7 +40,7 @@ def get_service(session: AsyncSession = Depends(get_db)) -> ApprovalService:
 async def list_workflow_configs(
     entity_type: Optional[str] = Query(default=None),
     active_only: bool = Query(default=True),
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("approvals:config")),
     service: ApprovalService = Depends(get_service),
 ):
     """List all workflow configurations."""
@@ -54,7 +54,7 @@ async def list_workflow_configs(
 @router.get("/workflows/{config_id}", response_model=WorkflowConfigResponse)
 async def get_workflow_config(
     config_id: UUID,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("approvals:config")),
     service: ApprovalService = Depends(get_service),
 ):
     """Get workflow configuration by ID."""
@@ -67,7 +67,7 @@ async def get_workflow_config(
 @router.post("/workflows", response_model=WorkflowConfigResponse, status_code=status.HTTP_201_CREATED)
 async def create_workflow_config(
     data: WorkflowConfigCreate,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("approvals:config")),
     service: ApprovalService = Depends(get_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -99,7 +99,7 @@ async def create_workflow_config(
 async def update_workflow_config(
     config_id: UUID,
     data: WorkflowConfigUpdate,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("approvals:config")),
     service: ApprovalService = Depends(get_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -122,7 +122,7 @@ async def update_workflow_config(
 @router.delete("/workflows/{config_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_workflow_config(
     config_id: UUID,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("approvals:config")),
     service: ApprovalService = Depends(get_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -140,7 +140,7 @@ async def delete_workflow_config(
 
 @router.get("/entity-types", response_model=List[EntityTypeInfo])
 async def get_entity_types(
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("approvals:config")),
 ):
     """Get available entity types for workflows."""
     return [
@@ -155,7 +155,7 @@ async def get_entity_types(
 
 @router.get("/approval-modes", response_model=List[ApprovalModeInfo])
 async def get_approval_modes(
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("approvals:config")),
 ):
     """Get available approval modes."""
     return [
@@ -184,7 +184,7 @@ async def get_approval_modes(
 
 @router.get("/expiration-actions", response_model=List[ExpirationActionInfo])
 async def get_expiration_actions(
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("approvals:config")),
 ):
     """Get available expiration actions."""
     return [

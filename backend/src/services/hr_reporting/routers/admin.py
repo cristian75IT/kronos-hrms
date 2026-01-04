@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import require_admin, TokenPayload
+from src.core.security import require_permission, TokenPayload
 
 from ..service import HRReportingService
 from ..schemas import AlertCreate, AlertResponse
@@ -29,7 +29,7 @@ def get_service(session: AsyncSession = Depends(get_db)) -> HRReportingService:
 
 @router.post("/snapshots/create-daily")
 async def create_daily_snapshot(
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:advanced")),
     service: HRReportingService = Depends(get_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -60,7 +60,7 @@ async def create_daily_snapshot(
 @router.get("/snapshots/history")
 async def get_snapshot_history(
     days: int = 30,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:advanced")),
     service: HRReportingService = Depends(get_service),
 ):
     """Get historical snapshots for trend analysis."""
@@ -78,7 +78,7 @@ async def get_snapshot_history(
 @router.post("/alerts", response_model=AlertResponse)
 async def create_alert(
     data: AlertCreate,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:advanced")),
     service: HRReportingService = Depends(get_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -104,7 +104,7 @@ async def create_alert(
 
 @router.get("/alerts/summary")
 async def get_alerts_summary(
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:advanced")),
     service: HRReportingService = Depends(get_service),
 ):
     """Get summary of alerts by severity and type."""
@@ -132,7 +132,7 @@ async def get_alerts_summary(
 @router.post("/cache/invalidate")
 async def invalidate_cache(
     report_type: Optional[str] = None,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:advanced")),
 ):
     """
     Invalidate cached reports.
@@ -152,7 +152,7 @@ async def invalidate_cache(
 
 @router.post("/compliance/run-check")
 async def run_compliance_check(
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:advanced")),
     service: HRReportingService = Depends(get_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -203,7 +203,7 @@ async def run_compliance_check(
 async def calculate_monthly_stats(
     year: int,
     month: int,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:advanced")),
     service: HRReportingService = Depends(get_service),
     db: AsyncSession = Depends(get_db),
 ):

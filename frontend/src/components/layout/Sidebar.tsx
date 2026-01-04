@@ -36,42 +36,47 @@ interface NavItem {
   label: string;
   path: string;
   icon: React.ReactNode;
-  roles?: string[];
+  /** Required permission to view this item (any single permission grants access) */
+  permission?: string;
 }
 
+// Base items - available to all authenticated users
 const navItems: NavItem[] = [
   { label: 'Dashboard', path: '/', icon: <LayoutDashboard size={20} /> },
-  { label: 'Le Mie Ferie', path: '/leaves', icon: <TreePalm size={20} /> },
-  { label: 'Trasferte', path: '/trips', icon: <Briefcase size={20} /> },
-  { label: 'Note Spese', path: '/expenses', icon: <FileText size={20} /> },
-  { label: 'Calendario', path: '/calendar', icon: <Calendar size={20} /> },
-  { label: 'Documenti & Wiki', path: '/wiki', icon: <Book size={20} /> },
+  { label: 'Le Mie Ferie', path: '/leaves', icon: <TreePalm size={20} />, permission: 'leaves:view' },
+  { label: 'Trasferte', path: '/trips', icon: <Briefcase size={20} />, permission: 'trips:view' },
+  { label: 'Note Spese', path: '/expenses', icon: <FileText size={20} />, permission: 'expenses:view' },
+  { label: 'Calendario', path: '/calendar', icon: <Calendar size={20} />, permission: 'calendar:view' },
+  { label: 'Documenti & Wiki', path: '/wiki', icon: <Book size={20} />, permission: 'wiki:view' },
 ];
 
+// Approver section
 const approverItems: NavItem[] = [
-  { label: 'Approvazioni', path: '/approvals/pending', icon: <Users size={20} />, roles: ['approver'] },
+  { label: 'Approvazioni', path: '/approvals/pending', icon: <Users size={20} />, permission: 'approvals:process' },
 ];
 
+// Admin section
 const adminItems: NavItem[] = [
-  { label: 'Gestione Utenti', path: '/admin/users', icon: <Users size={20} />, roles: ['admin', 'hr'] },
-  { label: 'Workflow Approvazioni', path: '/admin/workflows', icon: <GitBranch size={20} />, roles: ['admin'] },
-  { label: 'Centro Notifiche', path: '/admin/notifications', icon: <Bell size={20} />, roles: ['admin', 'hr'] },
-  { label: 'Log Email', path: '/admin/email-logs', icon: <Mail size={20} />, roles: ['admin', 'hr'] },
-  { label: 'Calendari di Sistema', path: '/admin/system-calendars', icon: <Calendar size={20} />, roles: ['admin', 'hr'] },
-  { label: 'Contratti CCNL', path: '/admin/national-contracts', icon: <FileText size={20} />, roles: ['admin', 'hr'] },
-  { label: 'Strumenti Admin', path: '/admin/tools', icon: <Settings size={20} />, roles: ['admin'] },
-  { label: 'Audit Log', path: '/admin/audit-logs', icon: <Terminal size={20} />, roles: ['admin'] },
-  { label: 'Audit Trail', path: '/admin/audit-trail', icon: <HistoryIcon size={20} />, roles: ['admin'] },
-  { label: 'Gestione Ruoli', path: '/admin/roles', icon: <Shield size={20} />, roles: ['admin'] },
+  { label: 'Gestione Utenti', path: '/admin/users', icon: <Users size={20} />, permission: 'users:view' },
+  { label: 'Workflow Approvazioni', path: '/admin/workflows', icon: <GitBranch size={20} />, permission: 'approvals:config' },
+  { label: 'Centro Notifiche', path: '/admin/notifications', icon: <Bell size={20} />, permission: 'notifications:send' },
+  { label: 'Log Email', path: '/admin/email-logs', icon: <Mail size={20} />, permission: 'notifications:view' },
+  { label: 'Calendari di Sistema', path: '/admin/system-calendars', icon: <Calendar size={20} />, permission: 'calendar:manage' },
+  { label: 'Contratti CCNL', path: '/admin/national-contracts', icon: <FileText size={20} />, permission: 'contracts:view' },
+  { label: 'Strumenti Admin', path: '/admin/tools', icon: <Settings size={20} />, permission: 'settings:edit' },
+  { label: 'Audit Log', path: '/admin/audit-logs', icon: <Terminal size={20} />, permission: 'audit:view' },
+  { label: 'Audit Trail', path: '/admin/audit-trail', icon: <HistoryIcon size={20} />, permission: 'audit:view' },
+  { label: 'Gestione Ruoli', path: '/admin/roles', icon: <Shield size={20} />, permission: 'roles:view' },
 ];
 
+// HR section
 const hrItems: NavItem[] = [
-  { label: 'HR Console', path: '/hr/console', icon: <LayoutDashboard size={20} />, roles: ['admin', 'hr'] },
-  { label: 'Report Presenze', path: '/hr/reports', icon: <Activity size={20} />, roles: ['admin', 'hr'] },
-  { label: 'Formazione', path: '/hr/training', icon: <GraduationCap size={20} />, roles: ['admin', 'hr'] },
-  { label: 'Gestione Ferie', path: '/hr/leaves', icon: <TreePalm size={20} />, roles: ['admin', 'hr'] },
-  { label: 'Gestione Trasferte', path: '/hr/trips', icon: <Plane size={20} />, roles: ['admin', 'hr'] },
-  { label: 'Gestione Spese', path: '/hr/expenses', icon: <Receipt size={20} />, roles: ['admin', 'hr'] },
+  { label: 'HR Console', path: '/hr/console', icon: <LayoutDashboard size={20} />, permission: 'reports:view' },
+  { label: 'Report Presenze', path: '/hr/reports', icon: <Activity size={20} />, permission: 'reports:view' },
+  { label: 'Formazione', path: '/hr/training', icon: <GraduationCap size={20} />, permission: 'training:view' },
+  { label: 'Gestione Ferie', path: '/hr/leaves', icon: <TreePalm size={20} />, permission: 'leaves:manage' },
+  { label: 'Gestione Trasferte', path: '/hr/trips', icon: <Plane size={20} />, permission: 'trips:manage' },
+  { label: 'Gestione Spese', path: '/hr/expenses', icon: <Receipt size={20} />, permission: 'expenses:manage' },
 ];
 
 export function Sidebar() {
@@ -80,7 +85,7 @@ export function Sidebar() {
     return document.documentElement.getAttribute('data-theme') === 'dark';
   });
   const location = useLocation();
-  const { user, logout, hasRole, isAdmin, isApprover } = useAuth();
+  const { user, logout, isAdmin, hasPermission } = useAuth();
 
   const toggleDarkMode = () => {
     const newMode = !darkMode;
@@ -94,8 +99,15 @@ export function Sidebar() {
     return location.pathname.startsWith(path);
   };
 
+  // Check if user can see a nav item (admin bypasses, or has required permission)
+  const canSeeItem = (item: NavItem): boolean => {
+    if (isAdmin) return true;
+    if (!item.permission) return true; // No permission required
+    return hasPermission(item.permission);
+  };
+
   const renderNavItem = (item: NavItem) => {
-    if (item.roles && !item.roles.some(r => hasRole(r))) return null;
+    if (!canSeeItem(item)) return null;
 
     // Filter employee-only items for external users
     const employeeOnlyPaths = ['/leaves', '/trips', '/expenses', '/calendar'];
@@ -115,6 +127,11 @@ export function Sidebar() {
         {!collapsed && <span className="sidebar-item-label">{item.label}</span>}
       </Link>
     );
+  };
+
+  // Check if a section has any visible items
+  const hasVisibleItems = (items: NavItem[]): boolean => {
+    return items.some(item => canSeeItem(item));
   };
 
   return (
@@ -140,21 +157,21 @@ export function Sidebar() {
           {navItems.map(renderNavItem)}
         </div>
 
-        {isApprover && (
+        {hasVisibleItems(approverItems) && (
           <div className="sidebar-section">
             {!collapsed && <div className="sidebar-section-title">Approvazioni</div>}
             {approverItems.map(renderNavItem)}
           </div>
         )}
 
-        {(hasRole('hr') || isAdmin) && (
+        {hasVisibleItems(hrItems) && (
           <div className="sidebar-section">
             {!collapsed && <div className="sidebar-section-title">Risorse Umane</div>}
             {hrItems.map(renderNavItem)}
           </div>
         )}
 
-        {(isAdmin || hasRole('hr')) && (
+        {hasVisibleItems(adminItems) && (
           <div className="sidebar-section">
             {!collapsed && <div className="sidebar-section-title">Amministrazione</div>}
             {adminItems.map(renderNavItem)}

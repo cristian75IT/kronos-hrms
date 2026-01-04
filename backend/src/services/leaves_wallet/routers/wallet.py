@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import get_current_user, require_admin, TokenPayload
+from src.core.security import get_current_user, require_permission, TokenPayload
 from ..service import WalletService
 from ..models import EmployeeWallet
 from ..schemas import WalletResponse, TransactionCreate, WalletTransactionResponse
@@ -40,7 +40,7 @@ async def get_user_wallet(
     service: WalletService = Depends(get_wallet_service),
 ):
     """Get wallet for a user (self or admin)."""
-    if current_user.sub != user_id and not current_user.is_admin:
+    if current_user.sub != user_id and not current_user.is_admin and "leaves:view" not in current_user.permissions:
         raise HTTPException(status_code=403, detail="Not authorized to view this wallet")
     
     wallet = await service.get_wallet(user_id, year or datetime.now().year)
@@ -55,7 +55,7 @@ async def get_balance_summary(
     service: WalletService = Depends(get_wallet_service),
 ):
     """Get comprehensive balance summary."""
-    if current_user.sub != user_id and not current_user.is_admin:
+    if current_user.sub != user_id and not current_user.is_admin and "leaves:view" not in current_user.permissions:
         raise HTTPException(status_code=403, detail="Not authorized")
     
     return await service.get_balance_summary(user_id, year)
@@ -70,7 +70,7 @@ async def get_user_transactions(
     service: WalletService = Depends(get_wallet_service),
 ):
     """Get transactions for a user."""
-    if current_user.sub != user_id and not current_user.is_admin:
+    if current_user.sub != user_id and not current_user.is_admin and "leaves:view" not in current_user.permissions:
         raise HTTPException(status_code=403, detail="Not authorized to view these transactions")
     
     wallet = await service.get_wallet(user_id, year or datetime.now().year)
@@ -87,7 +87,7 @@ async def get_available_balance(
     service: WalletService = Depends(get_wallet_service),
 ):
     """Get available balance for a specific type."""
-    if current_user.sub != user_id and not current_user.is_admin:
+    if current_user.sub != user_id and not current_user.is_admin and "leaves:view" not in current_user.permissions:
         raise HTTPException(status_code=403, detail="Not authorized")
     
     available = await service.get_available_balance(user_id, balance_type, year, exclude_reserved)
@@ -102,7 +102,7 @@ async def get_available_balance(
 async def create_transaction(
     user_id: UUID,
     transaction: TransactionCreate,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("leaves:manage")),
     service: WalletService = Depends(get_wallet_service),
 ):
     """Create a wallet transaction (admin/system only)."""
@@ -120,7 +120,7 @@ async def reserve_balance(
     amount: Decimal,
     reference_id: UUID,
     expiry_date: Optional[date] = None,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("leaves:manage")),
     service: WalletService = Depends(get_wallet_service),
 ):
     """
@@ -138,7 +138,7 @@ async def reserve_balance(
 @router.post("/internal/confirm/{reference_id}")
 async def confirm_reservation(
     reference_id: UUID,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("leaves:manage")),
     service: WalletService = Depends(get_wallet_service),
 ):
     """
@@ -155,7 +155,7 @@ async def confirm_reservation(
 @router.post("/internal/cancel/{reference_id}")
 async def cancel_reservation(
     reference_id: UUID,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("leaves:manage")),
     service: WalletService = Depends(get_wallet_service),
 ):
     """
@@ -175,7 +175,7 @@ async def check_balance_sufficient(
     balance_type: str,
     amount: Decimal,
     year: int = None,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("leaves:manage")),
     service: WalletService = Depends(get_wallet_service),
 ):
     """
@@ -210,7 +210,7 @@ async def get_wallet_transactions(
         stmt = select(EmployeeWallet.user_id).where(EmployeeWallet.id == wallet_id)
         res = await session.execute(stmt)
         owner_id = res.scalar_one_or_none()
-        if owner_id != current_user.sub:
+        if owner_id != current_user.sub and "leaves:view" not in current_user.permissions:
             raise HTTPException(status_code=403, detail="Not authorized")
     
     return await service.get_transactions(wallet_id, limit)
@@ -221,7 +221,7 @@ async def admin_process_expiration(
     wallet_id: UUID,
     balance_type: str,
     amount: Decimal,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("leaves:manage")),
     service: WalletService = Depends(get_wallet_service),
 ):
     """Process balance expiration (admin only)."""
@@ -232,7 +232,7 @@ async def admin_process_expiration(
 @router.get("/admin/expiring-balances")
 async def get_expiring_balances(
     expiry_date: date = Query(default=None),
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("leaves:manage")),
     service: WalletService = Depends(get_wallet_service),
 ):
     """Get all balances expiring on or before a date."""
@@ -254,7 +254,7 @@ async def get_expiring_balances(
 @router.get("/admin/wallets-for-accrual")
 async def get_wallets_for_accrual(
     year: int = None,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("leaves:manage")),
     service: WalletService = Depends(get_wallet_service),
 ):
     """Get all wallets needing monthly accrual."""

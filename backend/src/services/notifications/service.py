@@ -409,7 +409,7 @@ class NotificationService:
             await self._session.commit()
             raise e
 
-    async def get_email_events(self, log_id: UUID) -> list[dict]:
+    async def get_email_events(self, log_id: UUID, permissive: bool = False) -> list[dict]:
         """Fetch email events from Brevo for a specific email log."""
         import logging
         logger = logging.getLogger(__name__)
@@ -436,8 +436,9 @@ class NotificationService:
             "sort": "desc",
         }
         
-        # If we have a message_id, we can filter by that too
-        if log.message_id:
+        # If we have a message_id, we can filter by that too, 
+        # unless it's a permissive search
+        if log.message_id and not permissive:
             params["messageId"] = log.message_id
         
         async with httpx.AsyncClient() as client:
@@ -685,6 +686,8 @@ class NotificationService:
         to_name: Optional[str] = None,
     ) -> dict:
         """Send email via Brevo API using database-stored credentials."""
+        import logging
+        logger = logging.getLogger(__name__)
         
         # Fetch settings from database (with caching)
         if not self._cached_settings:
@@ -708,6 +711,9 @@ class NotificationService:
         actual_to_email = to_email
         if provider_settings.test_mode and provider_settings.test_email:
             actual_to_email = provider_settings.test_email
+            logger.info(f"Test mode active: redirecting email from {to_email} to {actual_to_email}")
+        
+        logger.info(f"Final recipient for Brevo: {actual_to_email}")
         
         headers = {
             "api-key": provider_settings.api_key,
@@ -747,6 +753,8 @@ class NotificationService:
                     variables,
                 )
         
+        logger.info(f"Brevo API request payload: {payload}")
+        
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 "https://api.brevo.com/v3/smtp/email",
@@ -754,6 +762,10 @@ class NotificationService:
                 json=payload,
                 timeout=30.0,
             )
+            
+            logger.info(f"Brevo API response status: {response.status_code}")
+            logger.info(f"Brevo API response body: {response.text}")
+            
             response.raise_for_status()
             
             # Increment email counter

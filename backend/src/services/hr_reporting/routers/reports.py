@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import require_admin, require_hr, TokenPayload
+from src.core.security import require_permission, TokenPayload
 
 from ..service import HRReportingService
 from ..aggregator import HRDataAggregator
@@ -46,7 +46,7 @@ async def get_monthly_report(
     year: int = Query(..., ge=2020, le=2100),
     month: int = Query(..., ge=1, le=12),
     department_id: Optional[UUID] = None,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:advanced")),
     service: HRReportingService = Depends(get_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -76,7 +76,7 @@ async def get_monthly_report(
 @router.get("/monthly/{year}")
 async def get_year_monthly_summary(
     year: int,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:advanced")),
     service: HRReportingService = Depends(get_service),
 ):
     """Get summary of all monthly reports for a year."""
@@ -96,7 +96,7 @@ async def get_year_monthly_summary(
 
 @router.get("/compliance", response_model=ComplianceReportResponse)
 async def get_compliance_report(
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:advanced")),
     service: HRReportingService = Depends(get_service),
 ):
     """
@@ -120,7 +120,7 @@ async def get_compliance_report(
 async def get_budget_report(
     year: int = Query(default=None),
     month: Optional[int] = Query(default=None, ge=1, le=12),
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:advanced")),
     service: HRReportingService = Depends(get_service),
 ):
     """
@@ -146,7 +146,7 @@ async def get_budget_report(
 @router.post("/custom")
 async def generate_custom_report(
     request: CustomReportRequest,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:advanced")),
     service: HRReportingService = Depends(get_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -194,7 +194,7 @@ async def generate_custom_report(
 async def export_lul(
     year: int,
     month: int,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:advanced")),
     service: HRReportingService = Depends(get_service),
 ):
     """
@@ -232,7 +232,7 @@ async def export_excel(
     report_type: str,
     year: int = Query(...),
     month: Optional[int] = Query(default=None),
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:advanced")),
     service: HRReportingService = Depends(get_service),
 ):
     """
@@ -254,7 +254,7 @@ async def export_pdf(
     report_type: str,
     year: int = Query(...),
     month: Optional[int] = Query(default=None),
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:advanced")),
     service: HRReportingService = Depends(get_service),
 ):
     """
@@ -279,7 +279,7 @@ async def export_pdf(
 async def get_daily_attendance(
     target_date: date = Query(default=None),
     department: Optional[str] = Query(default=None),
-    current_user: TokenPayload = Depends(require_hr),
+    current_user: TokenPayload = Depends(require_permission("reports:view")),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -341,7 +341,7 @@ async def get_daily_attendance(
 @router.post("/attendance/aggregate", response_model=AggregateAttendanceResponse)
 async def get_aggregate_attendance(
     request: AggregateAttendanceRequest,
-    current_user: TokenPayload = Depends(require_hr),
+    current_user: TokenPayload = Depends(require_permission("reports:view")),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -405,7 +405,7 @@ async def get_aggregate_attendance_get(
     start_date: date = Query(...),
     end_date: date = Query(...),
     department: Optional[str] = Query(default=None),
-    current_user: TokenPayload = Depends(require_hr),
+    current_user: TokenPayload = Depends(require_permission("reports:view")),
     db: AsyncSession = Depends(get_db),
 ):
     """Get aggregate attendance report via GET request."""

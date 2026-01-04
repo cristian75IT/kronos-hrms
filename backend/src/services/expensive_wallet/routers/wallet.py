@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import get_current_user, require_admin, TokenPayload
+from src.core.security import get_current_user, require_permission, TokenPayload
 from ..service import TripWalletService
 from ..schemas import TripWalletResponse, TransactionCreate, TripWalletTransactionResponse, WalletSummary
 
@@ -79,7 +79,7 @@ async def get_wallet(
         )
     
     # Check authorization
-    if wallet.user_id != current_user.sub and not current_user.is_admin:
+    if wallet.user_id != current_user.sub and not current_user.is_admin and "wallet:view" not in current_user.permissions:
         raise HTTPException(status_code=403, detail="Not authorized to view this wallet")
     
     return wallet
@@ -124,7 +124,7 @@ async def initialize_wallet(
     trip_id: UUID,
     user_id: UUID,
     budget: float,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("wallet:manage")),
     service: TripWalletService = Depends(get_wallet_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -138,7 +138,7 @@ async def initialize_wallet(
 async def create_transaction(
     trip_id: UUID, 
     data: TransactionCreate,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("wallet:manage")),
     service: TripWalletService = Depends(get_wallet_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -168,7 +168,7 @@ async def create_transaction(
 async def reserve_budget(
     trip_id: UUID,
     data: BudgetReserveRequest,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("wallet:manage")),
     service: TripWalletService = Depends(get_wallet_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -192,7 +192,7 @@ async def reserve_budget(
 async def confirm_expense(
     trip_id: UUID,
     reference_id: UUID,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("wallet:manage")),
     service: TripWalletService = Depends(get_wallet_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -208,7 +208,7 @@ async def confirm_expense(
 async def cancel_expense(
     trip_id: UUID,
     reference_id: UUID,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("wallet:manage")),
     service: TripWalletService = Depends(get_wallet_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -224,7 +224,7 @@ async def cancel_expense(
 async def check_budget_available(
     trip_id: UUID,
     amount: Decimal,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("wallet:manage")),
     service: TripWalletService = Depends(get_wallet_service),
 ):
     """Check if budget is available for an expense (internal API)."""
@@ -240,7 +240,7 @@ async def check_budget_available(
 async def check_policy_limit(
     trip_id: UUID,
     data: PolicyCheckRequest,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("wallet:manage")),
     service: TripWalletService = Depends(get_wallet_service),
 ):
     """Check if expense exceeds policy limits (internal API)."""
@@ -256,7 +256,7 @@ async def check_policy_limit(
 async def reconcile_wallet(
     trip_id: UUID,
     data: ReconcileRequest,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("wallet:manage")),
     service: TripWalletService = Depends(get_wallet_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -279,7 +279,7 @@ async def reconcile_wallet(
 async def settle_wallet(
     trip_id: UUID,
     data: SettleRequest,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("wallet:manage")),
     service: TripWalletService = Depends(get_wallet_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -301,7 +301,7 @@ async def settle_wallet(
 async def update_budget(
     trip_id: UUID,
     data: UpdateBudgetRequest,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("wallet:manage")),
     service: TripWalletService = Depends(get_wallet_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -324,7 +324,7 @@ async def update_budget(
 async def void_transaction(
     transaction_id: UUID,
     data: VoidTransactionRequest,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("wallet:manage")),
     service: TripWalletService = Depends(get_wallet_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -344,7 +344,7 @@ async def void_transaction(
 
 @router.get("/admin/open-wallets", response_model=List[TripWalletResponse])
 async def get_open_wallets(
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("wallet:manage")),
     service: TripWalletService = Depends(get_wallet_service),
 ):
     """Get all open (non-settled) wallets."""
@@ -355,7 +355,7 @@ async def get_open_wallets(
 async def get_policy_violations(
     user_id: Optional[UUID] = None,
     trip_id: Optional[UUID] = None,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("wallet:manage")),
     service: TripWalletService = Depends(get_wallet_service),
 ):
     """Get transactions with policy violations."""

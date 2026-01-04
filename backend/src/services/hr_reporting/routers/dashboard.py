@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import get_current_user, require_admin, TokenPayload
+from src.core.security import get_current_user, require_permission, TokenPayload
 
 from ..service import HRReportingService
 from ..schemas import DashboardOverview, AlertItem, TeamStats
@@ -30,7 +30,7 @@ def get_service(session: AsyncSession = Depends(get_db)) -> HRReportingService:
 @router.get("/overview", response_model=DashboardOverview)
 async def get_dashboard_overview(
     target_date: Optional[date] = None,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:view")),
     service: HRReportingService = Depends(get_service),
 ):
     """
@@ -73,7 +73,7 @@ async def get_team_dashboard(
 @router.get("/alerts")
 async def get_active_alerts(
     limit: int = Query(default=50, le=200),
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:view")),
     service: HRReportingService = Depends(get_service),
 ):
     """Get all active HR alerts."""
@@ -83,7 +83,7 @@ async def get_active_alerts(
 @router.post("/alerts/{alert_id}/acknowledge")
 async def acknowledge_alert(
     alert_id: UUID,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:view")),
     service: HRReportingService = Depends(get_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -100,7 +100,7 @@ async def acknowledge_alert(
 @router.post("/alerts/{alert_id}/resolve")
 async def resolve_alert(
     alert_id: UUID,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:view")),
     service: HRReportingService = Depends(get_service),
     db: AsyncSession = Depends(get_db),
 ):
@@ -120,7 +120,7 @@ async def resolve_alert(
 
 @router.get("/stats/today")
 async def get_today_stats(
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:view")),
     service: HRReportingService = Depends(get_service),
 ):
     """Get quick statistics for today."""
@@ -135,7 +135,7 @@ async def get_today_stats(
 
 @router.get("/stats/week")
 async def get_week_stats(
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("reports:view")),
     service: HRReportingService = Depends(get_service),
 ):
     """Get weekly trend statistics."""

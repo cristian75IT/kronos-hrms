@@ -76,13 +76,19 @@ export const EmailLogsPage: React.FC = () => {
         }
     };
 
-    const handleViewEvents = async (log: EmailLog) => {
+    const handleViewEvents = async (log: EmailLog, permissive: boolean = false) => {
         setSelectedLog(log);
         setEventsModalOpen(true);
         setEventsLoading(true);
+        if (permissive) {
+            setEvents([]); // Clear previous specific results
+        }
         try {
-            const data = await notificationService.getEmailEvents(log.id);
+            const data = await notificationService.getEmailEvents(log.id, permissive);
             setEvents(data);
+            if (permissive && data.length > 0) {
+                toast.success('Ricerca estesa completata');
+            }
         } catch (error) {
             console.error(error);
             toast.error('Errore nel caricamento degli eventi Brevo');
@@ -336,11 +342,24 @@ export const EmailLogsPage: React.FC = () => {
                         <div className="modal-body">
                             {selectedLog && (
                                 <div className="modal-info">
-                                    <p><strong>Destinatario:</strong> {selectedLog.to_email}</p>
-                                    <p><strong>Template:</strong> {selectedLog.template_code}</p>
-                                    {selectedLog.message_id && (
-                                        <p><strong>Message ID:</strong> <code>{selectedLog.message_id}</code></p>
-                                    )}
+                                    <div className="info-header">
+                                        <div>
+                                            <p><strong>Destinatario:</strong> {selectedLog.to_email}</p>
+                                            <p><strong>Template:</strong> {selectedLog.template_code}</p>
+                                            {selectedLog.message_id && (
+                                                <p><strong>Message ID:</strong> <code>{selectedLog.message_id}</code></p>
+                                            )}
+                                        </div>
+                                        <button
+                                            className="search-permissive-btn"
+                                            onClick={() => handleViewEvents(selectedLog, true)}
+                                            disabled={eventsLoading}
+                                            title="Cerca tutti gli eventi per questo destinatario (senza ID messaggio)"
+                                        >
+                                            <Search size={16} />
+                                            Ricerca Estesa
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                             {eventsLoading ? (
@@ -349,9 +368,17 @@ export const EmailLogsPage: React.FC = () => {
                                     <span>Caricamento eventi...</span>
                                 </div>
                             ) : events.length === 0 ? (
-                                <div className="empty-events">
+                                <div className="empty-events" style={{ textAlign: 'center' }}>
                                     <AlertTriangle size={24} />
-                                    <span>Nessun evento trovato</span>
+                                    <p>Nessun evento diretto trovato per questo ID messaggio.</p>
+                                    <button
+                                        className="search-permissive-btn mt-4"
+                                        onClick={() => handleViewEvents(selectedLog!, true)}
+                                        style={{ margin: '16px auto' }}
+                                    >
+                                        <Search size={16} />
+                                        Prova Ricerca Estesa
+                                    </button>
                                 </div>
                             ) : (
                                 <div className="events-list">
@@ -698,6 +725,43 @@ export const EmailLogsPage: React.FC = () => {
                     background: #e5e7eb;
                     padding: 2px 6px;
                     border-radius: 4px;
+                }
+
+                .info-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: flex-start;
+                    gap: 16px;
+                }
+
+                .search-permissive-btn {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 8px 12px;
+                    background: #eff6ff;
+                    border: 1px solid #bfdbfe;
+                    border-radius: 6px;
+                    color: #1d4ed8;
+                    font-size: 13px;
+                    font-weight: 500;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    white-space: nowrap;
+                }
+
+                .search-permissive-btn:hover {
+                    background: #dbeafe;
+                    border-color: #3b82f6;
+                }
+
+                .search-permissive-btn:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
+
+                .mt-4 {
+                    margin-top: 16px;
                 }
 
                 .loading-state,

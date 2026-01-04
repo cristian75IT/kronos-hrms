@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import get_current_user, TokenPayload
+from src.core.security import get_current_user, require_permission, TokenPayload
 
 from ..schemas import (
     WorkWeekProfileCreate, WorkWeekProfileUpdate, WorkWeekProfileResponse,
@@ -38,7 +38,7 @@ async def list_work_week_profiles(
 async def create_work_week_profile(
     data: WorkWeekProfileCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(require_permission("settings:edit")),
 ):
     service = CalendarService(db)
     return await service.create_work_week_profile(data)
@@ -60,7 +60,7 @@ async def update_work_week_profile(
     profile_id: UUID,
     data: WorkWeekProfileUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(require_permission("settings:edit")),
 ):
     service = CalendarService(db)
     obj = await service.update_work_week_profile(profile_id, data)
@@ -72,7 +72,7 @@ async def update_work_week_profile(
 async def delete_work_week_profile(
     profile_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(require_permission("settings:edit")),
 ):
     service = CalendarService(db)
     success = await service.delete_work_week_profile(profile_id)
@@ -96,7 +96,7 @@ async def list_holiday_profiles(
 async def create_holiday_profile(
     data: HolidayProfileCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(require_permission("settings:edit")),
 ):
     service = CalendarService(db)
     return await service.create_holiday_profile(data)
@@ -118,7 +118,7 @@ async def update_holiday_profile(
     profile_id: UUID,
     data: HolidayProfileUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(require_permission("settings:edit")),
 ):
     service = CalendarService(db)
     obj = await service.update_holiday_profile(profile_id, data)
@@ -130,7 +130,7 @@ async def update_holiday_profile(
 async def delete_holiday_profile(
     profile_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(require_permission("settings:edit")),
 ):
     service = CalendarService(db)
     success = await service.delete_holiday_profile(profile_id)
@@ -156,7 +156,7 @@ async def create_holiday(
     profile_id: UUID,
     data: HolidayCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(require_permission("settings:edit")),
 ):
     service = CalendarService(db)
     # Ensure profile exists? Service could check but we trust create_holiday fails on FK constraint if not
@@ -167,7 +167,7 @@ async def update_holiday(
     holiday_id: UUID,
     data: HolidayUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(require_permission("settings:edit")),
 ):
     service = CalendarService(db)
     obj = await service.update_holiday(holiday_id, data)
@@ -179,7 +179,7 @@ async def update_holiday(
 async def delete_holiday(
     holiday_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(require_permission("settings:edit")),
 ):
     service = CalendarService(db)
     success = await service.delete_holiday(holiday_id)
@@ -203,7 +203,7 @@ async def list_location_calendars(
 async def create_location_calendar(
     data: LocationCalendarCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(require_permission("settings:edit")),
 ):
     service = CalendarService(db)
     return await service.create_location_calendar(data)
@@ -213,7 +213,7 @@ async def update_location_calendar(
     id: UUID,
     data: LocationCalendarUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(require_permission("settings:edit")),
 ):
     service = CalendarService(db)
     obj = await service.update_location_calendar(id, data)
@@ -226,7 +226,7 @@ async def add_location_subscription(
     location_id: UUID,
     calendar_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(require_permission("settings:edit")),
 ):
     service = CalendarService(db)
     # Check if location calendar exists for this location, if not create default?
@@ -241,7 +241,7 @@ async def remove_location_subscription(
     location_id: UUID,
     calendar_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
+    current_user: TokenPayload = Depends(require_permission("settings:edit")),
 ):
     service = CalendarService(db)
     success = await service.remove_location_subscription(location_id, calendar_id)

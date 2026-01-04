@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from src.core.security import require_hr, TokenPayload
+from src.core.security import require_hr, require_permission, TokenPayload
 from src.services.leaves.report_service import LeaveReportService
 from src.services.leaves.schemas import (
     DailyAttendanceRequest,
@@ -19,7 +19,7 @@ router = APIRouter()
 @router.post("/leaves/daily-attendance", response_model=DailyAttendanceResponse)
 async def get_daily_attendance(
     request: DailyAttendanceRequest,
-    token: TokenPayload = Depends(require_hr),
+    token: TokenPayload = Depends(require_permission("reports:view")),
     service: LeaveReportService = Depends(get_report_service),
 ):
     """Get daily attendance report for HR."""
@@ -28,7 +28,7 @@ async def get_daily_attendance(
 @router.post("/leaves/aggregate-attendance", response_model=AggregateReportResponse)
 async def get_aggregate_attendance(
     request: AggregateReportRequest,
-    token: TokenPayload = Depends(require_hr),
+    token: TokenPayload = Depends(require_permission("reports:view")),
     service: LeaveReportService = Depends(get_report_service),
 ):
     """Get aggregated attendance report for HR."""

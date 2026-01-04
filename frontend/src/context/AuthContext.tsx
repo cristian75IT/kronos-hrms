@@ -52,10 +52,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const fetchUserProfile = async () => {
         try {
             // Get user info from backend
-            const response = await authApi.get('/auth/me'); // Changed endpoint to match router (was /users/me but router has /auth/me)
+            const response = await authApi.get('/auth/me');
+
+            // Get roles/permissions from token as source of truth for access
+            const token = tokenStorage.getAccessToken();
+            let tokenRoles: string[] = [];
+            let tokenIsAdmin = false;
+
+            if (token) {
+                const decoded = authService.decodeToken(token);
+                if (decoded) {
+                    tokenRoles = decoded.roles || [];
+                    tokenIsAdmin = decoded.roles.includes('admin');
+                }
+            }
 
             setUser({
                 ...response.data,
+                // Merge token roles with DB roles (if any)
+                roles: Array.from(new Set([...(response.data.roles || []), ...tokenRoles])),
+                // Admin if DB says so OR Token says so
+                is_admin: response.data.is_admin || tokenIsAdmin,
             });
             setIsAuthenticated(true);
         } catch (error) {

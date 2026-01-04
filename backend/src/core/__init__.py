@@ -13,9 +13,7 @@ from src.core.exceptions import (
 )
 from src.core.security import (
     get_current_token,
-    require_admin,
-    require_manager,
-    require_approver,
+    require_permission,
     TokenPayload,
 )
 
@@ -38,8 +36,6 @@ __all__ = [
     "InsufficientBalanceError",
     # Security
     "get_current_token",
-    "require_admin",
-    "require_manager",
-    "require_approver",
+    "require_permission",
     "TokenPayload",
 ]

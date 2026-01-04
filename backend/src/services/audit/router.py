@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import get_current_token, require_admin, TokenPayload
+from src.core.security import get_current_token, require_permission, TokenPayload
 from src.core.exceptions import NotFoundError
 from src.shared.schemas import DataTableRequest
 from src.services.audit.service import AuditService
@@ -57,7 +57,7 @@ async def get_logs(
     status: Optional[str] = None,
     limit: int = Query(default=100, le=500),
     offset: int = Query(default=0, ge=0),
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("audit:view")),
     svc: AuditService = Depends(get_audit_service),
 ):
     """Get audit logs with filters. Admin only."""
@@ -80,7 +80,7 @@ async def logs_datatable(
     request: DataTableRequest,
     resource_type: Optional[str] = None,
     service_name: Optional[str] = None,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("audit:view")),
     svc: AuditService = Depends(get_audit_service),
 ):
     """Get audit logs for DataTable. Admin only."""
@@ -102,7 +102,7 @@ async def logs_datatable(
 @router.get("/audit/logs/{id}", response_model=AuditLogResponse)
 async def get_log(
     id: UUID,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("audit:view")),
     service: AuditService = Depends(get_audit_service),
 ):
     """Get audit log by ID. Admin only."""
@@ -117,7 +117,7 @@ async def get_resource_logs(
     resource_type: str,
     resource_id: str,
     limit: int = Query(default=50, le=200),
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("audit:view")),
     service: AuditService = Depends(get_audit_service),
 ):
     """Get all logs for a specific resource. Admin only."""
@@ -142,7 +142,7 @@ async def record_change(
 async def get_entity_history(
     entity_type: str,
     entity_id: str,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("audit:view")),
     service: AuditService = Depends(get_audit_service),
 ):
     """Get complete history for an entity. Admin only."""
@@ -157,7 +157,7 @@ async def get_entity_version(
     entity_type: str,
     entity_id: str,
     version: int,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("audit:view")),
     service: AuditService = Depends(get_audit_service),
 ):
     """Get specific version of an entity. Admin only."""
@@ -173,7 +173,7 @@ async def compare_versions(
     entity_id: str,
     v1: int = Query(..., description="First version"),
     v2: int = Query(..., description="Second version"),
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("audit:view")),
     service: AuditService = Depends(get_audit_service),
 ):
     """Compare two versions of an entity. Admin only."""
@@ -187,7 +187,7 @@ async def compare_versions(
 async def get_user_changes(
     user_id: UUID,
     limit: int = Query(default=50, le=200),
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("audit:view")),
     service: AuditService = Depends(get_audit_service),
 ):
     """Get all changes made by a user. Admin only."""
@@ -202,7 +202,7 @@ async def get_user_changes(
 @router.get("/audit/stats/summary")
 async def get_audit_stats_summary(
     days: int = Query(default=7, le=90, description="Number of days to include"),
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("audit:view")),
     svc: AuditService = Depends(get_audit_service),
 ):
     """Get audit statistics summary. Admin only."""
@@ -212,7 +212,7 @@ async def get_audit_stats_summary(
 @router.get("/audit/stats/by-service")
 async def get_stats_by_service(
     days: int = Query(default=7, le=90),
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("audit:view")),
     svc: AuditService = Depends(get_audit_service),
 ):
     """Get audit stats grouped by service. Admin only."""
@@ -223,7 +223,7 @@ async def get_stats_by_service(
 async def get_stats_by_action(
     days: int = Query(default=7, le=90),
     service_name: Optional[str] = None,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("audit:view")),
     svc: AuditService = Depends(get_audit_service),
 ):
     """Get audit stats grouped by action. Admin only."""
@@ -238,7 +238,7 @@ async def export_audit_logs(
     service_name: Optional[str] = None,
     resource_type: Optional[str] = None,
     limit: int = Query(default=1000, le=10000),
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("audit:export")),
     svc: AuditService = Depends(get_audit_service),
 ):
     """Export audit logs for compliance. Admin only."""
@@ -322,7 +322,7 @@ async def export_audit_logs(
 @router.post("/audit/archive")
 async def archive_old_logs(
     retention_days: int = Query(default=90, ge=30, le=365),
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("audit:manage")),
     svc: AuditService = Depends(get_audit_service),
 ):
     """Archive old audit logs. Admin only."""
@@ -333,7 +333,7 @@ async def archive_old_logs(
 @router.post("/audit/purge-archives")
 async def purge_old_archives(
     archive_retention_days: int = Query(default=365, ge=180, le=2555),
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("audit:manage")),
     svc: AuditService = Depends(get_audit_service),
 ):
     """Purge old archived logs for GDPR compliance. Admin only."""

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import get_current_user, require_admin, TokenPayload
+from src.core.security import get_current_user, require_permission, TokenPayload
 from src.core.exceptions import NotFoundError
 from src.shared.schemas import MessageResponse, DataTableRequest, DataTableResponse
 from src.services.notifications.service import NotificationService
@@ -98,7 +98,7 @@ async def get_notification_history(
     notification_type: Optional[str] = None,
     status: Optional[str] = None,
     channel: Optional[str] = None,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("notifications:view")),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Get history of sent notifications. Admin only."""
@@ -115,7 +115,7 @@ async def get_notification_history(
 @router.post("/notifications/history/datatable", response_model=DataTableResponse[NotificationResponse])
 async def get_notification_history_datatable(
     data: NotificationDataTableRequest,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("notifications:view")),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Get history of sent notifications for DataTables."""
@@ -210,7 +210,7 @@ async def get_email_stats(
 @router.post("/notifications/email-logs/{id}/retry", response_model=EmailLogResponse)
 async def retry_email(
     id: UUID,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("notifications:manage")),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Manually retry a failed email. Admin only."""
@@ -220,12 +220,13 @@ async def retry_email(
 @router.get("/notifications/email-logs/{id}/events", response_model=list[dict])
 async def get_email_events(
     id: UUID,
-    current_user: TokenPayload = Depends(require_admin),
+    permissive: bool = False,
+    current_user: TokenPayload = Depends(require_permission("notifications:view")),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Get Brevo events for a specific email log. Admin only."""
     try:
-        return await service.get_email_events(id)
+        return await service.get_email_events(id, permissive=permissive)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
@@ -268,7 +269,7 @@ async def mark_all_read(
 @router.post("/notifications/bulk", response_model=BulkNotificationResponse)
 async def send_bulk(
     data: BulkNotificationRequest,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("notifications:send")),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Send bulk notifications. Admin only."""
@@ -295,7 +296,7 @@ async def send_email(
 @router.get("/notifications/templates", response_model=list[EmailTemplateResponse])
 async def get_templates(
     active_only: bool = True,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("notifications:templates")),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Get all email templates. Admin only."""
@@ -305,7 +306,7 @@ async def get_templates(
 @router.get("/notifications/templates/{id}", response_model=EmailTemplateResponse)
 async def get_template(
     id: UUID,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("notifications:templates")),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Get template by ID. Admin only."""
@@ -318,7 +319,7 @@ async def get_template(
 @router.post("/notifications/templates", response_model=EmailTemplateResponse, status_code=201)
 async def create_template(
     data: EmailTemplateCreate,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("notifications:templates")),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Create email template. Admin only."""
@@ -329,7 +330,7 @@ async def create_template(
 async def update_template(
     id: UUID,
     data: EmailTemplateUpdate,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("notifications:templates")),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Update email template. Admin only."""
@@ -342,7 +343,7 @@ async def update_template(
 @router.post("/notifications/templates/{id}/sync", response_model=dict)
 async def sync_template_to_brevo(
     id: UUID,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("notifications:templates")),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Sync template to Brevo. Admin only."""
@@ -406,7 +407,7 @@ async def unsubscribe_from_push(
 
 @router.get("/notifications/settings", response_model=EmailProviderSettingsResponse)
 async def get_email_provider_settings(
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("notifications:settings")),
     session: AsyncSession = Depends(get_db),
 ):
     """Get active email provider settings. Admin only."""
@@ -439,7 +440,7 @@ async def get_email_provider_settings(
 @router.post("/notifications/settings", response_model=EmailProviderSettingsResponse, status_code=201)
 async def create_email_provider_settings(
     data: EmailProviderSettingsCreate,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("notifications:settings")),
     session: AsyncSession = Depends(get_db),
 ):
     """Create email provider settings. Admin only."""
@@ -477,7 +478,7 @@ async def create_email_provider_settings(
 async def update_email_provider_settings(
     id: UUID,
     data: EmailProviderSettingsUpdate,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("notifications:settings")),
     session: AsyncSession = Depends(get_db),
 ):
     """Update email provider settings. Admin only."""
@@ -512,7 +513,7 @@ async def update_email_provider_settings(
 @router.post("/notifications/settings/test", response_model=SendEmailResponse)
 async def test_email_settings(
     data: TestEmailRequest,
-    current_user: TokenPayload = Depends(require_admin),
+    current_user: TokenPayload = Depends(require_permission("notifications:settings")),
     session: AsyncSession = Depends(get_db),
     service: NotificationService = Depends(get_notification_service),
 ):

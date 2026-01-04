@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import get_current_user, require_admin, require_approver, TokenPayload
+from src.core.security import get_current_user, require_permission, TokenPayload
 from src.core.exceptions import NotFoundError, BusinessRuleError, ValidationError
 from src.shared.schemas import MessageResponse, DataTableRequest
 from src.services.expenses.service import ExpenseService
@@ -97,7 +97,7 @@ async def trips_datatable(
 @router.post("/trips/admin/datatable", response_model=TripAdminDataTableResponse)
 async def trips_admin_datatable(
     request: TripDataTableRequest,
-    token: TokenPayload = Depends(require_approver),
+    token: TokenPayload = Depends(require_permission("expenses:approve")),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Get trips for Admin DataTable (includes names)."""
@@ -113,7 +113,7 @@ async def trips_admin_datatable(
 
 @router.get("/trips/pending", response_model=list[BusinessTripListItem])
 async def get_pending_trips(
-    token: TokenPayload = Depends(require_approver),
+    token: TokenPayload = Depends(require_permission("expenses:approve")),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Get trips pending approval. Approver only."""
@@ -180,7 +180,7 @@ async def submit_trip(
 async def approve_trip(
     id: UUID,
     data: ApproveTripRequest = ApproveTripRequest(),
-    token: TokenPayload = Depends(require_approver),
+    token: TokenPayload = Depends(require_permission("expenses:approve")),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Approve trip. Approver only."""
@@ -196,7 +196,7 @@ async def approve_trip(
 async def reject_trip(
     id: UUID,
     data: RejectTripRequest,
-    token: TokenPayload = Depends(require_approver),
+    token: TokenPayload = Depends(require_permission("expenses:approve")),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Reject trip. Approver only."""
@@ -307,7 +307,7 @@ async def get_trip_allowances(
 @router.post("/trips/{trip_id}/allowances/generate", response_model=list[DailyAllowanceResponse])
 async def generate_allowances(
     trip_id: UUID,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("expenses:manage")),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Regenerate allowances for a trip. Admin only."""
@@ -321,7 +321,7 @@ async def generate_allowances(
 async def update_allowance(
     id: UUID,
     data: DailyAllowanceCreate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("expenses:manage")),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Update daily allowance. Admin only."""
@@ -353,7 +353,7 @@ async def get_my_reports(
 async def expenses_admin_datatable(
     request: DataTableRequest,
     status: Optional[str] = Query(None),
-    token: TokenPayload = Depends(require_approver),
+    token: TokenPayload = Depends(require_permission("expenses:approve")),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Get expense reports for Admin DataTable."""
@@ -369,7 +369,7 @@ async def expenses_admin_datatable(
 
 @router.get("/expenses/pending", response_model=list[ExpenseReportListItem])
 async def get_pending_reports(
-    token: TokenPayload = Depends(require_approver),
+    token: TokenPayload = Depends(require_permission("expenses:approve")),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Get reports pending approval. Approver only."""
@@ -456,7 +456,7 @@ async def cancel_report(
 async def approve_report(
     id: UUID,
     data: ApproveReportRequest = ApproveReportRequest(),
-    token: TokenPayload = Depends(require_approver),
+    token: TokenPayload = Depends(require_permission("expenses:approve")),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Approve expense report. Approver only."""
@@ -472,7 +472,7 @@ async def approve_report(
 async def reject_report(
     id: UUID,
     data: RejectReportRequest,
-    token: TokenPayload = Depends(require_approver),
+    token: TokenPayload = Depends(require_permission("expenses:approve")),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Reject expense report. Approver only."""
@@ -488,7 +488,7 @@ async def reject_report(
 async def mark_paid(
     id: UUID,
     data: MarkPaidRequest,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("expenses:manage")),
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Mark report as paid. Admin only."""

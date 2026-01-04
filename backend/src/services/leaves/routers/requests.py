@@ -4,7 +4,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from src.core.security import get_current_user, require_approver, TokenPayload
+from src.core.security import get_current_user, require_approver, require_permission, TokenPayload
 from src.core.exceptions import NotFoundError, BusinessRuleError, ValidationError
 from src.shared.schemas import DataTableRequest
 from src.services.leaves.service import LeaveService
@@ -86,7 +86,7 @@ class LeaveDataTableRequest(DataTableRequest):
 @router.post("/leaves/admin/datatable", response_model=LeaveRequestDataTableResponse)
 async def leaves_admin_datatable(
     request: LeaveDataTableRequest,
-    token: TokenPayload = Depends(require_approver),
+    token: TokenPayload = Depends(require_permission("leaves:manage")),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Get ALL leave requests for DataTable (Admin/HR)."""
@@ -120,7 +120,7 @@ async def leaves_admin_datatable(
 
 @router.get("/leaves/pending", response_model=list[LeaveRequestListItem])
 async def get_pending_approval(
-    token: TokenPayload = Depends(require_approver),
+    token: TokenPayload = Depends(require_permission("leaves:approve")),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Get requests pending approval. Approver only."""
@@ -144,7 +144,7 @@ async def get_approval_history(
     status: Optional[str] = Query(None, description="Filter by status: approved, rejected, cancelled, all"),
     year: Optional[int] = Query(None, description="Filter by year"),
     limit: int = Query(50, ge=1, le=200),
-    token: TokenPayload = Depends(require_approver),
+    token: TokenPayload = Depends(require_permission("leaves:approve")),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Get approval history (all processed requests). Approver only."""
@@ -239,7 +239,7 @@ async def submit_request(
 async def approve_request(
     id: UUID,
     data: ApproveRequest = ApproveRequest(),
-    token: TokenPayload = Depends(require_approver),
+    token: TokenPayload = Depends(require_permission("leaves:approve")),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Approve a pending request. Approver only."""
@@ -257,7 +257,7 @@ async def approve_request(
 async def approve_conditional(
     id: UUID,
     data: ApproveConditionalRequest,
-    token: TokenPayload = Depends(require_approver),
+    token: TokenPayload = Depends(require_permission("leaves:approve")),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Approve with conditions. Approver only."""
@@ -293,7 +293,7 @@ async def accept_condition(
 async def reject_request(
     id: UUID,
     data: RejectRequest,
-    token: TokenPayload = Depends(require_approver),
+    token: TokenPayload = Depends(require_permission("leaves:approve")),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Reject a pending request. Approver only."""
@@ -311,7 +311,7 @@ async def reject_request(
 async def revoke_approval(
     id: UUID,
     reason: str = Query(..., min_length=5, description="Reason for revocation"),
-    token: TokenPayload = Depends(require_approver),
+    token: TokenPayload = Depends(require_permission("leaves:approve")),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Revoke an already approved request. Only within legal deadlines (before start_date)."""
@@ -329,7 +329,7 @@ async def revoke_approval(
 async def reopen_request(
     id: UUID,
     notes: str = Query(None, description="Optional notes for reopening"),
-    token: TokenPayload = Depends(require_approver),
+    token: TokenPayload = Depends(require_permission("leaves:approve")),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Reopen a rejected/cancelled request back to pending. Only before the original start_date."""
@@ -365,7 +365,7 @@ async def cancel_request(
 async def recall_request(
     id: UUID,
     data: RecallRequest,
-    token: TokenPayload = Depends(require_approver),
+    token: TokenPayload = Depends(require_permission("leaves:approve")),
     service: LeaveService = Depends(get_leave_service),
 ):
     """Recall an approved request. Manager only."""

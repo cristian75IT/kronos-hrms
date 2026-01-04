@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.core.security import get_current_token, get_current_user, require_admin, require_manager, TokenPayload
+from src.core.security import get_current_token, get_current_user, require_permission, TokenPayload
 from src.core.exceptions import NotFoundError, ConflictError
 from src.shared.schemas import MessageResponse, DataTableRequest
 from src.services.auth.service import UserService, RBACService
@@ -115,7 +115,7 @@ async def list_users(
     active_only: bool = True,
     limit: int = 100,
     offset: int = 0,
-    token: TokenPayload = Depends(require_manager),
+    token: TokenPayload = Depends(require_permission("users:view")),
     service: UserService = Depends(get_user_service),
 ):
     """List all users. Manager or Admin only."""
@@ -127,7 +127,7 @@ async def list_users(
 async def users_datatable(
     request: DataTableRequest,
     active_only: bool = True,
-    token: TokenPayload = Depends(require_manager),
+    token: TokenPayload = Depends(require_permission("users:view")),
     service: UserService = Depends(get_user_service),
 ):
     """Get users for DataTable with server-side processing."""
@@ -143,7 +143,7 @@ async def users_datatable(
 
 @router.get("/users/subordinates", response_model=list[UserListItem])
 async def get_subordinates(
-    token: TokenPayload = Depends(require_manager),
+    token: TokenPayload = Depends(require_permission("users:view")),
     service: UserService = Depends(get_user_service),
 ):
     """Get direct reports of current manager."""
@@ -212,7 +212,7 @@ async def get_user(
 async def update_user(
     id: UUID,
     data: UserUpdate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("users:edit")),
     service: UserService = Depends(get_user_service),
 ):
     """Update user. Admin only."""
@@ -225,7 +225,7 @@ async def update_user(
 @router.delete("/users/{id}", response_model=MessageResponse)
 async def deactivate_user(
     id: UUID,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("users:delete")),
     service: UserService = Depends(get_user_service),
 ):
     """Deactivate user. Admin only."""
@@ -239,7 +239,7 @@ async def deactivate_user(
 @router.post("/users/sync", response_model=KeycloakSyncResponse)
 async def sync_users_from_keycloak(
     request: KeycloakSyncRequest = KeycloakSyncRequest(),
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("users:manage")),
     service: UserService = Depends(get_user_service),
 ):
     """Sync all users from Keycloak. Admin only."""
@@ -276,7 +276,7 @@ async def get_area(
 @router.post("/areas", response_model=AreaResponse, status_code=201)
 async def create_area(
     data: AreaCreate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: UserService = Depends(get_user_service),
 ):
     """Create new area. Admin only."""
@@ -290,7 +290,7 @@ async def create_area(
 async def update_area(
     id: UUID,
     data: AreaUpdate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: UserService = Depends(get_user_service),
 ):
     """Update area. Admin only."""
@@ -330,7 +330,7 @@ async def get_location(
 @router.post("/locations", response_model=LocationResponse, status_code=201)
 async def create_location(
     data: LocationCreate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: UserService = Depends(get_user_service),
 ):
     """Create new location. Admin only."""
@@ -347,7 +347,7 @@ async def create_location(
 @router.get("/users/{user_id}/contracts", response_model=list[EmployeeContractResponse])
 async def get_user_contracts(
     user_id: UUID,
-    token: TokenPayload = Depends(require_manager),
+    token: TokenPayload = Depends(require_permission("users:view")),
     service: UserService = Depends(get_user_service),
 ):
     """Get all contracts for a user."""
@@ -358,7 +358,7 @@ async def get_user_contracts(
 async def create_user_contract(
     user_id: UUID,
     data: EmployeeContractCreate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("users:edit")),
     service: UserService = Depends(get_user_service),
 ):
     """Add a new contract to user history. Admin only."""
@@ -385,7 +385,7 @@ async def list_contract_types(
 @router.post("/contract-types", response_model=ContractTypeResponse, status_code=201)
 async def create_contract_type(
     data: ContractTypeCreate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: UserService = Depends(get_user_service),
 ):
     """Create new contract type. Admin only."""
@@ -396,7 +396,7 @@ async def create_contract_type(
 async def update_contract_type(
     id: UUID,
     data: ContractTypeUpdate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: UserService = Depends(get_user_service),
 ):
     """Update contract type. Admin only."""
@@ -420,7 +420,7 @@ async def list_work_schedules(
 @router.post("/work-schedules", response_model=WorkScheduleResponse, status_code=201)
 async def create_work_schedule(
     data: WorkScheduleCreate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("settings:edit")),
     service: UserService = Depends(get_user_service),
 ):
     """Create new work schedule. Admin only."""
@@ -439,7 +439,7 @@ async def get_user_trainings(
 ):
     """Get all training records for a user."""
     # Check if current user is HR/Admin or the user themselves
-    if not (token.is_hr or token.is_admin or token.user_id == user_id):
+    if not (token.user_id == user_id or token.is_admin or "users:view" in token.permissions):
          raise HTTPException(status_code=403, detail="Not authorized to view these training records")
          
     return await service.get_employee_trainings(user_id)
@@ -448,12 +448,10 @@ async def get_user_trainings(
 @router.post("/trainings", response_model=EmployeeTrainingResponse, status_code=201)
 async def create_training(
     data: EmployeeTrainingCreate,
-    token: TokenPayload = Depends(get_current_user),
+    token: TokenPayload = Depends(require_permission("users:edit")),
     service: UserService = Depends(get_user_service),
 ):
     """Create new training record. HR or Admin only."""
-    if not (token.is_hr or token.is_admin):
-        raise HTTPException(status_code=403, detail="Only HR or Admin can manage training records")
              
     return await service.create_employee_training(data, actor_id=token.user_id)
 
@@ -462,12 +460,10 @@ async def create_training(
 async def update_training(
     id: UUID,
     data: EmployeeTrainingUpdate,
-    token: TokenPayload = Depends(get_current_user),
+    token: TokenPayload = Depends(require_permission("users:edit")),
     service: UserService = Depends(get_user_service),
 ):
     """Update training record. HR or Admin only."""
-    if not (token.is_hr or token.is_admin):
-        raise HTTPException(status_code=403, detail="Only HR or Admin can manage training records")
         
     try:
         return await service.update_employee_training(id, data, actor_id=token.user_id)
@@ -478,12 +474,10 @@ async def update_training(
 @router.delete("/trainings/{id}", status_code=204)
 async def delete_training(
     id: UUID,
-    token: TokenPayload = Depends(get_current_user),
+    token: TokenPayload = Depends(require_permission("users:edit")),
     service: UserService = Depends(get_user_service),
 ):
     """Delete training record. HR or Admin only."""
-    if not (token.is_hr or token.is_admin):
-        raise HTTPException(status_code=403, detail="Only HR or Admin can manage training records")
         
     try:
         await service.delete_employee_training(id, actor_id=token.user_id)
@@ -497,10 +491,10 @@ async def delete_training(
 
 @router.get("/roles", response_model=list[RoleRead])
 async def list_roles(
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("roles:view")),
     service: RBACService = Depends(get_rbac_service),
 ):
-    """List all RBAC roles with permissions. Admin only."""
+    """List all RBAC roles with permissions. Requires roles:view permission."""
     logger.info("Entering list_roles endpoint")
     try:
         logger.info("Calling service.get_roles()")
@@ -520,7 +514,7 @@ async def list_roles(
 
 @router.get("/permissions", response_model=list[PermissionRead])
 async def list_permissions(
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("roles:view")),
     service: RBACService = Depends(get_rbac_service),
 ):
     """List all available permissions. Admin only."""
@@ -545,10 +539,10 @@ async def list_permissions(
 async def update_role_permissions(
     id: UUID,
     data: RolePermissionUpdate,
-    token: TokenPayload = Depends(require_admin),
+    token: TokenPayload = Depends(require_permission("roles:edit")),
     service: RBACService = Depends(get_rbac_service),
 ):
-    """Update permissions for a role. Admin only."""
+    """Update permissions for a role. Requires roles:edit permission."""
     try:
         return await service.update_role_permissions(id, data.permission_ids, actor_id=token.user_id)
     except NotFoundError as e:
