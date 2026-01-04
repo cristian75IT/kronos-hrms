@@ -71,6 +71,9 @@ class WorkflowConfigBase(BaseModel):
     # Status
     is_active: bool = Field(default=True)
     is_default: bool = Field(default=False)
+    
+    # Target roles - workflow applies only to users with these roles
+    target_role_ids: List[str] = Field(default_factory=list, description="Role IDs this workflow applies to (empty = all)")
 
 
 class WorkflowConfigCreate(WorkflowConfigBase):
@@ -80,6 +83,7 @@ class WorkflowConfigCreate(WorkflowConfigBase):
 
 class WorkflowConfigUpdate(BaseModel):
     """Update workflow configuration request."""
+    entity_type: Optional[str] = None
     name: Optional[str] = None
     description: Optional[str] = None
     min_approvers: Optional[int] = None
@@ -97,6 +101,7 @@ class WorkflowConfigUpdate(BaseModel):
     priority: Optional[int] = None
     is_active: Optional[bool] = None
     is_default: Optional[bool] = None
+    target_role_ids: Optional[List[str]] = None
 
 
 class WorkflowConfigResponse(WorkflowConfigBase):
@@ -149,7 +154,7 @@ class ApprovalRequestResponse(BaseModel):
     
     title: str
     description: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = Field(default=None, alias="request_metadata")
     
     status: str
     required_approvals: int
@@ -171,6 +176,7 @@ class ApprovalRequestResponse(BaseModel):
 
     class Config:
         from_attributes = True
+        populate_by_name = True
 
 
 class ApprovalRequestSummary(BaseModel):
@@ -279,6 +285,30 @@ class PendingCountResponse(BaseModel):
     total: int
     urgent: int
     by_type: Dict[str, int]
+
+
+class ArchivedApprovalItem(BaseModel):
+    """Archived approval decision for an approver."""
+    request_id: UUID
+    entity_type: str
+    entity_id: UUID
+    entity_ref: Optional[str] = None
+    
+    title: str
+    description: Optional[str] = None
+    requester_name: Optional[str] = None
+    
+    decision: str  # APPROVED, REJECTED, DELEGATED
+    decision_notes: Optional[str] = None
+    decided_at: datetime
+    
+    created_at: datetime
+
+
+class ArchivedApprovalsResponse(BaseModel):
+    """List of archived approvals for current user."""
+    total: int
+    items: List[ArchivedApprovalItem]
 
 
 # ═══════════════════════════════════════════════════════════

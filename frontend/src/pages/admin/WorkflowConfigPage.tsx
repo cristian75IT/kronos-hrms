@@ -14,16 +14,16 @@ import {
     Users,
     CheckCircle,
     XCircle,
-    AlertTriangle,
     ArrowUpCircle,
     Layers,
-    ChevronDown,
-    ChevronRight,
+    Shield,
+    FileText,
+    Bell,
+    Calendar,
+    Search,
+    Loader2
 } from 'lucide-react';
 
-import { Button } from '../../components/common/Button';
-import { Card } from '../../components/common/Card';
-import { Modal } from '../../components/common/Modal';
 import approvalsService from '../../services/approvals.service';
 import type {
     WorkflowConfig,
@@ -37,37 +37,33 @@ import type {
 // Helper Components
 // ═══════════════════════════════════════════════════════════
 
-const ApprovalModeIcon: React.FC<{ mode: string }> = ({ mode }) => {
-    switch (mode) {
-        case 'ANY':
-            return <CheckCircle className="h-4 w-4 text-green-500" />;
-        case 'ALL':
-            return <Users className="h-4 w-4 text-blue-500" />;
-        case 'SEQUENTIAL':
-            return <Layers className="h-4 w-4 text-purple-500" />;
-        case 'MAJORITY':
-            return <ArrowUpCircle className="h-4 w-4 text-orange-500" />;
-        default:
-            return null;
-    }
-};
-
-const ExpirationActionBadge: React.FC<{ action: string }> = ({ action }) => {
-    const configs: Record<string, { color: string; icon: React.ReactNode }> = {
-        REJECT: { color: 'bg-red-100 text-red-700', icon: <XCircle className="h-3 w-3" /> },
-        ESCALATE: { color: 'bg-yellow-100 text-yellow-700', icon: <ArrowUpCircle className="h-3 w-3" /> },
-        AUTO_APPROVE: { color: 'bg-green-100 text-green-700', icon: <CheckCircle className="h-3 w-3" /> },
-        NOTIFY_ONLY: { color: 'bg-blue-100 text-blue-700', icon: <AlertTriangle className="h-3 w-3" /> },
+const ApprovalModeBadge: React.FC<{ mode: string, name?: string }> = ({ mode, name }) => {
+    const styles = {
+        ANY: { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: <CheckCircle className="w-3 h-3" /> },
+        ALL: { bg: 'bg-blue-50 text-blue-700 border-blue-200', icon: <Users className="w-3 h-3" /> },
+        SEQUENTIAL: { bg: 'bg-purple-50 text-purple-700 border-purple-200', icon: <Layers className="w-3 h-3" /> },
+        MAJORITY: { bg: 'bg-orange-50 text-orange-700 border-orange-200', icon: <ArrowUpCircle className="w-3 h-3" /> },
     };
-    const config = configs[action] || configs.REJECT;
+    const style = styles[mode as keyof typeof styles] || styles.ANY;
 
     return (
-        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-            {config.icon}
-            {action}
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${style.bg}`}>
+            {style.icon}
+            {name || mode}
         </span>
     );
 };
+
+const EntityTypeBadge: React.FC<{ type: string }> = ({ type }) => {
+    switch (type) {
+        case 'leave': return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700"><Calendar className="w-3 h-3" /> Ferie/Permessi</span>;
+        case 'trip': return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-pink-50 text-pink-700"><MapPin className="w-3 h-3" /> Trasferte</span>;
+        case 'expense': return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-teal-50 text-teal-700"><DollarSign className="w-3 h-3" /> Spese</span>;
+        default: return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700"><FileText className="w-3 h-3" /> {type}</span>;
+    }
+};
+
+import { MapPin, DollarSign } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════
 // Workflow Form Modal
@@ -92,6 +88,7 @@ const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
     approvalModes,
     expirationActions,
 }) => {
+    const toast = useToast();
     const [formData, setFormData] = useState<WorkflowConfigCreate>({
         entity_type: '',
         name: '',
@@ -109,6 +106,7 @@ const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
         priority: 100,
         is_active: true,
         is_default: false,
+        target_role_ids: [],
     });
     const [isSaving, setIsSaving] = useState(false);
 
@@ -131,10 +129,11 @@ const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
                 priority: workflow.priority,
                 is_active: workflow.is_active,
                 is_default: workflow.is_default,
+                target_role_ids: workflow.target_role_ids || [],
             });
         } else {
             setFormData({
-                entity_type: '',
+                entity_type: entityTypes.length > 0 ? entityTypes[0].code : '',
                 name: '',
                 description: '',
                 min_approvers: 1,
@@ -148,557 +147,527 @@ const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
                 priority: 100,
                 is_active: true,
                 is_default: false,
+                target_role_ids: [],
             });
         }
-    }, [workflow, isOpen]);
+    }, [workflow, isOpen, entityTypes]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         if (!formData.entity_type || !formData.name) {
-            toast.error('Compila i campi obbligatori');
+            toast.error('Compila i campi obbligatori (Nome e Tipo Entità)');
             return;
         }
 
-        setIsSaving(true);
         try {
+            setIsSaving(true);
             await onSave(formData);
             onClose();
+        } catch (error) {
+            console.error(error);
+            toast.error('Errore durante il salvataggio');
         } finally {
             setIsSaving(false);
         }
     };
 
+    if (!isOpen) return null;
+
     return (
-        <Modal
-            isOpen={isOpen}
-            onClose={onClose}
-            title={workflow ? 'Modifica Workflow' : 'Nuovo Workflow'}
-            size="lg"
-        >
-            <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Basic Info */}
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Tipo Entità *
-                        </label>
-                        <select
-                            value={formData.entity_type}
-                            onChange={(e) => setFormData({ ...formData, entity_type: e.target.value })}
-                            className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            disabled={!!workflow}
-                        >
-                            <option value="">Seleziona...</option>
-                            {entityTypes.map((t) => (
-                                <option key={t.code} value={t.code}>
-                                    {t.name}
-                                </option>
-                            ))}
-                        </select>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn" onClick={onClose}>
+            <div
+                className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-scaleIn"
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Modal Header */}
+                <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-lg text-white shadow-sm">
+                            <Settings size={20} />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-900">{workflow ? 'Modifica Workflow' : 'Nuovo Workflow'}</h3>
+                            <p className="text-xs text-gray-500">Configura le regole di approvazione</p>
+                        </div>
                     </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Nome Workflow *
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.name}
-                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            placeholder="es. Approvazione Ferie Standard"
-                        />
-                    </div>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-2 rounded-full transition-colors">
+                        <XCircle size={20} />
+                    </button>
                 </div>
 
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Descrizione
-                    </label>
-                    <textarea
-                        value={formData.description || ''}
-                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                        className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        rows={2}
-                    />
-                </div>
+                {/* Modal Body */}
+                <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {/* Section 1: General Info */}
+                        <div className="space-y-6">
+                            <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                                <FileText className="text-indigo-500" size={18} />
+                                <h4 className="font-semibold text-gray-900">Informazioni Generali</h4>
+                            </div>
 
-                {/* Approval Settings */}
-                <div className="border-t pt-4">
-                    <h4 className="text-sm font-semibold text-gray-900 mb-3">Impostazioni Approvazione</h4>
-
-                    <div className="grid grid-cols-3 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Modalità
-                            </label>
-                            <select
-                                value={formData.approval_mode}
-                                onChange={(e) => setFormData({ ...formData, approval_mode: e.target.value })}
-                                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            >
-                                {approvalModes.map((m) => (
-                                    <option key={m.code} value={m.code}>
-                                        {m.name}
-                                    </option>
-                                ))}
-                            </select>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Nome Workflow *</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                        value={formData.name}
+                                        onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                        placeholder="es. Approvazione Ferie Manager"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Tipo Entità *</label>
+                                        <select
+                                            className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                            value={formData.entity_type}
+                                            onChange={e => setFormData({ ...formData, entity_type: e.target.value })}
+                                        >
+                                            <option value="" disabled>Seleziona tipo...</option>
+                                            {entityTypes.map(t => (
+                                                <option key={t.code} value={t.code}>{t.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Priorità</label>
+                                        <input
+                                            type="number"
+                                            className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                            value={formData.priority}
+                                            onChange={e => setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })}
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Descrizione</label>
+                                    <textarea
+                                        className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm resize-none h-20"
+                                        value={formData.description}
+                                        onChange={e => setFormData({ ...formData, description: e.target.value })}
+                                        placeholder="Descrivi lo scopo di questo workflow..."
+                                    />
+                                </div>
+                            </div>
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Min. Approvatori
-                            </label>
-                            <input
-                                type="number"
-                                min={1}
-                                max={10}
-                                value={formData.min_approvers}
-                                onChange={(e) => setFormData({ ...formData, min_approvers: parseInt(e.target.value) })}
-                                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            />
+                        {/* Section 2: Approval Rules */}
+                        <div className="space-y-6">
+                            <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                                <Shield className="text-purple-500" size={18} />
+                                <h4 className="font-semibold text-gray-900">Regole Approvazione</h4>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Modalità</label>
+                                        <select
+                                            className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                            value={formData.approval_mode}
+                                            onChange={e => setFormData({ ...formData, approval_mode: e.target.value })}
+                                        >
+                                            {approvalModes.map(m => (
+                                                <option key={m.code} value={m.code}>{m.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Min. Approvatori</label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                            value={formData.min_approvers}
+                                            onChange={e => setFormData({ ...formData, min_approvers: parseInt(e.target.value) || 1 })}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-3 pt-2">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                            checked={formData.auto_assign_approvers}
+                                            onChange={e => setFormData({ ...formData, auto_assign_approvers: e.target.checked })}
+                                        />
+                                        <span className="text-sm text-gray-700">Assegnazione Automatica Approvatori</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                            checked={formData.allow_self_approval}
+                                            onChange={e => setFormData({ ...formData, allow_self_approval: e.target.checked })}
+                                        />
+                                        <span className="text-sm text-gray-700">Consenti Auto-approvazione</span>
+                                    </label>
+                                </div>
+                            </div>
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Max. Approvatori
-                            </label>
-                            <input
-                                type="number"
-                                min={1}
-                                max={20}
-                                value={formData.max_approvers || ''}
-                                onChange={(e) => setFormData({ ...formData, max_approvers: e.target.value ? parseInt(e.target.value) : undefined })}
-                                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                placeholder="Nessun limite"
-                            />
+                        {/* Section 3: Timeouts */}
+                        <div className="space-y-6">
+                            <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                                <Clock className="text-orange-500" size={18} />
+                                <h4 className="font-semibold text-gray-900">Scadenze</h4>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Scadenza (ore)</label>
+                                    <input
+                                        type="number"
+                                        placeholder="Opzionale"
+                                        className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                        value={formData.expiration_hours || ''}
+                                        onChange={e => setFormData({ ...formData, expiration_hours: e.target.value ? parseInt(e.target.value) : undefined })}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Azione Scadenza</label>
+                                    <select
+                                        className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                        value={formData.expiration_action}
+                                        onChange={e => setFormData({ ...formData, expiration_action: e.target.value })}
+                                    >
+                                        {expirationActions.map(a => (
+                                            <option key={a.code} value={a.code}>{a.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Section 4: Notifications */}
+                        <div className="space-y-6">
+                            <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                                <Bell className="text-teal-500" size={18} />
+                                <h4 className="font-semibold text-gray-900">Notifiche</h4>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="space-y-3">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                            checked={formData.send_reminders}
+                                            onChange={e => setFormData({ ...formData, send_reminders: e.target.checked })}
+                                        />
+                                        <span className="text-sm text-gray-700">Invia Promemoria</span>
+                                    </label>
+                                </div>
+                                {formData.send_reminders && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Ore prima per promemoria</label>
+                                        <input
+                                            type="number"
+                                            className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                                            value={formData.reminder_hours_before}
+                                            onChange={e => setFormData({ ...formData, reminder_hours_before: parseInt(e.target.value) || 0 })}
+                                        />
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
+                </form>
 
-                    <div className="mt-4 flex gap-6">
-                        <label className="flex items-center gap-2">
-                            <input
-                                type="checkbox"
-                                checked={formData.auto_assign_approvers}
-                                onChange={(e) => setFormData({ ...formData, auto_assign_approvers: e.target.checked })}
-                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                            />
-                            <span className="text-sm text-gray-700">Assegna automaticamente</span>
-                        </label>
-
-                        <label className="flex items-center gap-2">
-                            <input
-                                type="checkbox"
-                                checked={formData.allow_self_approval}
-                                onChange={(e) => setFormData({ ...formData, allow_self_approval: e.target.checked })}
-                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                            />
-                            <span className="text-sm text-gray-700">Permetti auto-approvazione</span>
-                        </label>
-                    </div>
-                </div>
-
-                {/* Expiration Settings */}
-                <div className="border-t pt-4">
-                    <h4 className="text-sm font-semibold text-gray-900 mb-3">Scadenza</h4>
-
-                    <div className="grid grid-cols-3 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Ore alla Scadenza
-                            </label>
-                            <input
-                                type="number"
-                                min={1}
-                                value={formData.expiration_hours || ''}
-                                onChange={(e) => setFormData({ ...formData, expiration_hours: e.target.value ? parseInt(e.target.value) : undefined })}
-                                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                placeholder="Nessuna scadenza"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Azione alla Scadenza
-                            </label>
-                            <select
-                                value={formData.expiration_action}
-                                onChange={(e) => setFormData({ ...formData, expiration_action: e.target.value })}
-                                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            >
-                                {expirationActions.map((a) => (
-                                    <option key={a.code} value={a.code}>
-                                        {a.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Promemoria (ore prima)
-                            </label>
-                            <input
-                                type="number"
-                                min={1}
-                                value={formData.reminder_hours_before || ''}
-                                onChange={(e) => setFormData({ ...formData, reminder_hours_before: e.target.value ? parseInt(e.target.value) : undefined })}
-                                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                disabled={!formData.send_reminders}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="mt-4">
-                        <label className="flex items-center gap-2">
-                            <input
-                                type="checkbox"
-                                checked={formData.send_reminders}
-                                onChange={(e) => setFormData({ ...formData, send_reminders: e.target.checked })}
-                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                            />
-                            <span className="text-sm text-gray-700">Invia promemoria</span>
-                        </label>
-                    </div>
-                </div>
-
-                {/* Priority & Status */}
-                <div className="border-t pt-4">
-                    <div className="grid grid-cols-3 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Priorità (1-1000)
-                            </label>
-                            <input
-                                type="number"
-                                min={1}
-                                max={1000}
-                                value={formData.priority}
-                                onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) })}
-                                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            />
-                            <p className="text-xs text-gray-500 mt-1">Valori più bassi = priorità maggiore</p>
-                        </div>
-
-                        <div className="flex items-end gap-6">
-                            <label className="flex items-center gap-2">
+                {/* Modal Footer */}
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Stato Iniziale:</span>
+                        <div className="flex items-center gap-2">
+                            <label className="relative inline-flex items-center cursor-pointer">
                                 <input
                                     type="checkbox"
+                                    className="sr-only peer"
                                     checked={formData.is_active}
-                                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                    onChange={e => setFormData({ ...formData, is_active: e.target.checked })}
                                 />
-                                <span className="text-sm text-gray-700">Attivo</span>
+                                <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                                <span className="ml-2 text-sm font-medium text-gray-700">{formData.is_active ? 'Attivo' : 'Inattivo'}</span>
                             </label>
-
-                            <label className="flex items-center gap-2">
+                            <label className="flex items-center gap-2 cursor-pointer ml-4">
                                 <input
                                     type="checkbox"
-                                    checked={formData.is_default}
-                                    onChange={(e) => setFormData({ ...formData, is_default: e.target.checked })}
                                     className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                    checked={formData.is_default}
+                                    onChange={e => setFormData({ ...formData, is_default: e.target.checked })}
                                 />
                                 <span className="text-sm text-gray-700">Default</span>
                             </label>
                         </div>
                     </div>
-                </div>
 
-                {/* Actions */}
-                <div className="flex justify-end gap-3 pt-4 border-t">
-                    <Button variant="secondary" onClick={onClose} disabled={isSaving}>
-                        Annulla
-                    </Button>
-                    <Button type="submit" isLoading={isSaving}>
-                        {workflow ? 'Salva Modifiche' : 'Crea Workflow'}
-                    </Button>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={onClose}
+                            className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                        >
+                            Annulla
+                        </button>
+                        <button
+                            onClick={handleSubmit}
+                            disabled={isSaving}
+                            className="flex items-center gap-2 px-6 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-all disabled:opacity-50"
+                        >
+                            {isSaving && <Loader2 size={16} className="animate-spin" />}
+                            Salva Configurazione
+                        </button>
+                    </div>
                 </div>
-            </form>
-        </Modal>
+            </div>
+        </div>
     );
 };
 
 // ═══════════════════════════════════════════════════════════
-// Main Page Component
+// Main Page
 // ═══════════════════════════════════════════════════════════
 
 const WorkflowConfigPage: React.FC = () => {
     const toast = useToast();
-
     const [workflows, setWorkflows] = useState<WorkflowConfig[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
     const [entityTypes, setEntityTypes] = useState<EntityTypeInfo[]>([]);
     const [approvalModes, setApprovalModes] = useState<ApprovalModeInfo[]>([]);
     const [expirationActions, setExpirationActions] = useState<ExpirationActionInfo[]>([]);
 
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingWorkflow, setEditingWorkflow] = useState<WorkflowConfig | null>(null);
-    const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set());
+    const [currentWorkflow, setCurrentWorkflow] = useState<WorkflowConfig | null>(null);
 
-    useEffect(() => {
-        loadData();
-    }, []);
+    // Filters
+    const [searchTerm, setSearchTerm] = useState('');
+    const [entityFilter, setEntityFilter] = useState<string>('all');
 
-    const loadData = async () => {
+    const fetchData = async () => {
         setIsLoading(true);
         try {
-            const [wfs, types, modes, actions] = await Promise.all([
-                approvalsService.getWorkflowConfigs(undefined, false),
+            const [wf, et, am, ea] = await Promise.all([
+                approvalsService.getWorkflowConfigs(undefined, false), // Fetch all, including inactive
                 approvalsService.getEntityTypes(),
                 approvalsService.getApprovalModes(),
-                approvalsService.getExpirationActions(),
+                approvalsService.getExpirationActions()
             ]);
-            setWorkflows(wfs);
-            setEntityTypes(types);
-            setApprovalModes(modes);
-            setExpirationActions(actions);
-
-            // Expand all types by default
-            setExpandedTypes(new Set(types.map(t => t.code)));
+            setWorkflows(wf);
+            setEntityTypes(et);
+            setApprovalModes(am);
+            setExpirationActions(ea);
         } catch (error) {
             console.error(error);
-            toast.error('Errore nel caricamento dei workflow');
+            toast.error('Errore durante il caricamento dei dati');
         } finally {
             setIsLoading(false);
         }
     };
 
-    const handleCreate = () => {
-        setEditingWorkflow(null);
-        setIsModalOpen(true);
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const handleCreateWrapper = async (data: WorkflowConfigCreate) => {
+        await approvalsService.createWorkflowConfig(data);
+        toast.success('Workflow creato con successo');
+        fetchData();
     };
 
-    const handleEdit = (workflow: WorkflowConfig) => {
-        setEditingWorkflow(workflow);
-        setIsModalOpen(true);
+    const handleUpdateWrapper = async (data: WorkflowConfigCreate) => {
+        if (!currentWorkflow) return;
+        await approvalsService.updateWorkflowConfig(currentWorkflow.id, data);
+        toast.success('Workflow aggiornato con successo');
+        fetchData();
     };
 
-    const handleSave = async (data: WorkflowConfigCreate) => {
+    const handleDelete = async (id: string) => {
+        if (!confirm('Sei sicuro di voler eliminare questo workflow? Questa azione è irreversibile.')) return;
         try {
-            if (editingWorkflow) {
-                await approvalsService.updateWorkflowConfig(editingWorkflow.id, data);
-                toast.success('Workflow aggiornato');
-            } else {
-                await approvalsService.createWorkflowConfig(data);
-                toast.success('Workflow creato');
-            }
-            loadData();
+            await approvalsService.deleteWorkflowConfig(id);
+            toast.success('Workflow eliminato');
+            fetchData();
         } catch (error) {
             console.error(error);
-            toast.error('Errore nel salvataggio');
-            throw error;
+            toast.error('Errore durante l\'eliminazione');
         }
     };
 
-    const handleDelete = async (workflow: WorkflowConfig) => {
-        if (!confirm(`Sei sicuro di voler disattivare "${workflow.name}"?`)) return;
-
-        try {
-            await approvalsService.deleteWorkflowConfig(workflow.id);
-            toast.success('Workflow disattivato');
-            loadData();
-        } catch (error) {
-            console.error(error);
-            toast.error('Errore nella disattivazione');
-        }
+    const openCreateModal = () => {
+        setCurrentWorkflow(null);
+        setIsModalOpen(true);
     };
 
-    const toggleType = (type: string) => {
-        setExpandedTypes(prev => {
-            const next = new Set(prev);
-            if (next.has(type)) {
-                next.delete(type);
-            } else {
-                next.add(type);
-            }
-            return next;
-        });
+    const openEditModal = (wf: WorkflowConfig) => {
+        setCurrentWorkflow(wf);
+        setIsModalOpen(true);
     };
 
-    // Group workflows by entity type
-    const workflowsByType = workflows.reduce((acc, wf) => {
-        if (!acc[wf.entity_type]) acc[wf.entity_type] = [];
-        acc[wf.entity_type].push(wf);
-        return acc;
-    }, {} as Record<string, WorkflowConfig[]>);
-
-    const getModeName = (code: string) => {
-        return approvalModes.find(m => m.code === code)?.name || code;
-    };
+    const filteredWorkflows = workflows.filter(wf => {
+        const matchesSearch = wf.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesEntity = entityFilter === 'all' || wf.entity_type === entityFilter;
+        return matchesSearch && matchesEntity;
+    });
 
     return (
-        <div className="p-6 max-w-7xl mx-auto">
+        <div className="p-6 max-w-[1600px] mx-auto space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                        <Settings className="h-7 w-7 text-indigo-600" />
-                        Configurazione Workflow Approvazioni
-                    </h1>
-                    <p className="text-gray-600 mt-1">
-                        Gestisci i flussi autorizzativi per ferie, trasferte, note spese e altro
-                    </p>
+                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Gestione Workflow</h1>
+                    <p className="text-gray-500 text-sm mt-1">Configura le regole di approvazione per i diversi processi aziendali</p>
                 </div>
-
-                <Button onClick={handleCreate} className="flex items-center gap-2">
-                    <Plus className="h-4 w-4" />
-                    Nuovo Workflow
-                </Button>
+                <div>
+                    <button
+                        onClick={openCreateModal}
+                        className="btn btn-primary flex items-center gap-2 px-5 py-2.5 rounded-lg shadow-sm hover:shadow-md transition-all"
+                    >
+                        <Plus size={18} />
+                        Nuovo Workflow
+                    </button>
+                </div>
             </div>
 
-            {/* Content */}
-            {isLoading ? (
-                <div className="flex justify-center py-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
-                </div>
-            ) : (
-                <div className="space-y-4">
-                    {entityTypes.map((type) => (
-                        <Card key={type.code} className="overflow-hidden">
-                            {/* Type Header */}
-                            <button
-                                onClick={() => toggleType(type.code)}
-                                className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-                            >
-                                <div className="flex items-center gap-3">
-                                    {expandedTypes.has(type.code) ? (
-                                        <ChevronDown className="h-5 w-5 text-gray-400" />
-                                    ) : (
-                                        <ChevronRight className="h-5 w-5 text-gray-400" />
-                                    )}
-                                    <span className="font-semibold text-gray-900">{type.name}</span>
-                                    <span className="text-sm text-gray-500">
-                                        ({workflowsByType[type.code]?.length || 0} workflow)
-                                    </span>
-                                </div>
-                            </button>
-
-                            {/* Workflows List */}
-                            {expandedTypes.has(type.code) && (
-                                <div className="border-t">
-                                    {workflowsByType[type.code]?.length ? (
-                                        <table className="w-full">
-                                            <thead className="bg-gray-50">
-                                                <tr>
-                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
-                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Modalità</th>
-                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Approvatori</th>
-                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Scadenza</th>
-                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Azione Scadenza</th>
-                                                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Stato</th>
-                                                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Azioni</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-gray-200">
-                                                {workflowsByType[type.code]
-                                                    .sort((a, b) => a.priority - b.priority)
-                                                    .map((wf) => (
-                                                        <tr key={wf.id} className={!wf.is_active ? 'bg-gray-50 opacity-60' : ''}>
-                                                            <td className="px-4 py-3">
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="font-medium text-gray-900">{wf.name}</span>
-                                                                    {wf.is_default && (
-                                                                        <span className="px-1.5 py-0.5 rounded text-xs bg-indigo-100 text-indigo-700">
-                                                                            Default
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                                {wf.description && (
-                                                                    <p className="text-xs text-gray-500 mt-0.5">{wf.description}</p>
-                                                                )}
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                <div className="flex items-center gap-1.5">
-                                                                    <ApprovalModeIcon mode={wf.approval_mode} />
-                                                                    <span className="text-sm">{getModeName(wf.approval_mode)}</span>
-                                                                </div>
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                <span className="text-sm">
-                                                                    {wf.min_approvers}
-                                                                    {wf.max_approvers && wf.max_approvers !== wf.min_approvers
-                                                                        ? `-${wf.max_approvers}`
-                                                                        : ''}
-                                                                </span>
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                {wf.expiration_hours ? (
-                                                                    <div className="flex items-center gap-1 text-sm">
-                                                                        <Clock className="h-3.5 w-3.5 text-gray-400" />
-                                                                        {wf.expiration_hours}h
-                                                                    </div>
-                                                                ) : (
-                                                                    <span className="text-sm text-gray-400">-</span>
-                                                                )}
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                <ExpirationActionBadge action={wf.expiration_action} />
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                {wf.is_active ? (
-                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                                                                        <CheckCircle className="h-3 w-3" />
-                                                                        Attivo
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                                                                        Inattivo
-                                                                    </span>
-                                                                )}
-                                                            </td>
-                                                            <td className="px-4 py-3 text-right">
-                                                                <div className="flex items-center justify-end gap-1">
-                                                                    <button
-                                                                        onClick={() => handleEdit(wf)}
-                                                                        className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded"
-                                                                        title="Modifica"
-                                                                    >
-                                                                        <Pencil className="h-4 w-4" />
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => handleDelete(wf)}
-                                                                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                                                                        title="Disattiva"
-                                                                    >
-                                                                        <Trash2 className="h-4 w-4" />
-                                                                    </button>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                            </tbody>
-                                        </table>
-                                    ) : (
-                                        <div className="px-4 py-8 text-center text-gray-500">
-                                            <p>Nessun workflow configurato per questo tipo</p>
-                                            <Button
-                                                variant="secondary"
-                                                size="sm"
-                                                className="mt-2"
-                                                onClick={() => {
-                                                    setEditingWorkflow(null);
-                                                    setIsModalOpen(true);
-                                                }}
-                                            >
-                                                <Plus className="h-4 w-4 mr-1" />
-                                                Aggiungi
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </Card>
+            {/* Filters */}
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
+                    <button
+                        onClick={() => setEntityFilter('all')}
+                        className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${entityFilter === 'all' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                        Tutti
+                    </button>
+                    {entityTypes.map(t => (
+                        <button
+                            key={t.code}
+                            onClick={() => setEntityFilter(t.code)}
+                            className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${entityFilter === t.code ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200' : 'text-gray-600 hover:bg-gray-100'}`}
+                        >
+                            {t.name}
+                        </button>
                     ))}
                 </div>
-            )}
 
-            {/* Form Modal */}
+                <div className="relative w-full md:w-72">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                    <input
+                        type="text"
+                        placeholder="Cerca workflow..."
+                        className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
+            </div>
+
+            {/* Workflow List (Table) */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                {isLoading ? (
+                    <div className="p-12 flex flex-col items-center justify-center text-gray-400">
+                        <Loader2 size={32} className="animate-spin mb-3 text-indigo-500" />
+                        <p className="text-sm font-medium">Caricamento configurazioni...</p>
+                    </div>
+                ) : filteredWorkflows.length > 0 ? (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-gray-50/50 border-b border-gray-200">
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Workflow / Entità</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Regole Approvazione</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Priorità & Stato</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Azioni</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {filteredWorkflows.map(wf => (
+                                    <tr key={wf.id} className="hover:bg-gray-50/50 transition-colors group">
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-col gap-1.5">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-semibold text-gray-900">{wf.name}</span>
+                                                    {wf.is_default && (
+                                                        <span className="text-[10px] font-bold bg-gray-900 text-white px-1.5 py-0.5 rounded">DEFAULT</span>
+                                                    )}
+                                                </div>
+                                                <div className="mb-1">
+                                                    <EntityTypeBadge type={wf.entity_type} />
+                                                </div>
+                                                <p className="text-xs text-gray-500 max-w-sm truncate">{wf.description || 'Nessuna descrizione'}</p>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs text-gray-500 w-16">Modalità:</span>
+                                                    <ApprovalModeBadge mode={wf.approval_mode} name={approvalModes.find(m => m.code === wf.approval_mode)?.name} />
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs text-gray-500 w-16">Approvatori:</span>
+                                                    <span className="text-sm font-medium text-gray-900">{wf.min_approvers} {wf.max_approvers ? `- ${wf.max_approvers}` : ''}</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-2">
+                                                    <div className={`w-2 h-2 rounded-full ${wf.is_active ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
+                                                    <span className={`text-sm font-medium ${wf.is_active ? 'text-gray-900' : 'text-gray-500'}`}>{wf.is_active ? 'Attivo' : 'Inattivo'}</span>
+                                                </div>
+                                                <div className="text-xs text-gray-500">
+                                                    Priorità: <span className="font-mono text-gray-700">{wf.priority}</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button
+                                                    onClick={() => openEditModal(wf)}
+                                                    className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                                    title="Modifica"
+                                                >
+                                                    <Pencil size={18} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(wf.id)}
+                                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                    title="Elimina"
+                                                >
+                                                    <Trash2 size={18} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <div className="py-20 text-center">
+                        <div className="bg-gray-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
+                            <Layers size={40} />
+                        </div>
+                        <h3 className="text-lg font-medium text-gray-900">Nessun Workflow Configurato</h3>
+                        <p className="text-gray-500 mt-2 max-w-sm mx-auto">Non ci sono workflow che corrispondono ai criteri di ricerca. Crea un nuovo workflow per iniziare.</p>
+                        <button
+                            onClick={openCreateModal}
+                            className="mt-6 btn btn-white border border-gray-300 text-indigo-600 hover:bg-indigo-50"
+                        >
+                            Crea Workflow
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Modal */}
             <WorkflowFormModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                onSave={handleSave}
-                workflow={editingWorkflow}
+                onSave={currentWorkflow ? handleUpdateWrapper : handleCreateWrapper}
+                workflow={currentWorkflow}
                 entityTypes={entityTypes}
                 approvalModes={approvalModes}
                 expirationActions={expirationActions}

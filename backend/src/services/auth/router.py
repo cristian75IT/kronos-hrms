@@ -155,6 +155,19 @@ async def get_user_by_keycloak_id(
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@router.get("/users/internal/approvers", response_model=list[UserListItem])
+async def get_internal_approvers(
+    service: UserService = Depends(get_user_service),
+):
+    """Get all users with approver capability (internal use).
+    
+    This endpoint is for service-to-service calls and doesn't require authentication.
+    Only accessible within the internal Docker network.
+    """
+    approvers = await service.get_approvers()
+    return [UserListItem.model_validate(u) for u in approvers]
+
+
 @router.get("/users/{id}", response_model=UserResponse)
 async def get_user(
     id: UUID,

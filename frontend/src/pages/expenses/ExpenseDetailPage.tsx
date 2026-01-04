@@ -308,76 +308,54 @@ export function ExpenseDetailPage() {
                 {/* Sidebar */}
                 <div className="space-y-6">
                     {/* Actions */}
-                    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                        <h3 className="text-lg font-bold text-gray-900 mb-4">Azioni</h3>
-                        <div className="space-y-3">
-                            {reportStatus === 'draft' && isOwner && (
-                                <>
-                                    <button
-                                        className="btn btn-primary w-full flex justify-center items-center gap-2 py-2.5"
-                                        onClick={handleSubmit}
-                                        disabled={actionLoading !== null}
-                                    >
-                                        {actionLoading === 'submit' ? <Loader size={18} className="animate-spin" /> : <Send size={18} />}
-                                        Invia Richiesta
-                                    </button>
-                                    <Link to={`/expenses/${id}/edit`} className="btn btn-white border border-gray-300 text-gray-700 hover:bg-gray-50 w-full flex justify-center items-center gap-2 py-2.5">
-                                        <Edit size={18} />
-                                        Modifica
-                                    </Link>
-                                    <button
-                                        className="btn btn-white border border-red-200 text-red-600 hover:bg-red-50 w-full flex justify-center items-center gap-2 py-2.5"
-                                        onClick={() => setShowDeleteModal(true)}
-                                        disabled={actionLoading !== null}
-                                    >
-                                        <Trash2 size={18} />
-                                        Elimina
-                                    </button>
-                                </>
-                            )}
-                            {reportStatus === 'submitted' && isOwner && (
-                                <button
-                                    className="btn btn-white border border-red-200 text-red-600 hover:bg-red-50 w-full flex justify-center items-center gap-2 py-2.5"
-                                    onClick={() => setShowCancelModal(true)}
-                                    disabled={actionLoading !== null}
-                                >
-                                    <Ban size={18} />
-                                    Annulla Richiesta
-                                </button>
-                            )}
-                            {reportStatus !== 'draft' && reportStatus !== 'paid' && isApprover && (!isOwner || isAdmin || isHR) && (
-                                <>
-                                    <button
-                                        className="btn bg-emerald-600 hover:bg-emerald-700 text-white w-full flex justify-center items-center gap-2 py-2.5 shadow-sm"
-                                        onClick={handleApprove}
-                                        disabled={actionLoading !== null || reportStatus === 'approved'}
-                                    >
-                                        {actionLoading === 'approve' ? <Loader size={18} className="animate-spin" /> : <CheckCircle size={18} />}
-                                        Approva
-                                    </button>
-                                    <button
-                                        className="btn bg-white border border-red-200 text-red-600 hover:bg-red-50 w-full flex justify-center items-center gap-2 py-2.5"
-                                        onClick={() => setShowRejectModal(true)}
-                                        disabled={actionLoading !== null || reportStatus === 'rejected'}
-                                    >
-                                        <XCircle size={18} />
-                                        Rifiuta
-                                    </button>
-                                </>
-                            )}
-                            {reportStatus === 'approved' && (
-                                <>
-                                    {isApprover && (
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="p-4 bg-gray-50 border-b border-gray-200">
+                            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Azioni</h3>
+                        </div>
+
+                        {/* Employee Actions Section */}
+                        {isOwner && (
+                            <div className="p-4 border-b border-gray-100">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Dipendente</h4>
+                                </div>
+                                <div className="space-y-2">
+                                    {reportStatus === 'draft' && (
+                                        <>
+                                            <button
+                                                className="btn btn-primary w-full flex justify-center items-center gap-2 py-2.5"
+                                                onClick={handleSubmit}
+                                                disabled={actionLoading !== null}
+                                            >
+                                                {actionLoading === 'submit' ? <Loader size={18} className="animate-spin" /> : <Send size={18} />}
+                                                Invia Richiesta
+                                            </button>
+                                            <Link to={`/expenses/${id}/edit`} className="btn btn-white border border-gray-300 text-gray-700 hover:bg-gray-50 w-full flex justify-center items-center gap-2 py-2.5">
+                                                <Edit size={18} />
+                                                Modifica
+                                            </Link>
+                                            <button
+                                                className="btn btn-white border border-red-200 text-red-600 hover:bg-red-50 w-full flex justify-center items-center gap-2 py-2.5"
+                                                onClick={() => setShowDeleteModal(true)}
+                                                disabled={actionLoading !== null}
+                                            >
+                                                <Trash2 size={18} />
+                                                Elimina Bozza
+                                            </button>
+                                        </>
+                                    )}
+                                    {reportStatus === 'submitted' && (
                                         <button
-                                            className="btn btn-primary w-full flex justify-center items-center gap-2 py-2.5"
-                                            onClick={handleMarkPaid}
+                                            className="btn btn-white border border-red-200 text-red-600 hover:bg-red-50 w-full flex justify-center items-center gap-2 py-2.5"
+                                            onClick={() => setShowCancelModal(true)}
                                             disabled={actionLoading !== null}
                                         >
-                                            {actionLoading === 'paid' ? <Loader size={18} className="animate-spin" /> : <CreditCard size={18} />}
-                                            Segna come Pagato
+                                            <Ban size={18} />
+                                            Annulla Richiesta
                                         </button>
                                     )}
-                                    {isOwner && (
+                                    {reportStatus === 'approved' && (
                                         <button
                                             className="btn btn-white border border-red-200 text-red-600 hover:bg-red-50 w-full flex justify-center items-center gap-2 py-2.5"
                                             onClick={() => setShowCancelModal(true)}
@@ -387,9 +365,70 @@ export function ExpenseDetailPage() {
                                             Annulla Nota Spese
                                         </button>
                                     )}
-                                </>
-                            )}
-                        </div>
+                                    {(reportStatus === 'rejected' || reportStatus === 'cancelled' || reportStatus === 'paid') && (
+                                        <p className="text-center text-sm text-gray-400 italic py-2">
+                                            Nessuna azione disponibile
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Approver Actions Section */}
+                        {isApprover && (!isOwner || isAdmin || isHR) && reportStatus !== 'draft' && reportStatus !== 'paid' && (
+                            <div className="p-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Approvatore</h4>
+                                </div>
+                                <div className="space-y-2">
+                                    {reportStatus === 'submitted' && (
+                                        <>
+                                            <button
+                                                className="btn bg-emerald-600 hover:bg-emerald-700 text-white w-full flex justify-center items-center gap-2 py-2.5 shadow-sm"
+                                                onClick={handleApprove}
+                                                disabled={actionLoading !== null}
+                                            >
+                                                {actionLoading === 'approve' ? <Loader size={18} className="animate-spin" /> : <CheckCircle size={18} />}
+                                                Approva
+                                            </button>
+                                            <button
+                                                className="btn bg-red-600 hover:bg-red-700 text-white w-full flex justify-center items-center gap-2 py-2.5"
+                                                onClick={() => setShowRejectModal(true)}
+                                                disabled={actionLoading !== null}
+                                            >
+                                                <XCircle size={18} />
+                                                Rifiuta
+                                            </button>
+                                        </>
+                                    )}
+                                    {reportStatus === 'approved' && (
+                                        <button
+                                            className="btn btn-primary w-full flex justify-center items-center gap-2 py-2.5"
+                                            onClick={handleMarkPaid}
+                                            disabled={actionLoading !== null}
+                                        >
+                                            {actionLoading === 'paid' ? <Loader size={18} className="animate-spin" /> : <CreditCard size={18} />}
+                                            Segna come Pagato
+                                        </button>
+                                    )}
+                                    {(reportStatus === 'rejected' || reportStatus === 'cancelled') && (
+                                        <p className="text-center text-sm text-gray-400 italic py-2">
+                                            Nota spese già processata
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* No Actions Available */}
+                        {!isOwner && !isApprover && (
+                            <div className="p-4">
+                                <p className="text-center text-sm text-gray-400 italic">
+                                    Nessuna azione disponibile per questa nota spese.
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Summary */}

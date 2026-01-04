@@ -32,7 +32,9 @@ class UserCreate(UserBase):
     is_admin: bool = False
     is_manager: bool = False
     is_approver: bool = False
+
     is_hr: bool = False
+    is_employee: bool = True
 
 
 class UserUpdate(BaseModel):
@@ -49,6 +51,12 @@ class UserUpdate(BaseModel):
     location_id: Optional[UUID] = None
     manager_id: Optional[UUID] = None
     is_active: Optional[bool] = None
+    is_admin: Optional[bool] = None
+    is_manager: Optional[bool] = None
+    is_approver: Optional[bool] = None
+
+    is_hr: Optional[bool] = None
+    is_employee: Optional[bool] = None
 
 
 class UserProfileBase(BaseModel):
@@ -77,7 +85,9 @@ class UserResponse(UserBase, IDMixin, BaseSchema):
     is_admin: bool
     is_manager: bool
     is_approver: bool
+
     is_hr: bool
+    is_employee: bool
     is_active: bool
     full_name: str
     contract_type_id: Optional[UUID] = None
@@ -100,6 +110,10 @@ class UserListItem(BaseModel):
     is_active: bool
     is_admin: bool
     is_manager: bool
+    is_approver: bool = False
+
+    is_hr: bool = False
+    is_employee: bool = True
     
     model_config = {"from_attributes": True}
 
@@ -122,7 +136,9 @@ class CurrentUserResponse(BaseModel):
     is_admin: bool
     is_manager: bool
     is_approver: bool
+
     is_hr: bool
+    is_employee: bool
     location: Optional[str] = None
     manager: Optional[str] = None
 

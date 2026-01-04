@@ -175,6 +175,10 @@ export function UserFormPage() {
                 last_name: data.last_name,
                 role: roles[0] || 'employee',
                 roles: roles,
+                // Explicitly send boolean flags for backend update
+                is_admin: data.is_admin,
+                is_manager: data.is_manager,
+                is_approver: data.is_approver,
                 profile: {
                     phone: data.phone,
                     department: data.department,
@@ -256,6 +260,22 @@ export function UserFormPage() {
                 </div>
             </header>
 
+            {/* Keycloak Management Warning */}
+            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded shadow-sm">
+                <div className="flex">
+                    <div className="flex-shrink-0">
+                        <Info className="h-5 w-5 text-blue-400" />
+                    </div>
+                    <div className="ml-3">
+                        <p className="text-sm text-blue-700">
+                            La gestione di identità (Nome, Email, Username, Ruoli) è centralizzata su <strong>Keycloak</strong>.
+                            Le modifiche locali a questi campi verranno sovrascritte al prossimo login.
+                            <br />Per creare nuovi utenti, utilizzare il pannello di Keycloak e poi sincronizzare.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
             <form onSubmit={handleSubmit(onSubmit)} className="w-full">
                 <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 items-start">
                     {/* Main Column */}
@@ -272,9 +292,10 @@ export function UserFormPage() {
                                     <label className="block text-sm font-medium text-gray-700">Nome <span className="text-red-500">*</span></label>
                                     <input
                                         type="text"
-                                        className={`block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${errors.first_name ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}`}
+                                        disabled
+                                        className="block w-full rounded-lg border-gray-300 shadow-sm bg-gray-100 text-gray-500 cursor-not-allowed sm:text-sm"
                                         placeholder="Mario"
-                                        {...register('first_name', { required: 'Nome richiesto' })}
+                                        {...register('first_name')}
                                     />
                                     {errors.first_name && (
                                         <p className="mt-1 text-sm text-red-600 flex items-center gap-1"><AlertCircle size={12} /> {errors.first_name?.message}</p>
@@ -284,9 +305,10 @@ export function UserFormPage() {
                                     <label className="block text-sm font-medium text-gray-700">Cognome <span className="text-red-500">*</span></label>
                                     <input
                                         type="text"
-                                        className={`block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${errors.last_name ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}`}
+                                        disabled
+                                        className="block w-full rounded-lg border-gray-300 shadow-sm bg-gray-100 text-gray-500 cursor-not-allowed sm:text-sm"
                                         placeholder="Rossi"
-                                        {...register('last_name', { required: 'Cognome richiesto' })}
+                                        {...register('last_name')}
                                     />
                                     {errors.last_name && (
                                         <p className="mt-1 text-sm text-red-600 flex items-center gap-1"><AlertCircle size={12} /> {errors.last_name?.message}</p>
@@ -300,9 +322,10 @@ export function UserFormPage() {
                                         </div>
                                         <input
                                             type="email"
-                                            className={`block w-full rounded-lg border-gray-300 pl-10 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${errors.email ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}`}
+                                            disabled
+                                            className="block w-full rounded-lg border-gray-300 pl-10 bg-gray-100 text-gray-500 cursor-not-allowed sm:text-sm"
                                             placeholder="mario.rossi@azienda.it"
-                                            {...register('email', { required: 'Email richiesta', pattern: { value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i, message: 'Email non valida' } })}
+                                            {...register('email')}
                                         />
                                     </div>
                                     {errors.email && (
@@ -333,9 +356,10 @@ export function UserFormPage() {
                                     <label className="block text-sm font-medium text-gray-700">Username <span className="text-red-500">*</span></label>
                                     <input
                                         type="text"
-                                        className={`block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${errors.username ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}`}
+                                        disabled
+                                        className="block w-full rounded-lg border-gray-300 shadow-sm bg-gray-100 text-gray-500 cursor-not-allowed sm:text-sm"
                                         placeholder="mario.rossi"
-                                        {...register('username', { required: 'Username richiesto' })}
+                                        {...register('username')}
                                     />
                                     {errors.username && (
                                         <p className="mt-1 text-sm text-red-600 flex items-center gap-1"><AlertCircle size={12} /> {errors.username?.message}</p>
@@ -494,21 +518,21 @@ export function UserFormPage() {
                             </div>
                             <div className="space-y-3">
                                 <label className="flex items-start gap-4 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group">
-                                    <input type="checkbox" className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" {...register('is_admin')} />
+                                    <input type="checkbox" disabled className="mt-1 h-4 w-4 rounded border-gray-300 text-gray-400 bg-gray-100 cursor-not-allowed" {...register('is_admin')} />
                                     <div>
                                         <span className="block text-sm font-medium text-gray-900 group-hover:text-indigo-700">Amministratore</span>
                                         <span className="block text-xs text-gray-500 group-hover:text-indigo-600/70">Accesso completo al sistema</span>
                                     </div>
                                 </label>
                                 <label className="flex items-start gap-4 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group">
-                                    <input type="checkbox" className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" {...register('is_manager')} />
+                                    <input type="checkbox" disabled className="mt-1 h-4 w-4 rounded border-gray-300 text-gray-400 bg-gray-100 cursor-not-allowed" {...register('is_manager')} />
                                     <div>
                                         <span className="block text-sm font-medium text-gray-900 group-hover:text-indigo-700">Manager</span>
                                         <span className="block text-xs text-gray-500 group-hover:text-indigo-600/70">Gestione team e report</span>
                                     </div>
                                 </label>
                                 <label className="flex items-start gap-4 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group">
-                                    <input type="checkbox" className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" {...register('is_approver')} />
+                                    <input type="checkbox" disabled className="mt-1 h-4 w-4 rounded border-gray-300 text-gray-400 bg-gray-100 cursor-not-allowed" {...register('is_approver')} />
                                     <div>
                                         <span className="block text-sm font-medium text-gray-900 group-hover:text-indigo-700">Approvatore</span>
                                         <span className="block text-xs text-gray-500 group-hover:text-indigo-600/70">Approva ferie e richieste</span>

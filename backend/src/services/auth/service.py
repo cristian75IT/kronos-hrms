@@ -93,7 +93,9 @@ class UserService:
                 is_admin="admin" in roles,
                 is_manager="manager" in roles,
                 is_approver="approver" in roles,
+
                 is_hr="hr" in roles,
+                is_employee="employee" in roles,
                 last_sync_at=datetime.utcnow(),
             )
             return user
@@ -108,7 +110,9 @@ class UserService:
             is_admin="admin" in roles,
             is_manager="manager" in roles,
             is_approver="approver" in roles,
+
             is_hr="hr" in roles,
+            is_employee="employee" in roles,
             last_sync_at=datetime.utcnow(),
         )
 
@@ -229,7 +233,9 @@ class UserService:
                             is_admin="admin" in role_names,
                             is_manager="manager" in role_names,
                             is_approver="approver" in role_names,
+
                             is_hr="hr" in role_names,
+                            is_employee="employee" in role_names,
                             is_active=kc_user.get("enabled", True),
                             last_sync_at=datetime.utcnow(),
                         )
@@ -246,6 +252,7 @@ class UserService:
                             is_manager="manager" in role_names,
                             is_approver="approver" in role_names,
                             is_hr="hr" in role_names,
+                            is_employee="employee" in role_names,
                             is_active=kc_user.get("enabled", True),
                             last_sync_at=datetime.utcnow(),
                         )

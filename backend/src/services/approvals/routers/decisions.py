@@ -159,3 +159,18 @@ async def get_my_decision_history(
     """Get history of decisions made by current user."""
     # TODO: Implement decision history query
     return []
+
+
+@router.get("/archived")
+async def get_archived_approvals(
+    status_filter: Optional[str] = Query(default=None, description="Filter by decision: approved, rejected, delegated, or all"),
+    entity_type: Optional[str] = Query(default=None, description="Filter by entity type"),
+    current_user: TokenPayload = Depends(get_current_user),
+    service: ApprovalService = Depends(get_service),
+):
+    """Get archived (decided) approvals for current user."""
+    return await service.get_archived_approvals(
+        approver_id=current_user.sub,
+        status_filter=status_filter,
+        entity_type=entity_type,
+    )

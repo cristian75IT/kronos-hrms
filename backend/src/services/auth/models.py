@@ -88,7 +88,9 @@ class User(Base):
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     is_manager: Mapped[bool] = mapped_column(Boolean, default=False)
     is_approver: Mapped[bool] = mapped_column(Boolean, default=False)
+
     is_hr: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_employee: Mapped[bool] = mapped_column(Boolean, default=True)
     
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

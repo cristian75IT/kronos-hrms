@@ -233,6 +233,13 @@ class ApprovalService:
                 max_approvers=workflow.max_approvers,
             )
         
+        # Fallback: fetch approvers by is_approver flag if no role-based approvers found
+        if not approver_ids and workflow.auto_assign_approvers:
+            approver_ids, approver_info = await self._fetch_approvers_by_flag(
+                exclude_user=data.requester_id if not workflow.allow_self_approval else None,
+                max_approvers=workflow.max_approvers,
+            )
+        
         # Assign approvers
         if approver_ids:
             await self._engine.assign_approvers(
@@ -288,6 +295,48 @@ class ApprovalService:
         
         except Exception as e:
             logger.error(f"Error fetching approvers: {e}")
+            return [], {}
+    
+    async def _fetch_approvers_by_flag(
+        self,
+        exclude_user: Optional[UUID] = None,
+        max_approvers: Optional[int] = None,
+    ) -> tuple[List[UUID], Dict[UUID, Dict[str, str]]]:
+        """Fetch users with is_approver=true flag from auth service."""
+        try:
+            # Use the internal approvers endpoint (no auth required)
+            users = await self._auth_client.get_approvers()
+            
+            approver_ids = []
+            approver_info = {}
+            
+            for user in users:
+                user_id = UUID(user["id"]) if isinstance(user["id"], str) else user["id"]
+                
+                # Check if user should be excluded
+                if exclude_user and user_id == exclude_user:
+                    continue
+                
+                approver_ids.append(user_id)
+                # Use full_name if available, otherwise construct from first/last
+                name = user.get("full_name")
+                if not name:
+                    name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+                
+                approver_info[user_id] = {
+                    "name": name,
+                    "role": "Approver",
+                }
+                
+                # Limit approvers if max specified
+                if max_approvers and len(approver_ids) >= max_approvers:
+                    break
+            
+            logger.info(f"Found {len(approver_ids)} approvers by flag")
+            return approver_ids, approver_info
+        
+        except Exception as e:
+            logger.error(f"Error fetching approvers by flag: {e}")
             return [], {}
     
     async def _notify_approvers(
@@ -428,6 +477,44 @@ class ApprovalService:
             total=counts.get("total", 0),
             urgent=0,  # Would need separate calculation
             by_type={k: v for k, v in counts.items() if k != "total"},
+        )
+    
+    async def get_archived_approvals(
+        self,
+        approver_id: UUID,
+        status_filter: Optional[str] = None,
+        entity_type: Optional[str] = None,
+    ):
+        """Get archived (decided) approvals for an approver."""
+        from .schemas import ArchivedApprovalItem, ArchivedApprovalsResponse
+        
+        decisions = await self._decision_repo.get_decided_by_approver(
+            approver_id, status_filter, entity_type
+        )
+        
+        items = []
+        for decision in decisions:
+            request = decision.approval_request
+            if not request:
+                continue
+            
+            items.append(ArchivedApprovalItem(
+                request_id=request.id,
+                entity_type=request.entity_type,
+                entity_id=request.entity_id,
+                entity_ref=request.entity_ref,
+                title=request.title,
+                description=request.description,
+                requester_name=request.requester_name,
+                decision=decision.decision,
+                decision_notes=decision.decision_notes,
+                decided_at=decision.decided_at,
+                created_at=request.created_at,
+            ))
+        
+        return ArchivedApprovalsResponse(
+            total=len(items),
+            items=items,
         )
     
     async def approve_request(

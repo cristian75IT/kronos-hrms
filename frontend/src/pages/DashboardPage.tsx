@@ -115,37 +115,40 @@ export function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {stats.map((stat, index) => (
-          <div
-            key={index}
-            className="p-5 bg-white rounded-lg border border-gray-200 hover:border-primary/50 hover:shadow-sm transition-all"
-          >
-            <div className="flex items-center gap-3 mb-3">
-              <div className={`p-2 rounded-md ${stat.bg} ${stat.color}`}>
-                <stat.icon size={20} />
-              </div>
-              <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">{stat.label}</div>
-            </div>
-
-            <div>
-              {balanceLoading ? (
-                <div className="h-8 w-20 bg-gray-100 rounded animate-pulse" />
-              ) : (
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-2xl font-bold text-gray-900">
-                    {typeof stat.value === 'number' || typeof stat.value === 'string' ? stat.value : '-'}
-                  </span>
-                  <span className="text-sm font-medium text-gray-400">{stat.suffix}</span>
+      {/* Stats Grid - Employee Only */}
+      {user?.is_employee !== false && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {stats.map((stat, index) => (
+            <div
+              key={index}
+              className="p-5 bg-white rounded-lg border border-gray-200 hover:border-primary/50 hover:shadow-sm transition-all"
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`p-2 rounded-md ${stat.bg} ${stat.color}`}>
+                  <stat.icon size={20} />
                 </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+                <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">{stat.label}</div>
+              </div>
 
-      {/* AP Expiry Warning */}
-      {balance?.days_until_ap_expiry && balance.days_until_ap_expiry <= 60 && (
+              <div>
+                {balanceLoading ? (
+                  <div className="h-8 w-20 bg-gray-100 rounded animate-pulse" />
+                ) : (
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-2xl font-bold text-gray-900">
+                      {typeof stat.value === 'number' || typeof stat.value === 'string' ? stat.value : '-'}
+                    </span>
+                    <span className="text-sm font-medium text-gray-400">{stat.suffix}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* AP Expiry Warning - Employee Only */}
+      {user?.is_employee !== false && balance?.days_until_ap_expiry && balance.days_until_ap_expiry <= 60 && (
         <div className="p-4 rounded-lg bg-orange-50 border border-orange-200 flex flex-col md:flex-row items-center gap-4">
           <div className="p-2 bg-orange-100 rounded-full text-orange-600">
             <AlertCircle size={20} />
@@ -194,87 +197,89 @@ export function DashboardPage() {
         </Link>
       )}
 
-      {/* Quick Actions & Recent Activity Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Quick Actions */}
-        <div className="lg:col-span-2 space-y-4">
-          <h2 className="text-lg font-bold text-gray-900">Azioni Rapide</h2>
-          <div className="grid gap-3">
-            {quickActions.map((action, index) => (
-              <Link
-                key={index}
-                to={action.path}
-                className="group flex items-center gap-4 p-4 bg-white rounded-lg border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all"
-              >
-                <div className={`p-2 rounded-md ${action.bg} ${action.color}`}>
-                  <action.icon size={20} />
-                </div>
-                <div className="flex-1">
-                  <div className="font-semibold text-sm text-gray-900">{action.label}</div>
-                  <div className="text-xs text-gray-500">{action.description}</div>
-                </div>
-                <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
-              </Link>
-            ))}
+      {/* Quick Actions & Recent Activity Grid - Employee Only */}
+      {user?.is_employee !== false && (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          {/* Quick Actions */}
+          <div className="lg:col-span-2 space-y-4">
+            <h2 className="text-lg font-bold text-gray-900">Azioni Rapide</h2>
+            <div className="grid gap-3">
+              {quickActions.map((action, index) => (
+                <Link
+                  key={index}
+                  to={action.path}
+                  className="group flex items-center gap-4 p-4 bg-white rounded-lg border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all"
+                >
+                  <div className={`p-2 rounded-md ${action.bg} ${action.color}`}>
+                    <action.icon size={20} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-semibold text-sm text-gray-900">{action.label}</div>
+                    <div className="text-xs text-gray-500">{action.description}</div>
+                  </div>
+                  <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
+                </Link>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Recent Requests */}
-        <div className="lg:col-span-3 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-gray-900">Richieste Recenti</h2>
-            <Link to="/leaves" className="text-primary text-sm font-medium hover:underline">
-              Vedi tutte
-            </Link>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            {recentRequests?.slice(0, 5).map((request, index) => (
-              <div
-                key={request.id}
-                onClick={() => navigate(`/leaves/${request.id}`)}
-                className={`group flex items-center gap-4 p-4 cursor-pointer hover:bg-gray-50 transition-colors ${index !== 0 ? 'border-t border-gray-100' : ''}`}
-              >
-                <div className={`w-8 h-8 rounded-md flex items-center justify-center ${request.status === 'approved' ? 'bg-emerald-50 text-emerald-600' :
-                  request.status === 'pending' ? 'bg-amber-50 text-amber-600' :
-                    request.status === 'rejected' ? 'bg-red-50 text-red-600' :
-                      'bg-gray-100 text-gray-400'
-                  }`}>
-                  {request.status === 'approved' && <CheckCircle size={16} />}
-                  {request.status === 'pending' && <Clock size={16} />}
-                  {request.status === 'rejected' && <AlertCircle size={16} />}
-                  {!['approved', 'pending', 'rejected'].includes(request.status) && <Calendar size={16} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm text-gray-900">{getLeaveTypeName(request.leave_type_code)}</span>
-                    <span className={`px-2 py-0.5 rounded text-[0.65rem] font-bold uppercase ${request.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                      request.status === 'pending' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
-                        request.status === 'rejected' ? 'bg-red-50 text-red-700 border border-red-100' :
-                          'bg-gray-100 text-gray-600 border border-gray-200'
-                      }`}>
-                      {getStatusLabel(request.status)}
-                    </span>
+          {/* Recent Requests */}
+          <div className="lg:col-span-3 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Richieste Recenti</h2>
+              <Link to="/leaves" className="text-primary text-sm font-medium hover:underline">
+                Vedi tutte
+              </Link>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              {recentRequests?.slice(0, 5).map((request, index) => (
+                <div
+                  key={request.id}
+                  onClick={() => navigate(`/leaves/${request.id}`)}
+                  className={`group flex items-center gap-4 p-4 cursor-pointer hover:bg-gray-50 transition-colors ${index !== 0 ? 'border-t border-gray-100' : ''}`}
+                >
+                  <div className={`w-8 h-8 rounded-md flex items-center justify-center ${request.status === 'approved' ? 'bg-emerald-50 text-emerald-600' :
+                    request.status === 'pending' ? 'bg-amber-50 text-amber-600' :
+                      request.status === 'rejected' ? 'bg-red-50 text-red-600' :
+                        'bg-gray-100 text-gray-400'
+                    }`}>
+                    {request.status === 'approved' && <CheckCircle size={16} />}
+                    {request.status === 'pending' && <Clock size={16} />}
+                    {request.status === 'rejected' && <AlertCircle size={16} />}
+                    {!['approved', 'pending', 'rejected'].includes(request.status) && <Calendar size={16} />}
                   </div>
-                  <div className="text-xs text-gray-500 mt-0.5">
-                    {format(new Date(request.start_date), 'd MMM', { locale: it })} - {format(new Date(request.end_date), 'd MMM yyyy', { locale: it })}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm text-gray-900">{getLeaveTypeName(request.leave_type_code)}</span>
+                      <span className={`px-2 py-0.5 rounded text-[0.65rem] font-bold uppercase ${request.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                        request.status === 'pending' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
+                          request.status === 'rejected' ? 'bg-red-50 text-red-700 border border-red-100' :
+                            'bg-gray-100 text-gray-600 border border-gray-200'
+                        }`}>
+                        {getStatusLabel(request.status)}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      {format(new Date(request.start_date), 'd MMM', { locale: it })} - {format(new Date(request.end_date), 'd MMM yyyy', { locale: it })}
+                    </div>
                   </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-gray-900">{request.days_requested}</div>
+                    <div className="text-[0.65rem] text-gray-400 uppercase">gg</div>
+                  </div>
+                  <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
                 </div>
-                <div className="text-right">
-                  <div className="text-lg font-bold text-gray-900">{request.days_requested}</div>
-                  <div className="text-[0.65rem] text-gray-400 uppercase">gg</div>
+              ))}
+              {(!recentRequests || recentRequests.length === 0) && (
+                <div className="flex flex-col items-center justify-center p-8 text-center text-gray-400">
+                  <Calendar size={32} className="mb-2 opacity-50" />
+                  <p className="text-sm">Nessuna richiesta recente</p>
                 </div>
-                <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500 transition-colors" />
-              </div>
-            ))}
-            {(!recentRequests || recentRequests.length === 0) && (
-              <div className="flex flex-col items-center justify-center p-8 text-center text-gray-400">
-                <Calendar size={32} className="mb-2 opacity-50" />
-                <p className="text-sm">Nessuna richiesta recente</p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -16,6 +16,7 @@ interface AuthContextType {
     isAdmin: boolean;
     isApprover: boolean;
     isHR: boolean;
+    isEmployee: boolean;
     login: (u: string, p: string) => Promise<void>;
     logout: () => void;
     refreshUser: () => Promise<void>;
@@ -35,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const isAdmin = user?.is_admin || hasRole('admin');
     const isApprover = user?.is_approver || hasRole('approver');
     const isHR = user?.is_hr || hasRole('hr');
+    const isEmployee = hasRole('employee') || hasRole('dipendente');
 
     const fetchUserProfile = async () => {
         try {
@@ -136,6 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAdmin,
         isApprover,
         isHR,
+        isEmployee,
         login,
         logout,
         refreshUser,
@@ -171,4 +174,9 @@ export function useIsApprover() {
 export function useIsHR() {
     const { isHR, isAdmin } = useAuth();
     return isHR || isAdmin;
+}
+
+export function useIsEmployee() {
+    const { isEmployee } = useAuth();
+    return isEmployee;
 }

@@ -618,93 +618,141 @@ export function TripDetailPage() {
                 {/* Right Column - Actions & Summary */}
                 <div className="space-y-6">
                     {/* Actions Card */}
-                    <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                        <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-4">Azioni</h3>
-                        <div className="space-y-3">
-                            {status === 'draft' && (
-                                <>
-                                    <button
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-                                        onClick={handleSubmit}
-                                        disabled={actionLoading !== null}
-                                    >
-                                        {actionLoading === 'submit' ? <Loader size={18} className="animate-spin" /> : <Send size={18} />}
-                                        Invia per Approvazione
-                                    </button>
-                                    <Link to={`/trips/${id}/edit`} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition-colors">
-                                        <Edit size={18} />
-                                        Modifica
-                                    </Link>
-                                    <button
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors disabled:opacity-50"
-                                        onClick={() => setShowDeleteModal(true)}
-                                        disabled={actionLoading !== null}
-                                    >
-                                        <Trash2 size={18} />
-                                        Elimina
-                                    </button>
-                                </>
-                            )}
-                            {(status === 'submitted' || status === 'pending') && isOwner && (
-                                <button
-                                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors disabled:opacity-50"
-                                    onClick={() => setShowCancelModal(true)}
-                                    disabled={actionLoading !== null}
-                                >
-                                    <XCircle size={18} />
-                                    Annulla Richiesta
-                                </button>
-                            )}
-                            {status !== 'draft' && status !== 'completed' && isApprover && (!isOwner || isAdmin || isHR) && (
-                                <>
-                                    <button
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-                                        onClick={handleApprove}
-                                        disabled={actionLoading !== null || status === 'approved'}
-                                    >
-                                        {actionLoading === 'approve' ? <Loader size={18} className="animate-spin" /> : <CheckCircle size={18} />}
-                                        Approva
-                                    </button>
-                                    <button
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors disabled:opacity-50"
-                                        onClick={() => setShowRejectModal(true)}
-                                        disabled={actionLoading !== null || status === 'rejected'}
-                                    >
-                                        <XCircle size={18} />
-                                        Rifiuta
-                                    </button>
-                                </>
-                            )}
-                            {status === 'approved' && isOwner && (
-                                <>
-                                    <Link to={`/expenses/new?trip_id=${id}`} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors">
-                                        <Receipt size={18} />
-                                        Crea Nota Spese
-                                    </Link>
-                                    <button
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition-colors disabled:opacity-50"
-                                        onClick={handleComplete}
-                                        disabled={actionLoading !== null}
-                                    >
-                                        {actionLoading === 'complete' ? <Loader size={18} className="animate-spin" /> : <CheckCircle size={18} />}
-                                        Completa Trasferta
-                                    </button>
-                                    <button
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors disabled:opacity-50"
-                                        onClick={() => setShowCancelModal(true)}
-                                        disabled={actionLoading !== null}
-                                    >
-                                        <Ban size={18} />
-                                        Annulla Trasferta
-                                    </button>
-                                </>
-                            )}
-                            {(status === 'completed' || status === 'rejected' || status === 'cancelled') && (
-                                <p className="text-center text-sm text-gray-500 italic">
+                    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                        <div className="p-4 bg-gray-50 border-b border-gray-200">
+                            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Azioni</h3>
+                        </div>
+
+                        {/* Employee Actions Section */}
+                        {(isOwner || status === 'draft') && (
+                            <div className="p-4 border-b border-gray-100">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Dipendente</h4>
+                                </div>
+                                <div className="space-y-2">
+                                    {status === 'draft' && (
+                                        <>
+                                            <button
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                                onClick={handleSubmit}
+                                                disabled={actionLoading !== null}
+                                            >
+                                                {actionLoading === 'submit' ? <Loader size={18} className="animate-spin" /> : <Send size={18} />}
+                                                Invia per Approvazione
+                                            </button>
+                                            <Link to={`/trips/${id}/edit`} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition-colors">
+                                                <Edit size={18} />
+                                                Modifica
+                                            </Link>
+                                            <button
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-red-600 hover:bg-red-50 border border-red-200 rounded-lg font-medium transition-colors disabled:opacity-50"
+                                                onClick={() => setShowDeleteModal(true)}
+                                                disabled={actionLoading !== null}
+                                            >
+                                                <Trash2 size={18} />
+                                                Elimina Bozza
+                                            </button>
+                                        </>
+                                    )}
+                                    {(status === 'submitted' || status === 'pending') && isOwner && (
+                                        <button
+                                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors disabled:opacity-50"
+                                            onClick={() => setShowCancelModal(true)}
+                                            disabled={actionLoading !== null}
+                                        >
+                                            <XCircle size={18} />
+                                            Annulla Richiesta
+                                        </button>
+                                    )}
+                                    {status === 'approved' && isOwner && (
+                                        <>
+                                            <Link to={`/expenses/new?trip_id=${id}`} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors">
+                                                <Receipt size={18} />
+                                                Crea Nota Spese
+                                            </Link>
+                                            <button
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition-colors disabled:opacity-50"
+                                                onClick={handleComplete}
+                                                disabled={actionLoading !== null}
+                                            >
+                                                {actionLoading === 'complete' ? <Loader size={18} className="animate-spin" /> : <CheckCircle size={18} />}
+                                                Completa Trasferta
+                                            </button>
+                                            <button
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors disabled:opacity-50"
+                                                onClick={() => setShowCancelModal(true)}
+                                                disabled={actionLoading !== null}
+                                            >
+                                                <Ban size={18} />
+                                                Annulla Trasferta
+                                            </button>
+                                        </>
+                                    )}
+                                    {(status === 'completed' || status === 'rejected' || status === 'cancelled') && (
+                                        <p className="text-center text-sm text-gray-400 italic py-2">
+                                            Nessuna azione disponibile
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Approver Actions Section */}
+                        {isApprover && (!isOwner || isAdmin || isHR) && status !== 'draft' && status !== 'completed' && (
+                            <div className="p-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Approvatore</h4>
+                                </div>
+                                <div className="space-y-2">
+                                    {(status === 'submitted' || status === 'pending') && (
+                                        <>
+                                            <button
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                                onClick={handleApprove}
+                                                disabled={actionLoading !== null}
+                                            >
+                                                {actionLoading === 'approve' ? <Loader size={18} className="animate-spin" /> : <CheckCircle size={18} />}
+                                                Approva
+                                            </button>
+                                            <button
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                                onClick={() => setShowRejectModal(true)}
+                                                disabled={actionLoading !== null}
+                                            >
+                                                <XCircle size={18} />
+                                                Rifiuta
+                                            </button>
+                                        </>
+                                    )}
+                                    {status === 'approved' && (
+                                        <button
+                                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                            onClick={() => setShowCancelModal(true)}
+                                            disabled={actionLoading !== null}
+                                        >
+                                            <Ban size={18} />
+                                            Revoca Approvazione
+                                        </button>
+                                    )}
+                                    {(status === 'rejected' || status === 'cancelled') && (
+                                        <p className="text-center text-sm text-gray-400 italic py-2">
+                                            Trasferta già processata
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* No Actions Available */}
+                        {!isOwner && !isApprover && status !== 'draft' && (
+                            <div className="p-4">
+                                <p className="text-center text-sm text-gray-400 italic">
                                     Nessuna azione disponibile per questa trasferta.
                                 </p>
-                            )}
-                        </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Summary Card */}

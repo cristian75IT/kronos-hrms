@@ -34,6 +34,10 @@
             {
                 "name": "approver",
                 "description": "Capability: Can approve requests"
+            },
+            {
+                "name": "hr",
+                "description": "HR Staff - Human Resources access"
             }
         ]
     },

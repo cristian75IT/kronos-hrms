@@ -144,6 +144,9 @@ class WorkflowConfig(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
     
+    # Target roles - workflow applies only to users with these roles (empty = all)
+    target_role_ids: Mapped[Optional[list]] = mapped_column(JSONB, default=list)
+    
     # Audit
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

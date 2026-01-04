@@ -25,7 +25,7 @@ def get_service(session: AsyncSession = Depends(get_db)) -> ApprovalService:
     return ApprovalService(session)
 
 
-@router.post("/request", response_model=ApprovalRequestResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/request", status_code=status.HTTP_201_CREATED)
 async def create_internal_request(
     data: ApprovalRequestCreate,
     service: ApprovalService = Depends(get_service),
@@ -39,7 +39,15 @@ async def create_internal_request(
     try:
         request = await service.create_approval_request(data)
         await db.commit()
-        return request
+        # Return simple dict to avoid lazy loading issues
+        return {
+            "id": str(request.id),
+            "entity_type": request.entity_type,
+            "entity_id": str(request.entity_id),
+            "status": request.status,
+            "title": request.title,
+            "created_at": request.created_at.isoformat() if request.created_at else None,
+        }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

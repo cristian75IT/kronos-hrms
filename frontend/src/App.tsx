@@ -121,7 +121,7 @@ function App() {
 
                 {/* Approval Workflows */}
                 <Route path="/admin/workflows" element={<ProtectedRoute roles={['admin']}><WorkflowConfigPage /></ProtectedRoute>} />
-                <Route path="/approvals/pending" element={<ProtectedRoute roles={['admin', 'hr', 'approver']}><PendingApprovalsPage /></ProtectedRoute>} />
+                <Route path="/approvals/pending" element={<ProtectedRoute roles={['approver']}><PendingApprovalsPage /></ProtectedRoute>} />
                 <Route path="/approvals" element={<Navigate to="/approvals/pending" replace />} />
 
 

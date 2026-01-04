@@ -104,6 +104,13 @@ async def update_workflow_config(
     db: AsyncSession = Depends(get_db),
 ):
     """Update workflow configuration."""
+    # Validate entity_type if provided
+    if data.entity_type and data.entity_type not in ENTITY_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid entity type. Must be one of: {ENTITY_TYPES}"
+        )
+    
     config = await service.update_workflow_config(config_id, data)
     if not config:
         raise HTTPException(status_code=404, detail="Workflow configuration not found")

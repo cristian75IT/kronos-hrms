@@ -125,7 +125,10 @@ export function UsersPage() {
             (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())
         );
         const matchesRole = selectedRole === 'all' ||
-            (selectedRole === 'admin' && user.is_superuser) ||
+            (selectedRole === 'admin' && user.is_admin) ||
+            (selectedRole === 'manager' && user.is_manager) ||
+            (selectedRole === 'approver' && user.is_approver) ||
+            (selectedRole === 'hr' && user.is_hr) ||
             (selectedRole === 'active' && user.is_active) ||
             (selectedRole === 'inactive' && !user.is_active);
         return matchesSearch && matchesRole;
@@ -137,7 +140,7 @@ export function UsersPage() {
 
     const totalUsers = users.length;
     const activeUsers = users.filter(u => u.is_active).length;
-    const admins = users.filter(u => u.is_superuser).length;
+    const admins = users.filter(u => u.is_admin).length;
 
     if (isLoading) {
         return (
@@ -243,6 +246,9 @@ export function UsersPage() {
                         >
                             <option value="all">Tutti</option>
                             <option value="admin">Amministratori</option>
+                            <option value="manager">Manager</option>
+                            <option value="approver">Approvatori</option>
+                            <option value="hr">HR</option>
                             <option value="active">Attivi</option>
                             <option value="inactive">Non Attivi</option>
                         </select>
@@ -290,13 +296,19 @@ export function UsersPage() {
                                                 <div>
                                                     <div className="font-semibold text-gray-900 flex items-center gap-2">
                                                         {user.first_name} {user.last_name}
-                                                        {user.is_superuser && <ShieldCheck size={14} className="text-indigo-600" />}
+                                                        {user.is_admin && <ShieldCheck size={14} className="text-indigo-600" title="Amministratore" />}
                                                     </div>
                                                     <div className="text-sm text-gray-500">{user.email}</div>
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
+                                            <div className="flex flex-wrap gap-1 mb-1">
+                                                {user.is_admin && <span className="px-1.5 py-0.5 rounded text-[10px] bg-indigo-100 text-indigo-700 font-medium border border-indigo-200">Admin</span>}
+                                                {user.is_manager && <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-100 text-blue-700 font-medium border border-blue-200">Manager</span>}
+                                                {user.is_approver && <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-100 text-purple-700 font-medium border border-purple-200">Appr.</span>}
+                                                {user.is_hr && <span className="px-1.5 py-0.5 rounded text-[10px] bg-pink-100 text-pink-700 font-medium border border-pink-200">HR</span>}
+                                            </div>
                                             <div className="text-sm font-medium text-gray-900">{user.profile?.position || '-'}</div>
                                             <div className="text-xs text-gray-500">{user.profile?.department || '-'}</div>
                                         </td>
@@ -373,7 +385,7 @@ export function UsersPage() {
                                 </div>
                                 <h3 className="font-bold text-gray-900 flex items-center gap-2">
                                     {user.first_name} {user.last_name}
-                                    {user.is_superuser && <ShieldCheck size={14} className="text-indigo-600" />}
+                                    {user.is_admin && <ShieldCheck size={14} className="text-indigo-600" title="Amministratore" />}
                                 </h3>
                                 <p className="text-sm text-gray-500 truncate">{user.email}</p>
                             </div>
@@ -385,6 +397,12 @@ export function UsersPage() {
                                 <div className="flex items-center gap-2 text-sm">
                                     <Building size={14} className="text-gray-400" />
                                     <span className="text-gray-600 truncate">{user.profile?.department || 'Nessun dipartimento'}</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1 pt-1">
+                                    {user.is_admin && <span className="px-1.5 py-0.5 rounded text-[10px] bg-indigo-100 text-indigo-700 font-medium border border-indigo-200">Admin</span>}
+                                    {user.is_manager && <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-100 text-blue-700 font-medium border border-blue-200">Manager</span>}
+                                    {user.is_approver && <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-100 text-purple-700 font-medium border border-purple-200">Approver</span>}
+                                    {user.is_hr && <span className="px-1.5 py-0.5 rounded text-[10px] bg-pink-100 text-pink-700 font-medium border border-pink-200">HR</span>}
                                 </div>
                                 <div className="flex gap-2 pt-2">
                                     <div className="flex-1 bg-amber-50 rounded-lg p-2 text-center">

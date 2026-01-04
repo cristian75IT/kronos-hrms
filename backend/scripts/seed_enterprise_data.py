@@ -37,6 +37,7 @@ async def seed():
                     last_name="Manager",
                     is_admin=True,
                     is_manager=True,
+                    is_employee=True,
                     is_active=True
                 )
                 session.add(cristian)
@@ -55,6 +56,7 @@ async def seed():
                     is_admin=False,
                     is_manager=True,
                     is_approver=True,
+                    is_employee=False,
                     is_active=True
                 )
                 session.add(valentina)
@@ -71,6 +73,7 @@ async def seed():
                     first_name="Marco",
                     last_name="Employee",
                     manager_id=ADMIN_ID,
+                    is_employee=True,
                     is_active=True
                 )
                 session.add(marco)

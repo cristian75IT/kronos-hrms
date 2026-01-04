@@ -14,7 +14,7 @@ from uuid import uuid4
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy import text
-from src.core.database import async_engine, AsyncSessionLocal
+from src.core.database import engine as async_engine, async_session_factory as AsyncSessionLocal
 
 
 DEFAULT_WORKFLOWS = [
@@ -108,24 +108,6 @@ DEFAULT_WORKFLOWS = [
         "priority": 50,
         "is_active": True,
         "is_default": False,
-    },
-    # Overtime workflows
-    {
-        "entity_type": "OVERTIME",
-        "name": "Approvazione Straordinario",
-        "description": "Flusso per richieste di straordinario",
-        "min_approvers": 1,
-        "max_approvers": 1,
-        "approval_mode": "ANY",
-        "auto_assign_approvers": True,
-        "allow_self_approval": False,
-        "expiration_hours": 24,
-        "expiration_action": "REJECT",
-        "reminder_hours_before": 4,
-        "send_reminders": True,
-        "priority": 100,
-        "is_active": True,
-        "is_default": True,
     },
 ]
 

@@ -31,6 +31,8 @@ import approvalsService from '../../services/approvals.service';
 import type {
     PendingApprovalItem,
     PendingApprovalsResponse,
+    ArchivedApprovalItem,
+    ArchivedApprovalsResponse,
 } from '../../services/approvals.service';
 
 // ═══════════════════════════════════════════════════════════
@@ -283,15 +285,24 @@ const PendingApprovalsPage: React.FC = () => {
     const navigate = useNavigate();
     const toast = useToast();
 
+    // View mode: 'pending' or 'archived'
+    const [viewMode, setViewMode] = useState<'pending' | 'archived'>('pending');
+
     const [data, setData] = useState<PendingApprovalsResponse | null>(null);
+    const [archivedData, setArchivedData] = useState<ArchivedApprovalsResponse | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [selectedItem, setSelectedItem] = useState<PendingApprovalItem | null>(null);
     const [isDecisionModalOpen, setIsDecisionModalOpen] = useState(false);
     const [filterType, setFilterType] = useState<string>('');
+    const [archiveStatusFilter, setArchiveStatusFilter] = useState<string>('all');
 
     useEffect(() => {
-        loadData();
-    }, [filterType]);
+        if (viewMode === 'pending') {
+            loadData();
+        } else {
+            loadArchivedData();
+        }
+    }, [filterType, viewMode, archiveStatusFilter]);
 
     const loadData = async () => {
         setIsLoading(true);
@@ -301,6 +312,22 @@ const PendingApprovalsPage: React.FC = () => {
         } catch (error) {
             console.error(error);
             toast.error('Errore nel caricamento delle approvazioni');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const loadArchivedData = async () => {
+        setIsLoading(true);
+        try {
+            const response = await approvalsService.getArchivedApprovals(
+                archiveStatusFilter === 'all' ? undefined : archiveStatusFilter,
+                filterType || undefined
+            );
+            setArchivedData(response);
+        } catch (error) {
+            console.error(error);
+            toast.error('Errore nel caricamento dell\'archivio');
         } finally {
             setIsLoading(false);
         }
@@ -368,33 +395,91 @@ const PendingApprovalsPage: React.FC = () => {
 
     return (
         <div className="p-6 max-w-5xl mx-auto">
+            {/* View Mode Tabs */}
+            <div className="flex mb-6 p-1 bg-gray-100 rounded-lg self-start w-fit">
+                <button
+                    onClick={() => setViewMode('pending')}
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-all ${viewMode === 'pending'
+                        ? 'bg-white text-indigo-700 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                >
+                    <Clock className="h-4 w-4" />
+                    In Attesa
+                    {data?.total ? (
+                        <span className="ml-1 px-1.5 py-0.5 text-xs font-bold bg-indigo-100 text-indigo-700 rounded">
+                            {data.total}
+                        </span>
+                    ) : null}
+                </button>
+                <button
+                    onClick={() => setViewMode('archived')}
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-all ${viewMode === 'archived'
+                        ? 'bg-white text-indigo-700 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                >
+                    <CheckCircle className="h-4 w-4" />
+                    Archivio
+                    {archivedData?.total ? (
+                        <span className="ml-1 px-1.5 py-0.5 text-xs font-bold bg-gray-200 text-gray-700 rounded">
+                            {archivedData.total}
+                        </span>
+                    ) : null}
+                </button>
+            </div>
+
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                        <Clock className="h-7 w-7 text-indigo-600" />
-                        Approvazioni in Attesa
+                        {viewMode === 'pending' ? (
+                            <>
+                                <Clock className="h-7 w-7 text-indigo-600" />
+                                Approvazioni in Attesa
+                            </>
+                        ) : (
+                            <>
+                                <CheckCircle className="h-7 w-7 text-green-600" />
+                                Archivio Approvazioni
+                            </>
+                        )}
                     </h1>
                     <p className="text-gray-600 mt-1">
-                        Richieste che richiedono la tua approvazione
+                        {viewMode === 'pending'
+                            ? 'Richieste che richiedono la tua approvazione'
+                            : 'Storico delle tue decisioni'}
                     </p>
                 </div>
 
-                {/* Filter */}
-                <select
-                    value={filterType}
-                    onChange={(e) => setFilterType(e.target.value)}
-                    className="rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                >
-                    <option value="">Tutti i tipi</option>
-                    <option value="LEAVE">Ferie</option>
-                    <option value="TRIP">Trasferte</option>
-                    <option value="EXPENSE">Note Spese</option>
-                </select>
+                {/* Filters */}
+                <div className="flex gap-3">
+                    {viewMode === 'archived' && (
+                        <select
+                            value={archiveStatusFilter}
+                            onChange={(e) => setArchiveStatusFilter(e.target.value)}
+                            className="rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        >
+                            <option value="all">Tutte le decisioni</option>
+                            <option value="approved">Approvate</option>
+                            <option value="rejected">Rifiutate</option>
+                        </select>
+                    )}
+                    <select
+                        value={filterType}
+                        onChange={(e) => setFilterType(e.target.value)}
+                        className="rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    >
+                        <option value="">Tutti i tipi</option>
+                        <option value="LEAVE">Ferie</option>
+                        <option value="TRIP">Trasferte</option>
+                        <option value="EXPENSE">Note Spese</option>
+                    </select>
+                </div>
             </div>
 
-            {/* Stats */}
-            {data && (
+            {/* Stats - Only for pending */}
+            {viewMode === 'pending' && data && (
                 <div className="grid grid-cols-3 gap-4 mb-6">
                     <Card className="p-4">
                         <div className="flex items-center gap-3">
@@ -432,6 +517,66 @@ const PendingApprovalsPage: React.FC = () => {
                 <div className="flex justify-center py-12">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
                 </div>
+            ) : viewMode === 'archived' ? (
+                /* ARCHIVED VIEW */
+                archivedData?.items.length === 0 ? (
+                    <Card className="p-12 text-center">
+                        <CheckCircle className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                            Nessuna decisione in archivio
+                        </h3>
+                        <p className="text-gray-500">
+                            Non hai ancora preso decisioni su nessuna richiesta
+                        </p>
+                    </Card>
+                ) : (
+                    <div className="space-y-3">
+                        {archivedData?.items.map((item: ArchivedApprovalItem) => {
+                            const decisionConfig = {
+                                APPROVED: { color: 'bg-green-100 text-green-700 border-green-200', icon: CheckCircle, label: 'Approvata' },
+                                REJECTED: { color: 'bg-red-100 text-red-700 border-red-200', icon: XCircle, label: 'Rifiutata' },
+                                DELEGATED: { color: 'bg-orange-100 text-orange-700 border-orange-200', icon: User, label: 'Delegata' },
+                            }[item.decision] || { color: 'bg-gray-100 text-gray-700', icon: FileText, label: item.decision };
+
+                            const DecisionIcon = decisionConfig.icon;
+
+                            return (
+                                <Card key={item.request_id} className="p-4 hover:shadow-md transition-shadow">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-4">
+                                            <EntityIcon type={item.entity_type} className="h-8 w-8" />
+                                            <div>
+                                                <h3 className="font-medium text-gray-900">{item.title}</h3>
+                                                <div className="flex items-center gap-2 mt-1 text-sm text-gray-500">
+                                                    <User className="h-4 w-4" />
+                                                    <span>{item.requester_name || 'N/D'}</span>
+                                                    <span>•</span>
+                                                    <span>{format(new Date(item.created_at), 'dd MMM yyyy', { locale: it })}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            <EntityTypeBadge type={item.entity_type} />
+                                            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${decisionConfig.color}`}>
+                                                <DecisionIcon className="h-4 w-4" />
+                                                {decisionConfig.label}
+                                            </div>
+                                            <div className="text-right text-sm text-gray-500">
+                                                <p>Deciso il</p>
+                                                <p className="font-medium">{format(new Date(item.decided_at), 'dd/MM/yyyy HH:mm', { locale: it })}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {item.decision_notes && (
+                                        <div className="mt-3 p-2 bg-gray-50 rounded text-sm text-gray-600">
+                                            <span className="font-medium">Note: </span>{item.decision_notes}
+                                        </div>
+                                    )}
+                                </Card>
+                            );
+                        })}
+                    </div>
+                )
             ) : data?.items.length === 0 ? (
                 <Card className="p-12 text-center">
                     <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />

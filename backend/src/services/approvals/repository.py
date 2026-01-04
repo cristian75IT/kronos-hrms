@@ -328,6 +328,39 @@ class ApprovalDecisionRepository:
         """Update decision."""
         await self._session.flush()
         return decision
+    
+    async def get_decided_by_approver(
+        self,
+        approver_id: UUID,
+        status_filter: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> List[ApprovalDecision]:
+        """Get decided approvals for an approver (for archive view)."""
+        query = (
+            select(ApprovalDecision)
+            .join(ApprovalRequest, ApprovalDecision.approval_request_id == ApprovalRequest.id)
+            .where(
+                and_(
+                    ApprovalDecision.approver_id == approver_id,
+                    ApprovalDecision.decision.isnot(None),
+                )
+            )
+            .options(selectinload(ApprovalDecision.approval_request))
+        )
+        
+        if status_filter and status_filter != 'all':
+            query = query.where(ApprovalDecision.decision == status_filter.upper())
+        
+        if entity_type:
+            query = query.where(ApprovalRequest.entity_type == entity_type)
+        
+        query = query.order_by(ApprovalDecision.decided_at.desc())
+        query = query.offset(offset).limit(limit)
+        
+        result = await self._session.execute(query)
+        return list(result.scalars().unique().all())
 
 
 class ApprovalHistoryRepository:

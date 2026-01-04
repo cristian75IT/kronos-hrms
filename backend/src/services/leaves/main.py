@@ -62,6 +62,111 @@ from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
+
+# ═══════════════════════════════════════════════════════════
+# Custom Exception Handlers
+# ═══════════════════════════════════════════════════════════
+
+from src.core.exceptions import (
+    KronosException,
+    NotFoundError,
+    ValidationError,
+    AuthenticationError,
+    AuthorizationError,
+    ConflictError,
+    BusinessRuleError,
+)
+
+
+@app.exception_handler(NotFoundError)
+async def not_found_exception_handler(request: Request, exc: NotFoundError):
+    """Handle 404 Not Found errors."""
+    return JSONResponse(
+        status_code=404,
+        content={
+            "detail": exc.message,
+            "code": exc.code,
+            "errors": exc.details,
+        },
+    )
+
+
+@app.exception_handler(ValidationError)
+async def validation_exception_handler(request: Request, exc: ValidationError):
+    """Handle validation errors."""
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.message,
+            "code": exc.code,
+            "errors": exc.details,
+        },
+    )
+
+
+@app.exception_handler(AuthenticationError)
+async def authentication_exception_handler(request: Request, exc: AuthenticationError):
+    """Handle authentication errors."""
+    return JSONResponse(
+        status_code=401,
+        content={
+            "detail": exc.message,
+            "code": exc.code,
+        },
+    )
+
+
+@app.exception_handler(AuthorizationError)
+async def authorization_exception_handler(request: Request, exc: AuthorizationError):
+    """Handle authorization errors."""
+    return JSONResponse(
+        status_code=403,
+        content={
+            "detail": exc.message,
+            "code": exc.code,
+        },
+    )
+
+
+@app.exception_handler(ConflictError)
+async def conflict_exception_handler(request: Request, exc: ConflictError):
+    """Handle conflict errors (e.g., overlapping dates)."""
+    return JSONResponse(
+        status_code=409,
+        content={
+            "detail": exc.message,
+            "code": exc.code,
+            "errors": exc.details,
+        },
+    )
+
+
+@app.exception_handler(BusinessRuleError)
+async def business_rule_exception_handler(request: Request, exc: BusinessRuleError):
+    """Handle business rule violations."""
+    return JSONResponse(
+        status_code=400,
+        content={
+            "detail": exc.message,
+            "code": exc.code,
+            "errors": exc.details,
+        },
+    )
+
+
+@app.exception_handler(KronosException)
+async def kronos_exception_handler(request: Request, exc: KronosException):
+    """Handle any other Kronos exceptions."""
+    return JSONResponse(
+        status_code=400,
+        content={
+            "detail": exc.message,
+            "code": exc.code,
+            "errors": exc.details,
+        },
+    )
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Log any unhandled exception."""

@@ -377,9 +377,9 @@ class LeaveService:
                     entity_id=id,
                     requester_id=user_id,
                     title=f"Richiesta ferie: {request.start_date} - {request.end_date}",
-                    entity_ref=request.ref_code,
+                    entity_ref=request.leave_type_code,
                     requester_name=requester_name,
-                    description=request.notes,
+                    description=request.employee_notes,
                     metadata={
                         "days_requested": float(request.days_requested),
                         "leave_type_id": str(request.leave_type_id),

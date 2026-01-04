@@ -85,6 +85,22 @@ class AuthClient:
             logger.error(f"AuthClient error get_employee_trainings: {e}")
         return []
 
+    async def get_approvers(self) -> list[dict]:
+        """Get all approvers (internal use, no auth required)."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/users/internal/approvers",
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    logger.warning(f"AuthClient get_approvers returned {response.status_code}: {response.text}")
+        except Exception as e:
+            logger.error(f"AuthClient error get_approvers: {e}")
+        return []
+
 
 class ConfigClient:
     """Client for Config Service interactions."""

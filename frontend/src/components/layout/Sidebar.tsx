@@ -40,15 +40,15 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', path: '/', icon: <LayoutDashboard size={20} /> },
-  { label: 'Le Mie Ferie', path: '/leaves', icon: <Calendar size={20} /> },
-  { label: 'Calendario', path: '/calendar', icon: <Calendar size={20} /> },
+  { label: 'Le Mie Ferie', path: '/leaves', icon: <TreePalm size={20} /> },
   { label: 'Trasferte', path: '/trips', icon: <Briefcase size={20} /> },
   { label: 'Note Spese', path: '/expenses', icon: <FileText size={20} /> },
-  { label: 'Wiki & Help', path: '/wiki', icon: <Book size={20} /> },
+  { label: 'Calendario', path: '/calendar', icon: <Calendar size={20} /> },
+  { label: 'Documenti & Wiki', path: '/wiki', icon: <Book size={20} /> },
 ];
 
 const approverItems: NavItem[] = [
-  { label: 'Approvazioni', path: '/approvals/pending', icon: <Users size={20} />, roles: ['approver', 'admin', 'hr'] },
+  { label: 'Approvazioni', path: '/approvals/pending', icon: <Users size={20} />, roles: ['approver'] },
 ];
 
 const adminItems: NavItem[] = [
@@ -95,6 +95,10 @@ export function Sidebar() {
   const renderNavItem = (item: NavItem) => {
     if (item.roles && !item.roles.some(r => hasRole(r))) return null;
 
+    // Filter employee-only items for external users
+    const employeeOnlyPaths = ['/leaves', '/trips', '/expenses', '/calendar'];
+    if (user?.is_employee === false && employeeOnlyPaths.includes(item.path)) return null;
+
     return (
       <Link
         key={item.path}
@@ -134,7 +138,7 @@ export function Sidebar() {
           {navItems.map(renderNavItem)}
         </div>
 
-        {(isApprover || isAdmin) && (
+        {isApprover && (
           <div className="sidebar-section">
             {!collapsed && <div className="sidebar-section-title">Approvazioni</div>}
             {approverItems.map(renderNavItem)}

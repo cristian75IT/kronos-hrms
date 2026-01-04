@@ -39,6 +39,7 @@ export interface WorkflowConfig {
     priority: number;
     is_active: boolean;
     is_default: boolean;
+    target_role_ids: string[];
     created_at: string;
     updated_at: string;
     created_by?: string;
@@ -63,6 +64,7 @@ export interface WorkflowConfigCreate {
     priority?: number;
     is_active?: boolean;
     is_default?: boolean;
+    target_role_ids?: string[];
 }
 
 export interface ApprovalDecision {
@@ -130,6 +132,25 @@ export interface PendingCountResponse {
     total: number;
     urgent: number;
     by_type: Record<string, number>;
+}
+
+export interface ArchivedApprovalItem {
+    request_id: string;
+    entity_type: string;
+    entity_id: string;
+    entity_ref?: string;
+    title: string;
+    description?: string;
+    requester_name?: string;
+    decision: 'APPROVED' | 'REJECTED' | 'DELEGATED';
+    decision_notes?: string;
+    decided_at: string;
+    created_at: string;
+}
+
+export interface ArchivedApprovalsResponse {
+    total: number;
+    items: ArchivedApprovalItem[];
 }
 
 export interface EntityTypeInfo {
@@ -216,6 +237,15 @@ export const approvalsService = {
 
     async getPendingCount(): Promise<PendingCountResponse> {
         const response = await api.get(`${BASE_URL}/decisions/pending/count`);
+        return response.data;
+    },
+
+    async getArchivedApprovals(statusFilter?: string, entityType?: string): Promise<ArchivedApprovalsResponse> {
+        const params = new URLSearchParams();
+        if (statusFilter) params.append('status_filter', statusFilter);
+        if (entityType) params.append('entity_type', entityType);
+        const queryString = params.toString();
+        const response = await api.get(`${BASE_URL}/decisions/archived${queryString ? `?${queryString}` : ''}`);
         return response.data;
     },
 

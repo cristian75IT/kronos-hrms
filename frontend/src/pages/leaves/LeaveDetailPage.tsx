@@ -681,142 +681,166 @@ export function LeaveDetailPage() {
                 {/* Right Column - Actions & Summary */}
                 <div className="space-y-6">
                     {/* Actions Card */}
-                    <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                        <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-4">Azioni</h3>
-                        <div className="space-y-3">
-                            {status === 'draft' && isOwner && (
-                                <>
-                                    <button
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-                                        onClick={handleSubmit}
-                                        disabled={actionLoading !== null}
-                                    >
-                                        {actionLoading === 'submit' ? <Loader size={18} className="animate-spin" /> : <Send size={18} />}
-                                        Invia Richiesta
-                                    </button>
-                                    <Link
-                                        to={`/leaves/${id}/edit`}
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition-colors"
-                                    >
-                                        <Edit size={18} />
-                                        Modifica
-                                    </Link>
-                                    <button
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors disabled:opacity-50"
-                                        onClick={onRequestDelete}
-                                        disabled={actionLoading !== null}
-                                    >
-                                        {actionLoading === 'delete' ? <Loader size={18} className="animate-spin" /> : <Trash2 size={18} />}
-                                        Elimina
-                                    </button>
-                                </>
-                            )}
-                            {(status === 'pending' || status === 'submitted') && isOwner && (
-                                <button
-                                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors disabled:opacity-50"
-                                    onClick={() => setShowCancelModal(true)}
-                                    disabled={actionLoading !== null}
-                                >
-                                    <XCircle size={18} />
-                                    Annulla Richiesta
-                                </button>
-                            )}
-                            {status !== 'draft' && isApprover && (!isOwner || isAdmin || isHR) && (
-                                <>
-                                    <button
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-                                        onClick={() => setShowApproveModal(true)}
-                                        disabled={actionLoading !== null || status === 'approved'}
-                                    >
-                                        <CheckCircle size={18} />
-                                        Approva
-                                    </button>
+                    <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                        <div className="p-4 bg-gray-50 border-b border-gray-200">
+                            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Azioni</h3>
+                        </div>
 
-                                    <button
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-                                        onClick={() => setShowConditionalModal(true)}
-                                        disabled={actionLoading !== null || status === 'approved' || status === 'approved_conditional'}
-                                    >
-                                        <AlertCircle size={18} />
-                                        Approva con Condizioni
-                                    </button>
-                                    <button
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-                                        onClick={() => setShowRejectModal(true)}
-                                        disabled={actionLoading !== null || status === 'rejected'}
-                                    >
-                                        <XCircle size={18} />
-                                        Rifiuta
-                                    </button>
-                                </>
-                            )}
+                        {/* Employee Actions Section */}
+                        {isOwner && (
+                            <div className="p-4 border-b border-gray-100">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Dipendente</h4>
+                                </div>
+                                <div className="space-y-2">
+                                    {status === 'draft' && (
+                                        <>
+                                            <button
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                                onClick={handleSubmit}
+                                                disabled={actionLoading !== null}
+                                            >
+                                                {actionLoading === 'submit' ? <Loader size={18} className="animate-spin" /> : <Send size={18} />}
+                                                Invia Richiesta
+                                            </button>
+                                            <Link
+                                                to={`/leaves/${id}/edit`}
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-medium transition-colors"
+                                            >
+                                                <Edit size={18} />
+                                                Modifica
+                                            </Link>
+                                            <button
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-red-600 hover:bg-red-50 border border-red-200 rounded-lg font-medium transition-colors disabled:opacity-50"
+                                                onClick={onRequestDelete}
+                                                disabled={actionLoading !== null}
+                                            >
+                                                {actionLoading === 'delete' ? <Loader size={18} className="animate-spin" /> : <Trash2 size={18} />}
+                                                Elimina Bozza
+                                            </button>
+                                        </>
+                                    )}
+                                    {(status === 'pending' || status === 'submitted') && (
+                                        <button
+                                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors disabled:opacity-50"
+                                            onClick={() => setShowCancelModal(true)}
+                                            disabled={actionLoading !== null}
+                                        >
+                                            <XCircle size={18} />
+                                            Annulla Richiesta
+                                        </button>
+                                    )}
+                                    {status === 'approved_conditional' && (
+                                        <>
+                                            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 mb-2">
+                                                <strong>Attenzione:</strong> Questa richiesta è stata approvata con condizioni. Accetta per confermare o rifiuta per annullare.
+                                            </div>
+                                            <button
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                                onClick={() => handleConditionResponse(true)}
+                                                disabled={actionLoading !== null}
+                                            >
+                                                {actionLoading === 'accept_condition' ? <Loader size={18} className="animate-spin" /> : <CheckCircle size={18} />}
+                                                Accetta Condizioni
+                                            </button>
+                                            <button
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                                onClick={() => handleConditionResponse(false)}
+                                                disabled={actionLoading !== null}
+                                            >
+                                                {actionLoading === 'reject_condition' ? <Loader size={18} className="animate-spin" /> : <XCircle size={18} />}
+                                                Rifiuta Condizioni
+                                            </button>
+                                        </>
+                                    )}
+                                    {(status === 'approved' || status === 'rejected' || status === 'cancelled') && !['approved_conditional'].includes(status) && (
+                                        <p className="text-center text-sm text-gray-400 italic py-2">
+                                            Nessuna azione disponibile
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
-                            {/* Revoke approved request (approver only, before start date) */}
-                            {(status === 'approved' || status === 'approved_conditional') && isApprover && (!isOwner || isAdmin || isHR) && (
-                                <>
-                                    <button
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-                                        onClick={() => setShowRevokeModal(true)}
-                                        disabled={actionLoading !== null}
-                                    >
-                                        <Ban size={18} />
-                                        Revoca Approvazione
-                                    </button>
-                                    <button
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-                                        onClick={() => setShowRecallModal(true)}
-                                        disabled={actionLoading !== null}
-                                    >
-                                        <Phone size={18} />
-                                        Richiama in Servizio
-                                    </button>
-                                </>
-                            )}
+                        {/* Approver Actions Section */}
+                        {isApprover && (!isOwner || isAdmin || isHR) && status !== 'draft' && (
+                            <div className="p-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Approvatore</h4>
+                                </div>
+                                <div className="space-y-2">
+                                    {(status === 'pending' || status === 'submitted') && (
+                                        <>
+                                            <button
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                                onClick={() => setShowApproveModal(true)}
+                                                disabled={actionLoading !== null}
+                                            >
+                                                <CheckCircle size={18} />
+                                                Approva
+                                            </button>
+                                            <button
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                                onClick={() => setShowConditionalModal(true)}
+                                                disabled={actionLoading !== null}
+                                            >
+                                                <AlertCircle size={18} />
+                                                Approva con Condizioni
+                                            </button>
+                                            <button
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                                onClick={() => setShowRejectModal(true)}
+                                                disabled={actionLoading !== null}
+                                            >
+                                                <XCircle size={18} />
+                                                Rifiuta
+                                            </button>
+                                        </>
+                                    )}
+                                    {(status === 'approved' || status === 'approved_conditional') && (
+                                        <>
+                                            <button
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                                onClick={() => setShowRevokeModal(true)}
+                                                disabled={actionLoading !== null}
+                                            >
+                                                <Ban size={18} />
+                                                Revoca Approvazione
+                                            </button>
+                                            <button
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                                onClick={() => setShowRecallModal(true)}
+                                                disabled={actionLoading !== null}
+                                            >
+                                                <Phone size={18} />
+                                                Richiama in Servizio
+                                            </button>
+                                        </>
+                                    )}
+                                    {(status === 'rejected' || status === 'cancelled') && (
+                                        <button
+                                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                                            onClick={() => setShowReopenModal(true)}
+                                            disabled={actionLoading !== null}
+                                        >
+                                            <History size={18} />
+                                            Riapri Richiesta
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
-                            {/* Reopen rejected/cancelled request (approver only) */}
-                            {(status === 'rejected' || status === 'cancelled') && isApprover && (!isOwner || isAdmin || isHR) && (
-                                <button
-                                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-                                    onClick={() => setShowReopenModal(true)}
-                                    disabled={actionLoading !== null}
-                                >
-                                    <History size={18} />
-                                    Riapri Richiesta
-                                </button>
-                            )}
-
-                            {/* No actions for non-approvers on processed requests */}
-                            {(status === 'approved' || status === 'rejected' || status === 'cancelled') && !isApprover && !isOwner && (
-                                <p className="text-center text-sm text-gray-500 italic">
+                        {/* No Actions Available */}
+                        {!isOwner && !isApprover && (
+                            <div className="p-4">
+                                <p className="text-center text-sm text-gray-400 italic">
                                     Nessuna azione disponibile per questa richiesta.
                                 </p>
-                            )}
-
-                            {/* Employee Condition Acceptance (Owner only) */}
-                            {status === 'approved_conditional' && isOwner && (
-                                <>
-                                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 mb-2">
-                                        <strong>Attenzione:</strong> Questa richiesta è stata approvata con condizioni. Accetta per confermare o rifiuta per annullare.
-                                    </div>
-                                    <button
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-                                        onClick={() => handleConditionResponse(true)}
-                                        disabled={actionLoading !== null}
-                                    >
-                                        {actionLoading === 'accept_condition' ? <Loader size={18} className="animate-spin" /> : <CheckCircle size={18} />}
-                                        Accetta Condizioni
-                                    </button>
-                                    <button
-                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-                                        onClick={() => handleConditionResponse(false)}
-                                        disabled={actionLoading !== null}
-                                    >
-                                        {actionLoading === 'reject_condition' ? <Loader size={18} className="animate-spin" /> : <XCircle size={18} />}
-                                        Rifiuta Condizioni
-                                    </button>
-                                </>
-                            )}
-                        </div>
+                            </div>
+                        )}
                     </div>
 
 
