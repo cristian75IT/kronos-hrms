@@ -438,7 +438,7 @@ async def validate_request(
 # Internal Endpoints (for inter-service communication)
 # ═══════════════════════════════════════════════════════════
 
-@router.get("/internal/pending-count", response_model=int)
+@router.get("/leaves/internal/pending-count", response_model=int)
 async def get_pending_count_internal(
     service: LeaveService = Depends(get_leave_service),
 ):
@@ -447,7 +447,7 @@ async def get_pending_count_internal(
     return len(requests)
 
 
-@router.get("/internal/requests", response_model=list[LeaveRequestListItem])
+@router.get("/leaves/internal/requests", response_model=list[LeaveRequestListItem])
 async def get_requests_internal(
     start_date: date = Query(..., description="Start date"),
     end_date: date = Query(..., description="End date"),
@@ -476,7 +476,7 @@ async def get_requests_internal(
     return [LeaveRequestListItem.model_validate(r) for r in requests]
 
 
-@router.post("/internal/recalculate-for-closure")
+@router.post("/leaves/internal/recalculate-for-closure")
 async def recalculate_for_closure(
     closure_start: date = Query(..., description="Closure start date"),
     closure_end: date = Query(..., description="Closure end date"),
