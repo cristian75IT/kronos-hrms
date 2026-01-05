@@ -632,7 +632,7 @@ export function CalendarPage() {
                                                                 }
                                                                 const ownerId = cal.user_id || cal.owner_id;
                                                                 const owner = (users || []).find((u: any) => u.id === ownerId);
-                                                                const ownerName = `${owner?.first_name || ''} ${owner?.last_name || ''}`.trim() || 'un collega';
+                                                                const ownerName = owner?.full_name || `${owner?.first_name || ''} ${owner?.last_name || ''}`.trim() || 'un collega';
                                                                 return (
                                                                     <span className="text-[10px] text-gray-400">
                                                                         Condiviso da {ownerName}
