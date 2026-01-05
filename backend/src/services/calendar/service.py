@@ -26,6 +26,7 @@ from .models import (
 )
 from src.services.calendar import schemas
 from src.shared.audit_client import get_audit_logger
+from src.shared.clients import LeavesClient
 
 logger = logging.getLogger(__name__)
 
@@ -924,7 +925,49 @@ class CalendarService:
                     closure_map[curr] = c["name"]
                 curr += timedelta(days=1)
 
-        # 5. Build days list
+        # 5. Get Leaves (Approved)
+        leaves_client = LeavesClient()
+        # Fetch leaves including "approved" and "approved_conditional"
+        # We pass None as user_id to get ALL leaves (if user is manager/admin logic allows)
+        # But wait, does ordinary user view EVERYONE's leaves?
+        # The prompt implies seeing "Name Surname", so likely yes, or at least team leaves.
+        # We'll fetch all and let the frontend filter or backend processing handle it.
+        # IMPORTANT: get_leaves_in_period (internal) returns requests.
+        leaves_data = await leaves_client.get_leaves_in_period(
+            start_date=start_date,
+            end_date=end_date,
+            status="approved,approved_conditional"
+        )
+        
+        # Build leaves map: date -> list of leaves
+        leaves_map: Dict[date, List[dict]] = {}
+        for leave in leaves_data:
+            l_start = date.fromisoformat(leave["start_date"]) if isinstance(leave["start_date"], str) else leave["start_date"]
+            l_end = date.fromisoformat(leave["end_date"]) if isinstance(leave["end_date"], str) else leave["end_date"]
+            
+            # Map full name
+            user_name = leave.get("user_name", "Dipendente")
+            leave_code = leave.get("leave_type_code", "ASSENZA")
+            
+            # Format title as requested: "Name Surname - FERIE/ROL/PERMESSO"
+            title = f"{user_name} - {leave_code}"
+            
+            # Iterate days of the leave
+            curr = l_start
+            while curr <= l_end:
+                if start_date <= curr <= end_date:
+                    if curr not in leaves_map:
+                        leaves_map[curr] = []
+                    leaves_map[curr].append({
+                        "id": leave["id"],
+                        "title": title,
+                        "start_date": l_start,
+                        "end_date": l_end,
+                        "leave_type_code": leave_code
+                    })
+                curr += timedelta(days=1)
+
+        # 6. Build days list
         days = []
         current_date = start_date
         while current_date <= end_date:
@@ -956,6 +999,20 @@ class CalendarService:
                     is_all_day=True
                 ))
             
+            # Add Leaves
+            if current_date in leaves_map:
+                for l_data in leaves_map[current_date]:
+                     day_items.append(schemas.CalendarDayItem(
+                        id=UUID(l_data["id"]),
+                        title=l_data["title"],
+                        item_type=schemas.CalendarItemType.LEAVE,
+                        start_date=l_data["start_date"],
+                        end_date=l_data["end_date"],
+                        color="#3B82F6", # Blue for leaves
+                        is_all_day=True,
+                        metadata={"leave_type": l_data["leave_type_code"]}
+                    ))
+
             # Add User Events
             for e in events:
                 if e.start_date <= current_date <= e.end_date:
@@ -968,7 +1025,8 @@ class CalendarService:
                         color=e.calendar.color if e.calendar else "#4F46E5",
                         is_all_day=e.is_all_day,
                         start_time=e.start_time,
-                        end_time=e.end_time
+                        end_time=e.end_time,
+                        metadata={"calendar_id": str(e.calendar_id)} if e.calendar_id else None
                     ))
             
             is_working = await self.is_working_day(current_date, location_id)

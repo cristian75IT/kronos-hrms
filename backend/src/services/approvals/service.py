@@ -597,6 +597,7 @@ class ApprovalService:
         request_id: UUID,
         approver_id: UUID,
         notes: Optional[str] = None,
+        override_authority: bool = False,
     ) -> ApprovalRequest:
         """Approve a request."""
         request = await self._request_repo.get_by_id(request_id, include_decisions=True)
@@ -604,7 +605,11 @@ class ApprovalService:
             raise ValueError("Approval request not found")
         
         request = await self._engine.process_decision(
-            request, approver_id, DecisionType.APPROVED.value, notes
+            request, 
+            approver_id, 
+            DecisionType.APPROVED.value, 
+            notes,
+            override_authority=override_authority
         )
         
         # If resolved, trigger callback
@@ -620,6 +625,7 @@ class ApprovalService:
         condition_type: str,
         condition_details: str,
         notes: Optional[str] = None,
+        override_authority: bool = False,
     ) -> ApprovalRequest:
         """Approve a request with conditions."""
         request = await self._request_repo.get_by_id(request_id, include_decisions=True)
@@ -636,7 +642,11 @@ class ApprovalService:
         # Let's update the decision metadata or just pass them through the request
         
         request = await self._engine.process_decision(
-            request, approver_id, DecisionType.APPROVED_CONDITIONAL.value, combined_notes
+            request, 
+            approver_id, 
+            DecisionType.APPROVED_CONDITIONAL.value, 
+            combined_notes,
+            override_authority=override_authority
         )
         
         # Store conditions in request metadata for the callback
@@ -657,6 +667,7 @@ class ApprovalService:
         request_id: UUID,
         approver_id: UUID,
         notes: Optional[str] = None,
+        override_authority: bool = False,
     ) -> ApprovalRequest:
         """Reject a request."""
         request = await self._request_repo.get_by_id(request_id, include_decisions=True)
@@ -664,7 +675,11 @@ class ApprovalService:
             raise ValueError("Approval request not found")
         
         request = await self._engine.process_decision(
-            request, approver_id, DecisionType.REJECTED.value, notes
+            request, 
+            approver_id, 
+            DecisionType.REJECTED.value, 
+            notes,
+            override_authority=override_authority
         )
         
         # If resolved, trigger callback
@@ -680,6 +695,7 @@ class ApprovalService:
         delegate_to_id: UUID,
         delegate_to_name: Optional[str] = None,
         notes: Optional[str] = None,
+        override_authority: bool = False,
     ) -> ApprovalRequest:
         """Delegate approval to another user."""
         request = await self._request_repo.get_by_id(request_id, include_decisions=True)
@@ -697,8 +713,13 @@ class ApprovalService:
         
         # Process delegation
         request = await self._engine.process_decision(
-            request, approver_id, DecisionType.DELEGATED.value, notes,
-            delegated_to_id=delegate_to_id, delegated_to_name=delegate_to_name
+            request, 
+            approver_id, 
+            DecisionType.DELEGATED.value, 
+            notes,
+            delegated_to_id=delegate_to_id, 
+            delegated_to_name=delegate_to_name,
+            override_authority=override_authority
         )
         
         # Create new decision for delegate

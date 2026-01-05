@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
     Plane,
     MapPin,
@@ -6,7 +7,8 @@ import {
     CheckCircle,
     XCircle,
     Clock,
-    User
+    User,
+    Eye
 } from 'lucide-react';
 import ServerSideTable from '../../components/common/ServerSideTable';
 import { Button } from '../../components/common';
@@ -108,7 +110,22 @@ export function HRTripsManagement() {
                 );
             }
         }),
+        columnHelper.display({
+            id: 'actions',
+            header: 'Azioni',
+            cell: info => (
+                <Link
+                    to={`/trips/${info.row.original.id}`}
+                    className="flex items-center justify-center w-8 h-8 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
+                    title="Vedi Dettagli"
+                >
+                    <Eye size={18} />
+                </Link>
+            )
+        }),
     ];
+
+
 
     return (
         <div className="space-y-6 animate-fadeIn pb-12">

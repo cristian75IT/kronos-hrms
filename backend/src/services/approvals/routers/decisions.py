@@ -74,6 +74,7 @@ async def approve_request(
             request_id=request_id,
             approver_id=current_user.sub,
             notes=notes,
+            override_authority=current_user.is_admin,
         )
         await db.commit()
         return request
@@ -104,6 +105,7 @@ async def reject_request(
             request_id=request_id,
             approver_id=current_user.sub,
             notes=notes,
+            override_authority=current_user.is_admin,
         )
         await db.commit()
         return request
@@ -130,6 +132,7 @@ async def approve_conditional_request(
             condition_type=data.condition_type,
             condition_details=data.condition_details,
             notes=data.notes,
+            override_authority=current_user.is_admin,
         )
         await db.commit()
         return request
@@ -164,6 +167,7 @@ async def delegate_request(
             delegate_to_id=delegate_to_id,
             delegate_to_name=delegate_to_name,
             notes=notes,
+            override_authority=current_user.is_admin,
         )
         await db.commit()
         return request

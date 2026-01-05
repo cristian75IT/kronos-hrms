@@ -3,6 +3,7 @@ KRONOS HR Reporting Service - Training Router.
 
 API endpoints for training and safety management (D.Lgs. 81/08).
 """
+import logging
 from datetime import date, timedelta
 from typing import Optional, List
 from uuid import UUID
@@ -28,6 +29,8 @@ from ..schemas import (
     DataTableRequest,
     DataTableResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/training", tags=["Training & Safety"])
 

@@ -1,11 +1,13 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
     TreePalm,
     Search,
     CheckCircle,
     XCircle,
     Clock,
-    User
+    User,
+    Eye
 } from 'lucide-react';
 import ServerSideTable from '../../components/common/ServerSideTable';
 import { Button } from '../../components/common';
@@ -120,6 +122,19 @@ export function HRLeavesManagement() {
         columnHelper.accessor('created_at', {
             header: 'Richiesta il',
             cell: info => <span className="text-gray-500 text-xs">{format(new Date(info.getValue()), 'd MMM HH:mm', { locale: it })}</span>
+        }),
+        columnHelper.display({
+            id: 'actions',
+            header: 'Azioni',
+            cell: info => (
+                <Link
+                    to={`/leaves/${info.row.original.id}`}
+                    className="flex items-center justify-center w-8 h-8 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
+                    title="Vedi Dettagli"
+                >
+                    <Eye size={18} />
+                </Link>
+            )
         }),
     ];
 

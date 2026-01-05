@@ -54,7 +54,8 @@ class WalletService:
             # Lazy initialization
             wallet = EmployeeWallet(user_id=user_id, year=year)
             self.session.add(wallet)
-            await self.session.flush()
+            await self.session.commit()
+            await self.session.refresh(wallet)
             
         return wallet
 
@@ -90,7 +91,8 @@ class WalletService:
             reserved = await self._get_reserved_amount(wallet.id, balance_type)
             available -= reserved
         
-        return max(Decimal("0"), available)
+        # Allow negative balances (e.g. if insufficient balance block is disabled)
+        return available
 
     async def check_balance_sufficient(
         self,

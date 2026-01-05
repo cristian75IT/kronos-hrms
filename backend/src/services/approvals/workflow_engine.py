@@ -228,16 +228,38 @@ class WorkflowEngine:
         notes: Optional[str] = None,
         delegated_to_id: Optional[UUID] = None,
         delegated_to_name: Optional[str] = None,
+        override_authority: bool = False,
     ) -> ApprovalRequest:
         """
         Process an approver's decision.
         
         Updates the decision record and recalculates request status.
+        Args:
+            override_authority: If True, allows processing even if approver_id is not assigned (Admin override)
         """
         # Get the decision record
         decision = await self._decision_repo.get_by_request_and_approver(
             request.id, approver_id
         )
+        
+        # Admin Override Logic: If decision not found for this user, look for ANY pending decision at current level
+        if not decision and override_authority:
+            logger.info(f"Admin override for request {request.id} by {approver_id}")
+            # Find pending decisions for current level
+            pending_decisions = await self._decision_repo.get_pending_by_request(request.id)
+            
+            # Filter for current level if sequential
+            workflow = await self._config_repo.get_by_id(request.workflow_config_id)
+            if workflow and workflow.approval_mode == ApprovalMode.SEQUENTIAL.value:
+                current_level_pending = [d for d in pending_decisions if d.approval_level == request.current_level]
+                if current_level_pending:
+                    decision = current_level_pending[0]
+            elif pending_decisions:
+                # Pick the first available pending decision
+                decision = pending_decisions[0]
+                
+            if decision:
+                notes = f"[ADMIN OVERRIDE by {approver_id}] {notes or ''}"
         
         if not decision:
             raise ValueError(f"Approver {approver_id} is not assigned to this request")
@@ -249,13 +271,14 @@ class WorkflowEngine:
             raise ValueError(f"Request is not pending (status: {request.status})")
         
         # For sequential mode, check if it's this approver's turn
-        workflow = await self._config_repo.get_by_id(request.workflow_config_id)
-        if workflow and workflow.approval_mode == ApprovalMode.SEQUENTIAL.value:
-            if decision.approval_level != request.current_level:
-                raise ValueError(
-                    f"Not your turn. Current level: {request.current_level}, "
-                    f"your level: {decision.approval_level}"
-                )
+        if not override_authority:
+            workflow = await self._config_repo.get_by_id(request.workflow_config_id)
+            if workflow and workflow.approval_mode == ApprovalMode.SEQUENTIAL.value:
+                if decision.approval_level != request.current_level:
+                    raise ValueError(
+                        f"Not your turn. Current level: {request.current_level}, "
+                        f"your level: {decision.approval_level}"
+                    )
         
         # Update decision
         decision.decision = decision_type
