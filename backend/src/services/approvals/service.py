@@ -412,7 +412,11 @@ class ApprovalService:
     ):
         """Send notifications to approvers."""
         try:
-            for approver_id in approver_ids:
+            # Exclude requester if they are in the approver list
+            # They already got a "submission" notification from the source service
+            target_ids = [uid for uid in approver_ids if uid != request.requester_id]
+            
+            for approver_id in target_ids:
                 await self._notification_client.send_notification(
                     user_id=approver_id,
                     title="Nuova Approvazione Richiesta",
@@ -608,6 +612,45 @@ class ApprovalService:
             await self._send_callback(request)
         
         return request
+
+    async def approve_conditional_request(
+        self,
+        request_id: UUID,
+        approver_id: UUID,
+        condition_type: str,
+        condition_details: str,
+        notes: Optional[str] = None,
+    ) -> ApprovalRequest:
+        """Approve a request with conditions."""
+        request = await self._request_repo.get_by_id(request_id, include_decisions=True)
+        if not request:
+            raise ValueError("Approval request not found")
+        
+        # Store conditions in notes/details if needed, but the engine handles the status
+        # For now we'll put them in notes if not provided, or we can use the details param of process_decision if we add it
+        combined_notes = f"[CONDITION: {condition_type}] {condition_details}"
+        if notes:
+            combined_notes += f"\nNotes: {notes}"
+        
+        # We need to pass the conditions to the callback, so we might want to store them in the decision or request metadata
+        # Let's update the decision metadata or just pass them through the request
+        
+        request = await self._engine.process_decision(
+            request, approver_id, DecisionType.APPROVED_CONDITIONAL.value, combined_notes
+        )
+        
+        # Store conditions in request metadata for the callback
+        if not request.request_metadata:
+            request.request_metadata = {}
+        request.request_metadata["condition_type"] = condition_type
+        request.request_metadata["condition_details"] = condition_details
+        await self._request_repo.update(request)
+        
+        # If resolved, trigger callback
+        if request.status != ApprovalStatus.PENDING.value:
+            await self._send_callback(request)
+        
+        return request
     
     async def reject_request(
         self,
@@ -696,6 +739,8 @@ class ApprovalService:
             resolved_at=request.resolved_at or datetime.utcnow(),
             resolution_notes=request.resolution_notes,
             final_decision_by=request.final_decision_by,
+            condition_type=request.request_metadata.get("condition_type") if request.request_metadata else None,
+            condition_details=request.request_metadata.get("condition_details") if request.request_metadata else None,
             decisions=[
                 {
                     "id": d.id,

@@ -28,6 +28,8 @@ class ApprovalCallbackPayload(BaseModel):
     decided_by_name: Optional[str] = None
     decision_notes: Optional[str] = None
     resolved_at: Optional[str] = None
+    condition_type: Optional[str] = None
+    condition_details: Optional[str] = None
 
 
 @router.post("/approval-callback/{leave_id}")
@@ -90,6 +92,25 @@ async def handle_approval_callback(
             
             logger.info(f"Leave {leave_id} rejected via workflow")
             return {"status": "rejected"}
+            
+        elif payload.status == "APPROVED_CONDITIONAL":
+            from src.services.leaves.schemas import ApproveConditionalRequest
+            
+            approver_id = payload.decided_by or UUID("00000000-0000-0000-0000-000000000000")
+            
+            cond_data = ApproveConditionalRequest(
+                condition_type=payload.condition_type or "GENERIC",
+                condition_details=payload.condition_details or "Condizioni applicate da workflow esterno",
+            )
+            
+            await service.approve_conditional(
+                id=leave_id,
+                approver_id=approver_id,
+                data=cond_data,
+            )
+            
+            logger.info(f"Leave {leave_id} approved with conditions via workflow")
+            return {"status": "approved_conditional"}
             
         elif payload.status in ("EXPIRED", "CANCELLED"):
             # Handle expiration/cancellation by rejecting

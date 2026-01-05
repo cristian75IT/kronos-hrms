@@ -55,18 +55,27 @@ const approverItems: NavItem[] = [
   { label: 'Approvazioni', path: '/approvals/pending', icon: <Users size={20} />, permission: 'approvals:process' },
 ];
 
-// Admin section
-const adminItems: NavItem[] = [
+// Admin - Access & Organization
+const adminAccessItems: NavItem[] = [
   { label: 'Gestione Utenti', path: '/admin/users', icon: <Users size={20} />, permission: 'users:view' },
+  { label: 'Gestione Ruoli', path: '/admin/roles', icon: <Shield size={20} />, permission: 'roles:view' },
+  { label: 'Organizzazione', path: '/admin/organization', icon: <Briefcase size={20} />, permission: 'settings:edit' }, // Icon placeholder
+];
+
+// Admin - System Configuration
+const adminConfigItems: NavItem[] = [
   { label: 'Workflow Approvazioni', path: '/admin/workflows', icon: <GitBranch size={20} />, permission: 'approvals:config' },
-  { label: 'Centro Notifiche', path: '/admin/notifications', icon: <Bell size={20} />, permission: 'notifications:send' },
-  { label: 'Log Email', path: '/admin/email-logs', icon: <Mail size={20} />, permission: 'notifications:view' },
   { label: 'Calendari di Sistema', path: '/admin/system-calendars', icon: <Calendar size={20} />, permission: 'calendar:manage' },
   { label: 'Contratti CCNL', path: '/admin/national-contracts', icon: <FileText size={20} />, permission: 'contracts:view' },
   { label: 'Strumenti Admin', path: '/admin/tools', icon: <Settings size={20} />, permission: 'settings:edit' },
+];
+
+// Admin - Monitoring & Logs
+const adminLogItems: NavItem[] = [
+  { label: 'Centro Notifiche', path: '/admin/notifications', icon: <Bell size={20} />, permission: 'notifications:send' },
+  { label: 'Log Email', path: '/admin/email-logs', icon: <Mail size={20} />, permission: 'notifications:view' },
   { label: 'Audit Log', path: '/admin/audit-logs', icon: <Terminal size={20} />, permission: 'audit:view' },
   { label: 'Audit Trail', path: '/admin/audit-trail', icon: <HistoryIcon size={20} />, permission: 'audit:view' },
-  { label: 'Gestione Ruoli', path: '/admin/roles', icon: <Shield size={20} />, permission: 'roles:view' },
 ];
 
 // HR section
@@ -171,10 +180,24 @@ export function Sidebar() {
           </div>
         )}
 
-        {hasVisibleItems(adminItems) && (
+        {hasVisibleItems(adminAccessItems) && (
           <div className="sidebar-section">
-            {!collapsed && <div className="sidebar-section-title">Amministrazione</div>}
-            {adminItems.map(renderNavItem)}
+            {!collapsed && <div className="sidebar-section-title">Accesso & Org</div>}
+            {adminAccessItems.map(renderNavItem)}
+          </div>
+        )}
+
+        {hasVisibleItems(adminConfigItems) && (
+          <div className="sidebar-section">
+            {!collapsed && <div className="sidebar-section-title">Configurazione</div>}
+            {adminConfigItems.map(renderNavItem)}
+          </div>
+        )}
+
+        {hasVisibleItems(adminLogItems) && (
+          <div className="sidebar-section">
+            {!collapsed && <div className="sidebar-section-title">Monitoraggio</div>}
+            {adminLogItems.map(renderNavItem)}
           </div>
         )}
       </nav>

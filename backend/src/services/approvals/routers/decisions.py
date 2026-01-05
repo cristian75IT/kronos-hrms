@@ -15,6 +15,7 @@ from src.core.security import get_current_user, TokenPayload
 from ..service import ApprovalService
 from ..schemas import (
     ApprovalDecisionCreate,
+    ApprovalDecisionConditionalCreate,
     ApprovalDecisionResponse,
     ApprovalRequestResponse,
     PendingApprovalsResponse,
@@ -103,6 +104,32 @@ async def reject_request(
             request_id=request_id,
             approver_id=current_user.sub,
             notes=notes,
+        )
+        await db.commit()
+        return request
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{request_id}/approve-conditional", response_model=ApprovalRequestResponse)
+async def approve_conditional_request(
+    request_id: UUID,
+    data: ApprovalDecisionConditionalCreate = Body(...),
+    current_user: TokenPayload = Depends(get_current_user),
+    service: ApprovalService = Depends(get_service),
+    db: AsyncSession = Depends(get_db),
+):
+    """Approve an approval request with conditions."""
+    try:
+        request = await service.approve_conditional_request(
+            request_id=request_id,
+            approver_id=current_user.sub,
+            condition_type=data.condition_type,
+            condition_details=data.condition_details,
+            notes=data.notes,
         )
         await db.commit()
         return request

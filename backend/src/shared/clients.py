@@ -40,8 +40,8 @@ class AuthClient:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
-                    f"{self.base_url}/api/v1/users",
-                    params={"active_only": active_only, "limit": 1000},
+                    f"{self.base_url}/api/v1/users/internal/all",
+                    params={"active_only": active_only},
                     timeout=5.0
                 )
                 if response.status_code == 200:

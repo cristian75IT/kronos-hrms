@@ -299,8 +299,9 @@ class WorkflowEngine:
         
         # Calculate current counts
         all_decisions = request.decisions if hasattr(request, 'decisions') else []
-        approvals = sum(1 for d in all_decisions if d.decision == DecisionType.APPROVED.value)
+        approvals = sum(1 for d in all_decisions if d.decision in (DecisionType.APPROVED.value, DecisionType.APPROVED_CONDITIONAL.value))
         rejections = sum(1 for d in all_decisions if d.decision == DecisionType.REJECTED.value)
+        has_conditional = any(d.decision == DecisionType.APPROVED_CONDITIONAL.value for d in all_decisions)
         
         request.received_approvals = approvals
         request.received_rejections = rejections
@@ -309,8 +310,8 @@ class WorkflowEngine:
         new_status = None
         
         if mode == ApprovalMode.ANY.value:
-            if last_decision == DecisionType.APPROVED.value:
-                new_status = ApprovalStatus.APPROVED.value
+            if last_decision in (DecisionType.APPROVED.value, DecisionType.APPROVED_CONDITIONAL.value):
+                new_status = ApprovalStatus.APPROVED_CONDITIONAL.value if last_decision == DecisionType.APPROVED_CONDITIONAL.value else ApprovalStatus.APPROVED.value
             elif last_decision == DecisionType.REJECTED.value:
                 new_status = ApprovalStatus.REJECTED.value
         
@@ -318,12 +319,12 @@ class WorkflowEngine:
             if rejections > 0:
                 new_status = ApprovalStatus.REJECTED.value
             elif len(pending_decisions) == 0 and approvals >= request.required_approvals:
-                new_status = ApprovalStatus.APPROVED.value
+                new_status = ApprovalStatus.APPROVED_CONDITIONAL.value if has_conditional else ApprovalStatus.APPROVED.value
         
         elif mode == ApprovalMode.SEQUENTIAL.value:
             if last_decision == DecisionType.REJECTED.value:
                 new_status = ApprovalStatus.REJECTED.value
-            elif last_decision == DecisionType.APPROVED.value:
+            elif last_decision in (DecisionType.APPROVED.value, DecisionType.APPROVED_CONDITIONAL.value):
                 # Check if there are more levels
                 current_level_pending = [
                     d for d in pending_decisions
@@ -335,14 +336,14 @@ class WorkflowEngine:
                         request.current_level += 1
                     else:
                         # All levels complete
-                        new_status = ApprovalStatus.APPROVED.value
+                        new_status = ApprovalStatus.APPROVED_CONDITIONAL.value if has_conditional else ApprovalStatus.APPROVED.value
         
         elif mode == ApprovalMode.MAJORITY.value:
             total_decided = approvals + rejections
             total_approvers = len(all_decisions) if all_decisions else request.required_approvals * 2 - 1
             
             if approvals >= request.required_approvals:
-                new_status = ApprovalStatus.APPROVED.value
+                new_status = ApprovalStatus.APPROVED_CONDITIONAL.value if has_conditional else ApprovalStatus.APPROVED.value
             elif rejections > total_approvers - request.required_approvals:
                 new_status = ApprovalStatus.REJECTED.value
         

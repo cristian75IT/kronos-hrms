@@ -18,8 +18,8 @@ from pydantic import BaseModel, Field
 ENTITY_TYPES = ["LEAVE", "TRIP", "EXPENSE", "DOCUMENT", "CONTRACT", "OVERTIME"]
 APPROVAL_MODES = ["ANY", "ALL", "SEQUENTIAL", "MAJORITY"]
 EXPIRATION_ACTIONS = ["REJECT", "ESCALATE", "AUTO_APPROVE", "NOTIFY_ONLY"]
-APPROVAL_STATUSES = ["PENDING", "APPROVED", "REJECTED", "EXPIRED", "CANCELLED", "ESCALATED"]
-DECISION_TYPES = ["APPROVED", "REJECTED", "DELEGATED"]
+APPROVAL_STATUSES = ["PENDING", "APPROVED", "REJECTED", "EXPIRED", "CANCELLED", "ESCALATED", "APPROVED_CONDITIONAL"]
+DECISION_TYPES = ["APPROVED", "REJECTED", "DELEGATED", "APPROVED_CONDITIONAL"]
 
 
 # ═══════════════════════════════════════════════════════════
@@ -202,10 +202,15 @@ class ApprovalRequestSummary(BaseModel):
 # ═══════════════════════════════════════════════════════════
 
 class ApprovalDecisionCreate(BaseModel):
-    """Approve or reject request."""
-    decision: str = Field(..., description="APPROVED, REJECTED, or DELEGATED")
-    decision_notes: Optional[str] = None
-    delegated_to_id: Optional[UUID] = None
+    """Create approval decision request."""
+    notes: Optional[str] = None
+
+
+class ApprovalDecisionConditionalCreate(BaseModel):
+    """Approve with conditions."""
+    condition_type: str
+    condition_details: str
+    notes: Optional[str] = None
 
 
 class ApprovalDecisionResponse(BaseModel):
@@ -324,6 +329,8 @@ class ApprovalCallbackPayload(BaseModel):
     resolved_at: datetime
     resolution_notes: Optional[str] = None
     final_decision_by: Optional[UUID] = None
+    condition_type: Optional[str] = None
+    condition_details: Optional[str] = None
     decisions: List[ApprovalDecisionResponse]
 
 

@@ -196,6 +196,20 @@ async def get_internal_approvers(
     return [UserListItem.model_validate(u) for u in approvers]
 
 
+@router.get("/users/internal/all", response_model=list[UserListItem])
+async def get_internal_users(
+    active_only: bool = True,
+    service: UserService = Depends(get_user_service),
+):
+    """Get all users (internal use).
+    
+    This endpoint is for service-to-service calls and doesn't require authentication.
+    Only accessible within the internal Docker network.
+    """
+    users = await service.get_users(active_only, limit=1000, offset=0)
+    return [UserListItem.model_validate(u) for u in users]
+
+
 @router.get("/users/{id}", response_model=UserResponse)
 async def get_user(
     id: UUID,

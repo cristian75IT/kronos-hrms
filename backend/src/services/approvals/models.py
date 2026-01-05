@@ -59,12 +59,12 @@ class ExpirationAction(str, enum.Enum):
 
 class ApprovalStatus(str, enum.Enum):
     """Status of an approval request."""
-    PENDING = "PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
     EXPIRED = "EXPIRED"
     CANCELLED = "CANCELLED"
     ESCALATED = "ESCALATED"
+    APPROVED_CONDITIONAL = "APPROVED_CONDITIONAL"
 
 
 class DecisionType(str, enum.Enum):
@@ -72,6 +72,7 @@ class DecisionType(str, enum.Enum):
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
     DELEGATED = "DELEGATED"
+    APPROVED_CONDITIONAL = "APPROVED_CONDITIONAL"
 
 
 class HistoryAction(str, enum.Enum):
@@ -87,6 +88,7 @@ class HistoryAction(str, enum.Enum):
     CANCELLED = "CANCELLED"
     REMINDER_SENT = "REMINDER_SENT"
     RESUBMITTED = "RESUBMITTED"
+    APPROVED_CONDITIONAL = "APPROVED_CONDITIONAL"
 
 
 # ═══════════════════════════════════════════════════════════

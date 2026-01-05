@@ -263,6 +263,20 @@ export const approvalsService = {
         return response.data;
     },
 
+    async approveRequestConditional(
+        requestId: string,
+        conditionType: string,
+        conditionDetails: string,
+        notes?: string
+    ): Promise<ApprovalRequest> {
+        const response = await api.post(`${BASE_URL}/decisions/${requestId}/approve-conditional`, {
+            condition_type: conditionType,
+            condition_details: conditionDetails,
+            notes,
+        });
+        return response.data;
+    },
+
     async delegateRequest(
         requestId: string,
         delegateToId: string,
