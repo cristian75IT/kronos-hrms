@@ -32,6 +32,9 @@ import type {
     ApprovalModeInfo,
     ExpirationActionInfo,
 } from '../../services/approvals.service';
+import { rbacService, type Role } from '../../services/rbacService';
+import { organizationService } from '../../services/organization.service';
+import type { ExecutiveLevel } from '../../types';
 
 // ═══════════════════════════════════════════════════════════
 // Helper Components
@@ -77,6 +80,8 @@ interface WorkflowFormModalProps {
     entityTypes: EntityTypeInfo[];
     approvalModes: ApprovalModeInfo[];
     expirationActions: ExpirationActionInfo[];
+    roles: Role[];
+    executiveLevels: ExecutiveLevel[];
 }
 
 const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
@@ -87,6 +92,8 @@ const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
     entityTypes,
     approvalModes,
     expirationActions,
+    roles,
+    executiveLevels,
 }) => {
     const toast = useToast();
     const [formData, setFormData] = useState<WorkflowConfigCreate>({
@@ -306,6 +313,84 @@ const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
                                         <span className="text-sm text-gray-700">Consenti Auto-approvazione</span>
                                     </label>
                                 </div>
+
+                                <div className="pt-4 border-t border-gray-100">
+                                    <h5 className="text-sm font-medium text-gray-900 mb-3">Chi deve approvare?</h5>
+
+                                    <div className="space-y-3">
+                                        {/* Dynamic Roles */}
+                                        <div className="grid grid-cols-1 gap-3">
+                                            <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-all ${formData.approver_role_ids?.includes('DYNAMIC:DEPARTMENT_MANAGER') ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                                <input
+                                                    type="checkbox"
+                                                    className="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                    checked={formData.approver_role_ids?.includes('DYNAMIC:DEPARTMENT_MANAGER') || false}
+                                                    onChange={e => {
+                                                        const current = formData.approver_role_ids || [];
+                                                        if (e.target.checked) {
+                                                            setFormData({ ...formData, approver_role_ids: [...current, 'DYNAMIC:DEPARTMENT_MANAGER'] });
+                                                        } else {
+                                                            setFormData({ ...formData, approver_role_ids: current.filter(id => id !== 'DYNAMIC:DEPARTMENT_MANAGER') });
+                                                        }
+                                                    }}
+                                                />
+                                                <div>
+                                                    <span className="block text-sm font-medium text-gray-900">Responsabile Dipartimento</span>
+                                                    <span className="block text-xs text-gray-500">Il manager del dipartimento del richiedente</span>
+                                                </div>
+                                            </label>
+
+                                            <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-all ${formData.approver_role_ids?.includes('DYNAMIC:SERVICE_COORDINATOR') ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                                <input
+                                                    type="checkbox"
+                                                    className="mt-1 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                    checked={formData.approver_role_ids?.includes('DYNAMIC:SERVICE_COORDINATOR') || false}
+                                                    onChange={e => {
+                                                        const current = formData.approver_role_ids || [];
+                                                        if (e.target.checked) {
+                                                            setFormData({ ...formData, approver_role_ids: [...current, 'DYNAMIC:SERVICE_COORDINATOR'] });
+                                                        } else {
+                                                            setFormData({ ...formData, approver_role_ids: current.filter(id => id !== 'DYNAMIC:SERVICE_COORDINATOR') });
+                                                        }
+                                                    }}
+                                                />
+                                                <div>
+                                                    <span className="block text-sm font-medium text-gray-900">Coordinatore Servizio</span>
+                                                    <span className="block text-xs text-gray-500">Il coordinatore del servizio del richiedente</span>
+                                                </div>
+                                            </label>
+                                        </div>
+
+                                        {/* Static Roles Divider */}
+                                        <div className="relative py-2">
+                                            <div className="absolute inset-0 flex items-center">
+                                                <div className="w-full border-t border-gray-200"></div>
+                                            </div>
+                                            <span className="relative z-10 bg-white pr-2 text-xs font-medium text-gray-500">Oppure Ruoli Specifici</span>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto custom-scrollbar p-1">
+                                            {roles.map(role => (
+                                                <label key={role.id} className={`flex items-center gap-2 p-2 border rounded hover:bg-gray-50 cursor-pointer ${formData.approver_role_ids?.includes(role.id) ? 'border-indigo-200 bg-indigo-50' : 'border-gray-200'}`}>
+                                                    <input
+                                                        type="checkbox"
+                                                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                        checked={formData.approver_role_ids?.includes(role.id) || false}
+                                                        onChange={e => {
+                                                            const current = formData.approver_role_ids || [];
+                                                            if (e.target.checked) {
+                                                                setFormData({ ...formData, approver_role_ids: [...current, role.id] });
+                                                            } else {
+                                                                setFormData({ ...formData, approver_role_ids: current.filter(id => id !== role.id) });
+                                                            }
+                                                        }}
+                                                    />
+                                                    <span className="text-sm text-gray-700 truncate" title={role.name}>{role.name}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -374,6 +459,77 @@ const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
                                 )}
                             </div>
                         </div>
+
+                        {/* Section 5: Target Roles */}
+                        <div className="space-y-6 md:col-span-2">
+                            <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                                <Users className="text-emerald-500" size={18} />
+                                <h4 className="font-semibold text-gray-900">Ruoli Destinatari</h4>
+                            </div>
+
+                            <div className="space-y-4">
+                                <p className="text-sm text-gray-500">
+                                    Seleziona i ruoli a cui applicare questo workflow. Se non selezioni nessun ruolo, verrà applicato a tutti.
+                                </p>
+
+                                <div className="flex items-center gap-2 mb-3">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                            checked={formData.target_role_ids?.length === 0}
+                                            onChange={e => {
+                                                if (e.target.checked) {
+                                                    setFormData({ ...formData, target_role_ids: [] });
+                                                }
+                                            }}
+                                        />
+                                        <span className="text-sm font-medium text-gray-700">Tutti i ruoli</span>
+                                    </label>
+                                </div>
+
+                                {formData.target_role_ids && formData.target_role_ids.length === 0 ? null : (
+                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                        {roles.map(role => (
+                                            <label
+                                                key={role.id}
+                                                className={`flex items-center gap-2 p-3 border rounded-lg cursor-pointer transition-all ${formData.target_role_ids?.includes(role.id)
+                                                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                                                    : 'border-gray-200 hover:border-gray-300'
+                                                    }`}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                    checked={formData.target_role_ids?.includes(role.id) || false}
+                                                    onChange={e => {
+                                                        const currentIds = formData.target_role_ids || [];
+                                                        if (e.target.checked) {
+                                                            setFormData({
+                                                                ...formData,
+                                                                target_role_ids: [...currentIds, role.id]
+                                                            });
+                                                        } else {
+                                                            setFormData({
+                                                                ...formData,
+                                                                target_role_ids: currentIds.filter(id => id !== role.id)
+                                                            });
+                                                        }
+                                                    }}
+                                                />
+                                                <span className="text-sm font-medium">{role.name}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {formData.target_role_ids && formData.target_role_ids.length > 0 && (
+                                    <div className="text-xs text-gray-500 mt-2">
+                                        {formData.target_role_ids.length} ruol{formData.target_role_ids.length === 1 ? 'o' : 'i'} selezionat{formData.target_role_ids.length === 1 ? 'o' : 'i'}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </form>
 
@@ -436,6 +592,8 @@ const WorkflowConfigPage: React.FC = () => {
     const [entityTypes, setEntityTypes] = useState<EntityTypeInfo[]>([]);
     const [approvalModes, setApprovalModes] = useState<ApprovalModeInfo[]>([]);
     const [expirationActions, setExpirationActions] = useState<ExpirationActionInfo[]>([]);
+    const [roles, setRoles] = useState<Role[]>([]);
+    const [executiveLevels, setExecutiveLevels] = useState<ExecutiveLevel[]>([]);
 
     const [isLoading, setIsLoading] = useState(false);
 
@@ -450,16 +608,20 @@ const WorkflowConfigPage: React.FC = () => {
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            const [wf, et, am, ea] = await Promise.all([
+            const [wf, et, am, ea, rl, el] = await Promise.all([
                 approvalsService.getWorkflowConfigs(undefined, false), // Fetch all, including inactive
                 approvalsService.getEntityTypes(),
                 approvalsService.getApprovalModes(),
-                approvalsService.getExpirationActions()
+                approvalsService.getExpirationActions(),
+                rbacService.getRoles(),
+                organizationService.getExecutiveLevels(),
             ]);
             setWorkflows(wf);
             setEntityTypes(et);
             setApprovalModes(am);
             setExpirationActions(ea);
+            setRoles(rl);
+            setExecutiveLevels(el);
         } catch (error) {
             console.error(error);
             toast.error('Errore durante il caricamento dei dati');
@@ -609,6 +771,16 @@ const WorkflowConfigPage: React.FC = () => {
                                                     <span className="text-xs text-gray-500 w-16">Approvatori:</span>
                                                     <span className="text-sm font-medium text-gray-900">{wf.min_approvers} {wf.max_approvers ? `- ${wf.max_approvers}` : ''}</span>
                                                 </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs text-gray-500 w-16">Ruoli:</span>
+                                                    {wf.target_role_ids && wf.target_role_ids.length > 0 ? (
+                                                        <span className="text-xs text-gray-600">
+                                                            {wf.target_role_ids.length} ruol{wf.target_role_ids.length === 1 ? 'o' : 'i'} specifico
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-xs text-emerald-600 font-medium">Tutti i ruoli</span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
@@ -671,6 +843,8 @@ const WorkflowConfigPage: React.FC = () => {
                 entityTypes={entityTypes}
                 approvalModes={approvalModes}
                 expirationActions={expirationActions}
+                roles={roles}
+                executiveLevels={executiveLevels}
             />
         </div>
     );

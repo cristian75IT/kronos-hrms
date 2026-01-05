@@ -48,6 +48,7 @@ import { HRExpensesManagement } from './pages/hr/HRExpensesManagement';
 import WorkflowConfigPage from './pages/admin/WorkflowConfigPage';
 import PendingApprovalsPage from './pages/approvals/PendingApprovalsPage';
 import RolesPage from './pages/admin/RolesPage';
+import OrganizationPage from './pages/admin/OrganizationPage';
 
 function App() {
   return (
@@ -104,9 +105,11 @@ function App() {
                 <Route path="/admin/email-logs" element={<ProtectedRoute permissions={['notifications:view']}><EmailLogsPage /></ProtectedRoute>} />
 
                 {/* Admin - Tools & Audit */}
+                <Route path="/admin/organization" element={<ProtectedRoute permissions={['settings:edit']}><OrganizationPage /></ProtectedRoute>} />
                 <Route path="/admin/tools" element={<ProtectedRoute permissions={['settings:edit']}><AdminToolsPage /></ProtectedRoute>} />
                 <Route path="/admin/audit-logs" element={<ProtectedRoute permissions={['audit:view']}><AuditLogPage /></ProtectedRoute>} />
                 <Route path="/admin/audit-trail" element={<ProtectedRoute permissions={['audit:view']}><AuditTrailPage /></ProtectedRoute>} />
+                <Route path="/admin/email-logs" element={<ProtectedRoute permissions={['notifications:view']}><EmailLogsPage /></ProtectedRoute>} />
 
                 {/* Admin - Workflows & RBAC */}
                 <Route path="/admin/workflows" element={<ProtectedRoute permissions={['approvals:config']}><WorkflowConfigPage /></ProtectedRoute>} />

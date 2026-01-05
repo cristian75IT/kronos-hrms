@@ -180,7 +180,18 @@ async def get_request(
 ):
     """Get leave request by ID."""
     try:
-        return await service.get_request(id)
+        request = await service.get_request(id)
+        
+        # Build response with approval_request_id from centralized approvals service
+        response_data = LeaveRequestResponse.model_validate(request)
+        
+        # Fetch approval_request_id if request is pending or has been processed
+        if request.status in (LeaveRequestStatus.PENDING,):
+            approval_info = await service._approval_client.check_status("LEAVE", id)
+            if approval_info and approval_info.get("approval_request_id"):
+                response_data.approval_request_id = UUID(approval_info["approval_request_id"])
+        
+        return response_data
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

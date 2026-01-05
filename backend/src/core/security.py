@@ -254,3 +254,27 @@ def require_permission(permission_code: str, scope: str = None):
     return permission_dependency
 
 
+async def require_approver(
+    token: TokenPayload = Depends(get_current_user),
+) -> TokenPayload:
+    """Dependency that requires the user to be an approver, manager, HR, or admin."""
+    if not token.is_approver:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Approver, Manager, HR, or Admin role required",
+        )
+    return token
+
+
+async def require_hr(
+    token: TokenPayload = Depends(get_current_user),
+) -> TokenPayload:
+    """Dependency that requires the user to be HR or admin."""
+    if not token.is_hr:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="HR or Admin role required",
+        )
+    return token
+
+

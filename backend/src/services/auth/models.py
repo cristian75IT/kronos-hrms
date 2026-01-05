@@ -77,6 +77,20 @@ class User(Base):
         PG_UUID(as_uuid=True),
         ForeignKey("auth.locations.id"),
     )
+
+    # Organizational Assignment
+    department_id: Mapped[Optional[UUID]] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("auth.departments.id"),
+    )
+    service_id: Mapped[Optional[UUID]] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("auth.organizational_services.id"),
+    )
+    executive_level_id: Mapped[Optional[UUID]] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("auth.executive_levels.id"),
+    )
     
     # Manager relationship
     manager_id: Mapped[Optional[UUID]] = mapped_column(
@@ -135,6 +149,37 @@ class User(Base):
     trainings: Mapped[list["EmployeeTraining"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
+    )
+    
+    # Organization Relationships
+    department_entity: Mapped[Optional["Department"]] = relationship(
+        foreign_keys=[department_id],
+        back_populates="users",
+    )
+    service_entity: Mapped[Optional["OrganizationalService"]] = relationship(
+        foreign_keys=[service_id],
+        back_populates="users",
+    )
+    executive_level: Mapped[Optional["ExecutiveLevel"]] = relationship(
+        back_populates="users",
+    )
+    
+    # Management Roles
+    managed_departments: Mapped[list["Department"]] = relationship(
+        foreign_keys="Department.manager_id",
+        back_populates="manager",
+    )
+    deputy_managed_departments: Mapped[list["Department"]] = relationship(
+        foreign_keys="Department.deputy_manager_id",
+        back_populates="deputy_manager",
+    )
+    coordinated_services: Mapped[list["OrganizationalService"]] = relationship(
+        foreign_keys="OrganizationalService.coordinator_id",
+        back_populates="coordinator",
+    )
+    deputy_coordinated_services: Mapped[list["OrganizationalService"]] = relationship(
+        foreign_keys="OrganizationalService.deputy_coordinator_id",
+        back_populates="deputy_coordinator",
     )
     
     @property
@@ -426,6 +471,172 @@ class EmployeeTraining(Base):
     
     # Relationships
     user: Mapped["User"] = relationship(back_populates="trainings")
+
+
+
+class ExecutiveLevel(Base):
+    """C-Suite and executive hierarchy levels."""
+    __tablename__ = "executive_levels"
+    __table_args__ = {"schema": "auth"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)  # CEO, CIO, etc.
+    title: Mapped[str] = mapped_column(String(100), nullable=False)
+    hierarchy_level: Mapped[int] = mapped_column(Integer, nullable=False)  # 1=CEO, 2=C-Suite
+    
+    # Escalation target
+    escalates_to_id: Mapped[Optional[UUID]] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("auth.executive_levels.id"),
+    )
+    
+    # Approval authority
+    max_approval_amount: Mapped[Optional[float]] = mapped_column(postgresql.NUMERIC(12, 2))
+    can_override_workflow: Mapped[bool] = mapped_column(Boolean, default=False)
+    
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+    
+    # Relationships
+    escalates_to: Mapped[Optional["ExecutiveLevel"]] = relationship(remote_side=[id])
+    users: Mapped[list["User"]] = relationship(back_populates="executive_level")
+
+
+class Department(Base):
+    """Organizational department."""
+    __tablename__ = "departments"
+    __table_args__ = {"schema": "auth"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    
+    # Hierarchy
+    parent_id: Mapped[Optional[UUID]] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("auth.departments.id"),
+    )
+    hierarchy_level: Mapped[int] = mapped_column(Integer, default=2)
+    
+    # Manager
+    manager_id: Mapped[Optional[UUID]] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("auth.users.id"),
+    )
+    deputy_manager_id: Mapped[Optional[UUID]] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("auth.users.id"),
+    )
+    
+    cost_center_code: Mapped[Optional[str]] = mapped_column(String(50))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+    
+    # Relationships
+    parent: Mapped[Optional["Department"]] = relationship(
+        remote_side=[id],
+        back_populates="children",
+    )
+    children: Mapped[list["Department"]] = relationship(back_populates="parent")
+    manager: Mapped[Optional["User"]] = relationship(
+        foreign_keys=[manager_id],
+        back_populates="managed_departments",
+    )
+    deputy_manager: Mapped[Optional["User"]] = relationship(
+        foreign_keys=[deputy_manager_id],
+        back_populates="deputy_managed_departments",
+    )
+    services: Mapped[list["OrganizationalService"]] = relationship(back_populates="department")
+    users: Mapped[list["User"]] = relationship(
+        foreign_keys="User.department_id",
+        back_populates="department_entity",
+    )
+
+
+class OrganizationalService(Base):
+    """Service/Unit within a department."""
+    __tablename__ = "organizational_services"
+    __table_args__ = {"schema": "auth"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    
+    # Parent Department
+    department_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("auth.departments.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    
+    # Coordinator
+    coordinator_id: Mapped[Optional[UUID]] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("auth.users.id"),
+    )
+    deputy_coordinator_id: Mapped[Optional[UUID]] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("auth.users.id"),
+    )
+    
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+    
+    # Relationships
+    department: Mapped["Department"] = relationship(back_populates="services")
+    coordinator: Mapped[Optional["User"]] = relationship(
+        foreign_keys=[coordinator_id],
+        back_populates="coordinated_services",
+    )
+    deputy_coordinator: Mapped[Optional["User"]] = relationship(
+        foreign_keys=[deputy_coordinator_id],
+        back_populates="deputy_coordinated_services",
+    )
+    users: Mapped[list["User"]] = relationship(
+        foreign_keys="User.service_id",
+        back_populates="service_entity",
+    )
 
 
 class Permission(Base):

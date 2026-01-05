@@ -40,13 +40,20 @@ export interface User {
     permissions?: string[];
     last_login?: string;
     created_at: string;
+
+    // Organization
+    department_id?: string;
+    service_id?: string;
+    executive_level_id?: string;
+    department?: string; // flattened name
+    service?: string; // flattened name
+    executive_level?: string; // flattened name
 }
 
 export interface UserProfile {
     id: string;
     user_id: string;
     phone?: string;
-    department?: string;
     position?: string;
     hire_date?: string;
     contract_type?: string;
@@ -55,6 +62,16 @@ export interface UserProfile {
     employee_number?: string;
     location?: string;
     avatar_url?: string;
+
+    // Organization
+    department_id?: string | null;
+    service_id?: string | null;
+    executive_level_id?: string | null;
+
+    // Relationships (Objects)
+    department?: Department | null;
+    service?: OrganizationalService | null;
+    executive_level?: ExecutiveLevel | null;
 }
 
 export interface UserWithProfile extends User {
@@ -368,6 +385,8 @@ export interface LeaveRequest {
     submitted_at?: string;
     created_at: string;
     updated_at: string;
+    // Centralized approvals service integration
+    approval_request_id?: string;
 }
 
 export interface LeaveRequestCreate {
@@ -807,4 +826,116 @@ export interface BudgetReportResponse {
     utilization_rate: number;
     breakdown_by_department: Record<string, number>;
     breakdown_by_category: Record<string, number>;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Enterprise Organization
+// ═══════════════════════════════════════════════════════════════════
+
+export interface ExecutiveLevel {
+    id: string;
+    code: string;
+    title: string;
+    hierarchy_level: number;
+    escalates_to_id?: string;
+    max_approval_amount?: number;
+    can_override_workflow: boolean;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface ExecutiveLevelCreate {
+    code: string;
+    title: string;
+    hierarchy_level: number;
+    escalates_to_id?: string;
+    max_approval_amount?: number;
+    can_override_workflow?: boolean;
+}
+
+export interface ExecutiveLevelUpdate {
+    title?: string;
+    hierarchy_level?: number;
+    escalates_to_id?: string;
+    max_approval_amount?: number;
+    can_override_workflow?: boolean;
+    is_active?: boolean;
+}
+
+export interface Department {
+    id: string;
+    code: string;
+    name: string;
+    description?: string;
+    parent_id?: string;
+    manager_id?: string;
+    deputy_manager_id?: string;
+    cost_center_code?: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+
+    // Relations
+    manager?: User;
+    deputy_manager?: User;
+    children?: Department[];
+    services?: OrganizationalService[];
+}
+
+export interface DepartmentCreate {
+    code: string;
+    name: string;
+    description?: string;
+    parent_id?: string;
+    manager_id?: string;
+    deputy_manager_id?: string;
+    cost_center_code?: string;
+}
+
+export interface DepartmentUpdate {
+    name?: string;
+    description?: string;
+    parent_id?: string;
+    manager_id?: string;
+    deputy_manager_id?: string;
+    cost_center_code?: string;
+    is_active?: boolean;
+}
+
+export interface OrganizationalService {
+    id: string;
+    code: string;
+    name: string;
+    description?: string;
+    department_id: string;
+    coordinator_id?: string;
+    deputy_coordinator_id?: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+
+    // Relations
+    department_name?: string;
+    coordinator?: User;
+    deputy_coordinator?: User;
+}
+
+export interface OrganizationalServiceCreate {
+    code: string;
+    name: string;
+    description?: string;
+    department_id: string;
+    coordinator_id?: string;
+    deputy_coordinator_id?: string;
+    is_active: boolean;
+}
+
+export interface OrganizationalServiceUpdate {
+    name?: string;
+    description?: string;
+    department_id?: string;
+    coordinator_id?: string;
+    deputy_coordinator_id?: string;
+    is_active?: boolean;
 }

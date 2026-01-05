@@ -73,6 +73,8 @@ class LeaveRequestResponse(LeaveRequestBase, IDMixin, BaseSchema):
     attachment_path: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    # Approval request ID from centralized approvals service
+    approval_request_id: Optional[UUID] = None
 
 
 class LeaveRequestListItem(BaseModel):

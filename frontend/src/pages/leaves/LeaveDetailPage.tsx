@@ -19,6 +19,7 @@ import {
     Sunrise,
     Building,
     Phone,
+    Shield,
 } from 'lucide-react';
 
 import { format } from 'date-fns';
@@ -33,8 +34,9 @@ import { useAuth, useIsApprover, useIsAdmin, useIsHR } from '../../context/AuthC
 import { useToast } from '../../context/ToastContext';
 import { ConfirmModal } from '../../components/common';
 import { leavesService } from '../../services/leaves.service';
+import approvalsService from '../../services/approvals.service';
 import { formatApiError } from '../../utils/errorUtils';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 
 interface ExcludedDay {
     date: string;
@@ -149,6 +151,19 @@ export function LeaveDetailPage() {
     const isAdmin = useIsAdmin();
     const isHR = useIsHR();
     const { data: leave, isLoading, refetch } = useLeaveRequest(id || '');
+
+    // Approval Info
+    const { data: approvalRequest } = useQuery({
+        queryKey: ['approval-request', leave?.approval_request_id],
+        queryFn: () => approvalsService.getApprovalRequest(leave!.approval_request_id!),
+        enabled: !!leave?.approval_request_id,
+    });
+
+    const { data: workflowConfig } = useQuery({
+        queryKey: ['workflow-config', approvalRequest?.workflow_config_id],
+        queryFn: () => approvalsService.getWorkflowConfig(approvalRequest!.workflow_config_id!),
+        enabled: !!approvalRequest?.workflow_config_id,
+    });
 
     // Mutations
     const approveMutation = useApproveLeaveRequest();
@@ -680,6 +695,58 @@ export function LeaveDetailPage() {
 
                 {/* Right Column - Actions & Summary */}
                 <div className="space-y-6">
+                    {/* Workflow Info Card */}
+                    {workflowConfig && (
+                        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden animate-fadeInUp">
+                            <div className="p-4 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+                                <h3 className="text-sm font-bold text-indigo-900 uppercase tracking-wide flex items-center gap-2">
+                                    <Shield size={16} />
+                                    Regole Approvazione
+                                </h3>
+                                <div className="text-xs font-medium bg-white text-indigo-600 px-2 py-0.5 rounded border border-indigo-100">
+                                    {workflowConfig.min_approvers} {workflowConfig.min_approvers === 1 ? 'approvazione' : 'approvazioni'}
+                                </div>
+                            </div>
+                            <div className="p-4 space-y-3">
+                                <div className="text-sm">
+                                    <span className="text-gray-500 block text-xs uppercase font-semibold mb-1">Workflow</span>
+                                    <span className="font-medium text-gray-900">{workflowConfig.name}</span>
+                                </div>
+                                <div className="text-sm">
+                                    <span className="text-gray-500 block text-xs uppercase font-semibold mb-1">Dettagli</span>
+                                    <ul className="space-y-1 text-gray-700">
+                                        <li className="flex items-center gap-2">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>
+                                            {workflowConfig.min_approvers} {workflowConfig.min_approvers === 1 ? 'approvazione richiesta' : 'approvazioni richieste'}
+                                        </li>
+                                        {workflowConfig.approval_mode !== 'ANY' && (
+                                            <li className="flex items-center gap-2">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>
+                                                Modalità: {
+                                                    workflowConfig.approval_mode === 'ALL' ? 'Tutti gli approvatori' :
+                                                        workflowConfig.approval_mode === 'SEQUENTIAL' ? 'Sequenziale' :
+                                                            workflowConfig.approval_mode === 'MAJORITY' ? 'Maggioranza' : 'Qualsiasi'
+                                                }
+                                            </li>
+                                        )}
+                                        {workflowConfig.target_role_ids && workflowConfig.target_role_ids.length > 0 && (
+                                            <li className="flex items-center gap-2">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>
+                                                Specifico per {workflowConfig.target_role_ids.length} {workflowConfig.target_role_ids.length === 1 ? 'ruolo' : 'ruoli'}
+                                            </li>
+                                        )}
+                                        {workflowConfig.expiration_hours && (
+                                            <li className="flex items-center gap-2">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>
+                                                Scade dopo {workflowConfig.expiration_hours} ore
+                                            </li>
+                                        )}
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Actions Card */}
                     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
                         <div className="p-4 bg-gray-50 border-b border-gray-200">

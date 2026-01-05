@@ -24,8 +24,15 @@ import {
 } from 'lucide-react';
 import { userService } from '../../services/userService';
 import { configService } from '../../services/config.service';
+import { organizationService } from '../../services/organization.service';
 import { useToast } from '../../context/ToastContext';
-import type { ContractType, EmployeeContractCreate } from '../../types';
+import type {
+    ContractType,
+    EmployeeContractCreate,
+    Department,
+    OrganizationalService,
+    ExecutiveLevel
+} from '../../types';
 
 interface UserFormValues {
     // User Info
@@ -37,9 +44,14 @@ interface UserFormValues {
 
     // Profile Info
     hire_date?: string;
-    department?: string;
+    department_id?: string;
+    service_id?: string;
+    executive_level_id?: string;
     position?: string;
     employee_code?: string;
+
+    // Legacy support (to be removed if no longer used)
+    department?: string;
 
     // Roles
     is_admin: boolean;
@@ -69,6 +81,11 @@ export function UserFormPage() {
     const [contractTypes, setContractTypes] = useState<ContractType[]>([]);
     const [nationalContracts, setNationalContracts] = useState<any[]>([]);
 
+    // Organization Data
+    const [departments, setDepartments] = useState<Department[]>([]);
+    const [services, setServices] = useState<OrganizationalService[]>([]);
+    const [executiveLevels, setExecutiveLevels] = useState<ExecutiveLevel[]>([]);
+
     const isEditing = !!id;
 
     const {
@@ -94,6 +111,7 @@ export function UserFormPage() {
     const watchHasContract = watch('has_contract');
     const watchNationalContract = watch('national_contract_id');
     const watchContractType = watch('contract_type_id');
+    const watchDepartment = watch('department_id');
 
     useEffect(() => {
         loadDependencies();
@@ -115,15 +133,21 @@ export function UserFormPage() {
 
     const loadDependencies = async () => {
         try {
-            const [types, ccnls] = await Promise.all([
+            const [types, ccnls, depts, servs, execs] = await Promise.all([
                 userService.getContractTypes(),
-                configService.getNationalContracts()
+                configService.getNationalContracts(),
+                organizationService.getDepartments(false),
+                organizationService.getServices(false),
+                organizationService.getExecutiveLevels(false)
             ]);
             setContractTypes(types);
             setNationalContracts(ccnls);
+            setDepartments(depts);
+            setServices(servs);
+            setExecutiveLevels(execs);
         } catch (error) {
             console.error('Failed to load form dependencies', error);
-            toast.error('Errore caricamento dati contrattuali');
+            toast.error('Errore caricamento dati');
         }
     };
 
@@ -142,7 +166,9 @@ export function UserFormPage() {
                 // Profile fields
                 phone: user.profile?.phone || '',
                 hire_date: user.profile?.hire_date ? user.profile.hire_date.split('T')[0] : '', // Format YYYY-MM-DD
-                department: user.profile?.department || '',
+                department_id: user.profile?.department_id || '',
+                service_id: user.profile?.service_id || '',
+                executive_level_id: user.profile?.executive_level_id || '',
                 position: user.profile?.position || '',
                 employee_code: user.profile?.employee_number || '',
 
@@ -189,7 +215,9 @@ export function UserFormPage() {
                 is_approver: data.is_approver,
                 profile: {
                     phone: data.phone,
-                    department: data.department,
+                    department_id: data.department_id || null,
+                    service_id: data.service_id || null,
+                    executive_level_id: data.executive_level_id || null,
                     position: data.has_contract ? data.job_title : data.position, // Use job title if contract set
                     hire_date: data.has_contract ? data.contract_start_date : (data.hire_date || null),
                     employee_number: data.employee_code,
@@ -397,8 +425,45 @@ export function UserFormPage() {
                                         <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                                             <Building size={16} className="text-gray-400" />
                                         </div>
-                                        <input type="text" className="block w-full rounded-lg border-gray-300 pl-10 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="IT" {...register('department')} />
+                                        <select
+                                            className="block w-full rounded-lg border-gray-300 pl-10 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                            {...register('department_id')}
+                                        >
+                                            <option value="">Seleziona...</option>
+                                            {departments.map(d => (
+                                                <option key={d.id} value={d.id}>{d.name}</option>
+                                            ))}
+                                        </select>
                                     </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="block text-sm font-medium text-gray-700">Servizio / Ufficio</label>
+                                    <select
+                                        className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                        {...register('service_id')}
+                                        disabled={!watchDepartment}
+                                    >
+                                        <option value="">Seleziona...</option>
+                                        {services
+                                            .filter(s => !watchDepartment || s.department_id === watchDepartment)
+                                            .map(s => (
+                                                <option key={s.id} value={s.id}>{s.name}</option>
+                                            ))}
+                                    </select>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="block text-sm font-medium text-gray-700">Livello Executive</label>
+                                    <select
+                                        className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                        {...register('executive_level_id')}
+                                    >
+                                        <option value="">Nessuno</option>
+                                        {executiveLevels.map(l => (
+                                            <option key={l.id} value={l.id}>{l.code} - {l.title}</option>
+                                        ))}
+                                    </select>
                                 </div>
 
                                 {/* Visible only when NOT registering a contract (edit mode or manual opt-out) */}

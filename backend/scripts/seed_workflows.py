@@ -54,6 +54,24 @@ DEFAULT_WORKFLOWS = [
         "is_active": True,
         "is_default": False,
     },
+    {
+        "entity_type": "LEAVE",
+        "name": "Approvazione Ferie Manager",
+        "description": "Richiede approvazione del Responsabile Dipartimento",
+        "min_approvers": 1,
+        "max_approvers": 1,
+        "approval_mode": "ANY",
+        "auto_assign_approvers": True,
+        "allow_self_approval": False,
+        "expiration_hours": 72,
+        "expiration_action": "ESCALATE",
+        "reminder_hours_before": 24,
+        "send_reminders": True,
+        "priority": 90,
+        "is_active": True,
+        "is_default": False,
+        "approver_role_ids": ["DYNAMIC:DEPARTMENT_MANAGER"]
+    },
     # Trip workflows
     {
         "entity_type": "TRIP",
@@ -128,20 +146,20 @@ async def seed_workflows():
             print("   cd /app && alembic upgrade head")
             return
         
-        # Check existing workflows
-        result = await session.execute(text(
-            "SELECT COUNT(*) FROM approvals.workflow_configs WHERE is_active = true"
-        ))
-        existing_count = result.scalar()
-        
-        if existing_count > 0:
-            print(f"\n✓ Found {existing_count} existing workflow(s). Skipping seed.")
-            return
-        
         # Insert workflows
         print("\nSeeding workflow configurations...")
         
         for wf in DEFAULT_WORKFLOWS:
+            # Check if workflow exists by name and entity_type
+            result = await session.execute(text(
+                "SELECT id FROM approvals.workflow_configs WHERE name = :name AND entity_type = :entity_type"
+            ), {"name": wf['name'], "entity_type": wf['entity_type']})
+            existing_id = result.scalar()
+            
+            if existing_id:
+                print(f"  ✓ Exists: {wf['entity_type']} - {wf['name']}")
+                continue
+
             wf_id = uuid4()
             
             # Handle JSON fields properly
@@ -169,7 +187,7 @@ async def seed_workflows():
                 "min_approvers": wf['min_approvers'],
                 "max_approvers": wf.get('max_approvers'),
                 "approval_mode": wf['approval_mode'],
-                "approver_role_ids": '[]',
+                "approver_role_ids": json.dumps(wf.get('approver_role_ids', [])),
                 "auto_assign_approvers": wf['auto_assign_approvers'],
                 "allow_self_approval": wf['allow_self_approval'],
                 "expiration_hours": wf.get('expiration_hours'),

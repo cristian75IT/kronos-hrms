@@ -3,9 +3,11 @@ KRONOS Approval Service - Internal Router.
 
 Inter-service endpoints for approval operations.
 """
+from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Body
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
@@ -19,6 +21,18 @@ from ..schemas import (
 )
 
 router = APIRouter(prefix="/internal", tags=["Internal"])
+
+
+class InternalApproveRequest(BaseModel):
+    """Request body for internal approve endpoint."""
+    approver_id: UUID
+    notes: Optional[str] = None
+
+
+class InternalRejectRequest(BaseModel):
+    """Request body for internal reject endpoint."""
+    approver_id: UUID
+    notes: str
 
 
 def get_service(session: AsyncSession = Depends(get_db)) -> ApprovalService:
@@ -81,3 +95,96 @@ async def receive_webhook(
     """
     # Log the webhook for now
     return {"status": "received", "approval_request_id": str(payload.approval_request_id)}
+
+
+@router.get("/by-entity/{entity_type}/{entity_id}")
+async def get_by_entity(
+    entity_type: str,
+    entity_id: UUID,
+    service: ApprovalService = Depends(get_service),
+):
+    """
+    Get approval request by entity type and ID (internal use).
+    
+    Returns the approval request for the specified entity, or 404 if not found.
+    """
+    request = await service.get_by_entity(entity_type, entity_id)
+    if not request:
+        raise HTTPException(status_code=404, detail="Approval request not found")
+    
+    return {
+        "id": str(request.id),
+        "entity_type": request.entity_type,
+        "entity_id": str(request.entity_id),
+        "status": request.status,
+        "title": request.title,
+        "requester_id": str(request.requester_id) if request.requester_id else None,
+        "requester_name": request.requester_name,
+        "created_at": request.created_at.isoformat() if request.created_at else None,
+    }
+
+
+@router.post("/approve/{request_id}")
+async def approve_internal(
+    request_id: UUID,
+    body: InternalApproveRequest,
+    service: ApprovalService = Depends(get_service),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Approve an approval request (internal use).
+    
+    Called by other services to approve requests through the centralized system.
+    """
+    try:
+        request = await service.approve_request(
+            request_id=request_id,
+            approver_id=body.approver_id,
+            notes=body.notes,
+        )
+        await db.commit()
+        return {
+            "id": str(request.id),
+            "status": request.status,
+            "resolved_at": request.resolved_at.isoformat() if request.resolved_at else None,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/reject/{request_id}")
+async def reject_internal(
+    request_id: UUID,
+    body: InternalRejectRequest,
+    service: ApprovalService = Depends(get_service),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Reject an approval request (internal use).
+    
+    Called by other services to reject requests through the centralized system.
+    """
+    if not body.notes:
+        raise HTTPException(status_code=400, detail="Notes are required when rejecting")
+    
+    try:
+        request = await service.reject_request(
+            request_id=request_id,
+            approver_id=body.approver_id,
+            notes=body.notes,
+        )
+        await db.commit()
+        return {
+            "id": str(request.id),
+            "status": request.status,
+            "resolved_at": request.resolved_at.isoformat() if request.resolved_at else None,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+

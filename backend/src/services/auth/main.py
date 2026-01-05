@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.core.config import settings
 from src.core.database import init_db, close_db
 from src.services.auth.router import router
+from src.services.auth.router_organization import router as org_router
 # Import models to register them with SQLAlchemy metadata
 from src.services.auth import models  # noqa: F401
 
@@ -37,6 +38,7 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api/v1")
+app.include_router(org_router, prefix="/api/v1")
 
 # Add Request Context Middleware (must be after CORS)
 from src.core.middleware import RequestContextMiddleware

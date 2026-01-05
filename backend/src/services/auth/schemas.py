@@ -57,6 +57,12 @@ class UserUpdate(BaseModel):
 
     is_hr: Optional[bool] = None
     is_employee: Optional[bool] = None
+    
+    # Organization
+    department_id: Optional[UUID] = None
+    service_id: Optional[UUID] = None
+    executive_level_id: Optional[UUID] = None
+    manager_id: Optional[UUID] = None # Explicitly ensuring it is here as well if needed explicitly
 
 
 class UserProfileBase(BaseModel):
@@ -99,6 +105,14 @@ class UserResponse(UserBase, IDMixin, BaseSchema):
     permissions: list[str] = []
     created_at: datetime
     updated_at: datetime
+    
+    # Organization
+    department_id: Optional[UUID] = None
+    service_id: Optional[UUID] = None
+    executive_level_id: Optional[UUID] = None
+    department: Optional[str] = None # Flattened name for convenience? Or relying on profile.department
+    service: Optional[str] = None
+    executive_level: Optional[str] = None
 
 
 class UserListItem(BaseModel):
@@ -115,6 +129,10 @@ class UserListItem(BaseModel):
 
     is_hr: bool = False
     is_employee: bool = True
+    
+    department_id: Optional[UUID] = None
+    service_id: Optional[UUID] = None
+    executive_level_id: Optional[UUID] = None
     
     model_config = {"from_attributes": True}
 
@@ -433,3 +451,87 @@ class RolePermissionUpdate(BaseModel):
     
     permission_ids: list[UUID]
 
+    permission_ids: list[UUID]
+
+
+# ═══════════════════════════════════════════════════════════
+# Enterprise Organization Schemas
+# ═══════════════════════════════════════════════════════════
+
+class ExecutiveLevelBase(BaseModel):
+    """Base executive level schema."""
+    code: str = Field(..., max_length=20)
+    title: str = Field(..., max_length=100)
+    hierarchy_level: int
+    escalates_to_id: Optional[UUID] = None
+    max_approval_amount: Optional[float] = None
+    can_override_workflow: bool = False
+
+class ExecutiveLevelCreate(ExecutiveLevelBase):
+    pass
+
+class ExecutiveLevelUpdate(BaseModel):
+    title: Optional[str] = None
+    hierarchy_level: Optional[int] = None
+    escalates_to_id: Optional[UUID] = None
+    max_approval_amount: Optional[float] = None
+    can_override_workflow: Optional[bool] = None
+    is_active: Optional[bool] = None
+
+class ExecutiveLevelResponse(ExecutiveLevelBase, IDMixin, TimestampMixin, BaseSchema):
+    is_active: bool
+
+
+class DepartmentBase(BaseModel):
+    """Base department schema."""
+    code: str = Field(..., max_length=20)
+    name: str = Field(..., max_length=100)
+    description: Optional[str] = None
+    parent_id: Optional[UUID] = None
+    manager_id: Optional[UUID] = None
+    deputy_manager_id: Optional[UUID] = None
+    cost_center_code: Optional[str] = Field(None, max_length=50)
+
+class DepartmentCreate(DepartmentBase):
+    pass
+
+class DepartmentUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    parent_id: Optional[UUID] = None
+    manager_id: Optional[UUID] = None
+    deputy_manager_id: Optional[UUID] = None
+    cost_center_code: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class DepartmentResponse(DepartmentBase, IDMixin, TimestampMixin, BaseSchema):
+    is_active: bool
+    manager: Optional[UserListItem] = None
+    deputy_manager: Optional[UserListItem] = None
+
+
+class OrganizationalServiceBase(BaseModel):
+    """Base organizational service schema."""
+    code: str = Field(..., max_length=20)
+    name: str = Field(..., max_length=100)
+    description: Optional[str] = None
+    department_id: UUID
+    coordinator_id: Optional[UUID] = None
+    deputy_coordinator_id: Optional[UUID] = None
+
+class OrganizationalServiceCreate(OrganizationalServiceBase):
+    pass
+
+class OrganizationalServiceUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    department_id: Optional[UUID] = None
+    coordinator_id: Optional[UUID] = None
+    deputy_coordinator_id: Optional[UUID] = None
+    is_active: Optional[bool] = None
+
+class OrganizationalServiceResponse(OrganizationalServiceBase, IDMixin, TimestampMixin, BaseSchema):
+    is_active: bool
+    department_name: Optional[str] = None
+    coordinator: Optional[UserListItem] = None
+    deputy_coordinator: Optional[UserListItem] = None

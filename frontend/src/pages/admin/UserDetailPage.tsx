@@ -186,8 +186,20 @@ export function UserDetailPage() {
                             )}
                             <div className="flex items-center gap-3 text-sm text-gray-600">
                                 <Building size={16} className="text-gray-400" />
-                                <span>{profile?.department || 'Nessun dipartimento'}</span>
+                                <span>{profile?.department?.name ? `${profile.department.name} (${profile.department.code})` : (typeof profile?.department === 'string' ? profile.department : 'Nessun dipartimento')}</span>
                             </div>
+                            {profile?.service && (
+                                <div className="flex items-center gap-3 text-sm text-gray-600">
+                                    <Briefcase size={16} className="text-gray-400" />
+                                    <span>{profile.service.name}</span>
+                                </div>
+                            )}
+                            {profile?.executive_level && (
+                                <div className="flex items-center gap-3 text-sm text-gray-600">
+                                    <Shield size={16} className="text-purple-500" />
+                                    <span className="font-medium text-purple-700">{profile.executive_level.title} ({profile.executive_level.code})</span>
+                                </div>
+                            )}
                             {profile?.employee_number && (
                                 <div className="flex items-center gap-3 text-sm text-gray-600">
                                     <User size={16} className="text-gray-400" />

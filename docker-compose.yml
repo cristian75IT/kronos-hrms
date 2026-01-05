@@ -93,6 +93,7 @@ services:
       - NOTIFICATION_SERVICE_URL=http://notification-service:8005
       - LEAVES_WALLET_SERVICE_URL=http://leaves-wallet-service:8008
       - CALENDAR_SERVICE_URL=http://calendar-service:8009
+      - APPROVAL_SERVICE_URL=http://approval-service:8012
       - KEYCLOAK_URL=http://keycloak:8080/
       - KEYCLOAK_REALM=kronos
       - KEYCLOAK_CLIENT_ID=kronos-backend
@@ -108,6 +109,8 @@ services:
       redis:
         condition: service_healthy
       config-service:
+        condition: service_started
+      approval-service:
         condition: service_started
     restart: unless-stopped
 

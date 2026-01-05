@@ -233,11 +233,19 @@ export function useApproveLeaveRequest() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ id, notes }: { id: string; notes?: string }) =>
-            leavesService.approveRequest(id, notes),
+        mutationFn: async ({ id, approvalRequestId, notes }: { id: string; approvalRequestId?: string; notes?: string }) => {
+            // Use centralized approvals service if approval_request_id is available
+            if (approvalRequestId) {
+                const { approvalsService } = await import('../services/approvals.service');
+                return approvalsService.approveRequest(approvalRequestId, notes);
+            }
+            // Fallback to direct leaves service for legacy requests
+            return leavesService.approveRequest(id, notes);
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.leaveRequests });
             queryClient.invalidateQueries({ queryKey: queryKeys.pendingApprovals });
+            queryClient.invalidateQueries({ queryKey: ['pending-approvals'] });  // For approvals page
         },
     });
 }
@@ -246,11 +254,19 @@ export function useRejectLeaveRequest() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ id, reason }: { id: string; reason: string }) =>
-            leavesService.rejectRequest(id, reason),
+        mutationFn: async ({ id, approvalRequestId, reason }: { id: string; approvalRequestId?: string; reason: string }) => {
+            // Use centralized approvals service if approval_request_id is available
+            if (approvalRequestId) {
+                const { approvalsService } = await import('../services/approvals.service');
+                return approvalsService.rejectRequest(approvalRequestId, reason);
+            }
+            // Fallback to direct leaves service for legacy requests
+            return leavesService.rejectRequest(id, reason);
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.leaveRequests });
             queryClient.invalidateQueries({ queryKey: queryKeys.pendingApprovals });
+            queryClient.invalidateQueries({ queryKey: ['pending-approvals'] });  // For approvals page
         },
     });
 }

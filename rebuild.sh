@@ -41,11 +41,22 @@ echo "   - Seeding leave types, holidays, national contracts (CCNL)"
 # Eseguiamo gli script python dentro il container auth-service
 echo "   - Running database initialization (init_db.py)..."
 if docker exec kronos-auth python scripts/init_db.py; then
-    echo "   - Running enterprise calendar seed..."
-    docker exec kronos-auth python scripts/seed_enterprise_calendar_data.py
-    echo "   - Running enterprise data seed (users, wallets, reporting)..."
-    docker exec kronos-auth python scripts/seed_enterprise_data.py
-    echo -e "${GREEN}✓ Database initialized and seeded successfully!${NC}"
+    if [ "$1" != "--no-seed" ]; then
+        echo "   - Running enterprise calendar seed..."
+        docker exec kronos-auth python scripts/seed_enterprise_calendar_data.py
+        echo "   - Running executive levels seed..."
+        docker exec kronos-auth python scripts/seed_executive_levels.py
+        echo "   - Running enterprise data seed (users, wallets, reporting)..."
+        docker exec kronos-auth python scripts/seed_enterprise_data.py
+        echo "   - Running organization seed (departments, services)..."
+        docker exec kronos-auth python scripts/seed_organization.py
+        echo "   - Running workflows seed..."
+        docker exec kronos-auth python scripts/seed_workflows.py
+        echo -e "${GREEN}✓ Database initialized and seeded successfully!${NC}"
+    else
+        echo -e "${YELLOW}➡ Skipping seed data as requested.${NC}"
+        echo -e "${GREEN}✓ Database initialized (empty)!${NC}"
+    fi
 else
     echo -e "${RED}❌ Database initialization failed.${NC}"
     echo "Check the logs with: docker logs kronos-auth"

@@ -101,6 +101,34 @@ class AuthClient:
             logger.error(f"AuthClient error get_approvers: {e}")
         return []
 
+    async def get_department(self, department_id: UUID) -> Optional[dict]:
+        """Get department details including manager_id."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/organization/departments/{department_id}",
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"AuthClient error get_department: {e}")
+        return None
+
+    async def get_service(self, service_id: UUID) -> Optional[dict]:
+        """Get service details including coordinator_id."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/organization/services/{service_id}",
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+        except Exception as e:
+            logger.error(f"AuthClient error get_service: {e}")
+        return None
+
 
 class ConfigClient:
     """Client for Config Service interactions."""
@@ -1201,3 +1229,72 @@ class ApprovalClient:
         except Exception as e:
             logger.error(f"ApprovalClient error cancel_request: {e}")
         return False
+
+    async def get_by_entity(self, entity_type: str, entity_id: UUID) -> Optional[dict]:
+        """Get approval request by entity type and ID."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/api/v1/approvals/internal/by-entity/{entity_type}/{entity_id}",
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+                elif response.status_code == 404:
+                    return None
+                else:
+                    logger.warning(f"ApprovalClient get_by_entity returned {response.status_code}")
+        except Exception as e:
+            logger.error(f"ApprovalClient error get_by_entity: {e}")
+        return None
+
+    async def approve(
+        self, 
+        approval_request_id: UUID, 
+        approver_id: UUID, 
+        notes: Optional[str] = None
+    ) -> Optional[dict]:
+        """Approve an approval request."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/approvals/internal/approve/{approval_request_id}",
+                    json={
+                        "approver_id": str(approver_id),
+                        "notes": notes,
+                    },
+                    timeout=10.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    logger.error(f"ApprovalClient approve failed: {response.status_code} - {response.text}")
+        except Exception as e:
+            logger.error(f"ApprovalClient error approve: {e}")
+        return None
+
+    async def reject(
+        self, 
+        approval_request_id: UUID, 
+        approver_id: UUID, 
+        notes: str
+    ) -> Optional[dict]:
+        """Reject an approval request."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/approvals/internal/reject/{approval_request_id}",
+                    json={
+                        "approver_id": str(approver_id),
+                        "notes": notes,
+                    },
+                    timeout=10.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    logger.error(f"ApprovalClient reject failed: {response.status_code} - {response.text}")
+        except Exception as e:
+            logger.error(f"ApprovalClient error reject: {e}")
+        return None
+

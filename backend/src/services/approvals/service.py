@@ -229,6 +229,7 @@ class ApprovalService:
             # Fetch users with specified roles from auth service
             approver_ids, approver_info = await self._fetch_approvers_by_roles(
                 workflow.approver_role_ids,
+                requester_id=data.requester_id,
                 exclude_user=data.requester_id if not workflow.allow_self_approval else None,
                 max_approvers=workflow.max_approvers,
             )
@@ -259,38 +260,103 @@ class ApprovalService:
     async def _fetch_approvers_by_roles(
         self,
         role_ids: List[str],
+        requester_id: Optional[UUID] = None,
         exclude_user: Optional[UUID] = None,
         max_approvers: Optional[int] = None,
     ) -> tuple[List[UUID], Dict[UUID, Dict[str, str]]]:
         """Fetch users with specific roles from auth service."""
         try:
-            users = await self._auth_client.get_users(active_only=True)
-            
             approver_ids = []
             approver_info = {}
             
-            for user in users:
-                user_id = UUID(user["id"]) if isinstance(user["id"], str) else user["id"]
-                
-                # Check if user should be excluded
-                if exclude_user and user_id == exclude_user:
-                    continue
-                
-                # Check if user has any of the required roles
-                user_roles = user.get("roles", [])
-                user_role_ids = [r.get("id") if isinstance(r, dict) else r for r in user_roles]
-                
-                if any(str(rid) in [str(uid) for uid in user_role_ids] for rid in role_ids):
-                    approver_ids.append(user_id)
-                    approver_info[user_id] = {
-                        "name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
-                        "role": user_roles[0].get("name") if user_roles and isinstance(user_roles[0], dict) else str(user_roles[0]) if user_roles else None,
-                    }
-                
-                # Limit approvers if max specified
-                if max_approvers and len(approver_ids) >= max_approvers:
-                    break
+            # Separate roles by type
+            dynamic_roles = [r for r in role_ids if str(r).startswith("DYNAMIC:")]
+            executive_roles = [r for r in role_ids if str(r).startswith("EXECUTIVE_LEVEL:")]
+            static_roles = [r for r in role_ids if not str(r).startswith("DYNAMIC:") and not str(r).startswith("EXECUTIVE_LEVEL:")]
             
+            # 1. Process Static Roles (UUIDs) and Executive Levels
+            if static_roles or executive_roles:
+                users = await self._auth_client.get_users(active_only=True)
+                
+                for user in users:
+                    user_id = UUID(user["id"]) if isinstance(user["id"], str) else user["id"]
+                    
+                    # Check if user should be excluded
+                    if exclude_user and user_id == exclude_user:
+                        continue
+                    
+                    # Check Static Roles
+                    user_roles = user.get("roles", [])
+                    user_role_ids = [r.get("id") if isinstance(r, dict) else r for r in user_roles]
+                    role_match = any(str(rid) in [str(uid) for uid in user_role_ids] for rid in static_roles)
+                    
+                    # Check Executive Levels
+                    exec_match = False
+                    if executive_roles:
+                        user_exec_level = user.get("executive_level_id")
+                        if user_exec_level:
+                            for er in executive_roles:
+                                target_level_id = er.split(":")[1]
+                                if str(user_exec_level) == target_level_id:
+                                    exec_match = True
+                                    break
+
+                    if role_match or exec_match:
+                        if user_id not in approver_ids:
+                            approver_ids.append(user_id)
+                            approver_info[user_id] = {
+                                "name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+                                "role": "Executive" if exec_match and not role_match else (user_roles[0].get("name") if user_roles and isinstance(user_roles[0], dict) else str(user_roles[0]) if user_roles else None),
+                            }
+            
+            # 2. Process Dynamic Roles
+            if dynamic_roles and requester_id:
+                requester = await self._auth_client.get_user(requester_id)
+                if requester:
+                    for role in dynamic_roles:
+                        target_id = None
+                        role_name = "Approver"
+                        
+                        if role == "DYNAMIC:DEPARTMENT_MANAGER":
+                            # Get requester's department
+                            dept_id = requester.get("department_id")
+                            if dept_id:
+                                dept = await self._auth_client.get_department(dept_id)
+                                if dept and dept.get("manager_id"):
+                                    target_id = dept.get("manager_id")
+                                    role_name = "Department Manager"
+                                    
+                        elif role == "DYNAMIC:SERVICE_COORDINATOR":
+                             # Get requester's service
+                            srv_id = requester.get("service_id")
+                            if srv_id:
+                                srv = await self._auth_client.get_service(srv_id)
+                                if srv and srv.get("coordinator_id"):
+                                    target_id = srv.get("coordinator_id")
+                                    role_name = "Service Coordinator"
+                        
+                        # Add resolved approver if found
+                        if target_id:
+                            target_uuid = UUID(str(target_id)) if isinstance(target_id, str) else target_id
+                            
+                            if exclude_user and target_uuid == exclude_user:
+                                continue
+                                
+                            if target_uuid not in approver_ids:
+                                # Fetch target user details if not already known
+                                if target_uuid not in approver_info:
+                                    target_user = await self._auth_client.get_user(target_uuid)
+                                    if target_user:
+                                        approver_ids.append(target_uuid)
+                                        approver_info[target_uuid] = {
+                                            "name": f"{target_user.get('first_name', '')} {target_user.get('last_name', '')}".strip(),
+                                            "role": role_name
+                                        }
+
+            # Limit approvers if max specified
+            if max_approvers and len(approver_ids) > max_approvers:
+                approver_ids = approver_ids[:max_approvers]
+                
             return approver_ids, approver_info
         
         except Exception as e:

@@ -93,7 +93,8 @@
             ],
             "realmRoles": [
                 "admin",
-                "approver"
+                "approver",
+                "employee"
             ]
         },
         {
@@ -112,7 +113,8 @@
             ],
             "realmRoles": [
                 "manager",
-                "approver"
+                "approver",
+                "employee"
             ]
         },
         {
