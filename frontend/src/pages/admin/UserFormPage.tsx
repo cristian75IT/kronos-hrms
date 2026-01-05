@@ -166,9 +166,9 @@ export function UserFormPage() {
                 // Profile fields
                 phone: user.profile?.phone || '',
                 hire_date: user.profile?.hire_date ? user.profile.hire_date.split('T')[0] : '', // Format YYYY-MM-DD
-                department_id: user.profile?.department_id || '',
-                service_id: user.profile?.service_id || '',
-                executive_level_id: user.profile?.executive_level_id || '',
+                department_id: user.department_id || user.profile?.department_id || '',
+                service_id: user.service_id || user.profile?.service_id || '',
+                executive_level_id: user.executive_level_id || user.profile?.executive_level_id || '',
                 position: user.profile?.position || '',
                 employee_code: user.profile?.employee_number || '',
 

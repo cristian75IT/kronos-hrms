@@ -664,6 +664,9 @@ export interface DailyAttendanceItem {
     hours_worked?: number;
     leave_request_id?: string;
     leave_type_code?: string;
+    leave_type?: string;     // Added to fix build
+    department?: string;     // Added to fix build
+    notes?: string;          // Added to fix build
 }
 
 export interface DailyAttendanceResponse {
@@ -671,6 +674,7 @@ export interface DailyAttendanceResponse {
     items: DailyAttendanceItem[];
     total_present: number;
     total_absent: number;
+    total_employees?: number; // Added to fix build
 }
 
 // ═══════════════════════════════════════════════════════════════════

@@ -13,7 +13,12 @@ import {
     ArrowRight,
     RefreshCw,
     Calendar,
-    Briefcase
+    Briefcase,
+    Search,
+    CheckCircle2,
+    XCircle,
+    Clock,
+    FileText
 } from 'lucide-react';
 import { format, isValid } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -42,167 +47,182 @@ export function TripsPage() {
         return (
             <div className="flex flex-col items-center justify-center p-32 gap-6">
                 <div className="relative">
-                    <div className="w-20 h-20 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
-                    <Plane className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-emerald-500" size={32} />
+                    <div className="w-20 h-20 border-4 border-slate-200 border-t-emerald-600 rounded-full animate-spin" />
+                    <Plane className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-emerald-600" size={32} />
                 </div>
-                <p className="text-sm font-black uppercase tracking-[0.2em] text-base-content/30 animate-pulse">Sincronizzazione Missioni...</p>
+                <p className="text-sm font-bold uppercase tracking-widest text-slate-400 animate-pulse">Caricamento...</p>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="flex flex-col items-center justify-center p-12 gap-6 bg-error/5 border border-error/10 rounded-[3rem] text-center">
-                <div className="p-4 bg-error/10 rounded-2xl">
-                    <AlertCircle size={48} className="text-error" />
+            <div className="flex flex-col items-center justify-center p-12 gap-6 bg-red-50/50 border border-red-100 rounded-3xl text-center max-w-2xl mx-auto mt-12">
+                <div className="p-4 bg-white rounded-2xl shadow-sm border border-red-100">
+                    <AlertCircle size={48} className="text-red-500" />
                 </div>
                 <div>
-                    <h2 className="text-2xl font-black">Errore di Connessione</h2>
-                    <p className="text-base-content/50 max-w-md mx-auto">Impossibile recuperare i dati delle trasferte.</p>
+                    <h2 className="text-xl font-bold text-slate-900">Errore di Connessione</h2>
+                    <p className="text-slate-500 mt-2">Impossibile recuperare le trasferte. Verifica la connessione.</p>
                 </div>
-                <button className="btn btn-primary rounded-2xl px-8" onClick={() => refetch()}>
-                    <RefreshCw size={18} /> Riprova
+                <button className="btn bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 shadow-sm rounded-xl px-6" onClick={() => refetch()}>
+                    <RefreshCw size={18} className="mr-2" /> Riprova
                 </button>
             </div>
         );
     }
 
     return (
-        <div className="space-y-6 animate-fadeIn max-w-[1400px] mx-auto pb-8">
+        <div className="space-y-8 animate-fadeIn max-w-[1600px] mx-auto pb-12">
             {/* Enterprise Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200 pb-6">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-slate-200">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Trasferte Aziendali</h1>
-                    <p className="text-sm text-slate-500 mt-1">Pianifica, traccia e rendiconta le tue missioni di lavoro.</p>
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-emerald-100 rounded-lg text-emerald-700">
+                            <Briefcase size={24} />
+                        </div>
+                        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Trasferte</h1>
+                    </div>
+                    <p className="text-slate-500 max-w-2xl">
+                        Pianifica e gestisci le tue missioni aziendali. Tieni traccia di budget, destinazioni e rimborsi in un unico posto.
+                    </p>
                 </div>
 
-                <div className="flex flex-wrap gap-3 items-center">
-                    <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
-                        <span className="text-sm font-semibold text-slate-600">Budget Totale:</span>
-                        <span className="text-sm font-bold text-emerald-700">€{stats.totalBudget.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</span>
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex items-center gap-4 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl">
+                        <div className="text-right">
+                            <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Budget Totale</div>
+                            <div className="text-lg font-bold text-slate-900">€{stats.totalBudget.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</div>
+                        </div>
+                        <div className="h-8 w-px bg-slate-200" />
+                        <div className="text-right">
+                            <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Missioni Attive</div>
+                            <div className="text-lg font-bold text-emerald-600">{stats.pending + stats.approved}</div>
+                        </div>
                     </div>
 
-                    <Link to="/trips/new" className="btn btn-primary btn-sm h-10 px-4 rounded-lg font-medium shadow-none bg-slate-900 hover:bg-slate-800 text-white border-none">
-                        <Plus size={16} className="mr-2" />
+                    <Link to="/trips/new" className="btn bg-slate-900 hover:bg-slate-800 text-white border-none rounded-xl px-6 shadow-lg shadow-slate-900/20">
+                        <Plus size={18} className="mr-2" />
                         Nuova Missione
                     </Link>
                 </div>
             </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-4 bg-white border border-slate-200 rounded-lg shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Missioni Totali</div>
-                        <Briefcase size={16} className="text-slate-400" />
-                    </div>
-                    <div className="text-2xl font-bold text-slate-900 mt-2">{stats.total}</div>
-                </div>
-                <div className="p-4 bg-white border border-slate-200 rounded-lg shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">In Approvazione</div>
-                        <AlertCircle size={16} className="text-amber-400" />
-                    </div>
-                    <div className="text-2xl font-bold text-amber-600 mt-2">{stats.pending}</div>
-                </div>
-                <div className="p-4 bg-white border border-slate-200 rounded-lg shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Approvate</div>
-                        <Plane size={16} className="text-emerald-400" />
-                    </div>
-                    <div className="text-2xl font-bold text-emerald-600 mt-2">{stats.approved}</div>
-                </div>
+            {/* Filter Tabs */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-2">
+                {[
+                    { id: '', label: 'Tutte', icon: FileText },
+                    { id: 'submitted', label: 'In Approvazione', icon: Clock },
+                    { id: 'approved', label: 'Approvate', icon: CheckCircle2 },
+                    { id: 'rejected', label: 'Rifiutate', icon: XCircle },
+                    { id: 'completed', label: 'Completate', icon: Briefcase },
+                    { id: 'draft', label: 'Bozze', icon: FileText },
+                ].map(filter => (
+                    <button
+                        key={filter.id}
+                        onClick={() => setStatusFilter(filter.id)}
+                        className={`
+                            flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap
+                            ${statusFilter === filter.id
+                                ? 'bg-slate-900 text-white shadow-md'
+                                : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 hover:border-slate-300'}
+                        `}
+                    >
+                        <filter.icon size={16} className={statusFilter === filter.id ? 'text-emerald-400' : 'text-slate-400'} />
+                        {filter.label}
+                    </button>
+                ))}
             </div>
 
-            {/* Filter Toolbar */}
-            <div className="flex items-center justify-between py-2 overflow-x-auto">
-                <div className="flex gap-2">
-                    {['', 'draft', 'submitted', 'approved', 'completed'].map(status => (
-                        <button
-                            key={status}
-                            onClick={() => setStatusFilter(status)}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${statusFilter === status
-                                ? 'bg-slate-900 text-white border-slate-900'
-                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                                }`}
-                        >
-                            {status === '' ? 'Tutte' : getStatusLabel(status)}
-                        </button>
-                    ))}
-                </div>
-            </div>
+            {/* Data Table */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200">
+                                <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider w-[250px]">Missione</th>
+                                <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">Date & Dettagli</th>
+                                <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">Stato</th>
+                                <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Budget Stimato</th>
+                                <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider w-[100px] text-right">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {trips?.length === 0 ? (
+                                <tr>
+                                    <td colSpan={5} className="py-16 text-center">
+                                        <div className="flex flex-col items-center justify-center">
+                                            <Search size={48} className="text-slate-200 mb-4" />
+                                            <h3 className="text-lg font-semibold text-slate-900">Nessun risultato</h3>
+                                            <p className="text-slate-400 text-sm">Non ci sono trasferte che corrispondono ai filtri.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : (
+                                trips?.map((trip) => (
+                                    <tr
+                                        key={trip.id}
+                                        onClick={() => navigate(`/trips/${trip.id}`)}
+                                        className="group hover:bg-slate-50/80 transition-colors cursor-pointer"
+                                    >
+                                        <td className="py-4 px-6 align-top">
+                                            <div className="flex items-start gap-3">
+                                                <div className="mt-1 p-1.5 bg-emerald-50 text-emerald-600 rounded-lg shrink-0">
+                                                    <MapPin size={16} />
+                                                </div>
+                                                <div>
+                                                    <span className="font-bold text-slate-900 block group-hover:text-emerald-700 transition-colors">
+                                                        {trip.destination}
+                                                    </span>
+                                                    <span className="text-xs text-slate-500 font-medium capitalize">
+                                                        {trip.title}
+                                                    </span>
+                                                    <div className="text-xs text-slate-400 mt-1 uppercase tracking-wider">
+                                                        {trip.destination_type?.replace('_', ' ') || 'N/A'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
 
-            {/* Trips Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {trips?.length === 0 ? (
-                    <div className="col-span-full flex flex-col items-center justify-center p-16 bg-slate-50 rounded-xl border border-dashed border-slate-300">
-                        <Plane size={48} className="text-slate-300 mb-4" />
-                        <h3 className="text-lg font-semibold text-slate-900">Nessuna Missione</h3>
-                        <p className="text-sm text-slate-500 mt-1">Non ci sono trasferte registrate per questo filtro.</p>
-                        <Link to="/trips/new" className="mt-6 btn btn-outline btn-sm">
-                            Pianifica la Prima
-                        </Link>
-                    </div>
-                ) : (
-                    trips?.map((trip) => (
-                        <div
-                            key={trip.id}
-                            onClick={() => navigate(`/trips/${trip.id}`)}
-                            className="group flex flex-col bg-white rounded-lg border border-slate-200 hover:border-emerald-500/50 hover:shadow-md transition-all cursor-pointer p-0 overflow-hidden"
-                        >
-                            <div className="p-5 flex-1">
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="space-y-1 w-full">
-                                        <div className="flex justify-between w-full mb-2">
-                                            <div className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${getStatusBadgeClass(trip.status)}`}>
+                                        <td className="py-4 px-6 align-top">
+                                            <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 mb-1">
+                                                <Calendar size={14} className="text-slate-400" />
+                                                {safeFormat(trip.start_date, 'dd MMM')} - {safeFormat(trip.end_date, 'dd MMM yyyy')}
+                                            </div>
+                                            <div className="text-sm text-slate-500 line-clamp-1">
+                                                {trip.purpose || <span className="italic opacity-50">Nessuna descrizione</span>}
+                                            </div>
+                                        </td>
+
+                                        <td className="py-4 px-6 align-top">
+                                            <div className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusBadgeClass(trip.status)}`}>
                                                 {getStatusLabel(trip.status)}
                                             </div>
-                                            <span className="text-xs text-slate-400 font-medium">
-                                                {safeFormat(trip.created_at, 'dd MMM yyyy')}
-                                            </span>
-                                        </div>
-                                        <h3 className="text-lg font-bold text-slate-900 line-clamp-1 group-hover:text-emerald-700 transition-colors flex items-center gap-2">
-                                            <MapPin size={18} className="text-emerald-500 flex-shrink-0" />
-                                            {trip.destination}
-                                        </h3>
-                                        <p className="text-sm text-slate-500 line-clamp-2 min-h-[40px]">
-                                            {trip.purpose || 'Nessuna descrizione'}
-                                        </p>
-                                    </div>
-                                </div>
+                                        </td>
 
-                                <div className="grid grid-cols-2 gap-4 mt-4">
-                                    <div className="p-3 bg-slate-50 rounded-lg">
-                                        <div className="flex items-center gap-1.5 mb-1 text-slate-400">
-                                            <Calendar size={12} />
-                                            <span className="text-[0.65rem] font-bold uppercase tracking-wider">Date</span>
-                                        </div>
-                                        <div className="text-sm font-semibold text-slate-900">
-                                            {safeFormat(trip.start_date, 'dd MMM') && safeFormat(trip.end_date, 'dd MMM')
-                                                ? `${safeFormat(trip.start_date, 'dd MMM')} - ${safeFormat(trip.end_date, 'dd MMM')}`
-                                                : 'Date non disponibili'}
-                                        </div>
-                                    </div>
-                                    <div className="p-3 bg-slate-50 rounded-lg">
-                                        <div className="flex items-center gap-1.5 mb-1 text-slate-400">
-                                            <Briefcase size={12} />
-                                            <span className="text-[0.65rem] font-bold uppercase tracking-wider">Budget</span>
-                                        </div>
-                                        <div className="text-sm font-semibold text-emerald-700">
-                                            €{Number(trip.estimated_budget || 0).toLocaleString('it-IT', { minimumFractionDigits: 2 })}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                                        <td className="py-4 px-6 align-top text-right">
+                                            <div className="font-bold text-slate-900">
+                                                €{Number(trip.estimated_budget || 0).toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                                            </div>
+                                        </td>
 
-                            <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                                <span className="text-xs font-medium text-slate-500 capitalize">{trip.destination_type?.replace('_', ' ') || 'N/A'}</span>
-                                <div className="flex items-center gap-1 text-emerald-600 font-medium text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-                                    Vedi Dettagli <ArrowRight size={12} />
-                                </div>
-                            </div>
-                        </div>
-                    ))
+                                        <td className="py-4 px-6 align-middle text-right">
+                                            <button className="btn btn-ghost btn-sm btn-square text-slate-400 group-hover:text-emerald-600 hover:bg-emerald-50">
+                                                <ArrowRight size={18} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                {trips && trips.length > 0 && (
+                    <div className="bg-slate-50 border-t border-slate-200 px-6 py-3 text-xs text-slate-500 flex justify-between items-center">
+                        <span>Mostrati {trips.length} record</span>
+                        <span>Dati aggiornati in tempo reale</span>
+                    </div>
                 )}
             </div>
         </div>
@@ -212,27 +232,27 @@ export function TripsPage() {
 function getStatusLabel(status: string): string {
     const labels: Record<string, string> = {
         draft: 'Bozza',
-        submitted: 'Pendente',
-        pending: 'Pendente',
+        submitted: 'In Approvazione',
+        pending: 'In Approvazione',
         approved: 'Approvata',
         rejected: 'Rifiutata',
         completed: 'Completata',
         cancelled: 'Annullata',
     };
-    return labels[status] || status;
+    return labels[status.toLowerCase()] || status;
 }
 
 function getStatusBadgeClass(status: string): string {
     const classes: Record<string, string> = {
-        draft: 'bg-slate-100 text-slate-600',
-        submitted: 'bg-amber-50 text-amber-700 border border-amber-100',
-        pending: 'bg-amber-50 text-amber-700 border border-amber-100',
-        approved: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
-        rejected: 'bg-red-50 text-red-700 border border-red-100',
-        completed: 'bg-blue-50 text-blue-700 border border-blue-100',
-        cancelled: 'bg-slate-100 text-slate-500',
+        draft: 'bg-slate-100 text-slate-600 border-slate-200',
+        submitted: 'bg-amber-50 text-amber-700 border-amber-200',
+        pending: 'bg-amber-50 text-amber-700 border-amber-200',
+        approved: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        rejected: 'bg-red-50 text-red-700 border-red-200',
+        completed: 'bg-blue-50 text-blue-700 border-blue-200',
+        cancelled: 'bg-slate-100 text-slate-400 border-slate-200',
     };
-    return classes[status] || 'bg-slate-100 text-slate-600';
+    return classes[status.toLowerCase()] || 'bg-slate-100 text-slate-600 border-slate-200';
 }
 
 export default TripsPage;

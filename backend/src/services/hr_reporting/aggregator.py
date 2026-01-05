@@ -269,6 +269,7 @@ class HRDataAggregator:
                     "full_name": full_name,
                     "department": user.get("department"),
                     "worked_days": worked_days,
+                    "total_days": working_days,
                     "vacation_days": vacation_days,
                     "holiday_days": holiday_count,
                     "rol_hours": rol_hours,

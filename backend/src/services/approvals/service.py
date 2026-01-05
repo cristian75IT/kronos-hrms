@@ -571,6 +571,19 @@ class ApprovalService:
             if not request:
                 continue
             
+            # Handle Cancelled Requests (which have decision=None)
+            decision_status = decision.decision
+            decision_date = decision.decided_at
+            
+            if decision_status is None and request.status == 'CANCELLED':
+                decision_status = 'CANCELLED'
+                # Use request resolution time or update time for cancellation timestamp
+                decision_date = request.resolved_at or request.updated_at
+            
+            # Skip if we still don't have a decision status (should fit repository logic)
+            if not decision_status:
+                continue
+
             items.append(ArchivedApprovalItem(
                 request_id=request.id,
                 entity_type=request.entity_type,
@@ -579,9 +592,9 @@ class ApprovalService:
                 title=request.title,
                 description=request.description,
                 requester_name=request.requester_name,
-                decision=decision.decision,
+                decision=decision_status,
                 decision_notes=decision.decision_notes,
-                decided_at=decision.decided_at,
+                decided_at=decision_date or request.updated_at,
                 created_at=request.created_at,
             ))
         

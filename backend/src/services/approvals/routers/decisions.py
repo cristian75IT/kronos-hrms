@@ -70,19 +70,31 @@ async def approve_request(
 ):
     """Approve an approval request."""
     try:
-        request = await service.approve_request(
+        await service.approve_request(
             request_id=request_id,
             approver_id=current_user.sub,
             notes=notes,
             override_authority=current_user.is_admin,
         )
         await db.commit()
-        return request
+        # Re-fetch to ensure relationships are loaded and object is not expired
+        result = await service.get_approval_request(request_id)
+        if not result:
+            import logging
+            logging.error(f"CRITICAL: Request {request_id} not found after approval commit")
+            raise ValueError("Request lost after approval")
+        return result
     except ValueError as e:
+        import logging
+        logging.error(f"ValueError asserting approval: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        import logging
+        import traceback
+        logging.error(f"Unexpected error in approve_request: {e}")
+        logging.error(traceback.format_exc())
         await db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Internal Error: {str(e)}")
 
 
 @router.post("/{request_id}/reject", response_model=ApprovalRequestResponse)
@@ -101,19 +113,31 @@ async def reject_request(
         )
     
     try:
-        request = await service.reject_request(
+        await service.reject_request(
             request_id=request_id,
             approver_id=current_user.sub,
             notes=notes,
             override_authority=current_user.is_admin,
         )
         await db.commit()
-        return request
+        # Re-fetch to ensure relationships are loaded and object is not expired
+        result = await service.get_approval_request(request_id)
+        if not result:
+            import logging
+            logging.error(f"CRITICAL: Request {request_id} not found after reject commit")
+            raise ValueError("Request lost after rejection")
+        return result
     except ValueError as e:
+        import logging
+        logging.error(f"ValueError rejecting: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        import logging
+        import traceback
+        logging.error(f"Unexpected error in reject_request: {e}")
+        logging.error(traceback.format_exc())
         await db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Internal Error: {str(e)}")
 
 
 @router.post("/{request_id}/approve-conditional", response_model=ApprovalRequestResponse)
@@ -126,7 +150,7 @@ async def approve_conditional_request(
 ):
     """Approve an approval request with conditions."""
     try:
-        request = await service.approve_conditional_request(
+        await service.approve_conditional_request(
             request_id=request_id,
             approver_id=current_user.sub,
             condition_type=data.condition_type,
@@ -135,12 +159,24 @@ async def approve_conditional_request(
             override_authority=current_user.is_admin,
         )
         await db.commit()
-        return request
+        # Re-fetch to ensure relationships are loaded and object is not expired
+        result = await service.get_approval_request(request_id)
+        if not result:
+            import logging
+            logging.error(f"CRITICAL: Request {request_id} not found after conditional approval commit")
+            raise ValueError("Request lost after conditional approval")
+        return result
     except ValueError as e:
+        import logging
+        logging.error(f"ValueError conditional approval: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        import logging
+        import traceback
+        logging.error(f"Unexpected error in approve_conditional_request: {e}")
+        logging.error(traceback.format_exc())
         await db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Internal Error: {str(e)}")
 
 
 @router.post("/{request_id}/delegate", response_model=ApprovalRequestResponse)
@@ -161,7 +197,7 @@ async def delegate_request(
         )
     
     try:
-        request = await service.delegate_request(
+        await service.delegate_request(
             request_id=request_id,
             approver_id=current_user.sub,
             delegate_to_id=delegate_to_id,
@@ -170,12 +206,24 @@ async def delegate_request(
             override_authority=current_user.is_admin,
         )
         await db.commit()
-        return request
+        # Re-fetch to ensure relationships are loaded and object is not expired
+        result = await service.get_approval_request(request_id)
+        if not result:
+            import logging
+            logging.error(f"CRITICAL: Request {request_id} not found after delegate commit")
+            raise ValueError("Request lost after delegation")
+        return result
     except ValueError as e:
+        import logging
+        logging.error(f"ValueError delegating: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        import logging
+        import traceback
+        logging.error(f"Unexpected error in delegate_request: {e}")
+        logging.error(traceback.format_exc())
         await db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Internal Error: {str(e)}")
 
 
 # ═══════════════════════════════════════════════════════════

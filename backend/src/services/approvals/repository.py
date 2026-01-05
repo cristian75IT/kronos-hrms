@@ -359,20 +359,33 @@ class ApprovalDecisionRepository:
         limit: int = 50,
     ) -> List[ApprovalDecision]:
         """Get decided approvals for an approver (for archive view)."""
+        # Base condition: My assignment
+        conditions = [ApprovalDecision.approver_id == approver_id]
+        
+        # Status Filter Logic
+        if status_filter and status_filter.lower() != 'all':
+            if status_filter.upper() == 'CANCELLED':
+                # Only cancelled requests
+                conditions.append(ApprovalRequest.status == 'CANCELLED')
+            else:
+                # Exact decision match (APPROVED, REJECTED, DELEGATED)
+                conditions.append(ApprovalDecision.decision == status_filter.upper())
+        else:
+            # ALL: Either I decided, OR it was cancelled (and I was assigned so I kept a pending decision record)
+            # Note: When a request is cancelled, the existing approval_decisions usually remain with decision=None
+            conditions.append(
+                or_(
+                    ApprovalDecision.decision.isnot(None),
+                    ApprovalRequest.status == 'CANCELLED'
+                )
+            )
+
         query = (
             select(ApprovalDecision)
             .join(ApprovalRequest, ApprovalDecision.approval_request_id == ApprovalRequest.id)
-            .where(
-                and_(
-                    ApprovalDecision.approver_id == approver_id,
-                    ApprovalDecision.decision.isnot(None),
-                )
-            )
+            .where(and_(*conditions))
             .options(selectinload(ApprovalDecision.approval_request))
         )
-        
-        if status_filter and status_filter != 'all':
-            query = query.where(ApprovalDecision.decision == status_filter.upper())
         
         if entity_type:
             query = query.where(ApprovalRequest.entity_type == entity_type)

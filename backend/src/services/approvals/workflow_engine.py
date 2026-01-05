@@ -242,6 +242,8 @@ class WorkflowEngine:
             request.id, approver_id
         )
         
+        workflow = None
+
         # Admin Override Logic: If decision not found for this user, look for ANY pending decision at current level
         if not decision and override_authority:
             logger.info(f"Admin override for request {request.id} by {approver_id}")
@@ -260,6 +262,10 @@ class WorkflowEngine:
                 
             if decision:
                 notes = f"[ADMIN OVERRIDE by {approver_id}] {notes or ''}"
+                # Reassign the decision to the admin so it shows in their history
+                decision.approver_id = approver_id
+                # Logic to update name from auth service would be ideal, but for now we rely on history
+                # Ideally we should fetch the admin's name, but even ID update fixes the query issue
         
         if not decision:
             raise ValueError(f"Approver {approver_id} is not assigned to this request")
@@ -301,7 +307,7 @@ class WorkflowEngine:
         ))
         
         # Update request counts and status
-        await self._update_request_status(request, workflow, decision_type)
+        await self._update_request_status(request, workflow, decision_type, approver_id=approver_id)
         
         return request
     
@@ -310,6 +316,7 @@ class WorkflowEngine:
         request: ApprovalRequest,
         workflow: Optional[WorkflowConfig],
         last_decision: str,
+        approver_id: Optional[UUID] = None,
     ):
         """Update request status based on decisions."""
         if not workflow:

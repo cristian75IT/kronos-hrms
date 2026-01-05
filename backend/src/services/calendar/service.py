@@ -74,8 +74,13 @@ class CalendarService:
         holiday_list = []
         weekend_list = []
         
+        WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        
         while current_date <= end_date:
-            weekday_name = current_date.strftime("%A").lower()
+            # Use weekday() (0-6) to ensure locale independence
+            weekday_idx = current_date.weekday()
+            weekday_name = WEEKDAYS[weekday_idx]
+            
             day_config = work_week.get(weekday_name, {"is_working": False})
             
             is_weekend = not day_config.get("is_working", False)
@@ -135,9 +140,17 @@ class CalendarService:
         default_wp = result.scalar_one_or_none()
         
         if not default_wp:
-            # Extreme fallback
+            # Extreme fallback: Standard 5-day work week
             default_wp = WorkWeekProfile(
-                weekly_config={"saturday": {"is_working": False}, "sunday": {"is_working": False}},
+                weekly_config={
+                    "monday": {"is_working": True},
+                    "tuesday": {"is_working": True},
+                    "wednesday": {"is_working": True},
+                    "thursday": {"is_working": True},
+                    "friday": {"is_working": True},
+                    "saturday": {"is_working": False},
+                    "sunday": {"is_working": False}
+                },
                 total_weekly_hours=40
             )
         

@@ -22,6 +22,10 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+# Register error handlers
+from src.core.error_handlers import register_error_handlers
+register_error_handlers(app)
+
 # CORS
 app.add_middleware(
     CORSMiddleware,

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import {
     Building2,
     Briefcase,
@@ -279,8 +279,8 @@ interface DepartmentsTabProps {
 function DepartmentsTab({ departments, onNew, onEdit, onDelete }: DepartmentsTabProps) {
     const renderTree = (depts: Department[], level = 0): React.ReactNode => {
         return depts.map(dept => (
-            <>
-                <tr key={dept.id} className="hover:bg-gray-50 group">
+            <Fragment key={dept.id}>
+                <tr className="hover:bg-gray-50 group">
                     <td className="px-6 py-3">
                         <div className="flex items-center" style={{ paddingLeft: `${level * 24}px` }}>
                             {level > 0 && <div className="w-4 h-px bg-gray-300 mr-2"></div>}
@@ -314,7 +314,7 @@ function DepartmentsTab({ departments, onNew, onEdit, onDelete }: DepartmentsTab
                     </td>
                 </tr>
                 {dept.children && dept.children.length > 0 && renderTree(dept.children, level + 1)}
-            </>
+            </Fragment>
         ));
     };
 

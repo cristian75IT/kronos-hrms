@@ -38,7 +38,6 @@ router = APIRouter()
 async def calculate_working_days(
     request: WorkingDaysRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
 ):
     """Calculate the number of working days between two dates."""
     service = CalendarService(db)
@@ -57,7 +56,6 @@ async def list_holidays(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
 ):
     """List expanded system holidays for a specific year/range."""
     service = CalendarService(db)
@@ -74,7 +72,6 @@ async def list_closures(
     year: int = Query(...),
     location_id: Optional[UUID] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
 ):
     """List closures for a location in a specific year."""
     service = CalendarService(db)
@@ -86,7 +83,6 @@ async def is_working_day(
     check_date: date,
     location_id: Optional[UUID] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: TokenPayload = Depends(get_current_user),
 ):
     """Check if a specific date is a working day."""
     service = CalendarService(db)

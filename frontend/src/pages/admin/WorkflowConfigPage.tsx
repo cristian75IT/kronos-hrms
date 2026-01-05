@@ -93,7 +93,6 @@ const WorkflowFormModal: React.FC<WorkflowFormModalProps> = ({
     approvalModes,
     expirationActions,
     roles,
-    executiveLevels,
 }) => {
     const toast = useToast();
     const [formData, setFormData] = useState<WorkflowConfigCreate>({

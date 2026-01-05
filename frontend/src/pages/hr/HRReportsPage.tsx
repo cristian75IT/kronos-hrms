@@ -214,7 +214,7 @@ export function HRReportsPage() {
                             subtitle="In sede o smart working"
                             icon={<CheckCircle />}
                             color="emerald"
-                            trend={Math.round((dailyData.total_present / Math.max(dailyData.total_employees, 1)) * 100)}
+                            trend={Math.round((dailyData.total_present / Math.max(dailyData.total_employees || 0, 1)) * 100)}
                             trendLabel="tasso presenza"
                         />
                         <EnterpriseKPICard
@@ -277,7 +277,7 @@ export function HRReportsPage() {
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-700">
-                                                    {item.hours_worked > 0 ? `${item.hours_worked}h` : '-'}
+                                                    {(item.hours_worked || 0) > 0 ? `${item.hours_worked}h` : '-'}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 italic">
                                                     {item.leave_request_id && (
@@ -286,7 +286,7 @@ export function HRReportsPage() {
                                                             {item.leave_type || 'Assenza'}
                                                         </span>
                                                     )}
-                                                    {item.notes && <span className="text-xs ml-2">{item.notes}</span>}
+                                                    {/* Notes removed as property does not exist */}
                                                 </td>
                                             </tr>
                                         ))
@@ -300,70 +300,93 @@ export function HRReportsPage() {
 
             {/* Content for Aggregate View */}
             {activeTab === 'aggregate' && aggregateData && (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden ring-1 ring-gray-100">
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-100">
-                            <thead className="bg-gray-50/50">
-                                <tr>
-                                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Dipendente</th>
-                                    <th className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">Presenze</th>
-                                    <th className="px-6 py-4 text-center text-xs font-bold text-rose-500 bg-rose-50/30 uppercase tracking-wider border-b-2 border-rose-100">Ferie (gg)</th>
-                                    <th className="px-6 py-4 text-center text-xs font-bold text-blue-500 bg-blue-50/30 uppercase tracking-wider border-b-2 border-blue-100">Festività (gg)</th>
-                                    <th className="px-6 py-4 text-center text-xs font-bold text-orange-500 bg-orange-50/30 uppercase tracking-wider border-b-2 border-orange-100">ROL (ore)</th>
-                                    <th className="px-6 py-4 text-center text-xs font-bold text-yellow-600 bg-yellow-50/30 uppercase tracking-wider border-b-2 border-yellow-100">Permessi (ore)</th>
-                                    <th className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">Malattia</th>
-                                    <th className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">Altro</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-50">
-                                {isLoading && !aggregateData ? (
-                                    <tr><td colSpan={8} className="px-6 py-12 text-center text-sm text-gray-500">Caricamento statistiche...</td></tr>
-                                ) : (
-                                    aggregateData.items.map((item) => (
-                                        <tr key={item.user_id} className="hover:bg-gray-50/80 transition-colors group">
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex items-center">
-                                                    <div className="h-9 w-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold text-xs shadow-sm border border-gray-200">
-                                                        {(item.full_name || '??').split(' ').map(n => n[0]).join('').slice(0, 2)}
+                <div className="space-y-4">
+                    {/* Partial Data Warning */}
+                    {(new Date(endDate) >= new Date() || new Date(startDate).getMonth() === new Date().getMonth()) && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+                            <div className="p-1 bg-amber-100 rounded-full text-amber-600 mt-0.5">
+                                <Shield size={14} />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-bold text-amber-900">Dati Parziali (Mese in Corso)</h4>
+                                <p className="text-sm text-amber-700 mt-1">
+                                    Stai visualizzando dati per un periodo non ancora concluso.
+                                    Il rapporto <strong>Presenze / Totale</strong> è una stima calcolata sui giorni trascorsi rispetto
+                                    al totale lavorabile del mese ({aggregateData.items[0]?.total_days || 0}gg).
+                                    Il dato diventerà definitivo al termine del mese.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden ring-1 ring-gray-100">
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-100">
+                                <thead className="bg-gray-50/50">
+                                    <tr>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Dipendente</th>
+                                        <th className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">
+                                            Presenze
+                                            <span className="block text-[9px] font-normal normal-case text-gray-400">(Trascorsi / Mese)</span>
+                                        </th>
+                                        <th className="px-6 py-4 text-center text-xs font-bold text-rose-500 bg-rose-50/30 uppercase tracking-wider border-b-2 border-rose-100">Ferie (gg)</th>
+                                        <th className="px-6 py-4 text-center text-xs font-bold text-blue-500 bg-blue-50/30 uppercase tracking-wider border-b-2 border-blue-100">Festività (gg)</th>
+                                        <th className="px-6 py-4 text-center text-xs font-bold text-orange-500 bg-orange-50/30 uppercase tracking-wider border-b-2 border-orange-100">ROL (ore)</th>
+                                        <th className="px-6 py-4 text-center text-xs font-bold text-yellow-600 bg-yellow-50/30 uppercase tracking-wider border-b-2 border-yellow-100">Permessi (ore)</th>
+                                        <th className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">Malattia</th>
+                                        <th className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">Altro</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-50">
+                                    {isLoading && !aggregateData ? (
+                                        <tr><td colSpan={8} className="px-6 py-12 text-center text-sm text-gray-500">Caricamento statistiche...</td></tr>
+                                    ) : (
+                                        aggregateData.items.map((item) => (
+                                            <tr key={item.user_id} className="hover:bg-gray-50/80 transition-colors group">
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="flex items-center">
+                                                        <div className="h-9 w-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold text-xs shadow-sm border border-gray-200">
+                                                            {(item.full_name || '??').split(' ').map(n => n[0]).join('').slice(0, 2)}
+                                                        </div>
+                                                        <div className="ml-3">
+                                                            <div className="text-sm font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">{item.full_name || 'Sconosciuto'}</div>
+                                                        </div>
                                                     </div>
-                                                    <div className="ml-3">
-                                                        <div className="text-sm font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">{item.full_name || 'Sconosciuto'}</div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-gray-50 border border-gray-200">
+                                                        <span className="text-sm font-bold text-indigo-700">{item.worked_days}</span>
+                                                        <span className="text-[10px] text-gray-400 font-medium">/ {item.total_days}</span>
                                                     </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center">
-                                                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-gray-50 border border-gray-200">
-                                                    <span className="text-sm font-bold text-indigo-700">{item.worked_days}</span>
-                                                    <span className="text-[10px] text-gray-400 font-medium">/ {item.total_days}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center">
-                                                {item.vacation_days > 0 ? (
-                                                    <span className="text-sm font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-100">{item.vacation_days}</span>
-                                                ) : <span className="text-gray-300">-</span>}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-blue-600">
-                                                {item.holiday_days > 0 ? item.holiday_days : <span className="text-gray-300 font-normal">-</span>}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-orange-600">
-                                                {item.rol_hours > 0 ? item.rol_hours : <span className="text-gray-300 font-normal">-</span>}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-yellow-600">
-                                                {item.permit_hours > 0 ? item.permit_hours : <span className="text-gray-300 font-normal">-</span>}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-600">
-                                                {item.sick_days > 0 ? (
-                                                    <span className="text-xs font-bold bg-gray-100 px-2 py-0.5 rounded">{item.sick_days}</span>
-                                                ) : <span className="text-gray-300">-</span>}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
-                                                {item.other_absences > 0 ? item.other_absences : <span className="text-gray-300">-</span>}
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                    {item.vacation_days > 0 ? (
+                                                        <span className="text-sm font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-100">{item.vacation_days}</span>
+                                                    ) : <span className="text-gray-300">-</span>}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-blue-600">
+                                                    {item.holiday_days > 0 ? item.holiday_days : <span className="text-gray-300 font-normal">-</span>}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-orange-600">
+                                                    {item.rol_hours > 0 ? item.rol_hours : <span className="text-gray-300 font-normal">-</span>}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-yellow-600">
+                                                    {item.permit_hours > 0 ? item.permit_hours : <span className="text-gray-300 font-normal">-</span>}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-600">
+                                                    {item.sick_days > 0 ? (
+                                                        <span className="text-xs font-bold bg-gray-100 px-2 py-0.5 rounded">{item.sick_days}</span>
+                                                    ) : <span className="text-gray-300">-</span>}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
+                                                    {item.other_absences > 0 ? item.other_absences : <span className="text-gray-300">-</span>}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             )}

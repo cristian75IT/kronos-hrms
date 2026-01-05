@@ -84,7 +84,7 @@ export const NotificationCompose: React.FC<NotificationComposeProps> = ({
     };
 
     const activeAreaUsers = recipientMode === 'department' && selectedArea
-        ? users.filter(u => (u as any).areas?.some((a: any) => a.id === selectedArea) || u.profile?.department === selectedArea)
+        ? users.filter(u => (u as any).areas?.some((a: any) => a.id === selectedArea) || (typeof u.profile?.department === 'object' ? u.profile?.department?.id : u.profile?.department) === selectedArea)
         : [];
 
     return (

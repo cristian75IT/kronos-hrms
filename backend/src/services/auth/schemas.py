@@ -110,9 +110,9 @@ class UserResponse(UserBase, IDMixin, BaseSchema):
     department_id: Optional[UUID] = None
     service_id: Optional[UUID] = None
     executive_level_id: Optional[UUID] = None
-    department: Optional[str] = None # Flattened name for convenience? Or relying on profile.department
-    service: Optional[str] = None
-    executive_level: Optional[str] = None
+    # department: Optional[str] = None # REMOVED: Conflicts with User.department_entity lazy load
+    # service: Optional[str] = None # REMOVED: Conflicts with User.service_entity lazy load
+    # executive_level: Optional[str] = None # REMOVED: Conflicts with User.executive_level lazy load
 
 
 class UserListItem(BaseModel):

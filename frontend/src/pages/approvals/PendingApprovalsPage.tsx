@@ -20,13 +20,11 @@ import {
     Calendar,
     FileSearch,
     ShieldCheck,
-    AlertCircle,
     Check,
-    Info,
     MessageSquare,
-    Search,
-    LayoutGrid,
     Ban,
+    AlertCircle,
+    Search
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { it } from 'date-fns/locale';
@@ -217,7 +215,6 @@ const DecisionModal: React.FC<DecisionModalProps> = ({
             onClose={onClose}
             title="Gestione Approvazione"
             size="2xl"
-            hideFooter
         >
             <div className="space-y-6 pb-2">
                 {/* Enterprise Header - Glassmorphism Style */}
@@ -414,8 +411,8 @@ const DecisionModal: React.FC<DecisionModalProps> = ({
                                                 type="button"
                                                 onClick={() => { setConditionType(cat.value); setConditionDetails(''); }}
                                                 className={`relative flex flex-col items-center p-3 rounded-xl border-2 transition-all duration-200 ${conditionType === cat.value
-                                                        ? 'border-blue-500 bg-blue-50 shadow-md shadow-blue-500/10'
-                                                        : 'border-gray-100 bg-white hover:border-blue-200 hover:bg-blue-50/30'
+                                                    ? 'border-blue-500 bg-blue-50 shadow-md shadow-blue-500/10'
+                                                    : 'border-gray-100 bg-white hover:border-blue-200 hover:bg-blue-50/30'
                                                     }`}
                                             >
                                                 <span className="text-xl mb-1">{cat.icon}</span>
@@ -451,8 +448,8 @@ const DecisionModal: React.FC<DecisionModalProps> = ({
                                                     type="button"
                                                     onClick={() => setConditionDetails(suggestion)}
                                                     className={`group relative flex items-start gap-3 p-3 rounded-xl border text-left transition-all duration-200 ${isSelected
-                                                            ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500/20'
-                                                            : 'border-gray-100 bg-white hover:border-blue-200 hover:bg-gray-50'
+                                                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500/20'
+                                                        : 'border-gray-100 bg-white hover:border-blue-200 hover:bg-gray-50'
                                                         }`}
                                                 >
                                                     <div className={`flex-shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300 group-hover:border-blue-400'
@@ -709,298 +706,279 @@ const PendingApprovalsPage: React.FC = () => {
         }
     };
 
+    // Helper for table filtering tabs
+    const filterTabs = [
+        { id: '', label: 'Tutte', icon: FileText },
+        { id: 'LEAVE', label: 'Ferie & Permessi', icon: Calendar },
+        { id: 'TRIP', label: 'Trasferte', icon: Briefcase },
+        { id: 'EXPENSE', label: 'Note Spese', icon: Receipt },
+    ];
+
+    if (isLoading && !data && !archivedData) {
+        return (
+            <div className="flex flex-col items-center justify-center p-32 gap-6">
+                <div className="relative">
+                    <div className="w-20 h-20 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
+                    <CheckCircle className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-indigo-600" size={32} />
+                </div>
+                <p className="text-sm font-bold uppercase tracking-widest text-slate-400 animate-pulse">Caricamento Approvazioni...</p>
+            </div>
+        );
+    }
+
     return (
-        <div className="p-6 max-w-5xl mx-auto">
-            {/* View Mode Tabs */}
-            <div className="flex mb-6 p-1 bg-gray-100 rounded-lg self-start w-fit">
-                <button
-                    onClick={() => setViewMode('pending')}
-                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-all ${viewMode === 'pending'
-                        ? 'bg-white text-indigo-700 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                        }`}
-                >
-                    <Clock className="h-4 w-4" />
-                    In Attesa
-                    {data?.total ? (
-                        <span className="ml-1 px-1.5 py-0.5 text-xs font-bold bg-indigo-100 text-indigo-700 rounded">
-                            {data.total}
-                        </span>
-                    ) : null}
-                </button>
-                <button
-                    onClick={() => setViewMode('archived')}
-                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-all ${viewMode === 'archived'
-                        ? 'bg-white text-indigo-700 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                        }`}
-                >
-                    <CheckCircle className="h-4 w-4" />
-                    Archivio
-                    {archivedData?.total ? (
-                        <span className="ml-1 px-1.5 py-0.5 text-xs font-bold bg-gray-200 text-gray-700 rounded">
-                            {archivedData.total}
-                        </span>
-                    ) : null}
-                </button>
-            </div>
-
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
+        <div className="space-y-8 animate-fadeIn max-w-[1600px] mx-auto pb-12">
+            {/* Enterprise Header */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-slate-200">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                        {viewMode === 'pending' ? (
-                            <>
-                                <Clock className="h-7 w-7 text-indigo-600" />
-                                Approvazioni in Attesa
-                            </>
-                        ) : (
-                            <>
-                                <CheckCircle className="h-7 w-7 text-green-600" />
-                                Archivio Approvazioni
-                            </>
-                        )}
-                    </h1>
-                    <p className="text-gray-600 mt-1">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className={`p-2 rounded-lg ${viewMode === 'pending' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-700'}`}>
+                            {viewMode === 'pending' ? <CheckCircle size={24} /> : <FileSearch size={24} />}
+                        </div>
+                        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
+                            {viewMode === 'pending' ? 'Approvazioni' : 'Archivio Decisioni'}
+                        </h1>
+                    </div>
+                    <p className="text-slate-500 max-w-2xl">
                         {viewMode === 'pending'
-                            ? 'Richieste che richiedono la tua approvazione'
-                            : 'Storico delle tue decisioni'}
+                            ? 'Gestisci le richieste del tuo team con precisione e velocità. Verifica le priorità urgenti.'
+                            : 'Consulta lo storico delle tue decisioni passate.'}
                     </p>
                 </div>
 
-                {/* Filters */}
-                <div className="flex gap-3">
-                    {viewMode === 'archived' && (
-                        <select
-                            value={archiveStatusFilter}
-                            onChange={(e) => setArchiveStatusFilter(e.target.value)}
-                            className="rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        >
-                            <option value="all">Tutte le decisioni</option>
-                            <option value="approved">Approvate</option>
-                            <option value="rejected">Rifiutate</option>
-                        </select>
+                <div className="flex flex-col sm:flex-row gap-3">
+                    {viewMode === 'pending' && data && (
+                        <div className="flex items-center gap-4 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl">
+                            <div className="text-right">
+                                <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Totali</div>
+                                <div className="text-lg font-bold text-slate-900">{data.total}</div>
+                            </div>
+                            <div className="h-8 w-px bg-slate-200" />
+                            <div className="text-right">
+                                <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Urgenti</div>
+                                <div className={`text-lg font-bold ${data.urgent_count > 0 ? 'text-red-500 animate-pulse' : 'text-emerald-600'}`}>
+                                    {data.urgent_count}
+                                </div>
+                            </div>
+                        </div>
                     )}
-                    <select
-                        value={filterType}
-                        onChange={(e) => setFilterType(e.target.value)}
-                        className="rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    >
-                        <option value="">Tutti i tipi</option>
-                        <option value="LEAVE">Ferie</option>
-                        <option value="TRIP">Trasferte</option>
-                        <option value="EXPENSE">Note Spese</option>
-                    </select>
+
+                    <div className="flex bg-slate-100 p-1 rounded-xl">
+                        <button
+                            onClick={() => setViewMode('pending')}
+                            className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${viewMode === 'pending' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            In Attesa
+                        </button>
+                        <button
+                            onClick={() => setViewMode('archived')}
+                            className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${viewMode === 'archived' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Archivio
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            {/* Stats - Only for pending */}
-            {viewMode === 'pending' && data && (
-                <div className="grid grid-cols-3 gap-4 mb-6">
-                    <Card className="p-4">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-indigo-100 rounded-lg">
-                                <Clock className="h-6 w-6 text-indigo-600" />
-                            </div>
-                            <div>
-                                <p className="text-2xl font-bold text-gray-900">{data.total}</p>
-                                <p className="text-sm text-gray-500">Totale in attesa</p>
-                            </div>
-                        </div>
-                    </Card>
+            {/* Filter Tabs */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-2">
+                {filterTabs.map(filter => (
+                    <button
+                        key={filter.id}
+                        onClick={() => setFilterType(filter.id)}
+                        className={`
+                            flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap
+                            ${filterType === filter.id
+                                ? 'bg-slate-900 text-white shadow-md'
+                                : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 hover:border-slate-300'}
+                        `}
+                    >
+                        <filter.icon size={16} className={filterType === filter.id ? 'text-indigo-400' : 'text-slate-400'} />
+                        {filter.label}
+                    </button>
+                ))}
+            </div>
 
-                    <Card className="p-4">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-red-100 rounded-lg">
-                                <AlertTriangle className="h-6 w-6 text-red-600" />
-                            </div>
-                            <div>
-                                <p className="text-2xl font-bold text-red-600">{data.urgent_count}</p>
-                                <p className="text-sm text-gray-500">Urgenti</p>
-                            </div>
-                        </div>
-                    </Card>
-
-                    <Card className="p-4 flex items-center gap-2 text-sm text-gray-500">
-                        <MessageSquare className="h-5 w-5" />
-                        Clicca su una richiesta per approvarla o rifiutarla
-                    </Card>
-                </div>
-            )}
-
-            {/* Content */}
-            {isLoading ? (
-                <div className="flex justify-center py-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
-                </div>
-            ) : viewMode === 'archived' ? (
-                /* ARCHIVED VIEW */
-                archivedData?.items.length === 0 ? (
-                    <Card className="p-12 text-center">
-                        <CheckCircle className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                            Nessuna decisione in archivio
-                        </h3>
-                        <p className="text-gray-500">
-                            Non hai ancora preso decisioni su nessuna richiesta
-                        </p>
-                    </Card>
-                ) : (
-                    <div className="space-y-3">
-                        {archivedData?.items.map((item: ArchivedApprovalItem) => {
-                            const decisionConfig = {
-                                APPROVED: { color: 'bg-green-100 text-green-700 border-green-200', icon: CheckCircle, label: 'Approvata' },
-                                REJECTED: { color: 'bg-red-100 text-red-700 border-red-200', icon: XCircle, label: 'Rifiutata' },
-                                DELEGATED: { color: 'bg-orange-100 text-orange-700 border-orange-200', icon: User, label: 'Delegata' },
-                            }[item.decision] || { color: 'bg-gray-100 text-gray-700', icon: FileText, label: item.decision };
-
-                            const DecisionIcon = decisionConfig.icon;
-
-                            return (
-                                <Card key={item.request_id} className="p-4 hover:shadow-md transition-shadow">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-4">
-                                            <EntityIcon type={item.entity_type} className="h-8 w-8" />
-                                            <div>
-                                                <h3 className="font-medium text-gray-900">{item.title}</h3>
-                                                <div className="flex items-center gap-2 mt-1 text-sm text-gray-500">
-                                                    <User className="h-4 w-4" />
-                                                    <span>{item.requester_name || 'N/D'}</span>
-                                                    <span>•</span>
-                                                    <span>{format(new Date(item.created_at), 'dd MMM yyyy', { locale: it })}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <EntityTypeBadge type={item.entity_type} />
-                                            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${decisionConfig.color}`}>
-                                                <DecisionIcon className="h-4 w-4" />
-                                                {decisionConfig.label}
-                                            </div>
-                                            <div className="text-right text-sm text-gray-500">
-                                                <p>Deciso il</p>
-                                                <p className="font-medium">{format(new Date(item.decided_at), 'dd/MM/yyyy HH:mm', { locale: it })}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {item.decision_notes && (
-                                        <div className="mt-3 p-2 bg-gray-50 rounded text-sm text-gray-600">
-                                            <span className="font-medium">Note: </span>{item.decision_notes}
-                                        </div>
-                                    )}
-                                </Card>
-                            );
-                        })}
-                    </div>
-                )
-            ) : data?.items.length === 0 ? (
-                <Card className="p-12 text-center">
-                    <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                        Nessuna approvazione in attesa
-                    </h3>
-                    <p className="text-gray-500">
-                        Sei in pari con tutte le approvazioni!
-                    </p>
-                </Card>
-            ) : (
-                <div className="space-y-3">
-                    {data?.items.map((item) => {
-                        const entityUrl = getEntityUrl(item);
-
-                        return (
-                            <div
-                                key={item.request_id}
-                                onClick={() => openDecisionModal(item)}
-                                className="cursor-pointer"
-                            >
-                                <Card
-                                    className={`p-4 hover:shadow-md transition-shadow ${item.is_urgent ? 'border-l-4 border-l-red-500' : ''
-                                        }`}
-                                >
-                                    <div className="flex items-center gap-4">
-                                        {/* Icon */}
-                                        <EntityIcon type={item.entity_type} className="h-10 w-10" />
-
-                                        {/* Content */}
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <EntityTypeBadge type={item.entity_type} />
-                                                {item.entity_ref && (
-                                                    <span className="text-xs text-gray-500 font-mono">
-                                                        {item.entity_ref}
-                                                    </span>
+            {/* Data Table */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200">
+                                <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider w-[60px]">Stato</th>
+                                <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider w-[300px]">Richiesta</th>
+                                <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">Richiedente</th>
+                                <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">Info & Scadenza</th>
+                                <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {viewMode === 'pending' ? (
+                                data?.items.length === 0 ? (
+                                    <EmptyState />
+                                ) : (
+                                    data?.items.map((item) => (
+                                        <tr
+                                            key={item.request_id}
+                                            onClick={() => openDecisionModal(item)}
+                                            className="group hover:bg-slate-50/80 transition-colors cursor-pointer"
+                                        >
+                                            <td className="py-4 px-6 align-middle">
+                                                {item.is_urgent ? (
+                                                    <div className="h-8 w-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center animate-pulse" title="Urgente">
+                                                        <AlertTriangle size={16} />
+                                                    </div>
+                                                ) : (
+                                                    <div className="h-8 w-8 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
+                                                        <Clock size={16} />
+                                                    </div>
                                                 )}
-                                                <UrgencyIndicator item={item} />
-                                            </div>
+                                            </td>
 
-                                            <h3 className="font-semibold text-gray-900 truncate">
-                                                {item.title}
-                                            </h3>
-
-                                            {item.description && (
-                                                <p className="text-sm text-gray-600 truncate mt-0.5">
-                                                    {item.description}
-                                                </p>
-                                            )}
-
-                                            <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
-                                                <div className="flex items-center gap-1">
-                                                    <User className="h-4 w-4" />
-                                                    {item.requester_name || 'Utente'}
-                                                </div>
-                                                <span>•</span>
-                                                <span>
-                                                    {item.days_pending === 0
-                                                        ? 'Oggi'
-                                                        : item.days_pending === 1
-                                                            ? 'Ieri'
-                                                            : `${item.days_pending} giorni fa`
-                                                    }
-                                                </span>
-                                                {item.approval_level > 1 && (
-                                                    <>
-                                                        <span>•</span>
-                                                        <span className="text-indigo-600">
-                                                            Livello {item.approval_level}
+                                            <td className="py-4 px-6 align-top">
+                                                <div className="flex items-start gap-3">
+                                                    <div className={`mt-1 p-1.5 rounded-lg shrink-0 ${item.entity_type === 'LEAVE' ? 'bg-blue-50 text-blue-600' :
+                                                            item.entity_type === 'TRIP' ? 'bg-purple-50 text-purple-600' :
+                                                                'bg-emerald-50 text-emerald-600'
+                                                        }`}>
+                                                        <EntityIcon type={item.entity_type} className="h-4 w-4" />
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-bold text-slate-900 block group-hover:text-indigo-700 transition-colors line-clamp-1">
+                                                            {item.title}
                                                         </span>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </div>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <span className="text-xs text-slate-500 font-mono bg-slate-100 px-1.5 py-0.5 rounded">
+                                                                #{item.entity_ref || item.request_id.slice(0, 8)}
+                                                            </span>
+                                                            <EntityTypeBadge type={item.entity_type} />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
 
-                                        {/* Actions */}
-                                        <div className="flex items-center gap-2">
-                                            {entityUrl && (
-                                                <button
-                                                    onClick={(e) => {
+                                            <td className="py-4 px-6 align-middle">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="h-9 w-9 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm border border-indigo-100">
+                                                        {item.requester_name?.charAt(0) || 'U'}
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-sm font-bold text-slate-700">{item.requester_name || 'Utente Sconosciuto'}</div>
+                                                        <div className="text-xs text-slate-400">Richiedente</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+
+                                            <td className="py-4 px-6 align-middle">
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                                                        <Calendar size={14} className="text-slate-400" />
+                                                        <span>{format(new Date(item.created_at), 'dd MMM yyyy', { locale: it })}</span>
+                                                    </div>
+                                                    {item.expires_at && (
+                                                        <div className={`text-xs font-medium flex items-center gap-1 ${new Date(item.expires_at) < new Date(Date.now() + 86400000) ? 'text-red-500' : 'text-slate-400'
+                                                            }`}>
+                                                            <Clock size={12} />
+                                                            Scade {formatDistanceToNow(new Date(item.expires_at), { addSuffix: true, locale: it })}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
+
+                                            <td className="py-4 px-6 align-middle text-right">
+                                                <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <Button size="sm" variant="secondary" className="bg-white hover:bg-emerald-50 hover:text-emerald-700 border-slate-200" onClick={(e) => {
                                                         e.stopPropagation();
-                                                        navigate(entityUrl);
-                                                    }}
-                                                    className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
-                                                    title="Visualizza dettagli"
-                                                >
-                                                    <ExternalLink className="h-5 w-5" />
+                                                        openDecisionModal(item);
+                                                    }}>
+                                                        Valuta
+                                                    </Button>
+                                                    <button className="btn btn-ghost btn-sm btn-square text-slate-400 hover:text-indigo-600 hover:bg-indigo-50">
+                                                        <ChevronRight size={18} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )
+                            ) : (
+                                archivedData?.items.length === 0 ? (
+                                    <EmptyState type="archive" />
+                                ) : (
+                                    archivedData?.items.map((item) => (
+                                        <tr
+                                            key={item.request_id}
+                                            onClick={() => {
+                                                const url = getEntityUrl(item);
+                                                if (url) navigate(url);
+                                            }}
+                                            className="group hover:bg-slate-50/80 transition-colors cursor-pointer"
+                                        >
+                                            <td className="py-4 px-6 align-middle">
+                                                <div className={`h-8 w-8 rounded-full flex items-center justify-center ${item.decision === 'APPROVED' ? 'bg-emerald-100 text-emerald-600' :
+                                                        item.decision === 'REJECTED' ? 'bg-red-100 text-red-600' :
+                                                            'bg-slate-100 text-slate-600'
+                                                    }`}>
+                                                    {item.decision === 'APPROVED' ? <Check size={16} /> :
+                                                        item.decision === 'REJECTED' ? <XCircle size={16} /> :
+                                                            <ArrowRight size={16} />}
+                                                </div>
+                                            </td>
+                                            <td className="py-4 px-6 align-top">
+                                                <div className="flex items-start gap-3">
+                                                    <div>
+                                                        <span className="font-bold text-slate-900 block group-hover:text-indigo-700 transition-colors line-clamp-1">
+                                                            {item.title}
+                                                        </span>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <EntityTypeBadge type={item.entity_type} />
+                                                            <span className="text-xs text-slate-400">
+                                                                {format(new Date(item.decided_at), 'dd MMM yyyy', { locale: it })}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="py-4 px-6 align-middle">
+                                                <div className="text-sm font-medium text-slate-700">{item.requester_name}</div>
+                                            </td>
+                                            <td className="py-4 px-6 align-middle">
+                                                <div className="text-sm text-slate-500 line-clamp-1 italic">
+                                                    {item.decision_notes || 'Nessuna nota'}
+                                                </div>
+                                            </td>
+                                            <td className="py-4 px-6 align-middle text-right">
+                                                <button className="btn btn-ghost btn-sm btn-square text-slate-400 group-hover:text-indigo-600">
+                                                    <ExternalLink size={16} />
                                                 </button>
-                                            )}
-
-                                            <ChevronRight className="h-5 w-5 text-gray-400" />
-                                        </div>
-                                    </div>
-                                </Card>
-                            </div>
-                        );
-                    })}
+                                            </td>
+                                        </tr>
+                                    ))
+                                )
+                            )}
+                        </tbody>
+                    </table>
                 </div>
-            )}
 
-            {/* Decision Modal */}
+                {/* Footer Stats */}
+                {(data?.items.length || 0) > 0 && (
+                    <div className="bg-slate-50 border-t border-slate-200 px-6 py-3 text-xs text-slate-500 flex justify-between items-center">
+                        <span>
+                            {viewMode === 'pending'
+                                ? `Mostrati ${data?.items.length || 0} record in attesa`
+                                : `Mostrati ${archivedData?.items.length || 0} record archiviati`}
+                        </span>
+                        <span className="flex items-center gap-1">
+                            <ShieldCheck size={12} className="text-emerald-500" />
+                            Secure Workflow
+                        </span>
+                    </div>
+                )}
+            </div>
+
             <DecisionModal
                 isOpen={isDecisionModalOpen}
-                onClose={() => {
-                    setIsDecisionModalOpen(false);
-                    setSelectedItem(null);
-                }}
+                onClose={() => setIsDecisionModalOpen(false)}
                 item={selectedItem}
                 onApprove={handleApprove}
                 onReject={handleReject}
@@ -1011,5 +989,25 @@ const PendingApprovalsPage: React.FC = () => {
         </div>
     );
 };
+
+const EmptyState: React.FC<{ type?: 'pending' | 'archive' }> = ({ type = 'pending' }) => (
+    <tr>
+        <td colSpan={5} className="py-16 text-center">
+            <div className="flex flex-col items-center justify-center">
+                <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mb-4 ring-1 ring-slate-100">
+                    {type === 'pending' ? <CheckCircle size={32} className="text-slate-300" /> : <FileSearch size={32} className="text-slate-300" />}
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900">
+                    {type === 'pending' ? 'Tutto in ordine!' : 'Nessuna decisione trovata'}
+                </h3>
+                <p className="text-slate-400 text-sm max-w-xs mx-auto mt-1">
+                    {type === 'pending'
+                        ? 'Non hai approvazioni in attesa al momento. Ottimo lavoro!'
+                        : 'Non ci sono decisioni archiviate che corrispondono ai filtri selezionati.'}
+                </p>
+            </div>
+        </td>
+    </tr>
+);
 
 export default PendingApprovalsPage;

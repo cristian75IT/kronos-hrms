@@ -4,12 +4,9 @@
 import {
     Shield,
     Lock,
-    Users,
     Key,
-    UserCheck,
     ArrowLeft,
-    GitBranch,
-    Eye
+    GitBranch
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '../../components/common';

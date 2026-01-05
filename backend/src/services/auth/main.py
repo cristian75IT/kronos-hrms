@@ -44,6 +44,10 @@ app.include_router(org_router, prefix="/api/v1")
 from src.core.middleware import RequestContextMiddleware
 app.add_middleware(RequestContextMiddleware)
 
+# Register Error Handlers
+from src.core.error_handlers import register_error_handlers
+register_error_handlers(app)
+
 
 @app.get("/health")
 async def health_check():

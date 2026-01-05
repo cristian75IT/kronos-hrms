@@ -337,7 +337,7 @@ class NotificationService:
         except Exception as e:
             return SendEmailResponse(success=False, error=str(e))
 
-    async def retry_email(self, log_id: UUID) -> None:
+    async def retry_email(self, log_id: UUID):
         """Manually retry sending a specific email log."""
         import logging
         logger = logging.getLogger(__name__)
@@ -395,18 +395,28 @@ class NotificationService:
                 description=f"Retried sending {log.template_code} to {log.to_email}",
             )
             
+            await self._session.commit()
+            await self._session.refresh(log)
+            
             return log
             
         except Exception as e:
             error_msg = str(e)
             logger.error(f"Retry failed for {log_id}: {error_msg}")
             
-            await self._email_log_repo.update_status(
-                log.id,
-                status=EmailLogStatus.FAILED.value,
-                error_message=error_msg,
-            )
-            await self._session.commit()
+            # Use a new transaction or rollback specific logic if needed, 
+            # but usually manual rollback is safer before update
+            # However, for simplicity in this architecture, we try to update status
+            try:
+                await self._email_log_repo.update_status(
+                    log.id,
+                    status=EmailLogStatus.FAILED.value,
+                    error_message=error_msg,
+                )
+                await self._session.commit()
+            except Exception as inner_e:
+                logger.error(f"Failed to update log status during error handling: {inner_e}")
+                
             raise e
 
     async def get_email_events(self, log_id: UUID, permissive: bool = False) -> list[dict]:

@@ -310,7 +310,7 @@ export function UsersPage() {
                                                 {user.is_hr && <span className="px-1.5 py-0.5 rounded text-[10px] bg-pink-100 text-pink-700 font-medium border border-pink-200">HR</span>}
                                             </div>
                                             <div className="text-sm font-medium text-gray-900">{user.profile?.position || '-'}</div>
-                                            <div className="text-xs text-gray-500">{user.profile?.department || '-'}</div>
+                                            <div className="text-xs text-gray-500">{typeof user.profile?.department === 'object' ? user.profile?.department?.name : (user.profile?.department || '-')}</div>
                                         </td>
                                         <td className="px-6 py-4 text-center">
                                             {isLoadingBalances ? (
@@ -396,7 +396,7 @@ export function UsersPage() {
                                 </div>
                                 <div className="flex items-center gap-2 text-sm">
                                     <Building size={14} className="text-gray-400" />
-                                    <span className="text-gray-600 truncate">{user.profile?.department || 'Nessun dipartimento'}</span>
+                                    <span className="text-gray-600 truncate">{typeof user.profile?.department === 'object' ? user.profile?.department?.name : (user.profile?.department || 'Nessun dipartimento')}</span>
                                 </div>
                                 <div className="flex flex-wrap gap-1 pt-1">
                                     {user.is_admin && <span className="px-1.5 py-0.5 rounded text-[10px] bg-indigo-100 text-indigo-700 font-medium border border-indigo-200">Admin</span>}

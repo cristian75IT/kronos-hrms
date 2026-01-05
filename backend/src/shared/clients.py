@@ -935,7 +935,7 @@ class CalendarClient:
         """Wrapper for calculating working days count used by aggregator."""
         res = await self.calculate_working_days(start_date, end_date)
         if res:
-            return int(res.get("days", 0))
+            return int(res.get("working_days", 0))
         return 0
 
 
