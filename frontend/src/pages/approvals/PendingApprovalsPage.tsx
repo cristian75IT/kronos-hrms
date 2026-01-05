@@ -43,6 +43,36 @@ import type {
 } from '../../services/approvals.service';
 
 // ═══════════════════════════════════════════════════════════
+// Constants & Templates (Italian Labor Law Aligned)
+// ═══════════════════════════════════════════════════════════
+
+const CONDITION_SUGGESTIONS = {
+    RECALL: [
+        "Eccezionali ed indifferibili esigenze tecnico-produttive (CCNL).",
+        "Sostituzione urgente personale assente non programmato.",
+        "Picco di attività stagionale imprevisto richiedente presidio minimo."
+    ],
+    LOGISTIC: [
+        "Garantire il servizio minimo garantito e continuità operativa.",
+        "Mancato raggiungimento del numero minimo di operatori per turno.",
+        "Coordinamento obbligatorio con scadenze di progetto improrogabili."
+    ],
+    TEMPORAL: [
+        "Spostamento per coincidenza con attività di audit esterno.",
+        "Revisione richiesta per sovrapposizione con formazione obbligatoria.",
+        "Disponibilità limitata causa chiusura uffici programmata."
+    ],
+    PARTIAL: [
+        "Approvazione parziale: garantita copertura solo per parte del periodo.",
+        "Autorizzazione limitata ai giorni di basso carico operativo."
+    ],
+    OTHER: [
+        "Accordo specifico individuale tra lavoratore e azienda.",
+        "Compensazione ore o recupero flessibile concordato."
+    ]
+};
+
+// ═══════════════════════════════════════════════════════════
 // Helper Components
 // ═══════════════════════════════════════════════════════════
 
@@ -249,7 +279,7 @@ const DecisionModal: React.FC<DecisionModalProps> = ({
                     <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 ml-1">
                         Scegli una decisione
                     </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-${(item.entity_type === 'LEAVE' ? 3 : 2) + (showCancelOption ? 1 : 0)} gap-4`}>
                         {/* Approve Card */}
                         <button
                             type="button"
@@ -294,7 +324,7 @@ const DecisionModal: React.FC<DecisionModalProps> = ({
                                     Condizionato
                                 </h5>
                                 <p className="text-xs text-center text-gray-500 leading-relaxed max-w-[140px]">
-                                    Approva con vincoli o periodi alternativi.
+                                    Approva con vincoli o richiami aziendali.
                                 </p>
                                 {action === 'approve_conditional' && (
                                     <div className="absolute -top-1.5 -right-1.5 h-6 w-6 bg-blue-500 rounded-full flex items-center justify-center text-white shadow-sm animate-in zoom-in duration-300">
@@ -329,6 +359,34 @@ const DecisionModal: React.FC<DecisionModalProps> = ({
                                 </div>
                             )}
                         </button>
+
+                        {/* Cancel Card */}
+                        {showCancelOption && onCancel && (
+                            <button
+                                type="button"
+                                onClick={() => setAction('cancel')}
+                                className={`group relative flex flex-col items-center p-6 rounded-2xl border-2 transition-all duration-300 ${action === 'cancel'
+                                    ? 'border-amber-500 bg-amber-50/50 shadow-lg shadow-amber-500/10'
+                                    : 'border-white bg-white hover:border-amber-300 hover:shadow-md'
+                                    } ring-1 ring-gray-100`}
+                            >
+                                <div className={`h-14 w-14 rounded-full flex items-center justify-center mb-4 transition-transform duration-500 ${action === 'cancel' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/40 scale-110' : 'bg-amber-50 text-amber-500 group-hover:scale-110'
+                                    }`}>
+                                    <Ban className="h-8 w-8" />
+                                </div>
+                                <h5 className={`text-base font-bold mb-1 ${action === 'cancel' ? 'text-amber-900' : 'text-gray-900'}`}>
+                                    Annulla
+                                </h5>
+                                <p className="text-xs text-center text-gray-500 leading-relaxed max-w-[140px]">
+                                    Annulla la richiesta per motivi amministrativi.
+                                </p>
+                                {action === 'cancel' && (
+                                    <div className="absolute -top-1.5 -right-1.5 h-6 w-6 bg-amber-500 rounded-full flex items-center justify-center text-white shadow-sm animate-in zoom-in duration-300">
+                                        <Check className="h-4 w-4 stroke-[3]" />
+                                    </div>
+                                )}
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -336,35 +394,107 @@ const DecisionModal: React.FC<DecisionModalProps> = ({
                 <div className={`overflow-hidden transition-all duration-500 ease-in-out ${action ? 'max-h-[600px] opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
                     <div className="rounded-2xl bg-gray-50/80 p-6 border border-gray-100 ring-1 ring-white/50">
                         {action === 'approve_conditional' && (
-                            <div className="space-y-5 animate-in slide-in-from-top-4 duration-500">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
-                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                                            <Info className="h-3.5 w-3.5 text-blue-500" />
-                                            Tipo di Condizione
-                                        </label>
-                                        <select
-                                            value={conditionType}
-                                            onChange={(e) => setConditionType(e.target.value)}
-                                            className="w-full text-sm rounded-xl border-gray-200 bg-white px-4 py-2.5 shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-colors"
-                                        >
-                                            <option value="LOGISTIC">Logistica / Operativa</option>
-                                            <option value="TEMPORAL">Temporale (date sugerite)</option>
-                                            <option value="PARTIAL">Approvazione Parziale</option>
-                                            <option value="OTHER">Altro</option>
-                                        </select>
+                            <div className="space-y-6 animate-in slide-in-from-top-4 duration-500">
+                                {/* Step 1: Condition Type Selector */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-7 w-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shadow-md">1</div>
+                                        <h4 className="text-sm font-bold text-gray-900">Categoria della condizione</h4>
                                     </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                                            Dettagli della Condizione *
-                                        </label>
-                                        <input
-                                            type="text"
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2 pl-10">
+                                        {[
+                                            { value: 'RECALL', label: 'Richiamo', icon: '⚠️', ccnl: true },
+                                            { value: 'LOGISTIC', label: 'Operativa', icon: '⚙️', ccnl: true },
+                                            { value: 'TEMPORAL', label: 'Temporale', icon: '📅', ccnl: false },
+                                            { value: 'PARTIAL', label: 'Parziale', icon: '½', ccnl: false },
+                                            { value: 'OTHER', label: 'Altro', icon: '✏️', ccnl: false },
+                                        ].map((cat) => (
+                                            <button
+                                                key={cat.value}
+                                                type="button"
+                                                onClick={() => { setConditionType(cat.value); setConditionDetails(''); }}
+                                                className={`relative flex flex-col items-center p-3 rounded-xl border-2 transition-all duration-200 ${conditionType === cat.value
+                                                        ? 'border-blue-500 bg-blue-50 shadow-md shadow-blue-500/10'
+                                                        : 'border-gray-100 bg-white hover:border-blue-200 hover:bg-blue-50/30'
+                                                    }`}
+                                            >
+                                                <span className="text-xl mb-1">{cat.icon}</span>
+                                                <span className={`text-xs font-semibold ${conditionType === cat.value ? 'text-blue-700' : 'text-gray-700'}`}>
+                                                    {cat.label}
+                                                </span>
+                                                {cat.ccnl && (
+                                                    <span className="absolute -top-1 -right-1 text-[8px] font-bold bg-emerald-500 text-white px-1.5 py-0.5 rounded-full shadow-sm">
+                                                        CCNL
+                                                    </span>
+                                                )}
+                                                {conditionType === cat.value && (
+                                                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 h-2 w-2 bg-blue-500 rounded-full animate-pulse" />
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Step 2: Template Selection */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-7 w-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shadow-md">2</div>
+                                        <h4 className="text-sm font-bold text-gray-900">Seleziona un template conforme</h4>
+                                        <span className="text-[10px] text-gray-400 ml-auto italic">oppure scrivi manualmente sotto</span>
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-2 pl-10">
+                                        {CONDITION_SUGGESTIONS[conditionType as keyof typeof CONDITION_SUGGESTIONS]?.map((suggestion, idx) => {
+                                            const isSelected = conditionDetails === suggestion;
+                                            return (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    onClick={() => setConditionDetails(suggestion)}
+                                                    className={`group relative flex items-start gap-3 p-3 rounded-xl border text-left transition-all duration-200 ${isSelected
+                                                            ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500/20'
+                                                            : 'border-gray-100 bg-white hover:border-blue-200 hover:bg-gray-50'
+                                                        }`}
+                                                >
+                                                    <div className={`flex-shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'border-blue-500 bg-blue-500' : 'border-gray-300 group-hover:border-blue-400'
+                                                        }`}>
+                                                        {isSelected && <Check className="h-3 w-3 text-white stroke-[3]" />}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className={`text-sm leading-relaxed ${isSelected ? 'text-blue-900 font-medium' : 'text-gray-700'}`}>
+                                                            {suggestion}
+                                                        </p>
+                                                    </div>
+                                                    {(conditionType === 'RECALL' || conditionType === 'LOGISTIC') && idx === 0 && (
+                                                        <span className="flex-shrink-0 text-[9px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-md ring-1 ring-emerald-200">
+                                                            Consigliato
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Step 3: Customization */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-7 w-7 rounded-full bg-gray-300 text-white flex items-center justify-center text-xs font-bold">3</div>
+                                        <h4 className="text-sm font-bold text-gray-500">Personalizza o scrivi liberamente</h4>
+                                    </div>
+                                    <div className="pl-10">
+                                        <textarea
                                             value={conditionDetails}
                                             onChange={(e) => setConditionDetails(e.target.value)}
-                                            className="w-full text-sm rounded-xl border-gray-200 bg-white px-4 py-2.5 shadow-sm focus:border-blue-500 focus:ring-blue-500 transition-colors"
-                                            placeholder="Specifica le condizioni richieste..."
+                                            className="w-full text-sm rounded-xl border-gray-200 bg-white p-4 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all resize-none"
+                                            rows={2}
+                                            placeholder="Modifica il template selezionato o inserisci una condizione personalizzata..."
                                         />
+                                        {conditionDetails && (
+                                            <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                                                <Check className="h-3.5 w-3.5 text-emerald-500" />
+                                                <span>Condizione definita: <span className="font-medium text-gray-700">{conditionDetails.substring(0, 50)}{conditionDetails.length > 50 ? '...' : ''}</span></span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -372,8 +502,12 @@ const DecisionModal: React.FC<DecisionModalProps> = ({
 
                         <div className={`space-y-1.5 ${action === 'approve_conditional' ? 'mt-5' : ''}`}>
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                                <MessageSquare className={`h-3.5 w-3.5 ${action === 'reject' ? 'text-rose-500' : action === 'approve' ? 'text-emerald-500' : 'text-blue-500'}`} />
-                                {action === 'reject' ? 'Motivazione del Rifiuto *' : 'Note Aggiuntive'}
+                                <MessageSquare className={`h-3.5 w-3.5 ${action === 'reject' ? 'text-rose-500' :
+                                    action === 'approve' ? 'text-emerald-500' :
+                                        action === 'cancel' ? 'text-amber-500' : 'text-blue-500'
+                                    }`} />
+                                {action === 'reject' ? 'Motivazione del Rifiuto *' :
+                                    action === 'cancel' ? 'Motivazione Annullamento *' : 'Note Aggiuntive'}
                             </label>
                             <textarea
                                 value={notes}
@@ -385,7 +519,8 @@ const DecisionModal: React.FC<DecisionModalProps> = ({
                                 rows={3}
                                 placeholder={
                                     action === 'reject' ? 'Spiega il motivo per cui la richiesta è stata declinata...' :
-                                        'Aggiungi commenti per il collaboratore (opzionale)...'
+                                        action === 'cancel' ? 'Indica il motivo per cui procedi con l\'annullamento...' :
+                                            'Aggiungi commenti per il collaboratore (opzionale)...'
                                 }
                             />
                         </div>
@@ -413,12 +548,14 @@ const DecisionModal: React.FC<DecisionModalProps> = ({
                                     isLoading={isSubmitting}
                                     className={`rounded-xl px-8 font-bold shadow-lg transition-all active:scale-95 ${action === 'approve' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20' :
                                         action === 'reject' ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20' :
-                                            'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
+                                            action === 'cancel' ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20' :
+                                                'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
                                         }`}
                                 >
                                     {action === 'approve' ? 'Conferma Approvazione' :
                                         action === 'reject' ? 'Invia Rifiuto' :
-                                            'Conferma con Condizioni'}
+                                            action === 'cancel' ? 'Conferma Annullamento' :
+                                                'Conferma con Condizioni'}
                                 </Button>
                             </div>
                         </div>

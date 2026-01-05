@@ -157,7 +157,7 @@ class HRDataAggregator:
             results = []
             for user in active_users:
                 user_id = user.get("id")
-                full_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+                full_name = user.get("full_name") or f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
                 
                 # Determine status
                 status = "Presente"
@@ -243,7 +243,7 @@ class HRDataAggregator:
             results = []
             for user in active_users:
                 user_id = UUID(user.get("id"))
-                full_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+                full_name = user.get("full_name") or f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
                 
                 # Get leave data for the period
                 leave_data = await self._get_employee_leave_data(

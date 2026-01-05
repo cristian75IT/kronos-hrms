@@ -233,14 +233,12 @@ export function useApproveLeaveRequest() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async ({ id, approvalRequestId, notes }: { id: string; approvalRequestId?: string; notes?: string }) => {
-            // Use centralized approvals service if approval_request_id is available
-            if (approvalRequestId) {
-                const { approvalsService } = await import('../services/approvals.service');
-                return approvalsService.approveRequest(approvalRequestId, notes);
+        mutationFn: async ({ approvalRequestId, notes }: { id?: string; approvalRequestId?: string; notes?: string }) => {
+            if (!approvalRequestId) {
+                throw new Error('Impossibile approvare: richiesta di approvazione non trovata. Contattare l\'amministratore.');
             }
-            // Fallback to direct leaves service for legacy requests
-            return leavesService.approveRequest(id, notes);
+            const { approvalsService } = await import('../services/approvals.service');
+            return approvalsService.approveRequest(approvalRequestId, notes);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.leaveRequests });
@@ -254,14 +252,12 @@ export function useRejectLeaveRequest() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async ({ id, approvalRequestId, reason }: { id: string; approvalRequestId?: string; reason: string }) => {
-            // Use centralized approvals service if approval_request_id is available
-            if (approvalRequestId) {
-                const { approvalsService } = await import('../services/approvals.service');
-                return approvalsService.rejectRequest(approvalRequestId, reason);
+        mutationFn: async ({ approvalRequestId, reason }: { id?: string; approvalRequestId?: string; reason: string }) => {
+            if (!approvalRequestId) {
+                throw new Error('Impossibile rifiutare: richiesta di approvazione non trovata. Contattare l\'amministratore.');
             }
-            // Fallback to direct leaves service for legacy requests
-            return leavesService.rejectRequest(id, reason);
+            const { approvalsService } = await import('../services/approvals.service');
+            return approvalsService.rejectRequest(approvalRequestId, reason);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.leaveRequests });

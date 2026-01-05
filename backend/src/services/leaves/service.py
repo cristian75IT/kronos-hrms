@@ -437,7 +437,13 @@ class LeaveService:
         approver_id: UUID,
         data: ApproveRequest,
     ) -> LeaveRequest:
-        """Approve a pending request."""
+        """
+        Approve a pending request.
+        
+        NOTE: This method is now only called internally via the approval callback
+        from the Central Approvals Service (/internal/approval-callback/{leave_id}).
+        Direct approval endpoints have been removed.
+        """
         request = await self.get_request(id)
         
         if request.status == LeaveRequestStatus.DRAFT:
@@ -477,7 +483,6 @@ class LeaveService:
         if old_status != LeaveRequestStatus.APPROVED:
             await self._deduct_balance(request, request.deduction_details or {})
         
-        # Send notification
         # Send notification
         await self._notifier.notify_approved(request)
         
@@ -597,7 +602,13 @@ class LeaveService:
         approver_id: UUID,
         data: RejectRequest,
     ) -> LeaveRequest:
-        """Reject a pending request."""
+        """
+        Reject a pending request.
+        
+        NOTE: This method is now only called internally via the approval callback
+        from the Central Approvals Service (/internal/approval-callback/{leave_id}).
+        Direct rejection endpoints have been removed.
+        """
         request = await self.get_request(id)
         
         if request.status == LeaveRequestStatus.DRAFT:
@@ -626,8 +637,6 @@ class LeaveService:
         if old_status == LeaveRequestStatus.APPROVED:
             await self._restore_balance(request)
         
-        # Send notification
-        # Send notification
         # Send notification
         await self._notifier.notify_rejected(request, data.reason)
 

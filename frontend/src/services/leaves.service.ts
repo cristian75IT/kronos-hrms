@@ -104,7 +104,7 @@ export const leavesService = {
     },
 
     // ═══════════════════════════════════════════════════════════════════
-    // Approver Actions
+    // Approver Read-Only Methods (kept for legacy compatibility)
     // ═══════════════════════════════════════════════════════════════════
 
     getPendingApprovals: async (): Promise<LeaveRequest[]> => {
@@ -117,27 +117,17 @@ export const leavesService = {
         return response.data;
     },
 
-    approveRequest: async (id: string, notes?: string): Promise<LeaveRequest> => {
-        const response = await leavesApi.post(`${ENDPOINT}/${id}/approve`, { notes });
-        return response.data;
-    },
+    // ═══════════════════════════════════════════════════════════════════
+    // Approval Actions - MIGRATED TO CENTRAL APPROVALS SERVICE
+    // ═══════════════════════════════════════════════════════════════════
+    // NOTE: approveRequest, rejectRequest, and approveConditional have been removed.
+    // All approval actions must now go through approvalsService:
+    //   - approvalsService.approveRequest(approvalRequestId, notes)
+    //   - approvalsService.rejectRequest(approvalRequestId, reason)
+    //   - approvalsService.approveRequestConditional(approvalRequestId, conditionType, conditionDetails)
+    // ═══════════════════════════════════════════════════════════════════
 
-    rejectRequest: async (id: string, reason: string): Promise<LeaveRequest> => {
-        const response = await leavesApi.post(`${ENDPOINT}/${id}/reject`, { reason });
-        return response.data;
-    },
 
-    approveConditional: async (
-        id: string,
-        conditionType: string,
-        conditionDetails: string
-    ): Promise<LeaveRequest> => {
-        const response = await leavesApi.post(`${ENDPOINT}/${id}/approve-conditional`, {
-            condition_type: conditionType,
-            condition_details: conditionDetails,
-        });
-        return response.data;
-    },
 
     revokeApproval: async (id: string, reason: string): Promise<LeaveRequest> => {
         const response = await leavesApi.post(`${ENDPOINT}/${id}/revoke`, null, {

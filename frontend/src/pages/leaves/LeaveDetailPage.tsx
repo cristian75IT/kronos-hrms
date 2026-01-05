@@ -252,7 +252,7 @@ export function LeaveDetailPage() {
         if (!id) return;
         setActionLoading('approve');
         approveMutation.mutate(
-            { id, notes: approverNotes },
+            { id, approvalRequestId: leave?.approval_request_id, notes: approverNotes },
             {
                 onSuccess: () => {
                     toast.success('Richiesta approvata');
@@ -274,7 +274,7 @@ export function LeaveDetailPage() {
         if (!id || !rejectReason.trim()) return;
         setActionLoading('reject');
         rejectMutation.mutate(
-            { id, reason: rejectReason },
+            { id, approvalRequestId: leave?.approval_request_id, reason: rejectReason },
             {
                 onSuccess: () => {
                     toast.success('Richiesta rifiutata');
@@ -293,9 +293,13 @@ export function LeaveDetailPage() {
 
     const handleConditionalApprove = async () => {
         if (!id || !conditionDetails.trim()) return;
+        if (!leave?.approval_request_id) {
+            toast.error('Impossibile approvare: richiesta di approvazione non trovata');
+            return;
+        }
         setActionLoading('conditional');
         try {
-            await leavesService.approveConditional(id, conditionType, conditionDetails);
+            await approvalsService.approveRequestConditional(leave.approval_request_id, conditionType, conditionDetails);
             toast.success('Richiesta approvata con condizioni');
             setShowConditionalModal(false);
             setConditionDetails('');

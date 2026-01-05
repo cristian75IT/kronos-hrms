@@ -59,6 +59,7 @@ class ExpirationAction(str, enum.Enum):
 
 class ApprovalStatus(str, enum.Enum):
     """Status of an approval request."""
+    PENDING = "PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
     EXPIRED = "EXPIRED"

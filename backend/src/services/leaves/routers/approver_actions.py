@@ -97,58 +97,17 @@ async def get_pending_voluntary_work(
 
 
 # ═══════════════════════════════════════════════════════════════════
-# Approval Actions
+# Approval Actions - MIGRATED TO CENTRAL APPROVALS SERVICE
 # ═══════════════════════════════════════════════════════════════════
-
-@router.post("/{request_id}/approve", response_model=LeaveRequestResponse)
-async def approve_request(
-    request_id: UUID,
-    data: ApproveRequest,
-    token: TokenPayload = Depends(require_manager),
-    service: LeaveService = Depends(get_leave_service),
-):
-    """Approve a pending leave request."""
-    try:
-        request = await service.approve_request(request_id, token.sub, data)
-        return LeaveRequestResponse.model_validate(request, from_attributes=True)
-    except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except BusinessRuleError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/{request_id}/approve-conditional", response_model=LeaveRequestResponse)
-async def approve_conditional(
-    request_id: UUID,
-    data: ApproveConditionalRequest,
-    token: TokenPayload = Depends(require_manager),
-    service: LeaveService = Depends(get_leave_service),
-):
-    """Approve with conditions (RIC, REP, PAR, etc.)."""
-    try:
-        request = await service.approve_conditional(request_id, token.sub, data)
-        return LeaveRequestResponse.model_validate(request, from_attributes=True)
-    except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except BusinessRuleError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/{request_id}/reject", response_model=LeaveRequestResponse)
-async def reject_request(
-    request_id: UUID,
-    data: RejectRequest,
-    token: TokenPayload = Depends(require_manager),
-    service: LeaveService = Depends(get_leave_service),
-):
-    """Reject a pending leave request."""
-    try:
-        request = await service.reject_request(request_id, token.sub, data)
-        return LeaveRequestResponse.model_validate(request, from_attributes=True)
-    except NotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except BusinessRuleError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+# NOTE: approve, reject, and approve-conditional endpoints have been removed.
+# All approval actions must now go through the Central Approvals Service:
+#   - POST /api/v1/approvals/decisions/{id}/approve
+#   - POST /api/v1/approvals/decisions/{id}/reject
+#   - POST /api/v1/approvals/decisions/{id}/approve-conditional
+#
+# The Approvals Service will call back to /internal/approval-callback/{leave_id}
+# to update the leave status after a decision is made.
+# ═══════════════════════════════════════════════════════════════════
 
 
 @router.post("/{request_id}/revoke", response_model=LeaveRequestResponse)

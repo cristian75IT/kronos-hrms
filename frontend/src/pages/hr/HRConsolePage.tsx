@@ -7,10 +7,21 @@ import {
     CheckCircle,
     Briefcase,
     TrendingDown,
+    TrendingUp,
     Clock,
     FileText,
     Info,
-    X
+    X,
+    Sparkles,
+    ArrowUpRight,
+    ArrowDownRight,
+    Shield,
+    Wallet,
+    UserCog,
+    ChevronRight,
+    PartyPopper,
+    Target,
+    Activity
 } from 'lucide-react';
 import { hrReportingService } from '../../services/hrReporting.service';
 import type { DashboardOverview } from '../../types';
@@ -81,55 +92,88 @@ export function HRConsolePage() {
 
     return (
         <div className="space-y-6 animate-fadeIn pb-12">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        <LayoutDashboard className="text-indigo-600" />
-                        Console HR
-                    </h1>
-                    <p className="text-sm text-gray-500">Panoramica in tempo reale e gestione operativa</p>
+            {/* Enterprise Header */}
+            <div className="relative overflow-hidden rounded-2xl bg-white p-6 shadow-sm border border-gray-100">
+                <div className="absolute -right-10 -top-10 opacity-5">
+                    <Target size={200} className="text-indigo-600" />
                 </div>
-                <div className="flex gap-2">
-                    <Button variant="secondary" onClick={loadDashboard}>
-                        Aggiorna
-                    </Button>
-                    <Link to="/hr/reports">
-                        <Button variant="primary">
-                            Visualizza Report
+                <div className="relative z-10 flex items-center justify-between">
+                    <div>
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+                                <LayoutDashboard size={24} />
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-black tracking-tight text-gray-900">Console HR</h1>
+                                <p className="text-gray-500 text-sm font-medium">
+                                    {format(new Date(), "EEEE d MMMM yyyy", { locale: it })}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-3 block">
+                            <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full flex items-center gap-1 border border-indigo-200">
+                                <Shield size={10} />
+                                HR MANAGER
+                            </span>
+                            <span className="text-[10px] font-medium text-gray-400">
+                                Panoramica in tempo reale
+                            </span>
+                        </div>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button variant="secondary" onClick={loadDashboard}>
+                            <Activity size={16} className="mr-2" />
+                            Aggiorna
                         </Button>
-                    </Link>
+                        <Link to="/hr/reports">
+                            <Button variant="primary" className="shadow-lg shadow-indigo-200/50">
+                                Visualizza Report
+                                <ChevronRight size={16} className="ml-1" />
+                            </Button>
+                        </Link>
+                    </div>
                 </div>
             </div>
 
-            {/* Quick Stats Row */}
+            {/* Enterprise KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <DashboardCard
-                    title="Forza Lavoro (Live)"
+                <EnterpriseKPICard
+                    title="Forza Lavoro"
                     value={workforce?.active_now ?? 0}
-                    subtitle={`Su ${workforce?.total_employees ?? 0} dipendenti totali`}
-                    icon={<Users className="text-blue-600" />}
-                    color="bg-blue-50"
+                    subtitle={`Su ${workforce?.total_employees ?? 0} totali`}
+                    icon={<Users />}
+                    color="blue"
+                    badge="LIVE"
+                    trend={workforce?.active_now && workforce?.total_employees ? Math.round((workforce.active_now / workforce.total_employees) * 100) : null}
+                    trendLabel="presenza"
                 />
-                <DashboardCard
+                <EnterpriseKPICard
                     title="Assenti Oggi"
                     value={(workforce?.on_leave ?? 0) + (workforce?.sick_leave ?? 0)}
-                    subtitle={`${workforce?.sick_leave ?? 0} in malattia`}
-                    icon={<Calendar className="text-orange-600" />}
-                    color="bg-orange-50"
+                    subtitle={`${workforce?.sick_leave ?? 0} malattia`}
+                    icon={<Calendar />}
+                    color="amber"
+                    trend={null}
+                    trendLabel=""
                 />
-                <DashboardCard
+                <EnterpriseKPICard
                     title="In Trasferta"
                     value={workforce?.on_trip ?? 0}
                     subtitle="Attualmente in missione"
-                    icon={<Briefcase className="text-purple-600" />}
-                    color="bg-purple-50"
+                    icon={<Briefcase />}
+                    color="purple"
+                    trend={null}
+                    trendLabel=""
                 />
-                <DashboardCard
+                <EnterpriseKPICard
                     title="Tasso Assenze"
                     value={`${workforce?.absence_rate ?? 0}%`}
-                    subtitle="Media ultimi 30 giorni"
-                    icon={<TrendingDown className="text-green-600" />}
-                    color="bg-green-50"
+                    subtitle="Media 30 giorni"
+                    icon={workforce?.absence_rate && workforce.absence_rate > 5 ? <TrendingUp /> : <TrendingDown />}
+                    color={workforce?.absence_rate && workforce.absence_rate > 5 ? "rose" : "emerald"}
+                    trend={workforce?.absence_rate ?? null}
+                    trendLabel={workforce?.absence_rate && workforce.absence_rate > 5 ? "sopra media" : "sotto media"}
+                    invertTrend
                 />
             </div>
 
@@ -139,25 +183,41 @@ export function HRConsolePage() {
                 <div className="lg:col-span-2 space-y-6">
 
                     {/* Alerts Section */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden ring-1 ring-gray-50">
+                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-gray-50 to-white">
                             <h2 className="font-bold text-gray-900 flex items-center gap-2">
-                                <AlertTriangle className="text-amber-500" size={18} />
+                                <div className="p-1.5 bg-amber-100 rounded-lg">
+                                    <AlertTriangle className="text-amber-600" size={16} />
+                                </div>
                                 Avvisi e Scadenze
                             </h2>
-                            <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full">
-                                {alerts?.length ?? 0} Attivi
+                            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${(alerts?.length ?? 0) > 0
+                                ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-200'
+                                : 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200'
+                                }`}>
+                                {(alerts?.length ?? 0) > 0 ? `${alerts?.length} Attivi` : 'Tutto OK'}
                             </span>
                         </div>
                         <div className="divide-y divide-gray-50">
                             {(!alerts || alerts.length === 0) ? (
-                                <div className="p-8 text-center text-gray-400 italic">
-                                    Nessun avviso attivo. Tutto tranquillo!
+                                <div className="p-10 text-center">
+                                    <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-gradient-to-br from-emerald-100 to-teal-50 mb-4 shadow-inner">
+                                        <PartyPopper className="h-8 w-8 text-emerald-600" />
+                                    </div>
+                                    <h3 className="text-lg font-bold text-gray-900 mb-1">Nessun avviso attivo!</h3>
+                                    <p className="text-sm text-gray-500 max-w-xs mx-auto">
+                                        La situazione HR è sotto controllo. Continua così! ✨
+                                    </p>
+                                    <div className="flex justify-center gap-2 mt-4">
+                                        <Link to="/hr/reports" className="text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                                            Genera Report <ChevronRight size={12} />
+                                        </Link>
+                                    </div>
                                 </div>
                             ) : (
                                 alerts.map(alert => (
-                                    <div key={alert.id} className="p-4 hover:bg-gray-50 transition-colors flex items-start gap-4">
-                                        <div className={`mt-1 p-1.5 rounded-md shrink-0 ${alert.severity === 'critical' ? 'bg-red-100 text-red-600' :
+                                    <div key={alert.id} className="p-4 hover:bg-gray-50/80 transition-colors flex items-start gap-4">
+                                        <div className={`mt-1 p-2 rounded-xl shrink-0 ${alert.severity === 'critical' ? 'bg-red-100 text-red-600' :
                                             alert.severity === 'warning' ? 'bg-amber-100 text-amber-600' :
                                                 'bg-blue-100 text-blue-600'
                                             }`}>
@@ -166,7 +226,7 @@ export function HRConsolePage() {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex justify-between items-start">
                                                 <h3 className="text-sm font-bold text-gray-900">{alert.title}</h3>
-                                                <span className="text-[10px] text-gray-400">
+                                                <span className="text-[10px] text-gray-400 font-medium bg-gray-100 px-1.5 py-0.5 rounded">
                                                     {format(new Date(alert.created_at), 'd MMM', { locale: it })}
                                                 </span>
                                             </div>
@@ -182,7 +242,7 @@ export function HRConsolePage() {
                                         {alert.action_required && !alert.is_acknowledged && (
                                             <button
                                                 onClick={() => handleAcknowledgeAlert(alert.id)}
-                                                className="self-center px-3 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg border border-transparent hover:border-indigo-200 transition-all"
+                                                className="self-center px-3 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50 rounded-lg border border-indigo-200 hover:border-indigo-300 transition-all shadow-sm"
                                             >
                                                 Presa visione
                                             </button>
@@ -193,19 +253,62 @@ export function HRConsolePage() {
                         </div>
                     </div>
 
-                    {/* Actions / Quick Links */}
+                    {/* Enterprise Quick Actions */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Link to="/leaves" className="group p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all hover:border-indigo-300">
-                            <h3 className="font-bold text-gray-900 mb-1 group-hover:text-indigo-600 transition-colors">Gestione ferie</h3>
-                            <p className="text-xs text-gray-500">Approva richieste e controlla piani ferie</p>
+                        <Link to="/leaves" className="group relative p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-lg transition-all hover:border-blue-200 hover:scale-[1.02] overflow-hidden ring-1 ring-gray-50">
+                            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                <Calendar size={80} />
+                            </div>
+                            <div className="relative z-10 flex items-start gap-3">
+                                <div className="p-2.5 bg-blue-100 text-blue-600 rounded-xl shadow-sm">
+                                    <Calendar size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">Gestione Ferie</h3>
+                                    <p className="text-xs text-gray-500 mt-0.5">Approva e pianifica assenze</p>
+                                    {(pending_approvals?.leave_requests ?? 0) > 0 && (
+                                        <span className="inline-block mt-2 text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                            {pending_approvals?.leave_requests} in attesa
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
                         </Link>
-                        <Link to="/expenses" className="group p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all hover:border-indigo-300">
-                            <h3 className="font-bold text-gray-900 mb-1 group-hover:text-indigo-600 transition-colors">Note spese</h3>
-                            <p className="text-xs text-gray-500">Verifica budget e approva rimborsi</p>
+                        <Link to="/expenses" className="group relative p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-lg transition-all hover:border-emerald-200 hover:scale-[1.02] overflow-hidden ring-1 ring-gray-50">
+                            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                <Wallet size={80} />
+                            </div>
+                            <div className="relative z-10 flex items-start gap-3">
+                                <div className="p-2.5 bg-emerald-100 text-emerald-600 rounded-xl shadow-sm">
+                                    <Wallet size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-gray-900 group-hover:text-emerald-600 transition-colors">Note Spese</h3>
+                                    <p className="text-xs text-gray-500 mt-0.5">Budget e rimborsi</p>
+                                    {(pending_approvals?.expense_reports ?? 0) > 0 && (
+                                        <span className="inline-block mt-2 text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                                            {pending_approvals?.expense_reports} da approvare
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
                         </Link>
-                        <Link to="/admin/users" className="group p-4 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all hover:border-indigo-300">
-                            <h3 className="font-bold text-gray-900 mb-1 group-hover:text-indigo-600 transition-colors">Anagrafica</h3>
-                            <p className="text-xs text-gray-500">Gestisci contratti e dipendenti</p>
+                        <Link to="/admin/users" className="group relative p-5 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-lg transition-all hover:border-purple-200 hover:scale-[1.02] overflow-hidden ring-1 ring-gray-50">
+                            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                <UserCog size={80} />
+                            </div>
+                            <div className="relative z-10 flex items-start gap-3">
+                                <div className="p-2.5 bg-purple-100 text-purple-600 rounded-xl shadow-sm">
+                                    <UserCog size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-gray-900 group-hover:text-purple-600 transition-colors">Anagrafica</h3>
+                                    <p className="text-xs text-gray-500 mt-0.5">Dipendenti e contratti</p>
+                                    <span className="inline-block mt-2 text-[10px] font-medium text-gray-400">
+                                        {workforce?.total_employees ?? 0} profili
+                                    </span>
+                                </div>
+                            </div>
                         </Link>
                     </div>
 
@@ -421,16 +524,62 @@ function ComplianceDetailModal({ data, onClose }: { data: any, onClose: () => vo
     );
 }
 
-function DashboardCard({ title, value, subtitle, icon, color }: any) {
+function EnterpriseKPICard({ title, value, subtitle, icon, color, badge, trend, trendLabel, invertTrend }: {
+    title: string;
+    value: string | number;
+    subtitle: string;
+    icon: React.ReactNode;
+    color: 'blue' | 'amber' | 'purple' | 'emerald' | 'rose';
+    badge?: string;
+    trend?: number | null;
+    trendLabel?: string;
+    invertTrend?: boolean;
+}) {
+    const colorMap = {
+        blue: { bg: 'bg-blue-50', ring: 'ring-blue-100', icon: 'text-blue-600', badge: 'bg-blue-500' },
+        amber: { bg: 'bg-amber-50', ring: 'ring-amber-100', icon: 'text-amber-600', badge: 'bg-amber-500' },
+        purple: { bg: 'bg-purple-50', ring: 'ring-purple-100', icon: 'text-purple-600', badge: 'bg-purple-500' },
+        emerald: { bg: 'bg-emerald-50', ring: 'ring-emerald-100', icon: 'text-emerald-600', badge: 'bg-emerald-500' },
+        rose: { bg: 'bg-rose-50', ring: 'ring-rose-100', icon: 'text-rose-600', badge: 'bg-rose-500' },
+    };
+    const c = colorMap[color];
+
     return (
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex items-start gap-4 hover:shadow-md transition-shadow">
-            <div className={`p-3 rounded-xl shrink-0 ${color}`}>
-                {icon}
-            </div>
-            <div>
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">{title}</p>
-                <h3 className="text-2xl font-black text-gray-900 leading-none mb-1">{value}</h3>
-                <p className="text-[10px] text-gray-500 font-medium">{subtitle}</p>
+        <div className={`relative overflow-hidden bg-white p-5 rounded-2xl shadow-sm border border-gray-100 ring-1 ${c.ring} hover:shadow-lg hover:scale-[1.02] transition-all duration-300 group`}>
+            {/* Background Glow */}
+            <div className={`absolute -right-6 -bottom-6 h-24 w-24 ${c.bg} rounded-full blur-2xl opacity-50 group-hover:opacity-80 transition-opacity`} />
+
+            <div className="relative z-10 flex items-start gap-4">
+                <div className={`p-3 rounded-xl ${c.bg} ${c.icon} shrink-0 shadow-sm`}>
+                    {icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">{title}</p>
+                        {badge && (
+                            <span className={`text-[8px] font-bold ${c.badge} text-white px-1.5 py-0.5 rounded-full animate-pulse`}>
+                                {badge}
+                            </span>
+                        )}
+                    </div>
+                    <h3 className="text-3xl font-black text-gray-900 leading-none mb-1 tracking-tight">{value}</h3>
+                    <div className="flex items-center gap-2">
+                        <p className="text-[11px] text-gray-500 font-medium">{subtitle}</p>
+                        {trend !== null && trend !== undefined && (
+                            <span className={`flex items-center gap-0.5 text-[10px] font-bold ${invertTrend
+                                ? (trend > 5 ? 'text-rose-600' : 'text-emerald-600')
+                                : 'text-blue-600'
+                                }`}>
+                                {invertTrend ? (
+                                    trend > 5 ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />
+                                ) : (
+                                    <ArrowUpRight size={10} />
+                                )}
+                                {trend}% {trendLabel}
+                            </span>
+                        )}
+                    </div>
+                </div>
             </div>
         </div>
     );
