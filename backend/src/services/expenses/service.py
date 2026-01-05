@@ -226,9 +226,10 @@ class ExpenseService:
                 callback_url=f"http://expense-service:8003/api/v1/expenses/internal/approval-callback/{id}",
             )
         except Exception as e:
-            logger.warning(f"Failed to create approval request: {e}")
-            # Fallback notification if approval service fails? 
-            # Ideally we should rollback or just proceed with pending status.
+            # Revert status
+            await self._trip_repo.update(id, status=TripStatus.DRAFT)
+            logger.error(f"Failed to create approval request for trip {id}: {e}")
+            raise BusinessRuleError(f"Failed to submit trip: {str(e)}")
         
         return await self.get_trip(id)
 
@@ -661,11 +662,14 @@ class ExpenseService:
         return items, total, filtered
 
     async def create_report(self, user_id: UUID, data: ExpenseReportCreate):
-        """Create expense report."""
-        # Verify trip exists and belongs to user
-        trip = await self.get_trip(data.trip_id)
-        if trip.user_id != user_id:
-            raise BusinessRuleError("Cannot create report for another user's trip")
+        """Create expense report (linked to trip or standalone)."""
+        is_standalone = data.is_standalone or data.trip_id is None
+        
+        # If linked to trip, verify trip exists and belongs to user
+        if data.trip_id:
+            trip = await self.get_trip(data.trip_id)
+            if trip.user_id != user_id:
+                raise BusinessRuleError("Cannot create report for another user's trip")
         
         # Generate report number
         report_number = await self._report_repo.generate_report_number(
@@ -674,6 +678,7 @@ class ExpenseService:
         
         report = await self._report_repo.create(
             trip_id=data.trip_id,
+            is_standalone=is_standalone,
             user_id=user_id,
             report_number=report_number,
             title=data.title,
@@ -689,12 +694,20 @@ class ExpenseService:
             action="CREATE",
             resource_type="EXPENSE_REPORT",
             resource_id=str(report.id),
-            description=f"Created report {data.title}",
+            description=f"Created {'standalone ' if is_standalone else ''}report {data.title}",
             request_data=data.model_dump(mode="json"),
         )
         
         await self._session.refresh(report, ["items", "attachments"])
         return report
+    
+    async def get_standalone_reports(
+        self,
+        user_id: UUID,
+        status: Optional[list[ExpenseReportStatus]] = None,
+    ):
+        """Get standalone expense reports for a user."""
+        return await self._report_repo.get_standalone_reports(user_id, status)
 
     async def submit_report(self, id: UUID, user_id: UUID):
         """Submit report for approval."""
@@ -723,14 +736,17 @@ class ExpenseService:
                 title=f"Nota Spese: {report.report_number}",
                 entity_ref=report.report_number,
                 requester_name=requester_name,
-                description=report.description,
+                description=report.employee_notes,
                 metadata={
                     "total_amount": float(report.total_amount) if report.total_amount else 0,
                 },
                 callback_url=f"http://expense-service:8003/api/v1/expenses/internal/approval-callback/{id}",
             )
         except Exception as e:
-            logging.getLogger(__name__).warning(f"Failed to create approval request: {e}")
+            # Revert status
+            await self._report_repo.update(id, status=ExpenseReportStatus.DRAFT)
+            logger.error(f"Failed to create approval request for report {id}: {e}")
+            raise BusinessRuleError(f"Failed to submit report: {str(e)}")
         
         await self._audit.log_action(
             user_id=user_id,
@@ -768,7 +784,8 @@ class ExpenseService:
         """Cancel/Withdraw expense report."""
         report = await self.get_report(id)
         
-        if report.status.lower() not in [ExpenseReportStatus.SUBMITTED, ExpenseReportStatus.APPROVED]:
+        # Check against enum members
+        if report.status not in [ExpenseReportStatus.SUBMITTED, ExpenseReportStatus.APPROVED]:
             raise BusinessRuleError(f"Cannot cancel report in status {report.status}")
             
         if report.user_id != user_id:

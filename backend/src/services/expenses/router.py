@@ -354,7 +354,7 @@ async def get_my_reports(
     token: TokenPayload = Depends(get_current_user),
     service: ExpenseService = Depends(get_expense_service),
 ):
-    """Get current user's expense reports."""
+    """Get current user's expense reports (trip-linked only)."""
     user_id = token.user_id
     
     status_list = None
@@ -362,6 +362,23 @@ async def get_my_reports(
         status_list = [ExpenseReportStatus(s.strip()) for s in status.split(",")]
     
     reports = await service.get_user_reports(user_id, status_list)
+    return [ExpenseReportListItem.model_validate(r) for r in reports]
+
+
+@router.get("/expenses/standalone", response_model=list[ExpenseReportListItem])
+async def get_standalone_reports(
+    status: Optional[str] = Query(None),
+    token: TokenPayload = Depends(get_current_user),
+    service: ExpenseService = Depends(get_expense_service),
+):
+    """Get current user's standalone expense reports (not linked to trips)."""
+    user_id = token.user_id
+    
+    status_list = None
+    if status:
+        status_list = [ExpenseReportStatus(s.strip()) for s in status.split(",")]
+    
+    reports = await service.get_standalone_reports(user_id, status_list)
     return [ExpenseReportListItem.model_validate(r) for r in reports]
 
 

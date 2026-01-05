@@ -113,6 +113,12 @@ export const reportsService = {
         return response.data;
     },
 
+    getStandaloneReports: async (status?: string): Promise<ExpenseReport[]> => {
+        const params = status ? { status } : {};
+        const response = await expensesApi.get('/expenses/standalone', { params });
+        return response.data;
+    },
+
     getReport: async (id: string): Promise<ExpenseReport> => {
         const response = await expensesApi.get(`/expenses/${id}`);
         return response.data;

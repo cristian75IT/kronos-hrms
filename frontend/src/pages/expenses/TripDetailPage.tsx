@@ -24,15 +24,23 @@ import {
     Plus,
     Loader,
     Trash2,
-    Ban
+    Ban,
+    Wallet
 } from 'lucide-react';
-import { format, differenceInDays } from 'date-fns';
+import { format, differenceInDays, isValid } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { useTrip, useTripWallet, useTripTransactions } from '../../hooks/useApi';
 import { useAuth, useIsApprover, useIsAdmin, useIsHR } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { tripsService } from '../../services/expenses.service';
 import { walletsService } from '../../services/wallets.service';
+
+// Safe date formatter helper
+const safeFormat = (dateStr: string | undefined | null, formatStr: string) => {
+    if (!dateStr) return null;
+    const date = new Date(dateStr);
+    return isValid(date) ? format(date, formatStr, { locale: it }) : null;
+};
 
 export function TripDetailPage() {
     const { id } = useParams<{ id: string }>();
@@ -194,7 +202,7 @@ export function TripDetailPage() {
         const s = status?.toLowerCase();
         const configs: Record<string, { className: string; icon: React.ReactNode; label: string }> = {
             draft: {
-                className: 'bg-gray-100 text-gray-600 border-gray-200',
+                className: 'bg-slate-100 text-slate-600 border-slate-200',
                 icon: <FileText size={16} />,
                 label: 'Bozza'
             },
@@ -224,7 +232,7 @@ export function TripDetailPage() {
                 label: 'Completata'
             },
             cancelled: {
-                className: 'bg-gray-100 text-gray-500 border-gray-200',
+                className: 'bg-slate-100 text-slate-500 border-slate-200',
                 icon: <XCircle size={16} />,
                 label: 'Annullata'
             },
@@ -251,7 +259,16 @@ export function TripDetailPage() {
     };
 
     const statusConfig = getStatusConfig(trip.status);
-    const tripDays = differenceInDays(new Date(trip.end_date), new Date(trip.start_date)) + 1;
+
+    // Calculate trip days safely
+    let tripDays = '-';
+    if (trip.start_date && trip.end_date) {
+        const start = new Date(trip.start_date);
+        const end = new Date(trip.end_date);
+        if (isValid(start) && isValid(end)) {
+            tripDays = (differenceInDays(end, start) + 1).toString();
+        }
+    }
 
     return (
         <div className="max-w-7xl mx-auto space-y-6 pb-8 animate-fadeIn px-4 sm:px-6 lg:px-8 pt-6">
@@ -265,12 +282,12 @@ export function TripDetailPage() {
                         <ArrowLeft size={20} />
                     </button>
                     <div>
-                        <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-                            <Link to="/trips" className="hover:text-indigo-600 transition-colors">Trasferte</Link>
+                        <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
+                            <Link to="/trips" className="hover:text-emerald-600 transition-colors">Trasferte</Link>
                             <span>/</span>
                             <span>Dettaglio</span>
                         </div>
-                        <h1 className="text-2xl font-bold text-gray-900">{trip.title || trip.destination}</h1>
+                        <h1 className="text-2xl font-bold text-slate-900">{trip.title || trip.destination}</h1>
                     </div>
                 </div>
                 <div>
@@ -284,7 +301,7 @@ export function TripDetailPage() {
             {/* Hero Card */}
             <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
                 <div className="flex items-center gap-6 w-full md:w-auto">
-                    <div className="w-14 h-14 flex items-center justify-center bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-xl text-white shrink-0 shadow-lg shadow-indigo-200">
+                    <div className="w-14 h-14 flex items-center justify-center bg-emerald-50 text-emerald-600 rounded-xl shrink-0 border border-emerald-100">
                         {getDestinationIcon(trip.destination_type)}
                     </div>
                     <div>
@@ -295,37 +312,37 @@ export function TripDetailPage() {
                     <div className="h-10 w-px bg-gray-200 mx-2 hidden md:block"></div>
 
                     <div className="flex gap-6 hidden md:flex">
-                        <div className="flex items-center gap-2 text-indigo-600">
+                        <div className="flex items-center gap-2 text-emerald-600">
                             <Calendar size={18} />
                             <div className="flex flex-col">
-                                <span className="text-lg font-bold text-gray-900 leading-none">{tripDays}</span>
-                                <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">giorni</span>
+                                <span className="text-lg font-bold text-slate-900 leading-none">{tripDays}</span>
+                                <span className="text-xs text-slate-500 font-medium uppercase tracking-wide">giorni</span>
                             </div>
                         </div>
                         {trip.estimated_budget && (
-                            <div className="flex items-center gap-2 text-indigo-600">
+                            <div className="flex items-center gap-2 text-emerald-600">
                                 <DollarSign size={18} />
                                 <div className="flex flex-col">
-                                    <span className="text-lg font-bold text-gray-900 leading-none">€{Number(trip.estimated_budget).toFixed(0)}</span>
-                                    <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">budget</span>
+                                    <span className="text-lg font-bold text-slate-900 leading-none">€{Number(trip.estimated_budget).toFixed(0)}</span>
+                                    <span className="text-xs text-slate-500 font-medium uppercase tracking-wide">budget</span>
                                 </div>
                             </div>
                         )}
                     </div>
                 </div>
 
-                <div className="flex items-center gap-6 pt-4 border-t border-gray-100 w-full md:w-auto md:pt-0 md:border-0 justify-center">
+                <div className="flex items-center gap-6 pt-4 border-t border-gray-100 w-full md:w-auto md:border-0 justify-center">
                     <div className="flex flex-col gap-1 items-center md:items-start">
                         <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">Partenza</span>
                         <span className="font-semibold text-gray-900">
-                            {format(new Date(trip.start_date), 'd MMM yyyy', { locale: it })}
+                            {safeFormat(trip.start_date, 'd MMM yyyy') || '-'}
                         </span>
                     </div>
-                    <div className="text-xl text-indigo-500">→</div>
+                    <div className="text-xl text-emerald-500">→</div>
                     <div className="flex flex-col gap-1 items-center md:items-end">
                         <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">Ritorno</span>
                         <span className="font-semibold text-gray-900">
-                            {format(new Date(trip.end_date), 'd MMM yyyy', { locale: it })}
+                            {safeFormat(trip.end_date, 'd MMM yyyy') || '-'}
                         </span>
                     </div>
                 </div>
@@ -336,11 +353,11 @@ export function TripDetailPage() {
                 {/* Left Column - Main Info */}
                 <div>
                     {/* Tabs */}
-                    <div className="flex p-1 space-x-1 bg-gray-100/80 rounded-xl mb-6 border border-gray-200">
+                    <div className="flex p-1 space-x-1 bg-slate-100/80 rounded-xl mb-6 border border-slate-200">
                         <button
                             className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${activeTab === 'details'
-                                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5'
-                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                                ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5'
+                                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
                                 }`}
                             onClick={() => setActiveTab('details')}
                         >
@@ -349,8 +366,8 @@ export function TripDetailPage() {
                         </button>
                         <button
                             className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${activeTab === 'expenses'
-                                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5'
-                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                                ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5'
+                                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
                                 }`}
                             onClick={() => setActiveTab('expenses')}
                         >
@@ -359,8 +376,8 @@ export function TripDetailPage() {
                         </button>
                         <button
                             className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${activeTab === 'allowances'
-                                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5'
-                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                                ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5'
+                                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
                                 }`}
                             onClick={() => setActiveTab('allowances')}
                         >
@@ -369,12 +386,12 @@ export function TripDetailPage() {
                         </button>
                         <button
                             className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${activeTab === 'wallet'
-                                ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5'
-                                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                                ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5'
+                                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
                                 }`}
                             onClick={() => setActiveTab('wallet')}
                         >
-                            <DollarSign size={16} />
+                            <Wallet size={16} />
                             Contabilità
                         </button>
                     </div>
@@ -444,7 +461,7 @@ export function TripDetailPage() {
                                 <p className="text-gray-500 text-sm mb-6">
                                     Le spese per questa trasferta appariranno qui una volta aggiunte alla nota spese.
                                 </p>
-                                <Link to={`/expenses/new?trip_id=${id}`} className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors">
+                                <Link to={`/expenses/new?trip_id=${id}`} className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-medium transition-colors">
                                     <Plus size={18} />
                                     Crea Nota Spese
                                 </Link>
@@ -496,17 +513,17 @@ export function TripDetailPage() {
                     {activeTab === 'wallet' && wallet && (
                         <div className="space-y-6 animate-fadeInUp">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-                                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Budget Residuo</span>
+                                <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Budget Residuo</span>
                                     <div className="flex items-baseline gap-2">
-                                        <span className={`text-2xl font-black ${wallet && wallet.balance < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                                        <span className={`text-2xl font-black ${wallet && wallet.balance < 0 ? 'text-red-600' : 'text-slate-900'}`}>
                                             €{wallet ? Number(wallet.balance).toFixed(2) : '0.00'}
                                         </span>
-                                        <span className="text-sm text-gray-500 font-medium">/ €{wallet ? Number(wallet.budget).toFixed(0) : '0'}</span>
+                                        <span className="text-sm text-slate-500 font-medium">/ €{wallet ? Number(wallet.budget).toFixed(0) : '0'}</span>
                                     </div>
-                                    <div className="mt-3 w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                    <div className="mt-3 w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                                         <div
-                                            className={`h-full rounded-full ${wallet && (wallet.spent / wallet.budget) > 0.9 ? 'bg-red-500' : 'bg-indigo-600'}`}
+                                            className={`h-full rounded-full ${wallet && (wallet.spent / wallet.budget) > 0.9 ? 'bg-red-500' : 'bg-emerald-600'}`}
                                             style={{ width: `${wallet ? Math.min(100, (wallet.spent / wallet.budget) * 100) : 0}%` }}
                                         />
                                     </div>
@@ -566,7 +583,7 @@ export function TripDetailPage() {
                                                 transactions.map((tx) => (
                                                     <tr key={tx.id} className="hover:bg-gray-50/50 transition-colors">
                                                         <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-600">
-                                                            {format(new Date(tx.created_at), 'dd/MM/yyyy HH:mm')}
+                                                            {safeFormat(tx.created_at, 'dd/MM/yyyy HH:mm') || '-'}
                                                         </td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex flex-col">

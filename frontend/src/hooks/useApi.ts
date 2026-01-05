@@ -387,6 +387,13 @@ export function useExpenseReports(status?: string) {
     });
 }
 
+export function useStandaloneReports(status?: string) {
+    return useQuery({
+        queryKey: ['standaloneReports', { status }],
+        queryFn: () => reportsService.getStandaloneReports(status),
+    });
+}
+
 export const useReports = useExpenseReports;
 export const useReport = useExpenseReport;
 

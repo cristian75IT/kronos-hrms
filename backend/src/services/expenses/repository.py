@@ -251,6 +251,27 @@ class ExpenseReportRepository:
         )
         return list(result.scalars().all())
 
+    async def get_standalone_reports(
+        self,
+        user_id: UUID,
+        status: Optional[list[ExpenseReportStatus]] = None,
+    ) -> list[ExpenseReport]:
+        """Get standalone reports for a user (not linked to a trip)."""
+        query = select(ExpenseReport).options(
+            selectinload(ExpenseReport.items),
+            selectinload(ExpenseReport.attachments),
+        ).where(
+            ExpenseReport.user_id == user_id,
+            ExpenseReport.is_standalone == True,
+        )
+        
+        if status:
+            query = query.where(ExpenseReport.status.in_(status))
+        
+        query = query.order_by(desc(ExpenseReport.created_at))
+        result = await self._session.execute(query)
+        return list(result.scalars().all())
+
     async def get_datatable(
         self,
         request: DataTableRequest,

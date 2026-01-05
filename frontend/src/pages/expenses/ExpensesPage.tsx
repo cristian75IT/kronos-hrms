@@ -1,10 +1,10 @@
 /**
  * KRONOS - Expense Reports Page
- * Enterprise expense management interface
+ * Enterprise expense management interface - Standalone Reports Only
  */
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useExpenseReports } from '../../hooks/useApi';
+import { useStandaloneReports } from '../../hooks/useApi';
 import {
     Plus,
     AlertCircle,
@@ -19,7 +19,7 @@ import { it } from 'date-fns/locale';
 export function ExpensesPage() {
     const navigate = useNavigate();
     const [statusFilter, setStatusFilter] = useState<string>('');
-    const { data: reports, isLoading, error, refetch } = useExpenseReports(statusFilter || undefined);
+    const { data: reports, isLoading, error, refetch } = useStandaloneReports(statusFilter || undefined);
 
     // Stats calculation
     const stats = {
@@ -74,7 +74,7 @@ export function ExpensesPage() {
                         <span className="text-sm font-bold text-gray-900">€{stats.totalAmount.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</span>
                     </div>
 
-                    <Link to="/expenses/new" className="btn btn-primary btn-sm h-10 px-4 rounded-lg font-medium shadow-none">
+                    <Link to="/expenses/new?standalone=true" className="btn btn-primary btn-sm h-10 px-4 rounded-lg font-medium shadow-none">
                         <Plus size={16} className="mr-2" />
                         Nuova Nota
                     </Link>

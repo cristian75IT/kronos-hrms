@@ -42,6 +42,7 @@ class ExpenseReportStatus(str, enum.Enum):
     SUBMITTED = "submitted"
     APPROVED = "approved"
     REJECTED = "rejected"
+    CANCELLED = "cancelled"
     PAID = "paid"
 
 
@@ -188,11 +189,12 @@ class ExpenseReport(Base):
         primary_key=True,
         default=uuid4,
     )
-    trip_id: Mapped[UUID] = mapped_column(
+    trip_id: Mapped[Optional[UUID]] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("expenses.business_trips.id", ondelete="CASCADE"),
-        nullable=False,
+        ForeignKey("expenses.business_trips.id", ondelete="SET NULL"),
+        nullable=True,
     )
+    is_standalone: Mapped[bool] = mapped_column(Boolean, default=False)
     user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     
     # Report info
@@ -237,7 +239,7 @@ class ExpenseReport(Base):
     )
     
     # Relationships
-    trip: Mapped["BusinessTrip"] = relationship(back_populates="expense_reports")
+    trip: Mapped[Optional["BusinessTrip"]] = relationship(back_populates="expense_reports")
     items: Mapped[list["ExpenseItem"]] = relationship(
         back_populates="report",
         cascade="all, delete-orphan",
@@ -288,10 +290,6 @@ class ExpenseItem(Base):
     # Receipt
     receipt_path: Mapped[Optional[str]] = mapped_column(String(500))
     receipt_number: Mapped[Optional[str]] = mapped_column(String(100))
-    
-    # Validation
-    is_approved: Mapped[Optional[bool]] = mapped_column(Boolean)
-    rejection_reason: Mapped[Optional[str]] = mapped_column(Text)
     
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

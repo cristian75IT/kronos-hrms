@@ -422,11 +422,9 @@ class ApprovalService:
                     title="Nuova Approvazione Richiesta",
                     message=f"Hai una nuova richiesta da approvare: {request.title}",
                     notification_type="APPROVAL_REQUEST",
-                    data={
-                        "approval_request_id": str(request.id),
-                        "entity_type": request.entity_type,
-                        "entity_id": str(request.entity_id),
-                    },
+                    entity_type=request.entity_type,
+                    entity_id=str(request.entity_id),
+                    action_url=f"/approvals/{request.id}",
                 )
         except Exception as e:
             logger.error(f"Error notifying approvers: {e}")

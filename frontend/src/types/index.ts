@@ -479,6 +479,7 @@ export interface DailyAllowance {
 export interface ExpenseReport {
     id: string;
     trip_id?: string;
+    is_standalone: boolean;
     user_id: string;
     report_number: string;
     title: string;
@@ -508,8 +509,6 @@ export interface ExpenseItem {
     merchant_name?: string;
     receipt_number?: string;
     receipt_path?: string;
-    is_approved?: boolean;
-    rejection_reason?: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════

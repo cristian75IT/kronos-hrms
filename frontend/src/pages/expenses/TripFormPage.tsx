@@ -78,16 +78,16 @@ export function TripFormPage() {
                 <p className="text-gray-500">Richiedi l'autorizzazione per una nuova missione.</p>
             </div>
 
-            <div className="card bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+            <div className="card bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
                     {/* Title */}
                     <div className="space-y-1.5">
-                        <label className="block text-sm font-medium text-gray-700">Titolo Trasferta</label>
+                        <label className="block text-sm font-semibold text-slate-700">Titolo Trasferta</label>
                         <input
                             type="text"
                             {...register('title', { required: 'Il titolo è obbligatorio' })}
-                            className="input w-full"
+                            className="input w-full border-slate-300 focus:border-emerald-500 focus:ring-emerald-500"
                             placeholder="Es. Visita Cliente Milano, Fiera Parigi..."
                         />
                         {errors.title && <span className="text-red-500 text-xs">{errors.title.message}</span>}
@@ -96,13 +96,13 @@ export function TripFormPage() {
                     {/* Destination */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-1.5">
-                            <label className="block text-sm font-medium text-gray-700">Destinazione</label>
+                            <label className="block text-sm font-semibold text-slate-700">Destinazione</label>
                             <div className="relative">
-                                <MapPin size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                <MapPin size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                                 <input
                                     type="text"
                                     {...register('destination', { required: 'La destinazione è obbligatoria' })}
-                                    className="input w-full pl-10"
+                                    className="input w-full pl-10 border-slate-300 focus:border-emerald-500 focus:ring-emerald-500"
                                     placeholder="Es. Milano, Parigi..."
                                 />
                             </div>
@@ -110,12 +110,12 @@ export function TripFormPage() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="block text-sm font-medium text-gray-700">Tipo Destinazione</label>
+                            <label className="block text-sm font-semibold text-slate-700">Tipo Destinazione</label>
                             <div className="relative">
-                                <Globe size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                <Globe size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                                 <select
                                     {...register('destination_type')}
-                                    className="input w-full pl-10 appearance-none bg-none"
+                                    className="input w-full pl-10 appearance-none bg-none border-slate-300 focus:border-emerald-500 focus:ring-emerald-500"
                                 >
                                     <option value="national">Italia</option>
                                     <option value="eu">Europa (UE)</option>
@@ -128,22 +128,22 @@ export function TripFormPage() {
                     {/* Dates */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-1.5">
-                            <label className="block text-sm font-medium text-gray-700">Data Inizio</label>
+                            <label className="block text-sm font-semibold text-slate-700">Data Inizio</label>
                             <div className="relative">
-                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                                 <input
                                     type="date"
                                     {...register('start_date', { required: 'Data inizio obbligatoria' })}
-                                    className="input w-full pl-10"
+                                    className="input w-full pl-10 border-slate-300 focus:border-emerald-500 focus:ring-emerald-500"
                                 />
                             </div>
                             {errors.start_date && <span className="text-red-500 text-xs">{errors.start_date.message}</span>}
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="block text-sm font-medium text-gray-700">Data Fine</label>
+                            <label className="block text-sm font-semibold text-slate-700">Data Fine</label>
                             <div className="relative">
-                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                                 <input
                                     type="date"
                                     {...register('end_date', {
@@ -151,7 +151,7 @@ export function TripFormPage() {
                                         validate: value =>
                                             !startDate || new Date(value) >= new Date(startDate) || 'La data fine deve essere successiva alla data inizio'
                                     })}
-                                    className="input w-full pl-10"
+                                    className="input w-full pl-10 border-slate-300 focus:border-emerald-500 focus:ring-emerald-500"
                                 />
                             </div>
                             {errors.end_date && <span className="text-red-500 text-xs">{errors.end_date.message}</span>}
@@ -160,15 +160,15 @@ export function TripFormPage() {
 
                     {/* Budget */}
                     <div className="space-y-1.5">
-                        <label className="block text-sm font-medium text-gray-700">Budget Stimato (€)</label>
+                        <label className="block text-sm font-semibold text-slate-700">Budget Stimato (€)</label>
                         <div className="relative max-w-xs">
-                            <DollarSign size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                            <DollarSign size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                             <input
                                 type="number"
                                 step="0.01"
                                 min="0"
                                 {...register('estimated_budget', { valueAsNumber: true })}
-                                className="input w-full pl-10"
+                                className="input w-full pl-10 border-slate-300 focus:border-emerald-500 focus:ring-emerald-500"
                                 placeholder="0.00"
                             />
                         </div>
@@ -176,10 +176,10 @@ export function TripFormPage() {
 
                     {/* Purpose */}
                     <div className="space-y-1.5">
-                        <label className="block text-sm font-medium text-gray-700">Scopo / Motivo</label>
+                        <label className="block text-sm font-semibold text-slate-700">Scopo / Motivo</label>
                         <textarea
                             {...register('purpose', { required: 'Il motivo è obbligatorio' })}
-                            className="input w-full min-h-[100px] resize-y p-3"
+                            className="input w-full min-h-[100px] resize-y p-3 border-slate-300 focus:border-emerald-500 focus:ring-emerald-500"
                             placeholder="Descrivi il motivo della trasferta..."
                         />
                         {errors.purpose && <span className="text-red-500 text-xs">{errors.purpose.message}</span>}
@@ -212,11 +212,11 @@ export function TripFormPage() {
                     )}
 
                     {/* Actions */}
-                    <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-100">
+                    <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-100">
                         <button
                             type="button"
                             onClick={() => navigate('/trips')}
-                            className="btn btn-ghost text-gray-600 hover:bg-gray-100"
+                            className="btn btn-ghost text-slate-600 hover:bg-slate-100"
                         >
                             <X size={18} className="mr-2" />
                             Annulla
@@ -224,7 +224,7 @@ export function TripFormPage() {
                         <button
                             type="submit"
                             disabled={createMutation.isPending}
-                            className="btn btn-primary"
+                            className="btn btn-primary bg-slate-900 hover:bg-slate-800 text-white border-none"
                         >
                             {createMutation.isPending ? (
                                 <>

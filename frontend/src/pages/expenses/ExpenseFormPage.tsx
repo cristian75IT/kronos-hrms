@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { Calendar as CalendarIcon, Save, X, AlertCircle, FileText } from 'lucide-react';
+import { Calendar as CalendarIcon, Save, X, AlertCircle, FileText, Briefcase, Receipt } from 'lucide-react';
 import { useCreateExpenseReport, useUploadReportAttachment, useTrips } from '../../hooks/useApi';
 import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
@@ -8,7 +8,8 @@ import { formatApiError } from '../../utils/errorUtils';
 import { FileUpload } from '../../components/common/FileUpload';
 
 interface ExpenseFormValues {
-    trip_id: string;
+    trip_id?: string;
+    is_standalone: boolean;
     title: string;
     employee_notes?: string;
     period_start: string;
@@ -24,27 +25,33 @@ export function ExpenseFormPage() {
     const [searchParams] = useSearchParams();
     const { success, error: showError } = useToast();
 
+    // Determine initial mode from URL params
+    const tripIdFromUrl = searchParams.get('trip_id');
+    const isStandaloneFromUrl = searchParams.get('standalone') === 'true';
+
     const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<ExpenseFormValues>({
         defaultValues: {
-            trip_id: searchParams.get('trip_id') || '',
+            trip_id: tripIdFromUrl || '',
+            is_standalone: !tripIdFromUrl && isStandaloneFromUrl,
             period_start: new Date().toISOString().split('T')[0],
             period_end: new Date().toISOString().split('T')[0],
         }
     });
 
+    const isStandalone = watch('is_standalone');
     const selectedTripId = watch('trip_id');
     const startDate = watch('period_start');
 
     // Handle trip selection changes to sync dates
     useEffect(() => {
-        if (selectedTripId && trips) {
+        if (!isStandalone && selectedTripId && trips) {
             const trip = trips.find(t => t.id === selectedTripId);
             if (trip) {
                 setValue('period_start', trip.start_date);
                 setValue('period_end', trip.end_date);
             }
         }
-    }, [selectedTripId, trips, setValue]);
+    }, [selectedTripId, trips, setValue, isStandalone]);
 
     const uploadAttachments = async (reportId: string) => {
         for (const file of attachments) {
@@ -65,7 +72,13 @@ export function ExpenseFormPage() {
     };
 
     const onSubmit = (data: ExpenseFormValues) => {
-        createMutation.mutate(data, {
+        const payload = {
+            ...data,
+            trip_id: isStandalone ? undefined : data.trip_id,
+            is_standalone: isStandalone,
+        };
+
+        createMutation.mutate(payload, {
             onSuccess: async (newReport) => {
                 success('Nota spese creata con successo!');
                 if (attachments.length > 0) {
@@ -87,28 +100,67 @@ export function ExpenseFormPage() {
             <div className="card bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
-                    {/* Trip Selection */}
-                    <div className="space-y-1.5">
-                        <label className="block text-sm font-medium text-gray-700">Trasferta di Riferimento</label>
-                        <select
-                            {...register('trip_id', { required: 'Seleziona una trasferta' })}
-                            className="input w-full appearance-none bg-none"
-                            disabled={isLoadingTrips}
-                        >
-                            <option value="">Seleziona una trasferta...</option>
-                            {trips?.map((trip) => (
-                                <option key={trip.id} value={trip.id}>
-                                    {trip.title} ({trip.destination}) - {new Date(trip.start_date).toLocaleDateString()}
-                                </option>
-                            ))}
-                        </select>
-                        {errors.trip_id && <span className="text-red-500 text-xs">{errors.trip_id.message}</span>}
-                        {trips?.length === 0 && !isLoadingTrips && (
-                            <p className="text-xs text-amber-600 mt-1">
-                                Non hai trasferte approvate a cui collegare questa nota spese.
-                            </p>
-                        )}
+                    {/* Mode Toggle */}
+                    <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">Tipo di Nota Spese</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setValue('is_standalone', false)}
+                                className={`p-4 rounded-lg border-2 flex flex-col items-center gap-2 transition-all ${!isStandalone
+                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                        : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                                    }`}
+                            >
+                                <Briefcase size={24} />
+                                <span className="text-sm font-medium">Collegata a Trasferta</span>
+                                <span className="text-xs text-gray-500">Per spese durante una trasferta</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setValue('is_standalone', true);
+                                    setValue('trip_id', '');
+                                }}
+                                className={`p-4 rounded-lg border-2 flex flex-col items-center gap-2 transition-all ${isStandalone
+                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                        : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                                    }`}
+                            >
+                                <Receipt size={24} />
+                                <span className="text-sm font-medium">Autonoma</span>
+                                <span className="text-xs text-gray-500">Spese senza trasferta</span>
+                            </button>
+                        </div>
+                        <input type="hidden" {...register('is_standalone')} />
                     </div>
+
+                    {/* Trip Selection (only when not standalone) */}
+                    {!isStandalone && (
+                        <div className="space-y-1.5">
+                            <label className="block text-sm font-medium text-gray-700">Trasferta di Riferimento</label>
+                            <select
+                                {...register('trip_id', {
+                                    required: !isStandalone ? 'Seleziona una trasferta' : false
+                                })}
+                                className="input w-full appearance-none bg-none"
+                                disabled={isLoadingTrips}
+                            >
+                                <option value="">Seleziona una trasferta...</option>
+                                {trips?.map((trip) => (
+                                    <option key={trip.id} value={trip.id}>
+                                        {trip.title} ({trip.destination}) - {new Date(trip.start_date).toLocaleDateString()}
+                                    </option>
+                                ))}
+                            </select>
+                            {errors.trip_id && <span className="text-red-500 text-xs">{errors.trip_id.message}</span>}
+                            {trips?.length === 0 && !isLoadingTrips && (
+                                <p className="text-xs text-amber-600 mt-1">
+                                    Non hai trasferte approvate a cui collegare questa nota spese.
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     {/* Title */}
                     <div className="space-y-1.5">
@@ -119,7 +171,7 @@ export function ExpenseFormPage() {
                                 type="text"
                                 {...register('title', { required: 'Il titolo è obbligatorio' })}
                                 className="input w-full pl-10"
-                                placeholder="Es. Trasferta Milano Maggio 2024"
+                                placeholder={isStandalone ? "Es. Spese Rappresentanza Gennaio" : "Es. Trasferta Milano Maggio 2024"}
                             />
                         </div>
                         {errors.title && <span className="text-red-500 text-xs">{errors.title.message}</span>}
@@ -197,7 +249,7 @@ export function ExpenseFormPage() {
                     <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-100">
                         <button
                             type="button"
-                            onClick={() => navigate('/expenses')}
+                            onClick={() => navigate(-1)}
                             className="btn btn-ghost text-gray-600 hover:bg-gray-100"
                         >
                             <X size={18} className="mr-2" />

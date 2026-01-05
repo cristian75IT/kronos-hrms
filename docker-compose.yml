@@ -131,6 +131,7 @@ services:
       - CONFIG_SERVICE_URL=http://config-service:8004
       - AUDIT_SERVICE_URL=http://audit-service:8007
       - NOTIFICATION_SERVICE_URL=http://notification-service:8005
+      - APPROVAL_SERVICE_URL=http://approval-service:8012
       - EXPENSIVE_WALLET_SERVICE_URL=http://expensive-wallet-service:8006
       - KEYCLOAK_URL=http://keycloak:8080/
       - KEYCLOAK_REALM=kronos

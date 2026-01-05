@@ -163,13 +163,15 @@ class ExpenseReportBase(BaseModel):
 class ExpenseReportCreate(ExpenseReportBase):
     """Schema for creating expense report."""
     
-    trip_id: UUID
+    trip_id: Optional[UUID] = None
+    is_standalone: bool = False
 
 
 class ExpenseReportResponse(ExpenseReportBase, IDMixin, BaseSchema):
     """Response schema for expense report."""
     
-    trip_id: UUID
+    trip_id: Optional[UUID] = None
+    is_standalone: bool = False
     user_id: UUID
     report_number: str
     total_amount: Decimal

@@ -608,11 +608,11 @@ class ExpensiveWalletClient:
         return None
 
     async def initialize_wallet(self, trip_id: UUID, user_id: UUID, budget: float) -> Optional[dict]:
-        """Initialize wallet for a trip."""
+        """Initialize wallet for a trip (internal system call)."""
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{self.base_url}/api/v1/expensive-wallets/initialize/{trip_id}",
+                    f"{self.base_url}/api/v1/expensive-wallets/internal/initialize/{trip_id}",
                     params={"user_id": str(user_id), "budget": budget},
                     timeout=5.0
                 )
