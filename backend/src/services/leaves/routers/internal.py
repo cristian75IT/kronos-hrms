@@ -5,7 +5,7 @@ Internal endpoints for inter-service communication (approval callbacks, etc.)
 """
 import logging
 from uuid import UUID
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -25,11 +25,13 @@ class ApprovalCallbackPayload(BaseModel):
     approval_request_id: UUID
     status: str  # APPROVED, REJECTED, EXPIRED, CANCELLED
     decided_by: Optional[UUID] = None
+    final_decision_by: Optional[UUID] = None  # Added to match ApprovalService schema
     decided_by_name: Optional[str] = None
     decision_notes: Optional[str] = None
     resolved_at: Optional[str] = None
     condition_type: Optional[str] = None
     condition_details: Optional[str] = None
+    decisions: Optional[List[Dict[str, Any]]] = None
 
 
 @router.post("/approval-callback/{leave_id}")
@@ -56,20 +58,42 @@ async def handle_approval_callback(
             logger.warning(f"Leave {leave_id} not in PENDING status, ignoring callback")
             return {"status": "ignored", "reason": "not_pending"}
         
+        # Determine actual decider (prefer final_decision_by)
+        decider_id = payload.final_decision_by or payload.decided_by or UUID("00000000-0000-0000-0000-000000000000")
+
         if payload.status == "APPROVED":
             # Auto-approve the leave request
             from src.services.leaves.schemas import ApproveRequest
-            
-            approver_id = payload.decided_by or UUID("00000000-0000-0000-0000-000000000000")
             
             approve_data = ApproveRequest(
                 notes=payload.decision_notes or "Approvato tramite workflow"
             )
             
+            # Construct metadata for wallet history
+            metadata = {
+                "request_date": request.created_at.isoformat(),
+                "approved_at": payload.resolved_at or datetime.utcnow().isoformat(),
+                "approver_id": str(decider_id),
+                "approver_name": payload.decided_by_name, # Fallback
+                "approvals": [],
+            }
+            
+            if payload.decisions:
+                # Add detailed approval history
+                for d in payload.decisions:
+                    if d.get("decision") in ("APPROVED", "APPROVED_CONDITIONAL"):
+                        metadata["approvals"].append({
+                            "approver_name": d.get("approver_name"),
+                            "approver_id": str(d.get("approver_id")),
+                            "date": d.get("decided_at"),
+                            "level": d.get("approval_level"),
+                        })
+            
             await service.approve_request(
                 id=leave_id,
-                approver_id=approver_id,
+                approver_id=decider_id,
                 data=approve_data,
+                metadata=metadata,
             )
             
             logger.info(f"Leave {leave_id} approved via workflow")

@@ -376,7 +376,7 @@ class LeavesWalletClient:
             transport = httpx.AsyncHTTPTransport(retries=3)
             async with httpx.AsyncClient(transport=transport) as client:
                 response = await client.get(
-                    f"{self.base_url}/api/v1/leaves-wallets/{user_id}",
+                    f"{self.base_url}/api/v1/leaves-wallets/internal/wallets/{user_id}",
                     params=params,
                     timeout=5.0
                 )
@@ -393,7 +393,7 @@ class LeavesWalletClient:
             transport = httpx.AsyncHTTPTransport(retries=3)
             async with httpx.AsyncClient(transport=transport) as client:
                 response = await client.get(
-                    f"{self.base_url}/api/v1/leaves-wallets/{user_id}/summary",
+                    f"{self.base_url}/api/v1/leaves-wallets/internal/wallets/{user_id}/summary",
                     params=params,
                     timeout=5.0
                 )
@@ -464,12 +464,14 @@ class LeavesWalletClient:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{self.base_url}/api/v1/leaves-wallets/{user_id}/transactions",
+                    f"{self.base_url}/api/v1/leaves-wallets/internal/transactions",
                     json=data,
                     timeout=5.0
                 )
                 if response.status_code == 200:
                     return response.json()
+                else:
+                    logger.error(f"LeavesWalletClient error create_transaction: {response.status_code} - {response.text}")
         except Exception as e:
             logger.error(f"LeavesWalletClient error create_transaction: {e}")
         return None

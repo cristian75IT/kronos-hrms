@@ -39,7 +39,9 @@ from src.services.expenses.schemas import (
     MarkPaidRequest,
     TripDataTableRequest,
     TripAdminDataTableItem,
+    TripAdminDataTableItem,
     ExpenseAdminDataTableItem,
+    ApprovalCallback,
 )
 from src.shared.schemas import DataTableRequest
 from src.shared.storage import storage_manager
@@ -202,15 +204,31 @@ class ExpenseService:
             description=f"Submitted trip {trip.title}",
         )
         
-        # Send notification to approvers
-        await self._send_notification(
-            user_id=user_id,
-            notification_type="trip_submitted",
-            title="Trasferta sottomessa",
-            message=f"Trasferta '{trip.title}' sottomessa per approvazione",
-            entity_type="BusinessTrip",
-            entity_id=str(id),
-        )
+        # Create approval request
+        try:
+            user_info = await self._auth_client.get_user_info(user_id)
+            requester_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip() if user_info else None
+            
+            await self._approval_client.create_request(
+                entity_type="TRIP",
+                entity_id=id,
+                requester_id=user_id,
+                title=f"Trasferta: {trip.title}",
+                entity_ref=trip.project_code or f"TRIP-{str(trip.id)[:8]}",
+                requester_name=requester_name,
+                description=trip.description,
+                metadata={
+                    "destination": trip.destination,
+                    "start_date": trip.start_date.isoformat(),
+                    "end_date": trip.end_date.isoformat(),
+                    "estimated_budget": float(trip.estimated_budget) if trip.estimated_budget else 0,
+                },
+                callback_url=f"http://expense-service:8003/api/v1/expenses/internal/approval-callback/{id}",
+            )
+        except Exception as e:
+            logger.warning(f"Failed to create approval request: {e}")
+            # Fallback notification if approval service fails? 
+            # Ideally we should rollback or just proceed with pending status.
         
         return await self.get_trip(id)
 
@@ -406,6 +424,43 @@ class ExpenseService:
         )
         
         return await self.get_trip(id)
+
+    async def handle_approval_callback(self, data: ApprovalCallback):
+        """Handle approval callback."""
+        logger.info(f"Received approval callback for {data.entity_type} {data.entity_id}: {data.status}")
+        
+        approver_id = data.final_decision_by or uuid4() # Fallback if system auto-approved
+        
+        if data.entity_type == "TRIP":
+            if data.status == "APPROVED":
+                await self.approve_trip(
+                    data.entity_id, 
+                    approver_id, 
+                    ApproveTripRequest(notes=data.resolution_notes)
+                )
+            elif data.status == "REJECTED":
+                await self.reject_trip(
+                    data.entity_id, 
+                    approver_id, 
+                    RejectTripRequest(reason=data.resolution_notes or "Rejected via workflow")
+                )
+            elif data.status == "CANCELLED":
+                # Handle cancellation if needed
+                pass
+                
+        elif data.entity_type == "EXPENSE":
+            if data.status == "APPROVED":
+                await self.approve_report(
+                    data.entity_id,
+                    approver_id,
+                    ApproveReportRequest(notes=data.resolution_notes)
+                )
+            elif data.status == "REJECTED":
+                await self.reject_report(
+                    data.entity_id,
+                    approver_id,
+                    RejectReportRequest(reason=data.resolution_notes or "Rejected via workflow")
+                )
 
     # ═══════════════════════════════════════════════════════════
     # Daily Allowance Operations

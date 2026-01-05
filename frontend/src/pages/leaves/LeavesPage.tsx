@@ -246,8 +246,39 @@ export function LeavesPage() {
                         <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${tx.amount >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                           {tx.amount > 0 ? '+' : ''}{tx.amount}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 max-w-xs truncate">
-                          {tx.reason || '-'}
+                        <td className="px-6 py-4 text-xs text-gray-500">
+                          <div className="font-medium text-gray-700">{tx.description || tx.reason || '-'}</div>
+
+                          {/* Rich Metadata Display */}
+                          {tx.meta_data?.request_date && (
+                            <div className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
+                              <span className="uppercase tracking-wider font-semibold">Richiesta:</span>
+                              {format(new Date(tx.meta_data.request_date), 'dd/MM/yyyy HH:mm', { locale: it })}
+                            </div>
+                          )}
+
+                          {/* Approval History */}
+                          {tx.meta_data?.approvals && Array.isArray(tx.meta_data.approvals) && tx.meta_data.approvals.length > 0 ? (
+                            <div className="mt-1.5 space-y-1 border-l-2 border-emerald-100 pl-2">
+                              {tx.meta_data.approvals.map((app: any, idx: number) => (
+                                <div key={idx} className="flex flex-col">
+                                  <div className="flex items-center gap-1.5 text-[10px]">
+                                    <span className="text-emerald-600 font-medium">✓ {app.approver_name}</span>
+                                    <span className="text-gray-300">•</span>
+                                    <span className="text-gray-400">{format(new Date(app.date), 'dd/MM/yy HH:mm', { locale: it })}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : tx.meta_data?.approver_name && (
+                            <div className="mt-1 flex items-center gap-1 text-[10px] text-emerald-600">
+                              <span className="font-medium">✓ Approvato da:</span>
+                              <span>{tx.meta_data.approver_name}</span>
+                              {tx.meta_data.approved_at && (
+                                <span className="text-gray-400">({format(new Date(tx.meta_data.approved_at), 'dd/MM/yy', { locale: it })})</span>
+                              )}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}

@@ -329,3 +329,36 @@ class MarkPaidRequest(BaseModel):
 
 # Forward reference resolution
 ExpenseReportWithItems.model_rebuild()
+
+# ═══════════════════════════════════════════════════════════
+# Internal Approval Callback Schemas
+# ═══════════════════════════════════════════════════════════
+
+class ApprovalDecision(BaseModel):
+    """Decision in an approval callback."""
+    id: UUID
+    approval_request_id: UUID
+    approver_id: UUID
+    approver_name: Optional[str] = None
+    approver_role: Optional[str] = None
+    approval_level: int
+    decision: str
+    decision_notes: Optional[str] = None
+    delegated_to_id: Optional[UUID] = None
+    delegated_to_name: Optional[str] = None
+    assigned_at: datetime
+    decided_at: Optional[datetime] = None
+
+
+class ApprovalCallback(BaseModel):
+    """Callback payload from Approvals Service."""
+    approval_request_id: UUID
+    entity_type: str
+    entity_id: UUID
+    status: str
+    resolved_at: datetime
+    resolution_notes: Optional[str] = None
+    final_decision_by: Optional[UUID] = None
+    condition_type: Optional[str] = None
+    condition_details: Optional[str] = None
+    decisions: list[ApprovalDecision] = []

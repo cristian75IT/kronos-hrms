@@ -35,6 +35,7 @@ from src.services.expenses.schemas import (
     TripDataTableRequest,
     TripAdminDataTableResponse,
     ExpenseAdminDataTableResponse,
+    ApprovalCallback,
 )
 
 
@@ -287,7 +288,22 @@ async def get_trips_for_date(
 ):
     """Get all active trips for a specific date (Internal use)."""
     trips = await service.get_active_trips_for_date(target_date)
+    trips = await service.get_active_trips_for_date(target_date)
     return [BusinessTripListItem.model_validate(t) for t in trips]
+
+
+@router.post("/expenses/internal/approval-callback/{id}")
+async def approval_callback(
+    id: UUID,
+    data: ApprovalCallback,
+    service: ExpenseService = Depends(get_expense_service),
+):
+    """Handle approval callback from Approval Service."""
+    if data.entity_id != id:
+        raise HTTPException(status_code=400, detail="Entity ID mismatch")
+        
+    await service.handle_approval_callback(data)
+    return {"status": "ok"}
 
 
 # ═══════════════════════════════════════════════════════════

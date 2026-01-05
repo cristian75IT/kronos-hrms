@@ -52,8 +52,10 @@ export function TripDetailPage() {
     const [cancelReason, setCancelReason] = useState('');
     const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-    const { data: wallet } = useTripWallet(id || '');
-    const { data: transactions } = useTripTransactions(id || '');
+    const canHaveWallet = !!trip && ['approved', 'completed', 'cancelled'].includes(trip.status?.toLowerCase());
+
+    const { data: wallet } = useTripWallet(id || '', { enabled: canHaveWallet });
+    const { data: transactions } = useTripTransactions(id || '', { enabled: canHaveWallet });
 
     // Check ownership
     const isOwner = user?.id === trip?.user_id || user?.keycloak_id === trip?.user_id;

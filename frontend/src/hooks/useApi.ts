@@ -338,7 +338,7 @@ export function useUploadTripAttachment() {
     });
 }
 
-export function useTripWallet(tripId: string) {
+export function useTripWallet(tripId: string, options?: { enabled?: boolean }) {
     return useQuery<TripWallet | null>({
         queryKey: queryKeys.tripWallet(tripId),
         queryFn: async () => {
@@ -352,12 +352,12 @@ export function useTripWallet(tripId: string) {
                 throw error;
             }
         },
-        enabled: !!tripId,
+        enabled: options?.enabled !== undefined ? options.enabled : !!tripId,
         retry: false, // Don't retry on 404
     });
 }
 
-export function useTripTransactions(tripId: string) {
+export function useTripTransactions(tripId: string, options?: { enabled?: boolean }) {
     return useQuery<TripWalletTransaction[]>({
         queryKey: queryKeys.tripTransactions(tripId),
         queryFn: async () => {
@@ -371,7 +371,7 @@ export function useTripTransactions(tripId: string) {
                 throw error;
             }
         },
-        enabled: !!tripId,
+        enabled: options?.enabled !== undefined ? options.enabled : !!tripId,
         retry: false, // Don't retry on 404
     });
 }

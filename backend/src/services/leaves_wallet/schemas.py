@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -18,6 +18,7 @@ class WalletTransactionResponse(BaseModel):
     category: Optional[str] = None
     monetary_value: Optional[Decimal] = None
     description: Optional[str] = None
+    meta_data: Optional[Dict[str, Any]] = None  # Renamed from metadata
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -36,6 +37,8 @@ class WalletResponse(BaseModel):
     vacation_used_ap: Decimal
     vacation_used_ac: Decimal
     vacation_available_total: Decimal
+    vacation_available_ap: Decimal
+    vacation_available_ac: Decimal
     
     # ROL
     rol_previous_year: Decimal
@@ -56,6 +59,7 @@ class WalletResponse(BaseModel):
     legal_minimum_taken: Decimal
     status: str
     hourly_rate_snapshot: Optional[Decimal] = None
+    ap_expiry_date: Optional[date] = None
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -70,6 +74,7 @@ class TransactionCreate(BaseModel):
     description: Optional[str] = None
     category: Optional[str] = None # e.g. ACCRUAL, CONSUMPTION
     monetary_value: Optional[Decimal] = None
+    meta_data: Optional[Dict[str, Any]] = None
     created_by: Optional[UUID] = None
 
 

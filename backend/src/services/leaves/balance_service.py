@@ -131,7 +131,7 @@ class LeaveBalanceService:
         await self._wallet_client.create_transaction(user_id, payload)
         return await self.get_balance_summary(user_id, year)
 
-    async def deduct_balance(self, request: LeaveRequest, breakdown: dict):
+    async def deduct_balance(self, request: LeaveRequest, breakdown: dict, metadata: Optional[dict] = None):
         """Deduct balance by sending a transaction to WalletService."""
         # breakdown is like {'vacation': 8.0} or {'rol': 4.0}
         # Note: breakdown comes from PolicyEngine/CalendarUtils.
@@ -151,7 +151,8 @@ class LeaveBalanceService:
                 "balance_type": balance_type,
                 "amount": float(amount_dec),
                 "reference_id": str(request.id),
-                "description": f"Fruizione per richiesta {request.id}"
+                "description": f"Fruizione per richiesta {request.id}",
+                "meta_data": metadata or {},  # Pass metadata downstream as meta_data
             }
             await self._wallet_client.create_transaction(request.user_id, payload)
 

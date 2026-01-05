@@ -15,7 +15,7 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.database import Base
@@ -149,6 +149,7 @@ class WalletTransaction(Base):
     
     # Metadata
     description: Mapped[Optional[str]] = mapped_column(Text)
+    meta_data: Mapped[Optional[dict]] = mapped_column(JSONB, default={})
     created_by: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))  # User ID or System (None)
     
     created_at: Mapped[datetime] = mapped_column(

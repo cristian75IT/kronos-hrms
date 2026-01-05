@@ -373,6 +373,7 @@ class WorkflowEngine:
         # Update status if resolved
         if new_status:
             request.status = new_status
+            request.final_decision_by = approver_id
             request.resolved_at = datetime.utcnow()
             
             # Delete pending reminders

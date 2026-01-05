@@ -415,7 +415,14 @@ class LeaveService:
         
         # If auto-approved, deduct balance
         if new_status == LeaveRequestStatus.APPROVED:
-            await self._deduct_balance(request, validation.balance_breakdown)
+            metadata = {
+                "request_date": request.created_at.isoformat(),
+                "approved_at": datetime.utcnow().isoformat(),
+                "approver_id": str(user_id) if user_id else None,
+                "approver_name": "Sistema (Auto-approvazione)",
+                "notes": "Auto-approved by policy",
+            }
+            await self._deduct_balance(request, validation.balance_breakdown, metadata=metadata)
         
         # Send notification
         await self._notifier.notify_submission(request)
@@ -436,6 +443,7 @@ class LeaveService:
         id: UUID,
         approver_id: UUID,
         data: ApproveRequest,
+        metadata: Optional[dict] = None,
     ) -> LeaveRequest:
         """
         Approve a pending request.
@@ -481,7 +489,7 @@ class LeaveService:
         
         # Deduct balance only if newly approved
         if old_status != LeaveRequestStatus.APPROVED:
-            await self._deduct_balance(request, request.deduction_details or {})
+            await self._deduct_balance(request, request.deduction_details or {}, metadata=metadata)
         
         # Send notification
         await self._notifier.notify_approved(request)
@@ -981,9 +989,10 @@ class LeaveService:
         self,
         request: LeaveRequest,
         breakdown: dict,
+        metadata: Optional[dict] = None,
     ) -> None:
         """Deduct balance based on breakdown."""
-        await self._balance_service.deduct_balance(request, breakdown)
+        await self._balance_service.deduct_balance(request, breakdown, metadata=metadata)
         await self._request_repo.update(request.id, balance_deducted=True)
 
 

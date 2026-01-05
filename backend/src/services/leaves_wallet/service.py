@@ -113,39 +113,25 @@ class WalletService:
         """Get comprehensive balance summary for a user."""
         wallet = await self.get_wallet(user_id, year or datetime.now().year)
         
+        # Helper to safely float
+        def f(val): 
+            return float(val) if val is not None else 0.0
+
         return {
-            "vacation_ap": {
-                "accrued": float(wallet.vacation_previous_year),
-                "used": float(wallet.vacation_used_ap),
-                "available": float(wallet.vacation_available_ap),
-            },
-            "vacation_ac": {
-                "accrued": float(wallet.vacation_accrued),
-                "used": float(wallet.vacation_used_ac),
-                "available": float(wallet.vacation_available_ac),
-            },
-            "vacation_total": {
-                "available": float(wallet.vacation_available_total),
-            },
-            "rol": {
-                "previous_year": float(wallet.rol_previous_year),
-                "accrued": float(wallet.rol_accrued),
-                "used": float(wallet.rol_used),
-                "available": float(wallet.rol_available),
-            },
-            "permits": {
-                "total": float(wallet.permits_total),
-                "used": float(wallet.permits_used),
-                "available": float(wallet.permits_available),
-            },
-            "compliance": {
-                "legal_minimum_required": float(wallet.legal_minimum_required),
-                "legal_minimum_taken": float(wallet.legal_minimum_taken),
-                "compliant": wallet.legal_minimum_taken >= wallet.legal_minimum_required,
-            },
+            "vacation_available_total": f(wallet.vacation_available_total),
+            "vacation_available_ap": f(wallet.vacation_available_ap),
+            "vacation_available_ac": f(wallet.vacation_available_ac),
+            "vacation_used": f(wallet.vacation_used_ap) + f(wallet.vacation_used_ac),
+            
+            "rol_available": f(wallet.rol_available),
+            "rol_used": f(wallet.rol_used),
+            
+            "permits_available": f(wallet.permits_available),
+            "permits_used": f(wallet.permits_used),
+            
+            "ap_expiry_date": wallet.ap_expiry_date.isoformat() if wallet.ap_expiry_date else None,
             "wallet_id": str(wallet.id),
             "year": wallet.year,
-            "last_accrual_date": wallet.last_accrual_date.isoformat() if wallet.last_accrual_date else None,
         }
 
     # ═══════════════════════════════════════════════════════════
