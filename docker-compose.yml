@@ -280,6 +280,7 @@ services:
       - KEYCLOAK_URL=http://keycloak:8080/
       - KEYCLOAK_REALM=kronos
       - KEYCLOAK_CLIENT_ID=kronos-backend
+      - LEAVE_SERVICE_URL=http://leave-service:8002
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
     ports:
       - "8009:8009"

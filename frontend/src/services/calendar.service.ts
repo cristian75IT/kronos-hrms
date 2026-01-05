@@ -122,6 +122,8 @@ export interface CalendarEvent {
     status: string;
     calendar_id?: string;
     participants: EventParticipant[];
+    alert_before_minutes?: number;
+    created_by?: string;
     created_at: string;
     updated_at: string;
 }
@@ -176,14 +178,16 @@ export interface CalendarShare {
 }
 
 export interface CalendarShareCreate {
-    shared_with_user_id: string;
-    can_edit?: boolean;
+    user_id: string;
+    permission?: 'READ' | 'WRITE' | 'ADMIN';
+    is_mandatory?: boolean;
 }
 
 export interface UserCalendarCreate {
     name: string;
     description?: string;
     color?: string;
+    type?: 'PERSONAL' | 'TEAM' | 'LOCATION' | 'SYSTEM';
 }
 
 export interface UserCalendarUpdate {
@@ -418,8 +422,8 @@ export const calendarService = {
 
     createUserCalendar: async (data: UserCalendarCreate): Promise<UserCalendar> => {
         const response = await api.post(`/calendar/calendars`, {
-            ...data,
-            type: 'PERSONAL'
+            type: 'PERSONAL',
+            ...data
         });
         const c = response.data;
         return { ...c, user_id: c.owner_id };
@@ -436,7 +440,10 @@ export const calendarService = {
     },
 
     shareCalendar: async (calendarId: string, data: CalendarShareCreate): Promise<CalendarShare> => {
-        const response = await api.post(`/calendar/calendars/${calendarId}/share`, data);
+        const response = await api.post(`/calendar/calendars/${calendarId}/share`, {
+            permission: 'READ',
+            ...data
+        });
         return response.data;
     },
 

@@ -4,6 +4,8 @@ KRONOS - Leave Service Internal Router
 Internal endpoints for inter-service communication (approval callbacks, etc.)
 """
 import logging
+import datetime
+from datetime import datetime
 from uuid import UUID
 from typing import Optional, List, Dict, Any
 
@@ -27,7 +29,7 @@ class ApprovalCallbackPayload(BaseModel):
     decided_by: Optional[UUID] = None
     final_decision_by: Optional[UUID] = None  # Added to match ApprovalService schema
     decided_by_name: Optional[str] = None
-    decision_notes: Optional[str] = None
+    resolution_notes: Optional[str] = None  # Changed from decision_notes
     resolved_at: Optional[str] = None
     condition_type: Optional[str] = None
     condition_details: Optional[str] = None
@@ -66,7 +68,7 @@ async def handle_approval_callback(
             from src.services.leaves.schemas import ApproveRequest
             
             approve_data = ApproveRequest(
-                notes=payload.decision_notes or "Approvato tramite workflow"
+                notes=payload.resolution_notes or "Approvato tramite workflow"
             )
             
             # Construct metadata for wallet history
@@ -105,7 +107,7 @@ async def handle_approval_callback(
             rejector_id = payload.decided_by or UUID("00000000-0000-0000-0000-000000000000")
             
             reject_data = RejectRequest(
-                reason=payload.decision_notes or "Rifiutato tramite workflow"
+                reason=payload.resolution_notes or "Rifiutato tramite workflow"
             )
             
             await service.reject_request(

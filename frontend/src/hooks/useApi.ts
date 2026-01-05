@@ -138,6 +138,26 @@ export function useCreateCalendarEvent() {
     });
 }
 
+export function useUpdateCalendarEvent() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, data }: { id: string; data: any }) => calendarService.updateEvent(id, data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['calendar-range'] });
+        },
+    });
+}
+
+export function useDeleteCalendarEvent() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (id: string) => calendarService.deleteEvent(id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['calendar-range'] });
+        },
+    });
+}
+
 // User Calendars
 export function useUserCalendars() {
     return useQuery({
@@ -160,6 +180,17 @@ export function useDeleteUserCalendar() {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: (id: string) => calendarService.deleteUserCalendar(id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['user-calendars'] });
+            queryClient.invalidateQueries({ queryKey: ['calendar-range'] });
+        },
+    });
+}
+
+export function useUpdateUserCalendar() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, data }: { id: string; data: any }) => calendarService.updateUserCalendar(id, data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['user-calendars'] });
             queryClient.invalidateQueries({ queryKey: ['calendar-range'] });

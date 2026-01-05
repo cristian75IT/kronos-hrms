@@ -28,17 +28,17 @@ from src.core.database import Base
 
 class CalendarType(str, enum.Enum):
     """Type of calendar."""
-    SYSTEM = "system"       # Read-only global calendars (e.g. National Holidays)
-    LOCATION = "location"   # Location-specific calendars (auto-assigned)
-    PERSONAL = "personal"   # Created by users
-    TEAM = "team"           # Shared team calendars
+    SYSTEM = "SYSTEM"       # Read-only global calendars (e.g. National Holidays)
+    LOCATION = "LOCATION"   # Location-specific calendars (auto-assigned)
+    PERSONAL = "PERSONAL"   # Created by users
+    TEAM = "TEAM"           # Shared team calendars
 
 
 class CalendarPermission(str, enum.Enum):
     """Permission level for shared calendars."""
-    READ = "read"
-    WRITE = "write"
-    ADMIN = "admin"
+    READ = "READ"
+    WRITE = "WRITE"
+    ADMIN = "ADMIN"
 
 
 class Calendar(Base):
@@ -278,14 +278,23 @@ class CalendarHoliday(Base):
     )
     
     name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
     date: Mapped[Optional[date]] = mapped_column(Date, index=True) # Specific date (legacy/fixed)
     
     # Recurrence (Enterprise)
     is_recurring: Mapped[bool] = mapped_column(Boolean, default=False)
     recurrence_rule: Mapped[Optional[dict]] = mapped_column(JSONB) # {"month": 1, "day": 1} or {"type": "easter", "offset": 1}
     
+    is_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    created_by: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), 
+        server_default=func.now(), 
+        onupdate=func.now()
+    )
     
     # Relationships
     profile: Mapped[Optional["HolidayProfile"]] = relationship(back_populates="holidays")
@@ -321,6 +330,16 @@ class CalendarEvent(Base):
     event_type: Mapped[str] = mapped_column(String(30), default="generic")
     visibility: Mapped[str] = mapped_column(String(20), default="private")
     
+    # Additional fields from DB schema
+    color: Mapped[str] = mapped_column(String(7), default="#3B82F6")
+    status: Mapped[str] = mapped_column(String(20), default="confirmed")
+    location: Mapped[Optional[str]] = mapped_column(String(200))
+    is_virtual: Mapped[bool] = mapped_column(Boolean, default=False)
+    meeting_url: Mapped[Optional[str]] = mapped_column(String(500))
+    event_metadata: Mapped[Optional[dict]] = mapped_column(JSONB)
+    alert_before_minutes: Mapped[Optional[int]] = mapped_column(Integer, default=2880)
+    user_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))
+    
     # Recurrence
     is_recurring: Mapped[bool] = mapped_column(Boolean, default=False)
     recurrence_rule: Mapped[Optional[str]] = mapped_column(String(200))
@@ -331,7 +350,7 @@ class CalendarEvent(Base):
     
     created_by: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     # Relationships
     calendar: Mapped["Calendar"] = relationship(back_populates="events")

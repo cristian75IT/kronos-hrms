@@ -267,14 +267,14 @@ class WorkflowEngine:
                 # Logic to update name from auth service would be ideal, but for now we rely on history
                 # Ideally we should fetch the admin's name, but even ID update fixes the query issue
         
+        if request.status != ApprovalStatus.PENDING.value:
+            raise ValueError(f"Request is not pending (status: {request.status})")
+
         if not decision:
             raise ValueError(f"Approver {approver_id} is not assigned to this request")
         
         if decision.decision:
             raise ValueError("Decision already made")
-        
-        if request.status != ApprovalStatus.PENDING.value:
-            raise ValueError(f"Request is not pending (status: {request.status})")
         
         # For sequential mode, check if it's this approver's turn
         if not override_authority:

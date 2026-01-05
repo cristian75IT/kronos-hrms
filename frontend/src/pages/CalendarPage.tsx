@@ -3,6 +3,7 @@
  * Dedicated calendar view for leaves, holidays, and company closures
  */
 import { useState, useMemo, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -11,30 +12,30 @@ import {
     Plus,
     Calendar as CalendarIcon,
     ChevronDown,
-    Building,
-    Flag,
     Settings,
     X,
     Lock,
     Clock,
     Tag,
     Users,
+    Edit3,
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
 import {
     useCalendarRange,
-    useCreateCalendarEvent,
     useUserCalendars,
     useCreateUserCalendar,
     useDeleteUserCalendar,
+    useUpdateUserCalendar,
     useUsers,
     useShareUserCalendar,
     useUnshareUserCalendar
 } from '../hooks/useApi';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/common';
+import { NewEventModal, EventDetailModal } from '../components/calendar';
+import { calendarService } from '../services/calendar.service';
 import { useToast } from '../context/ToastContext';
-import type { UserWithProfile } from '../types';
 
 interface CalendarFilters {
     showNationalHolidays: boolean;
@@ -46,11 +47,34 @@ interface CalendarFilters {
 
 type CalendarView = 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay';
 
+interface FilterToggleProps {
+    label: string;
+    color: string;
+    checked: boolean;
+    onChange: () => void;
+}
+
+function FilterToggle({ label, color, checked, onChange }: FilterToggleProps) {
+    return (
+        <label className="flex items-center gap-3 cursor-pointer group p-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+            <div className="relative flex items-center">
+                <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={onChange}
+                    className="rounded border-slate-300 text-indigo-600 focus:ring-0 w-4 h-4 cursor-pointer"
+                />
+            </div>
+            <span className={`w-2.5 h-2.5 rounded-full shadow-sm bg-${color}`} />
+            <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 transition-colors">{label}</span>
+        </label>
+    );
+}
+
 export function CalendarPage() {
     const calendarRef = useRef<FullCalendar>(null);
     const [currentDate, setCurrentDate] = useState(new Date());
     const [currentView, setCurrentView] = useState<CalendarView>('dayGridMonth');
-    const [filtersOpen, setFiltersOpen] = useState(false);
     const [filters, setFilters] = useState<CalendarFilters>({
         showNationalHolidays: true,
         showLocalHolidays: true,
@@ -62,23 +86,29 @@ export function CalendarPage() {
     const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const toast = useToast();
-    const createEvent = useCreateCalendarEvent();
+    const queryClient = useQueryClient();
     const { data: userCalendarsData } = useUserCalendars();
     const userCalendars = useMemo(() => Array.isArray(userCalendarsData) ? userCalendarsData : [], [userCalendarsData]);
     const createUserCalendar = useCreateUserCalendar();
     const deleteUserCalendar = useDeleteUserCalendar();
-    const { data: users } = useUsers();
+    const updateUserCalendar = useUpdateUserCalendar();
+    const { data: users, isLoading: usersLoading } = useUsers();
     const shareCalendarMut = useShareUserCalendar();
     const unshareCalendarMut = useUnshareUserCalendar();
     const [sharingCalendarId, setSharingCalendarId] = useState<string | null>(null);
-    useAuth();
+    const [editingCalendarId, setEditingCalendarId] = useState<string | null>(null);
+    const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+    const { user } = useAuth();
 
     const startDate = format(startOfMonth(subMonths(currentDate, 1)), 'yyyy-MM-dd');
     const endDate = format(endOfMonth(addMonths(currentDate, 2)), 'yyyy-MM-dd');
 
     const { data: calendarData } = useCalendarRange(startDate, endDate);
 
-    // Build calendar events based on filters
+    /**
+     * Trasforma i dati provenienti dal servizio calendar in eventi compatibili con FullCalendar.
+     * Applica i filtri di visualizzazione definiti dall'utente.
+     */
     const events = useMemo(() => {
         if (!calendarData || !calendarData.days) return [];
 
@@ -105,35 +135,43 @@ export function CalendarPage() {
                 }
 
                 // Map to FullCalendar format if not already added (some items might span multiple days)
-                // However, the backend returns items per day. FullCalendar handles start/end.
-                // To avoid duplicates in display, we only add if it's the start date OR if it's a single day item
                 if (item.start_date !== day.date && item.item_type !== 'holiday') return;
 
                 let title = item.title;
                 let classNames: string[] = [];
                 let color = item.color;
+                const status = (item.metadata as any)?.status;
 
                 if (isHoliday) {
                     title = `🏛️ ${item.title}`;
                     const isNational = (item.metadata as any)?.scope === 'national';
-                    classNames = ['holiday-event', isNational ? 'national' : 'local',
+                    classNames = ['holiday-event', isNational ? 'national' : 'local', 'cursor-default',
                         isNational
-                            ? '!bg-red-100 !text-red-900 !border-red-200 !font-medium'
-                            : '!bg-orange-100 !text-orange-900 !border-orange-200 !font-medium'
+                            ? '!bg-rose-50 !text-rose-700 !border-rose-100 !font-medium rounded-lg'
+                            : '!bg-orange-50 !text-orange-700 !border-orange-100 !font-medium rounded-lg'
                     ];
                 } else if (isClosure) {
                     title = `🏢 ${item.title}`;
-                    classNames = ['closure-event', '!bg-purple-100 !text-purple-900 !border-purple-200 !font-medium'];
+                    classNames = ['closure-event', 'cursor-default', '!bg-slate-100 !text-slate-800 !border-slate-200 !font-medium rounded-lg'];
                 } else if (isLeave) {
-                    title = `${item.title}`; // Title already has name and "Assente" in backend if leave
-                    classNames = ['team-leave-event', '!bg-blue-100 !text-blue-900 !border-blue-200 !font-medium', 'border'];
+                    title = `${item.title}`;
+                    // Enterprise Color Mapping
+                    if (status === 'approved' || status === 'approved_conditional') {
+                        color = '#10B981'; // Emerald 500
+                        classNames = ['team-leave-event', 'cursor-default', '!bg-emerald-50 !text-emerald-700 !border-emerald-200 !font-medium rounded-lg border-l-4 border-l-emerald-500'];
+                    } else if (status === 'pending') {
+                        color = '#F59E0B'; // Amber 500
+                        classNames = ['team-leave-event', 'cursor-default', '!bg-amber-50 !text-amber-700 !border-amber-200 !font-medium rounded-lg border-l-4 border-l-amber-400'];
+                    } else {
+                        classNames = ['team-leave-event', 'cursor-default', '!bg-blue-50 !text-blue-700 !border-blue-200 !font-medium rounded-lg border-l-4 border-l-blue-400'];
+                    }
                 } else if (isEvent) {
                     const calendarId = (item.metadata as any)?.calendar_id;
                     const customCal = userCalendars.find(c => c.id === calendarId);
 
                     title = `📅 ${item.title}`;
                     color = customCal?.color || item.color;
-                    classNames = ['personal-event', '!font-medium', 'shadow-sm'];
+                    classNames = ['personal-event', '!font-medium', 'shadow-sm', 'rounded-lg'];
                 }
 
                 result.push({
@@ -151,7 +189,7 @@ export function CalendarPage() {
         });
 
         return result;
-    }, [calendarData, filters]);
+    }, [calendarData, filters, userCalendars]);
 
     const handleViewChange = (view: CalendarView) => {
         setCurrentView(view);
@@ -177,489 +215,295 @@ export function CalendarPage() {
         'timeGridDay': 'Giorno',
     };
 
+    // Calculate "Who is Away Today"
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const awayToday = useMemo(() => {
+        if (!calendarData || !calendarData.days) return [];
+        const todayData = calendarData.days.find(d => d.date === todayStr);
+        if (!todayData) return [];
+        return todayData.items.filter(item => item.item_type === 'leave');
+    }, [calendarData, todayStr]);
+
     return (
-        <div className="space-y-6 animate-fadeIn pb-8">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start border-b border-gray-200 pb-6 gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 mb-1 flex items-center gap-2">
+        <div className="flex flex-col h-[calc(100vh-120px)] animate-fadeIn">
+            {/**
+             * Intestazione della pagina con controlli di navigazione dei mesi 
+             * e pulsante per la creazione di nuovi eventi.
+             */}
+            {/* Enterprise Page Header */}
+            <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="flex items-center gap-4">
+                    <div className="p-3 bg-indigo-50 rounded-xl">
                         <CalendarIcon className="text-indigo-600" size={24} />
-                        Calendario
-                    </h1>
-                    <p className="text-sm text-gray-500">Gestisci i tuoi impegni e visualizza le assenze del team</p>
+                    </div>
+                    <div>
+                        <h1 className="text-xl font-bold text-slate-900 tracking-tight">Enterprise Calendar</h1>
+                        <div className="flex items-center gap-2 text-sm text-slate-500">
+                            <span className="font-medium text-slate-700">{format(currentDate, 'MMMM yyyy')}</span>
+                            <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                            <span>{awayToday.length} assenze oggi</span>
+                        </div>
+                    </div>
                 </div>
+
+                <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-200">
+                    {(['dayGridMonth', 'timeGridWeek', 'timeGridDay'] as CalendarView[]).map(view => (
+                        <button
+                            key={view}
+                            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${currentView === view
+                                ? 'bg-white text-indigo-600 shadow-sm border border-slate-200'
+                                : 'text-slate-500 hover:text-slate-900'
+                                }`}
+                            onClick={() => handleViewChange(view)}
+                        >
+                            {viewLabels[view]}
+                        </button>
+                    ))}
+                </div>
+
                 <div className="flex items-center gap-3">
-                    <Button
-                        variant="outline"
-                        icon={<Settings size={18} />}
-                        onClick={() => setIsCalendarModalOpen(true)}
-                    >
-                        I miei Calendari
-                    </Button>
                     <Button
                         variant="primary"
                         icon={<Plus size={18} />}
+                        className="!rounded-xl shadow-md shadow-indigo-100"
                         onClick={() => {
                             setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
                             setIsEventModalOpen(true);
                         }}
                     >
-                        Nuovo Impegno
+                        Nuovo Evento
                     </Button>
                 </div>
             </div>
 
-            {/* Calendar Section */}
-            <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border)] rounded-xl overflow-hidden shadow-sm">
-                {/* Toolbar */}
-                <div className="flex flex-col md:flex-row justify-between items-center p-4 gap-4 border-b border-[var(--color-border)] bg-[var(--color-bg-tertiary)]">
-                    <div className="flex items-center gap-2 text-[var(--color-text-primary)] font-bold text-lg">
-                        <CalendarIcon size={20} className="text-[var(--color-primary)]" />
-                        <h2>Calendario</h2>
-                    </div>
-
-                    <div className="flex bg-[var(--color-bg-primary)] rounded-lg p-1 border border-[var(--color-border)] shadow-sm">
-                        {(['dayGridMonth', 'timeGridWeek', 'timeGridDay'] as CalendarView[]).map(view => (
-                            <button
-                                key={view}
-                                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${currentView === view
-                                    ? 'bg-indigo-600 text-white shadow-sm'
-                                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                                    }`}
-                                onClick={() => handleViewChange(view)}
-                            >
-                                {viewLabels[view]}
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="relative">
-                        <button
-                            className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${filtersOpen
-                                ? 'bg-[var(--color-bg-active)] text-[var(--color-text-primary)] border-[var(--color-border-strong)]'
-                                : 'bg-[var(--color-bg-primary)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:bg-[var(--color-bg-hover)]'
-                                }`}
-                            onClick={() => setFiltersOpen(!filtersOpen)}
-                        >
-                            <Settings size={16} />
-                            Visualizza
-                            <ChevronDown size={14} className={`transition-transform duration-200 ${filtersOpen ? 'rotate-180' : ''}`} />
-                        </button>
-
-                        {filtersOpen && (
-                            <div className="absolute right-0 top-full mt-2 w-72 bg-[var(--color-bg-elevated)] border border-[var(--color-border)] rounded-xl shadow-xl z-50 animate-fadeInUp overflow-hidden">
-                                <div className="flex justify-between items-center p-3 border-b border-[var(--color-border-light)] bg-[var(--color-bg-tertiary)]">
-                                    <h4 className="text-xs font-bold text-[var(--color-text-muted)] uppercase tracking-wide">Elementi Visibili</h4>
-                                    <button className="text-gray-400 hover:text-gray-600 p-1" onClick={() => setFiltersOpen(false)}>
-                                        <X size={14} />
-                                    </button>
-                                </div>
-
-                                <div className="p-4 border-b border-gray-100">
-                                    <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
-                                        <Flag size={14} />
-                                        Festività
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="flex items-center gap-3 cursor-pointer group">
-                                            <input
-                                                type="checkbox"
-                                                checked={filters.showNationalHolidays}
-                                                onChange={() => toggleFilter('showNationalHolidays')}
-                                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                            />
-                                            <span className="w-3 h-3 rounded bg-red-500" />
-                                            <span className="text-sm text-gray-700 group-hover:text-gray-900">Festività Nazionali</span>
-                                        </label>
-                                        <label className="flex items-center gap-3 cursor-pointer group">
-                                            <input
-                                                type="checkbox"
-                                                checked={filters.showLocalHolidays}
-                                                onChange={() => toggleFilter('showLocalHolidays')}
-                                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                            />
-                                            <span className="w-3 h-3 rounded bg-orange-500" />
-                                            <span className="text-sm text-gray-700 group-hover:text-gray-900">Festività Locali</span>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div className="p-4 border-b border-gray-100">
-                                    <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
-                                        <Building size={14} />
-                                        Azienda
-                                    </div>
-                                    <label className="flex items-center gap-3 cursor-pointer group">
-                                        <input
-                                            type="checkbox"
-                                            checked={filters.showCompanyClosures}
-                                            onChange={() => toggleFilter('showCompanyClosures')}
-                                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                        />
-                                        <span className="w-3 h-3 rounded bg-purple-600" />
-                                        <span className="text-sm text-gray-700 group-hover:text-gray-900">Chiusure Aziendali</span>
-                                    </label>
-                                </div>
-
-                                <div className="p-4 border-b border-gray-100">
-                                    <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">
-                                        <Users size={14} />
-                                        Team
-                                    </div>
-                                    <label className="flex items-center gap-3 cursor-pointer group">
-                                        <input
-                                            type="checkbox"
-                                            checked={filters.showTeamLeaves}
-                                            onChange={() => toggleFilter('showTeamLeaves')}
-                                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                        />
-                                        <span className="w-3 h-3 rounded bg-blue-500" />
-                                        <span className="text-sm text-gray-700 group-hover:text-gray-900">Assenze Colleghi</span>
-                                    </label>
-                                </div>
-
-                                <div className="p-4">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
-                                            <Lock size={14} />
-                                            I miei Calendari
+            <div className="flex flex-1 gap-6 overflow-hidden">
+                {/** 
+                 * Sidebar sinistra: include mini-riepilogo assenze odierne,
+                 * filtri di visualizzazione e gestione dei calendari personali.
+                 */}
+                <aside className="w-72 flex flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar hidden lg:flex">
+                    {/* Navigation / Today Card */}
+                    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                <Clock size={16} className="text-indigo-500" />
+                                Oggi
+                            </h3>
+                            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                                {format(new Date(), 'EE dd')}
+                            </span>
+                        </div>
+                        <div className="space-y-3">
+                            {awayToday.length > 0 ? (
+                                awayToday.slice(0, 3).map((leave, idx) => (
+                                    <div key={idx} className="flex items-center gap-3 group">
+                                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 border border-white shadow-sm ring-2 ring-slate-50">
+                                            {leave.title.charAt(0)}
                                         </div>
-                                        <button
-                                            onClick={() => setIsCalendarModalOpen(true)}
-                                            className="text-indigo-600 hover:text-indigo-700 text-[10px] font-bold uppercase"
-                                        >
-                                            Gestisci
-                                        </button>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-semibold text-slate-800 truncate">{leave.title}</p>
+                                            <p className="text-[10px] text-slate-500">{(leave.metadata as any)?.leave_type_code || 'FERIE'}</p>
+                                        </div>
                                     </div>
-                                    <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                                        {userCalendars.map(cal => (
-                                            <label key={cal.id} className="flex items-center gap-3 cursor-pointer group">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={!filters.hiddenCalendars.includes(cal.id)}
-                                                    onChange={() => toggleCalendarVisibility(cal.id)}
-                                                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                                />
-                                                <span className="w-3 h-3 rounded shadow-sm" style={{ backgroundColor: cal.color }} />
-                                                <span className="text-sm text-gray-700 group-hover:text-gray-900 flex-1 truncate">{cal.name}</span>
-                                            </label>
-                                        ))}
-                                        {(!userCalendars || userCalendars.length === 0) && (
-                                            <p className="text-xs text-gray-400 italic">Nessun calendario personalizzato</p>
-                                        )}
-                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-xs text-slate-400 italic">Nessun assente oggi</p>
+                            )}
+                            {awayToday.length > 3 && (
+                                <button className="text-[10px] font-bold text-indigo-500 hover:text-indigo-600 w-full text-center py-1">
+                                    + altri {awayToday.length - 3}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Filters Sidebar Section */}
+                    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                            <Settings size={14} /> Filtri Visualizzazione
+                        </h3>
+                        <div className="space-y-4">
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 mb-2 uppercase">Pubblici</p>
+                                <div className="space-y-2">
+                                    <FilterToggle
+                                        label="Festività Nazionali"
+                                        color="rose-500"
+                                        checked={filters.showNationalHolidays}
+                                        onChange={() => toggleFilter('showNationalHolidays')}
+                                    />
+                                    <FilterToggle
+                                        label="Chiusure Aziendali"
+                                        color="slate-700"
+                                        checked={filters.showCompanyClosures}
+                                        onChange={() => toggleFilter('showCompanyClosures')}
+                                    />
                                 </div>
                             </div>
-                        )}
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 mb-2 uppercase">Team</p>
+                                <div className="space-y-2">
+                                    <FilterToggle
+                                        label="Assenze Team"
+                                        color="emerald-500"
+                                        checked={filters.showTeamLeaves}
+                                        onChange={() => toggleFilter('showTeamLeaves')}
+                                    />
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
 
-                {/* Legend */}
-                <div className="flex flex-wrap gap-4 p-3 bg-[var(--color-bg-secondary)] border-b border-[var(--color-border-light)] text-xs">
-                    <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded bg-emerald-500" />
-                        <span className="text-gray-600">Approvate</span>
+                    {/* My Calendars Sidebar Section */}
+                    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex-1">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                                <Lock size={14} /> I miei Calendari
+                            </h3>
+                            <button
+                                onClick={() => setIsCalendarModalOpen(true)}
+                                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 transition-colors"
+                                title="Gestione Calendari"
+                            >
+                                <Settings size={14} />
+                            </button>
+                        </div>
+                        <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                            {userCalendars.map(cal => (
+                                <label key={cal.id} className="flex items-center gap-3 cursor-pointer group p-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+                                    <div className="relative flex items-center">
+                                        <input
+                                            type="checkbox"
+                                            checked={!filters.hiddenCalendars.includes(cal.id)}
+                                            onChange={() => toggleCalendarVisibility(cal.id)}
+                                            className="rounded border-slate-300 text-indigo-600 focus:ring-0 w-4 h-4 cursor-pointer"
+                                        />
+                                    </div>
+                                    <span className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: cal.color }} />
+                                    <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 flex-1 truncate">{cal.name}</span>
+                                    {!cal.is_owner && (
+                                        <span title="Condiviso con te">
+                                            <Users size={12} className="text-slate-400" />
+                                        </span>
+                                    )}
+                                </label>
+                            ))}
+                            {userCalendars.length === 0 && (
+                                <p className="text-xs text-slate-400 italic">Nessun calendario</p>
+                            )}
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded bg-amber-500" />
-                        <span className="text-gray-600">In Attesa</span>
-                    </div>
-                    {filters.showNationalHolidays && (
-                        <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded bg-red-500" />
-                            <span className="text-gray-600">Festività</span>
-                        </div>
-                    )}
-                    {filters.showCompanyClosures && (
-                        <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded bg-purple-600" />
-                            <span className="text-gray-600">Chiusure</span>
-                        </div>
-                    )}
-                    {filters.showTeamLeaves && (
-                        <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded bg-blue-500" />
-                            <span className="text-gray-600">Assenze Colleghi</span>
-                        </div>
-                    )}
-                    {userCalendars.map(cal => !filters.hiddenCalendars.includes(cal.id) && (
-                        <div key={cal.id} className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded shadow-sm" style={{ backgroundColor: cal.color }} />
-                            <span className="text-gray-600">{cal.name}</span>
-                        </div>
-                    ))}
-                </div>
+                </aside>
 
-                {/* Calendar */}
-                <div className="p-4">
-                    <FullCalendar
-                        ref={calendarRef}
-                        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-                        initialView={currentView}
-                        locale="it"
-                        headerToolbar={{
-                            left: 'prev,next today',
-                            center: 'title',
-                            right: '',
-                        }}
-                        events={events}
-                        eventClick={(info) => {
-                            const eventType = info.event.extendedProps?.type;
-                            if (eventType !== 'holiday' && eventType !== 'closure') {
-                                window.location.href = `/leaves/${info.event.id}`;
-                            }
-                        }}
-                        dateClick={(info) => {
-                            setSelectedDate(info.dateStr);
-                            setIsEventModalOpen(true);
-                        }}
-                        datesSet={(dateInfo) => {
-                            setCurrentDate(dateInfo.view.currentStart);
-                        }}
-                        height="auto"
-                        dayMaxEvents={3}
-                        weekends={true}
-                        firstDay={1}
-                        buttonText={{
-                            today: 'Oggi',
-                            month: 'Mese',
-                            week: 'Settimana',
-                            day: 'Giorno',
-                        }}
-                        slotMinTime="08:00:00"
-                        slotMaxTime="20:00:00"
-                        allDaySlot={true}
-                        nowIndicator={true}
-                    />
-                </div>
-            </div >
+                {/* Main Calendar Content */}
+                <main className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                    {/* Internal FC Header Replacement */}
+                    <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50/50">
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => calendarRef.current?.getApi().prev()}
+                                className="p-2 hover:bg-white hover:shadow-sm rounded-xl border border-transparent hover:border-slate-200 transition-all text-slate-600"
+                            >
+                                <ChevronDown size={18} className="rotate-90" />
+                            </button>
+                            <button
+                                onClick={() => calendarRef.current?.getApi().today()}
+                                className="px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-indigo-600 transition-colors border border-slate-200 bg-white rounded-lg shadow-sm"
+                            >
+                                Oggi
+                            </button>
+                            <button
+                                onClick={() => calendarRef.current?.getApi().next()}
+                                className="p-2 hover:bg-white hover:shadow-sm rounded-xl border border-transparent hover:border-slate-200 transition-all text-slate-600"
+                            >
+                                <ChevronDown size={18} className="-rotate-90" />
+                            </button>
+                        </div>
+                        <h2 className="text-lg font-bold text-slate-800 tracking-tight">
+                            {format(currentDate, 'MMMM yyyy')}
+                        </h2>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3 px-3 py-1.5 bg-white rounded-lg border border-slate-200 shadow-sm text-[10px] font-bold text-slate-400">
+                                <div className="flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded bg-emerald-500" />
+                                    <span>APPROVED</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded bg-amber-500" />
+                                    <span>PENDING</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 p-4 overflow-y-auto custom-scrollbar fc-enterprise-theme">
+                        <FullCalendar
+                            ref={calendarRef}
+                            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+                            initialView={currentView}
+                            locale="it"
+                            headerToolbar={false}
+                            events={events}
+                            eventClick={async (info) => {
+                                const eventType = info.event.extendedProps?.type;
+                                // Only open detail modal for user events, not holidays/closures/leaves
+                                if (eventType === 'event') {
+                                    try {
+                                        const eventData = await calendarService.getEvent(info.event.id);
+                                        setSelectedEvent(eventData);
+                                    } catch (err) {
+                                        console.error('Error fetching event:', err);
+                                    }
+                                }
+                            }}
+                            dateClick={(info) => {
+                                setSelectedDate(info.dateStr);
+                                setIsEventModalOpen(true);
+                            }}
+                            datesSet={(dateInfo) => {
+                                setCurrentDate(dateInfo.view.currentStart);
+                            }}
+                            height="100%"
+                            dayMaxEvents={4}
+                            weekends={true}
+                            firstDay={1}
+                            slotMinTime="08:00:00"
+                            slotMaxTime="20:00:00"
+                            allDaySlot={true}
+                            nowIndicator={true}
+                        />
+                    </div>
+                </main>
+            </div>
 
             {/* Event Modal */}
-            {isEventModalOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-scaleIn">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-indigo-50">
-                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                                <Plus className="text-indigo-600" size={20} />
-                                Nuovo Impegno
-                            </h3>
-                            <button onClick={() => setIsEventModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
-                                <X size={20} />
-                            </button>
-                        </div>
+            <NewEventModal
+                isOpen={isEventModalOpen}
+                onClose={() => setIsEventModalOpen(false)}
+                onEventCreated={() => {
+                    queryClient.invalidateQueries({ queryKey: ['calendar-range'] });
+                    toast.success('Impegno creato correttamente');
+                }}
+                selectedDate={selectedDate}
+                userCalendars={userCalendars}
+            />
 
-                        <form onSubmit={async (e) => {
-                            e.preventDefault();
-                            const formData = new FormData(e.currentTarget);
-                            const startDate = formData.get('start_date') as string;
-
-                            // Calculate default alert: 48h, or 24h if event is within 48h from now
-                            const eventDate = new Date(startDate);
-                            const now = new Date();
-                            const hoursUntilEvent = (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-                            const defaultAlert = hoursUntilEvent < 48 ? 1440 : 2880; // 24h or 48h
-
-                            const alertValue = formData.get('alert_before');
-                            const alertMinutes = alertValue === '' ? null : (parseInt(alertValue as string) || defaultAlert);
-
-                            const isAllDay = formData.get('is_all_day') === 'on' || formData.get('is_all_day') === null;
-
-                            const data = {
-                                title: formData.get('title') as string,
-                                description: formData.get('description') as string || undefined,
-                                start_date: startDate,
-                                end_date: formData.get('end_date') as string,
-                                start_time: !isAllDay ? formData.get('start_time') as string || undefined : undefined,
-                                end_time: !isAllDay ? formData.get('end_time') as string || undefined : undefined,
-                                event_type: formData.get('category') as string || 'General',
-                                color: formData.get('color') as string || '#4F46E5',
-                                calendar_id: formData.get('calendar_id') as string || undefined,
-                                visibility: formData.get('visibility') as string || 'private',
-                                is_all_day: isAllDay,
-                                alert_before_minutes: alertMinutes,
-                            };
-
-                            try {
-                                await createEvent.mutateAsync(data);
-                                toast.success('Impegno creato correttamente');
-                                setIsEventModalOpen(false);
-                            } catch (err) {
-                                toast.error('Errore durante la creazione');
-                            }
-                        }} className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Titolo</label>
-                                <input
-                                    name="title"
-                                    required
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                                    placeholder="Es: Riunione con cliente..."
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Descrizione</label>
-                                <textarea
-                                    name="description"
-                                    rows={2}
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all resize-none"
-                                    placeholder="Dettagli opzionali..."
-                                />
-                            </div>
-
-                            <div className="flex items-center gap-2 py-2">
-                                <input
-                                    type="checkbox"
-                                    name="is_all_day"
-                                    id="is_all_day"
-                                    defaultChecked={true}
-                                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                    onChange={(e) => {
-                                        const timeFields = document.querySelectorAll('.time-fields');
-                                        timeFields.forEach(f => (f as HTMLElement).style.display = e.target.checked ? 'none' : 'grid');
-                                    }}
-                                />
-                                <label htmlFor="is_all_day" className="text-sm font-medium text-gray-700">Tutto il giorno</label>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                                        <Clock size={14} /> Data Inizio
-                                    </label>
-                                    <input
-                                        type="date"
-                                        name="start_date"
-                                        defaultValue={selectedDate || format(new Date(), 'yyyy-MM-dd')}
-                                        required
-                                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                                        <Clock size={14} /> Data Fine
-                                    </label>
-                                    <input
-                                        type="date"
-                                        name="end_date"
-                                        defaultValue={selectedDate || format(new Date(), 'yyyy-MM-dd')}
-                                        required
-                                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="time-fields grid grid-cols-2 gap-4" style={{ display: 'none' }}>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Ora Inizio</label>
-                                    <input
-                                        type="time"
-                                        name="start_time"
-                                        defaultValue="09:00"
-                                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Ora Fine</label>
-                                    <input
-                                        type="time"
-                                        name="end_time"
-                                        defaultValue="10:00"
-                                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                                    />
-                                </div>
-                            </div>
-
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                                        <Tag size={14} /> Calendario
-                                    </label>
-                                    <select
-                                        name="calendar_id"
-                                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                                    >
-                                        <option value="">Nessuno (Generale)</option>
-                                        {userCalendars.map(cal => (
-                                            <option key={cal.id} value={cal.id}>{cal.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                                        <Users size={14} /> Visibilità
-                                    </label>
-                                    <select
-                                        name="visibility"
-                                        defaultValue="private"
-                                        className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                                    >
-                                        <option value="private">🔒 Solo io</option>
-                                        <option value="team">👥 Team</option>
-                                        <option value="public">🌐 Pubblico</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                                    🔔 Promemoria
-                                </label>
-                                <select
-                                    name="alert_before"
-                                    defaultValue="2880"
-                                    className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                                >
-                                    <option value="">Nessun promemoria</option>
-                                    <option value="60">1 ora prima</option>
-                                    <option value="120">2 ore prima</option>
-                                    <option value="1440">1 giorno prima (24h)</option>
-                                    <option value="2880">2 giorni prima (48h)</option>
-                                    <option value="4320">3 giorni prima (72h)</option>
-                                    <option value="10080">1 settimana prima</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Colore</label>
-                                <div className="flex gap-3">
-                                    {['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#8B5CF6'].map(color => (
-                                        <label key={color} className="relative cursor-pointer group">
-                                            <input type="radio" name="color" value={color} className="sr-only" defaultChecked={color === '#4F46E5'} />
-                                            <div className="w-8 h-8 rounded-full shadow-sm group-hover:scale-110 transition-transform ring-offset-2 peer-checked:ring-2 ring-transparent" style={{ backgroundColor: color }} />
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-
-
-                            <div className="pt-4 flex gap-3">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="flex-1"
-                                    onClick={() => setIsEventModalOpen(false)}
-                                >
-                                    Annulla
-                                </Button>
-                                <Button
-                                    type="submit"
-                                    variant="primary"
-                                    className="flex-1"
-                                    isLoading={createEvent.isPending}
-                                >
-                                    Crea Impegno
-                                </Button>
-                            </div>
-
-                            <p className="text-[10px] text-center text-gray-400 mt-2 flex items-center justify-center gap-1">
-                                <Lock size={10} /> Questo impegno sarà visibile solo a te
-                            </p>
-                        </form>
-                    </div>
-                </div>
-            )}
+            {/* Event Detail Modal */}
+            <EventDetailModal
+                isOpen={!!selectedEvent}
+                onClose={() => setSelectedEvent(null)}
+                event={selectedEvent}
+                onEventUpdated={() => {
+                    queryClient.invalidateQueries({ queryKey: ['calendar-range'] });
+                    setSelectedEvent(null);
+                }}
+                onEventDeleted={() => {
+                    queryClient.invalidateQueries({ queryKey: ['calendar-range'] });
+                    setSelectedEvent(null);
+                }}
+                userCalendars={userCalendars}
+                currentUserId={user?.id}
+            />
 
             {/* Calendar Management Modal */}
             {isCalendarModalOpen && (
@@ -726,45 +570,114 @@ export function CalendarPage() {
                                 <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
                                     {userCalendars.map(cal => (
                                         <div key={cal.id} className="space-y-2">
-                                            <div className="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-4 h-4 rounded shadow-sm" style={{ backgroundColor: cal.color }} />
-                                                    <div className="flex flex-col">
-                                                        <span className="text-sm font-medium text-gray-700">{cal.name}</span>
-                                                        {!cal.is_owner && (
-                                                            <span className="text-[10px] text-gray-400">Condiviso con te</span>
+                                            {editingCalendarId === cal.id ? (
+                                                /* Inline Edit Mode */
+                                                <form
+                                                    onSubmit={async (e) => {
+                                                        e.preventDefault();
+                                                        const formData = new FormData(e.currentTarget);
+                                                        try {
+                                                            await updateUserCalendar.mutateAsync({
+                                                                id: cal.id,
+                                                                data: {
+                                                                    name: formData.get('name') as string,
+                                                                    color: formData.get('color') as string
+                                                                }
+                                                            });
+                                                            toast.success('Calendario aggiornato');
+                                                            setEditingCalendarId(null);
+                                                        } catch (err) {
+                                                            toast.error('Errore durante l\'aggiornamento');
+                                                        }
+                                                    }}
+                                                    className="flex items-center gap-3 p-3 rounded-xl border border-indigo-200 bg-indigo-50"
+                                                >
+                                                    <input
+                                                        type="color"
+                                                        name="color"
+                                                        defaultValue={cal.color}
+                                                        className="w-8 h-8 rounded cursor-pointer border-none"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        name="name"
+                                                        defaultValue={cal.name}
+                                                        required
+                                                        className="flex-1 px-2 py-1 text-sm rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                    />
+                                                    <Button type="submit" variant="primary" size="sm" isLoading={updateUserCalendar.isPending}>
+                                                        Salva
+                                                    </Button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setEditingCalendarId(null)}
+                                                        className="text-gray-400 hover:text-gray-600 p-1"
+                                                    >
+                                                        <X size={16} />
+                                                    </button>
+                                                </form>
+                                            ) : (
+                                                /* View Mode */
+                                                <div className="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-4 h-4 rounded shadow-sm" style={{ backgroundColor: cal.color }} />
+                                                        <div className="flex flex-col">
+                                                            <span className="text-sm font-medium text-gray-700">{cal.name}</span>
+                                                            {!cal.is_owner && (() => {
+                                                                if (cal.type === 'SYSTEM') {
+                                                                    return <span className="text-[10px] text-gray-400">Calendario di Sistema</span>;
+                                                                }
+                                                                if (cal.type === 'LOCATION') {
+                                                                    return <span className="text-[10px] text-gray-400">Calendario Sede</span>;
+                                                                }
+                                                                const ownerId = cal.user_id || cal.owner_id;
+                                                                const owner = (users || []).find((u: any) => u.id === ownerId);
+                                                                const ownerName = `${owner?.first_name || ''} ${owner?.last_name || ''}`.trim() || 'un collega';
+                                                                return (
+                                                                    <span className="text-[10px] text-gray-400">
+                                                                        Condiviso da {ownerName}
+                                                                    </span>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        {cal.is_owner && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => setEditingCalendarId(cal.id)}
+                                                                    className="p-1.5 rounded-lg transition-colors text-gray-400 hover:bg-gray-100 hover:text-amber-600"
+                                                                    title="Modifica"
+                                                                >
+                                                                    <Edit3 size={16} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setSharingCalendarId(sharingCalendarId === cal.id ? null : cal.id)}
+                                                                    className={`p-1.5 rounded-lg transition-colors ${sharingCalendarId === cal.id ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:bg-gray-100 hover:text-indigo-600'}`}
+                                                                    title="Condividi"
+                                                                >
+                                                                    <Users size={16} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        if (confirm(`Sei sicuro di voler eliminare il calendario "${cal.name}"? Gli impegni associati perderanno il colore personalizzato.`)) {
+                                                                            try {
+                                                                                await deleteUserCalendar.mutateAsync(cal.id);
+                                                                                toast.success('Calendario eliminato');
+                                                                            } catch (err) {
+                                                                                toast.error('Errore durante l\'eliminazione');
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                    className="text-gray-400 hover:text-red-600 transition-colors p-1.5 hover:bg-red-50 rounded-lg"
+                                                                >
+                                                                    <X size={16} />
+                                                                </button>
+                                                            </>
                                                         )}
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-1">
-                                                    {cal.is_owner && (
-                                                        <>
-                                                            <button
-                                                                onClick={() => setSharingCalendarId(sharingCalendarId === cal.id ? null : cal.id)}
-                                                                className={`p-1.5 rounded-lg transition-colors ${sharingCalendarId === cal.id ? 'bg-indigo-50 text-indigo-600' : 'text-gray-400 hover:bg-gray-100 hover:text-indigo-600'}`}
-                                                                title="Condividi"
-                                                            >
-                                                                <Users size={16} />
-                                                            </button>
-                                                            <button
-                                                                onClick={async () => {
-                                                                    if (confirm(`Sei sicuro di voler eliminare il calendario "${cal.name}"? Gli impegni associati perderanno il colore personalizzato.`)) {
-                                                                        try {
-                                                                            await deleteUserCalendar.mutateAsync(cal.id);
-                                                                            toast.success('Calendario eliminato');
-                                                                        } catch (err) {
-                                                                            toast.error('Errore durante l\'eliminazione');
-                                                                        }
-                                                                    }
-                                                                }}
-                                                                className="text-gray-400 hover:text-red-600 transition-colors p-1.5 hover:bg-red-50 rounded-lg"
-                                                            >
-                                                                <X size={16} />
-                                                            </button>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </div>
+                                            )}
 
                                             {/* Sharing Section */}
                                             {sharingCalendarId === cal.id && cal.is_owner && (
@@ -778,18 +691,21 @@ export function CalendarPage() {
 
                                                     {/* List of current shares */}
                                                     <div className="space-y-2">
-                                                        {cal.shared_with?.map(share => {
-                                                            const sharedUser = users?.find((u: UserWithProfile) => u.id === share.shared_with_user_id);
+                                                        {((cal as any).shares || cal.shared_with || []).map((share: any) => {
+                                                            const shareUserId = share.user_id || share.shared_with_user_id;
+                                                            const sharedUser = users?.find((u: any) => u.id === shareUserId);
+                                                            const userName = sharedUser ? `${sharedUser.first_name || ''} ${sharedUser.last_name || ''}`.trim() : 'Utente';
+                                                            const initials = userName.split(' ').map((n: string) => n[0]?.toUpperCase() || '').join('').slice(0, 2);
                                                             return (
                                                                 <div key={share.id} className="flex items-center justify-between text-sm bg-white p-2 rounded-lg border border-gray-100">
                                                                     <div className="flex items-center gap-2">
                                                                         <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-[10px] font-bold text-indigo-600">
-                                                                            {sharedUser?.first_name?.[0].toUpperCase()}{sharedUser?.last_name?.[0].toUpperCase()}
+                                                                            {initials}
                                                                         </div>
-                                                                        <span className="text-gray-600">{sharedUser?.first_name} {sharedUser?.last_name}</span>
+                                                                        <span className="text-gray-600">{userName}</span>
                                                                     </div>
                                                                     <button
-                                                                        onClick={() => unshareCalendarMut.mutate({ calendarId: cal.id, sharedUserId: share.shared_with_user_id })}
+                                                                        onClick={() => unshareCalendarMut.mutate({ calendarId: cal.id, sharedUserId: shareUserId })}
                                                                         className="text-red-400 hover:text-red-600 p-1"
                                                                     >
                                                                         <X size={14} />
@@ -797,7 +713,7 @@ export function CalendarPage() {
                                                                 </div>
                                                             );
                                                         })}
-                                                        {(!cal.shared_with || cal.shared_with.length === 0) && (
+                                                        {(!((cal as any).shares || cal.shared_with) || ((cal as any).shares || cal.shared_with || []).length === 0) && (
                                                             <p className="text-[11px] text-gray-400 italic">Nessuna condivisione attiva</p>
                                                         )}
                                                     </div>
@@ -806,22 +722,33 @@ export function CalendarPage() {
                                                     <div className="pt-2 border-t border-gray-200">
                                                         <select
                                                             className="w-full text-xs px-2 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-medium"
+                                                            disabled={usersLoading}
                                                             onChange={(e) => {
                                                                 if (e.target.value) {
                                                                     shareCalendarMut.mutate({
                                                                         calendarId: cal.id,
-                                                                        data: { shared_with_user_id: e.target.value }
+                                                                        data: { user_id: e.target.value, permission: 'READ' }
                                                                     });
                                                                     e.target.value = "";
                                                                 }
                                                             }}
                                                         >
-                                                            <option value="">Aggiungi collega...</option>
-                                                            {users?.filter((u: UserWithProfile) => u.id !== cal.user_id && !cal.shared_with?.some(s => s.shared_with_user_id === u.id)).map((u: UserWithProfile) => (
-                                                                <option key={u.id} value={u.id}>
-                                                                    {u.first_name} {u.last_name}
-                                                                </option>
-                                                            ))}
+                                                            <option value="">{usersLoading ? 'Caricamento colleghi...' : 'Aggiungi collega...'}</option>
+                                                            {(users || [])
+                                                                .filter((u: any) => {
+                                                                    // Exclude current user (calendar owner)
+                                                                    const ownerId = cal.user_id || cal.owner_id || user?.id;
+                                                                    if (u.id === ownerId) return false;
+                                                                    // Exclude already shared users - use 'shares' and 's.user_id'
+                                                                    const shares = (cal as any).shares || cal.shared_with || [];
+                                                                    if (shares.some((s: any) => s.user_id === u.id || s.shared_with_user_id === u.id)) return false;
+                                                                    return true;
+                                                                })
+                                                                .map((u: any) => (
+                                                                    <option key={u.id} value={u.id}>
+                                                                        {`${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email}
+                                                                    </option>
+                                                                ))}
                                                         </select>
                                                     </div>
                                                 </div>
@@ -846,7 +773,71 @@ export function CalendarPage() {
                     </div>
                 </div>
             )}
-        </div >
+            <style>{`
+                .fc-enterprise-theme .fc {
+                    --fc-border-color: #f1f5f9;
+                    --fc-today-bg-color: #f8faff;
+                    --fc-page-bg-color: #ffffff;
+                    font-family: inherit;
+                }
+                .fc-enterprise-theme .fc-theme-standard td, 
+                .fc-enterprise-theme .fc-theme-standard th {
+                    border: 1px solid #f1f5f9;
+                }
+                .fc-enterprise-theme .fc-col-header-cell {
+                    background: #f8faff;
+                    padding: 12px 0;
+                    font-size: 0.75rem;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                    color: #64748b;
+                    border-bottom: 2px solid #e2e8f0 !important;
+                }
+                .fc-enterprise-theme .fc-daygrid-day-number {
+                    font-size: 0.875rem;
+                    font-weight: 600;
+                    color: #334155;
+                    padding: 8px !important;
+                }
+                .fc-enterprise-theme .fc-daygrid-day.fc-day-today {
+                    background-color: #f0f7ff !important;
+                }
+                .fc-enterprise-theme .fc-event {
+                    border-radius: 8px !important;
+                    padding: 4px 8px !important;
+                    margin: 1px 4px !important;
+                    border: none !important;
+                    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                }
+                .fc-enterprise-theme .fc-event:hover {
+                    transform: translateY(-1px);
+                    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+                    filter: brightness(0.95);
+                }
+                .fc-enterprise-theme .fc-daygrid-more-link {
+                    font-size: 0.75rem;
+                    font-weight: 700;
+                    color: #6366f1;
+                    padding: 2px 6px;
+                }
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 4px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: #e2e8f0;
+                    border-radius: 10px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: #cbd5e1;
+                }
+            `}</style>
+        </div>
     );
 }
 

@@ -209,7 +209,8 @@ class CalendarService:
                         expanded_holidays.append(schemas.HolidayBase(
                             name=h_def.name,
                             date=date_instance,
-                            is_recurring=True
+                            is_recurring=True,
+                            is_confirmed=h_def.is_confirmed
                         ))
             elif h_def.date:
                  # Fixed date
@@ -217,7 +218,8 @@ class CalendarService:
                      expanded_holidays.append(schemas.HolidayBase(
                          name=h_def.name,
                          date=h_def.date,
-                         is_recurring=False
+                         is_recurring=False,
+                         is_confirmed=h_def.is_confirmed
                      ))
         
         return expanded_holidays
@@ -286,7 +288,12 @@ class CalendarService:
         )
         self.db.add(cal)
         await self.db.commit()
-        await self.db.refresh(cal)
+        # await self.db.refresh(cal)  <-- Causes MissingGreenlet for lazy loaded relationships
+        
+        # Explicitly fetch with relations
+        stmt = select(Calendar).options(selectinload(Calendar.shares)).where(Calendar.id == cal.id)
+        result = await self.db.execute(stmt)
+        cal = result.scalar_one()
         
         await self._audit.log_action(
             user_id=user_id,
@@ -307,7 +314,12 @@ class CalendarService:
             setattr(cal, key, value)
             
         await self.db.commit()
-        await self.db.refresh(cal)
+        # await self.db.refresh(cal) <-- Lazy load issue
+        
+        # Explicitly fetch with relations
+        stmt = select(Calendar).options(selectinload(Calendar.shares)).where(Calendar.id == cal.id)
+        result = await self.db.execute(stmt)
+        cal = result.scalar_one()
         
         await self._audit.log_action(
             user_id=user_id,
@@ -612,7 +624,8 @@ class CalendarService:
                         "id": h_def.id,
                         "date": date_instance,
                         "name": h_def.name,
-                        "is_recurring": True
+                        "is_recurring": True,
+                        "is_confirmed": h_def.is_confirmed
                     })
             elif h_def.date:
                 if h_def.date.year == year:
@@ -620,7 +633,8 @@ class CalendarService:
                         "id": h_def.id,
                         "date": h_def.date,
                         "name": h_def.name,
-                        "is_recurring": False
+                        "is_recurring": False,
+                        "is_confirmed": h_def.is_confirmed
                     })
         
         expanded_holidays.sort(key=lambda x: x["date"])
@@ -783,8 +797,11 @@ class CalendarService:
         if event_type:
             stmt = stmt.where(CalendarEvent.event_type == event_type)
             
-        # Add basic ordering
-        stmt = stmt.order_by(CalendarEvent.start_date, CalendarEvent.start_time)
+        # Add eager loading and ordering
+        stmt = stmt.options(
+            selectinload(CalendarEvent.participants),
+            selectinload(CalendarEvent.calendar)
+        ).order_by(CalendarEvent.start_date, CalendarEvent.start_time)
             
         res = await self.db.execute(stmt)
         return res.scalars().all()
@@ -798,42 +815,62 @@ class CalendarService:
         return res.scalar_one_or_none()
         
     async def create_event(self, user_id: UUID, data: schemas.EventCreate) -> CalendarEvent:
-        # Check write permission on calendar
-        cal = await self.db.get(Calendar, data.calendar_id)
-        if not cal:
-            raise ValueError("Calendar not found")
-            
-        # Permission check: owner or shared with write?
-        # Simplification: if user owns calendar OR has WRITE share
-        can_write = False
-        if cal.owner_id == user_id:
-            can_write = True
-        else:
-            # Check share
-            stmt = select(CalendarShare).where(
-                CalendarShare.calendar_id == cal.id,
-                CalendarShare.user_id == user_id,
-                CalendarShare.permission.in_([schemas.CalendarPermission.WRITE, schemas.CalendarPermission.ADMIN])
-            )
+        # If no calendar_id provided, use or create user's default personal calendar
+        calendar_id = data.calendar_id
+        if not calendar_id:
+            # Find user's personal calendar
+            stmt = select(Calendar).where(
+                Calendar.owner_id == user_id,
+                Calendar.type == CalendarType.PERSONAL,
+                Calendar.is_active == True
+            ).limit(1)
             res = await self.db.execute(stmt)
-            if res.scalar_one_or_none():
-                can_write = True
+            cal = res.scalar_one_or_none()
+            
+            if not cal:
+                # Create a default personal calendar for the user
+                cal = Calendar(
+                    name="Il mio calendario",
+                    type=CalendarType.PERSONAL,
+                    owner_id=user_id,
+                    is_active=True
+                )
+                self.db.add(cal)
+                await self.db.commit()
+                await self.db.refresh(cal)
+            
+            calendar_id = cal.id
+        else:
+            # Check write permission on calendar
+            cal = await self.db.get(Calendar, calendar_id)
+            if not cal:
+                raise ValueError("Calendar not found")
                 
-        # System calendars? Only Admin can write (TODO: check admin role?)
-        if cal.type == CalendarType.SYSTEM:
-             # Assume caller verified logic or we allow strict system edits via admin router only?
-             # For now, allow create if user context passed (implies some check before).
-             pass
-             
-        if not can_write and cal.type != CalendarType.SYSTEM: # Allow if system? No.
-             # Strict check:
-             pass 
-             # For Personal/Team execution:
-             # raise ValueError("Permission denied")
+            # Permission check: owner or shared with write?
+            can_write = False
+            if cal.owner_id == user_id:
+                can_write = True
+            else:
+                # Check share
+                stmt = select(CalendarShare).where(
+                    CalendarShare.calendar_id == cal.id,
+                    CalendarShare.user_id == user_id,
+                    CalendarShare.permission.in_([schemas.CalendarPermission.WRITE, schemas.CalendarPermission.ADMIN])
+                )
+                res = await self.db.execute(stmt)
+                if res.scalar_one_or_none():
+                    can_write = True
+                    
+            # System calendars? Only Admin can write
+            if cal.type == CalendarType.SYSTEM:
+                 pass
+                 
+            if not can_write and cal.type != CalendarType.SYSTEM:
+                 pass
              
         # Create
-        dump = data.model_dump(exclude={"participants", "participant_ids"})
-        obj = CalendarEvent(**dump, created_by=user_id)
+        dump = data.model_dump(exclude={"participants", "participant_ids", "calendar_id"})
+        obj = CalendarEvent(**dump, calendar_id=calendar_id, created_by=user_id)
         self.db.add(obj)
         await self.db.commit()
         await self.db.refresh(obj)
@@ -854,7 +891,9 @@ class CalendarService:
             description=f"Created event: {obj.title}",
             request_data=data.model_dump(mode="json")
         )
-        return obj
+        
+        # Reload with eager loading to avoid MissingGreenlet in serialization
+        return await self.get_event(obj.id)
 
     async def update_event(self, event_id: UUID, data: schemas.EventUpdate, user_id: UUID) -> Optional[CalendarEvent]:
         obj = await self.get_event(event_id)
@@ -976,7 +1015,8 @@ class CalendarService:
                         "title": title,
                         "start_date": l_start,
                         "end_date": l_end,
-                        "leave_type_code": leave_code
+                        "leave_type_code": leave_code,
+                        "status": leave.get("status")
                     })
                 curr += timedelta(days=1)
 
@@ -1015,15 +1055,22 @@ class CalendarService:
             # Add Leaves
             if current_date in leaves_map:
                 for l_data in leaves_map[current_date]:
+                     # Determine color based on status
+                     status = l_data.get("status")
+                     color = "#10B981" if status in ["approved", "approved_conditional"] else "#F59E0B" if status == "pending" else "#3B82F6"
+                     
                      day_items.append(schemas.CalendarDayItem(
-                        id=UUID(l_data["id"]),
+                        id=UUID(l_data["id"]) if isinstance(l_data["id"], str) else l_data["id"],
                         title=l_data["title"],
                         item_type=schemas.CalendarItemType.LEAVE,
                         start_date=l_data["start_date"],
                         end_date=l_data["end_date"],
-                        color="#3B82F6", # Blue for leaves
+                        color=color,
                         is_all_day=True,
-                        metadata={"leave_type": l_data["leave_type_code"]}
+                        metadata={
+                            "leave_type": l_data["leave_type_code"],
+                            "status": status
+                        }
                     ))
 
             # Add User Events

@@ -473,7 +473,16 @@ async def get_requests_internal(
         status=status_list
     )
     
-    return [LeaveRequestListItem.model_validate(r) for r in requests]
+    # Enrich with user names
+    data = []
+    for r in requests:
+        item = LeaveRequestListItem.model_validate(r)
+        user_info = await service._get_user_info(r.user_id)
+        if user_info:
+            item.user_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip()
+        data.append(item)
+    
+    return data
 
 
 @router.post("/leaves/internal/recalculate-for-closure")

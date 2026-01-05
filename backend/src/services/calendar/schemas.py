@@ -13,15 +13,15 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator
 # ═══════════════════════════════════════════════════════════
 
 class CalendarType(str, Enum):
-    SYSTEM = "system"
-    LOCATION = "location"
-    PERSONAL = "personal"
-    TEAM = "team"
+    SYSTEM = "SYSTEM"
+    LOCATION = "LOCATION"
+    PERSONAL = "PERSONAL"
+    TEAM = "TEAM"
 
 class CalendarPermission(str, Enum):
-    READ = "read"
-    WRITE = "write"
-    ADMIN = "admin"
+    READ = "READ"
+    WRITE = "WRITE"
+    ADMIN = "ADMIN"
 
 class RecurrenceType(str, Enum):
     NONE = "none"
@@ -117,6 +117,7 @@ class HolidayBase(BaseModel):
     date: Optional[dt.date] = None # For fixed holidays or specific year instances
     is_recurring: bool = False
     recurrence_rule: Optional[Union[RecurrenceRule, Dict[str, Any]]] = None
+    is_confirmed: bool = False
     is_active: bool = True
 
 class HolidayCreate(HolidayBase):
@@ -127,6 +128,7 @@ class HolidayUpdate(BaseModel):
     date: Optional[date] = None
     is_recurring: Optional[bool] = None
     recurrence_rule: Optional[Union[RecurrenceRule, Dict[str, Any]]] = None
+    is_confirmed: Optional[bool] = None
     is_active: Optional[bool] = None
 
 class HolidayResponse(HolidayBase):
@@ -229,12 +231,19 @@ class EventBase(BaseModel):
     is_all_day: bool = True
     event_type: str = Field(default="generic")
     visibility: str = Field(default="private")
-    calendar_id: UUID
+    calendar_id: Optional[UUID] = None
     is_recurring: bool = False
     recurrence_rule: Optional[str] = None
+    # Additional fields
+    color: Optional[str] = Field(default="#3B82F6", max_length=7)
+    alert_before_minutes: Optional[int] = 2880
+    location: Optional[str] = None
+    is_virtual: bool = False
+    meeting_url: Optional[str] = None
 
 class EventCreate(EventBase):
     participant_ids: Optional[List[UUID]] = None
+
 
 class EventUpdate(BaseModel):
     title: Optional[str] = None
