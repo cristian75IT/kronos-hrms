@@ -209,7 +209,13 @@ export function LeaveRequestForm() {
                                 <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                 <input
                                     type="date"
-                                    {...register('start_date', { required: 'Data inizio obbligatoria' })}
+                                    {...register('start_date', {
+                                        required: 'Data inizio obbligatoria',
+                                        onChange: (e) => {
+                                            // Auto-update end date if it's empty or to help user
+                                            setValue('end_date', e.target.value);
+                                        }
+                                    })}
                                     className={`block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm pl-10 ${errors.start_date ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}`}
                                 />
                             </div>

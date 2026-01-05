@@ -185,6 +185,27 @@ class ApprovalRequestRepository:
         
         result = await self._session.execute(query)
         return list(result.scalars().unique().all())
+
+    async def get_all_pending(
+        self,
+        entity_type: Optional[str] = None,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> List[ApprovalRequest]:
+        """Get all pending approval requests (for admins)."""
+        query = select(ApprovalRequest).where(ApprovalRequest.status == "PENDING")
+        
+        if entity_type:
+            query = query.where(ApprovalRequest.entity_type == entity_type)
+        
+        # Eager load decisions so we can construct the item correctly if needed
+        query = query.options(selectinload(ApprovalRequest.decisions))
+        
+        query = query.order_by(ApprovalRequest.created_at.desc())
+        query = query.offset(offset).limit(limit)
+        
+        result = await self._session.execute(query)
+        return list(result.scalars().all())
     
     async def count_pending_for_approver(
         self,

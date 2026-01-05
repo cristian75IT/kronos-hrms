@@ -492,13 +492,18 @@ class ApprovalService:
         self,
         approver_id: UUID,
         entity_type: Optional[str] = None,
+        include_all: bool = False,
     ) -> PendingApprovalsResponse:
         """Get pending approvals for an approver."""
-        requests = await self._request_repo.get_pending_for_approver(
-            approver_id, entity_type
-        )
+        if include_all:
+             requests = await self._request_repo.get_all_pending(entity_type)
+        else:
+             requests = await self._request_repo.get_pending_for_approver(
+                approver_id, entity_type
+            )
         
-        now = datetime.utcnow()
+        from datetime import timezone
+        now = datetime.now(timezone.utc)
         items = []
         urgent_count = 0
         

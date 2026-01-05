@@ -42,6 +42,7 @@ async def get_pending_approvals(
     return await service.get_pending_approvals(
         approver_id=current_user.sub,
         entity_type=entity_type,
+        include_all=current_user.is_admin,
     )
 
 

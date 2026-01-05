@@ -387,9 +387,31 @@ class LeaveService:
                     callback_url=f"http://leave-service:8002/api/v1/leaves/internal/approval-callback/{id}",
                 )
             except Exception as e:
-                # Log but don't fail - approval service may not be available
+                # Revert status to DRAFT
                 import logging
-                logging.getLogger(__name__).warning(f"Failed to create approval request: {e}")
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to create approval request: {e}. Reverting to DRAFT.")
+                
+                await self._request_repo.update(
+                    id,
+                    status=LeaveRequestStatus.DRAFT,
+                )
+                
+                # Also remove the history entry we just added to keep log clean? 
+                # Ideally yes, but soft fail is acceptable. The history will show DRAFT -> PENDING -> DRAFT
+                await self._request_repo.add_history(
+                    leave_request_id=id,
+                    from_status=new_status,
+                    to_status=LeaveRequestStatus.DRAFT,
+                    changed_by=user_id,
+                    notes=f"System rollback: Failed to create approval request. Error: {str(e)}"
+                )
+                
+                # Re-raise so the user knows it failed
+                raise BusinessRuleError(
+                    f"Failed to initiate approval process: {str(e)}",
+                    rule="APPROVAL_CREATION_FAILED"
+                )
         
         # If auto-approved, deduct balance
         if new_status == LeaveRequestStatus.APPROVED:

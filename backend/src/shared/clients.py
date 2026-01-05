@@ -104,7 +104,8 @@ class AuthClient:
     async def get_department(self, department_id: UUID) -> Optional[dict]:
         """Get department details including manager_id."""
         try:
-            async with httpx.AsyncClient() as client:
+            transport = httpx.AsyncHTTPTransport(retries=3)
+            async with httpx.AsyncClient(transport=transport) as client:
                 response = await client.get(
                     f"{self.base_url}/api/v1/organization/departments/{department_id}",
                     timeout=5.0
@@ -118,7 +119,8 @@ class AuthClient:
     async def get_service(self, service_id: UUID) -> Optional[dict]:
         """Get service details including coordinator_id."""
         try:
-            async with httpx.AsyncClient() as client:
+            transport = httpx.AsyncHTTPTransport(retries=3)
+            async with httpx.AsyncClient(transport=transport) as client:
                 response = await client.get(
                     f"{self.base_url}/api/v1/organization/services/{service_id}",
                     timeout=5.0
@@ -198,7 +200,8 @@ class ConfigClient:
     async def get_sys_config(self, key: str, default: Any = None) -> Any:
         """Get system config value."""
         try:
-            async with httpx.AsyncClient() as client:
+            transport = httpx.AsyncHTTPTransport(retries=3)
+            async with httpx.AsyncClient(transport=transport) as client:
                 response = await client.get(
                     f"{self.base_url}/api/v1/config/{key}",
                     timeout=5.0
@@ -213,7 +216,8 @@ class ConfigClient:
     async def get_leave_type(self, leave_type_id: UUID) -> Optional[dict]:
         """Get leave type details."""
         try:
-            async with httpx.AsyncClient() as client:
+            transport = httpx.AsyncHTTPTransport(retries=3)
+            async with httpx.AsyncClient(transport=transport) as client:
                 response = await client.get(
                     f"{self.base_url}/api/v1/leave-types/{leave_type_id}",
                     timeout=5.0
@@ -369,7 +373,8 @@ class LeavesWalletClient:
             if year:
                 params["year"] = year
             
-            async with httpx.AsyncClient() as client:
+            transport = httpx.AsyncHTTPTransport(retries=3)
+            async with httpx.AsyncClient(transport=transport) as client:
                 response = await client.get(
                     f"{self.base_url}/api/v1/leaves-wallets/{user_id}",
                     params=params,
@@ -385,7 +390,8 @@ class LeavesWalletClient:
         """Get comprehensive balance summary."""
         try:
             params = {"year": year} if year else {}
-            async with httpx.AsyncClient() as client:
+            transport = httpx.AsyncHTTPTransport(retries=3)
+            async with httpx.AsyncClient(transport=transport) as client:
                 response = await client.get(
                     f"{self.base_url}/api/v1/leaves-wallets/{user_id}/summary",
                     params=params,
@@ -439,7 +445,8 @@ class LeavesWalletClient:
             if year:
                 params["year"] = year
                 
-            async with httpx.AsyncClient() as client:
+            transport = httpx.AsyncHTTPTransport(retries=3)
+            async with httpx.AsyncClient(transport=transport) as client:
                 response = await client.get(
                     f"{self.base_url}/api/v1/leaves-wallets/internal/check",
                     params=params,
