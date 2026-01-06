@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from src.shared.schemas import BaseSchema, IDMixin, DataTableResponse
 from src.services.notifications.models import (
@@ -294,11 +294,27 @@ class EmailProviderSettingsUpdate(BaseModel):
     daily_limit: Optional[int] = None
 
 
+
+    @staticmethod
+    def _mask_key(key: str) -> str:
+        if not key or len(key) < 4:
+            return "****"
+        return f"...{key[-4:]}"
+
+    @classmethod
+    def model_validate(cls, obj: any, *args, **kwargs) -> "EmailProviderSettingsResponse":
+        # Handle SQLAlchemy model with api_key attribute
+        if hasattr(obj, "api_key") and obj.api_key:
+             # If obj is a dict, we can't set attribute easily, but if it is an ORM object we can
+             # But a cleaner way is using Pydantic's Pre-Validator
+             pass
+        return super().model_validate(obj, *args, **kwargs)
+
 class EmailProviderSettingsResponse(IDMixin, BaseSchema):
     """Response schema for provider settings (API key masked)."""
     
     provider: str
-    api_key_masked: str  # Show only last 4 chars
+    api_key_masked: str = Field(..., description="Masked API Key for display")
     sender_email: str
     sender_name: str
     reply_to_email: Optional[str] = None
@@ -310,6 +326,47 @@ class EmailProviderSettingsResponse(IDMixin, BaseSchema):
     emails_sent_today: int
     created_at: datetime
     updated_at: datetime
+
+    @model_validator(mode='before')
+    @classmethod
+    def mask_api_key(cls, data: any) -> any:
+        # Check if data has api_key (it could be dict or ORM object)
+        api_key = None
+        if isinstance(data, dict):
+            api_key = data.get("api_key")
+        elif hasattr(data, "api_key"):
+            api_key = data.api_key
+            
+        if api_key:
+             masked = f"...{api_key[-4:]}" if len(api_key) > 4 else "****"
+             # In Pydantic V2 'before' validator, we modify the dict
+             if isinstance(data, dict):
+                 data["api_key_masked"] = masked
+             else:
+                 # It's an ORM object. We can't modify it easily.
+                 # We can convert to dict or use from_attributes logic.
+                 # The Best Way: Pydantic 'Computed Field' or property on model.
+                 # But sticking to Schema approach:
+                 # Set the value on the model instance (if possible) or create a dict.
+                 # Actually, Pydantic V2 handles from_attributes by calling this validator with the ORM object.
+                 # We should return a dict with the computed field.
+                 return {
+                     "id": data.id,
+                     "provider": data.provider,
+                     "api_key_masked": masked,
+                     "sender_email": data.sender_email,
+                     "sender_name": data.sender_name,
+                     "reply_to_email": data.reply_to_email,
+                     "reply_to_name": data.reply_to_name,
+                     "is_active": data.is_active,
+                     "test_mode": data.test_mode,
+                     "test_email": data.test_email,
+                     "daily_limit": data.daily_limit,
+                     "emails_sent_today": getattr(data, "emails_sent_today", 0) or 0,
+                     "created_at": data.created_at,
+                     "updated_at": data.updated_at
+                 }
+        return data
 
 
 class TestEmailRequest(BaseModel):

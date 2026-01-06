@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from src.core.security import get_current_user, require_approver, require_permission, TokenPayload
 from src.core.exceptions import NotFoundError, BusinessRuleError, ValidationError
 from src.shared.schemas import DataTableRequest
-from src.services.leaves.service import LeaveService
+from src.services.leaves.services import LeaveService
 from src.services.leaves.models import LeaveRequestStatus
 from src.services.leaves.schemas import (
     LeaveRequestResponse,

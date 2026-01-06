@@ -1,7 +1,7 @@
 
 import asyncio
 from uuid import UUID
-from src.services.leaves.service import LeaveService
+from src.services.leaves.services import LeaveService
 from src.core.database import async_session_factory
 from pydantic import RootModel
 

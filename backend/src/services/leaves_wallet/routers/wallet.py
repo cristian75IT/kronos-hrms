@@ -238,9 +238,7 @@ async def get_wallet_transactions(
     
     if not current_user.is_admin:
         # Check if wallet belongs to user
-        stmt = select(EmployeeWallet.user_id).where(EmployeeWallet.id == wallet_id)
-        res = await session.execute(stmt)
-        owner_id = res.scalar_one_or_none()
+        owner_id = await service.get_wallet_owner(wallet_id)
         if owner_id != current_user.sub and "leaves:view" not in current_user.permissions:
             raise HTTPException(status_code=403, detail="Not authorized")
     

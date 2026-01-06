@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
-from src.services.leaves.service import LeaveService
+from src.services.leaves.services import LeaveService
 from src.services.leaves.models import LeaveRequestStatus
 
 logger = logging.getLogger(__name__)

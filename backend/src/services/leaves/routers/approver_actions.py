@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.database import get_db
 from src.core.security import get_current_user, require_approver as require_manager, TokenPayload
 from src.core.exceptions import NotFoundError, BusinessRuleError, ValidationError
-from src.services.leaves.service import LeaveService
+from src.services.leaves.services import LeaveService
 from src.services.leaves.schemas import (
     LeaveRequestResponse,
     LeaveRequestListItem,

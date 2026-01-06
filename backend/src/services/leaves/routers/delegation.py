@@ -15,7 +15,7 @@ from sqlalchemy import select, and_
 from src.core.database import get_db
 from src.core.security import get_current_user, require_approver as require_manager, TokenPayload
 from src.core.exceptions import NotFoundError, BusinessRuleError
-from src.services.leaves.models import ApprovalDelegation
+from src.services.leaves.repository import ApprovalDelegationRepository
 from src.services.leaves.schemas import (
     CreateDelegationRequest,
     DelegationResponse,
@@ -39,15 +39,10 @@ async def get_my_delegations(
     
     Shows who I have delegated my approval authority to.
     """
-    stmt = select(ApprovalDelegation).where(
-        ApprovalDelegation.delegator_id == token.sub
-    )
-    
-    if not include_inactive:
-        stmt = stmt.where(ApprovalDelegation.is_active == True)
-    
-    result = await db.execute(stmt.order_by(ApprovalDelegation.created_at.desc()))
-    delegations = result.scalars().all()
+    Shows who I have delegated my approval authority to.
+    """
+    repo = ApprovalDelegationRepository(db)
+    delegations = await repo.get_by_delegator(token.sub, active_only=not include_inactive)
     
     return [DelegationResponse.model_validate(d, from_attributes=True) for d in delegations]
 
@@ -63,21 +58,10 @@ async def get_received_delegations(
     
     Shows whose approval authority has been delegated to me.
     """
-    today = date.today()
-    
-    stmt = select(ApprovalDelegation).where(
-        ApprovalDelegation.delegate_id == token.sub
-    )
-    
-    if active_only:
-        stmt = stmt.where(
-            ApprovalDelegation.is_active == True,
-            ApprovalDelegation.start_date <= today,
-            ApprovalDelegation.end_date >= today,
-        )
-    
-    result = await db.execute(stmt.order_by(ApprovalDelegation.created_at.desc()))
-    delegations = result.scalars().all()
+    Shows whose approval authority has been delegated to me.
+    """
+    repo = ApprovalDelegationRepository(db)
+    delegations = await repo.get_received(token.sub, active_only=active_only)
     
     return [DelegationResponse.model_validate(d, from_attributes=True) for d in delegations]
 
@@ -94,22 +78,16 @@ async def create_delegation(
     Delegate your approval authority to another manager for a specific period.
     Commonly used when going on vacation.
     """
+    Commonly used when going on vacation.
+    """
+    repo = ApprovalDelegationRepository(db)
+
     # Cannot delegate to self
     if data.delegate_id == token.sub:
         raise HTTPException(status_code=400, detail="Cannot delegate to yourself")
     
     # Check for overlapping active delegations
-    overlap_stmt = select(ApprovalDelegation).where(
-        and_(
-            ApprovalDelegation.delegator_id == token.sub,
-            ApprovalDelegation.delegate_id == data.delegate_id,
-            ApprovalDelegation.is_active == True,
-            ApprovalDelegation.start_date <= data.end_date,
-            ApprovalDelegation.end_date >= data.start_date,
-        )
-    )
-    result = await db.execute(overlap_stmt)
-    existing = result.scalar_one_or_none()
+    existing = await repo.check_overlap(token.sub, data.delegate_id, data.start_date, data.end_date)
     
     if existing:
         raise HTTPException(
@@ -118,7 +96,7 @@ async def create_delegation(
         )
     
     # Create delegation
-    delegation = ApprovalDelegation(
+    delegation = await repo.create(
         delegator_id=token.sub,
         delegate_id=data.delegate_id,
         start_date=data.start_date,
@@ -128,9 +106,6 @@ async def create_delegation(
         reason=data.reason,
         is_active=True,
     )
-    
-    db.add(delegation)
-    await db.flush()
     
     return DelegationResponse.model_validate(delegation, from_attributes=True)
 
@@ -142,10 +117,8 @@ async def get_delegation(
     db: AsyncSession = Depends(get_db),
 ):
     """Get a specific delegation."""
-    result = await db.execute(
-        select(ApprovalDelegation).where(ApprovalDelegation.id == delegation_id)
-    )
-    delegation = result.scalar_one_or_none()
+    repo = ApprovalDelegationRepository(db)
+    delegation = await repo.get(delegation_id)
     
     if not delegation:
         raise HTTPException(status_code=404, detail="Delegation not found")
@@ -169,10 +142,8 @@ async def revoke_delegation(
     
     Only the delegator can revoke their own delegations.
     """
-    result = await db.execute(
-        select(ApprovalDelegation).where(ApprovalDelegation.id == delegation_id)
-    )
-    delegation = result.scalar_one_or_none()
+    repo = ApprovalDelegationRepository(db)
+    delegation = await repo.get(delegation_id)
     
     if not delegation:
         raise HTTPException(status_code=404, detail="Delegation not found")
@@ -203,10 +174,8 @@ async def delete_delegation(
     
     Use revoke instead if delegation is active or has been used.
     """
-    result = await db.execute(
-        select(ApprovalDelegation).where(ApprovalDelegation.id == delegation_id)
-    )
-    delegation = result.scalar_one_or_none()
+    repo = ApprovalDelegationRepository(db)
+    delegation = await repo.get(delegation_id)
     
     if not delegation:
         raise HTTPException(status_code=404, detail="Delegation not found")
@@ -221,8 +190,7 @@ async def delete_delegation(
             detail="Cannot delete a delegation that has started. Use revoke instead."
         )
     
-    await db.delete(delegation)
-    await db.flush()
+    await repo.delete(delegation_id)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -239,20 +207,13 @@ async def get_active_delegations_for_user(
     
     Used internally to check if a user can approve on behalf of others.
     """
-    today = date.today()
+    Used internally to check if a user can approve on behalf of others.
+    """
+    repo = ApprovalDelegationRepository(db)
+    delegations = await repo.get_received(delegate_id, active_only=True)
     
-    stmt = select(ApprovalDelegation).where(
-        and_(
-            ApprovalDelegation.delegate_id == delegate_id,
-            ApprovalDelegation.is_active == True,
-            ApprovalDelegation.start_date <= today,
-            ApprovalDelegation.end_date >= today,
-            ApprovalDelegation.delegation_type == "FULL",  # Only full delegations can approve
-        )
-    )
-    
-    result = await db.execute(stmt)
-    delegations = result.scalars().all()
+    # Filter for FULL delegations only (only full delegations can approve)
+    delegations = [d for d in delegations if d.delegation_type == "FULL"]
     
     # Filter by leave type if specified
     if leave_type_code:

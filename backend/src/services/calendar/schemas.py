@@ -274,16 +274,26 @@ class EventResponse(EventBase):
 
 class CalendarDayItem(BaseModel):
     """Single item in a calendar day view."""
-    id: UUID
+    id: Optional[UUID] = None  # Made optional for generated items
     title: str
-    item_type: CalendarItemType
-    start_date: date
-    end_date: date
-    color: str
+    type: str # Simplified from ENUM to allow flexibility
+    date: date
+    end_date: Optional[date] = None # Optional, defaults to date
+    color: Optional[str] = None
     is_all_day: bool = True
     start_time: Optional[time] = None
     end_time: Optional[time] = None
+    status: Optional[str] = None
     metadata: Optional[dict] = None
+
+class CalendarRangeResponse(BaseModel):
+    """Aggregated response for a date range with separated lists."""
+    start_date: date
+    end_date: date
+    holidays: List[CalendarDayItem] = []
+    closures: List[CalendarDayItem] = []
+    events: List[CalendarDayItem] = []
+    leaves: List[CalendarDayItem] = []
 
 class CalendarDayView(BaseModel):
     """Aggregated view of a single day."""

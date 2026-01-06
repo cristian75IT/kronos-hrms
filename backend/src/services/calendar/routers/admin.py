@@ -13,7 +13,7 @@ from ..schemas import (
     HolidayCreate, HolidayUpdate, HolidayResponse,
     LocationCalendarCreate, LocationCalendarUpdate, LocationCalendarResponse
 )
-from ..service import CalendarService
+from ..services import CalendarService
 
 router = APIRouter()
 

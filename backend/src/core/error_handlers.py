@@ -14,6 +14,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.core.exceptions import (
     KronosException,
@@ -186,9 +187,21 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     )
 
 
+
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    """Handle standard HTTP exceptions (404, 405, etc.)."""
+    return create_error_response(
+        status_code=exc.status_code,
+        code=f"HTTP_{exc.status_code}",
+        message=str(exc.detail),
+        request=request,
+    )
+
+
 def register_error_handlers(app: FastAPI) -> None:
     """Register all error handlers on the application."""
     app.add_exception_handler(KronosException, kronos_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(Exception, global_exception_handler)

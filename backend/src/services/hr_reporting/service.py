@@ -9,7 +9,6 @@ from decimal import Decimal
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 
-from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import NotFoundError, BusinessRuleError
@@ -19,11 +18,20 @@ from .models import (
     GeneratedReport,
     DailySnapshot,
     HRAlert,
-    EmployeeMonthlyStats,
     ReportType,
     ReportStatus,
 )
 from .aggregator import HRDataAggregator
+from .repository import (
+    ReportRepository,
+    DailySnapshotRepository,
+    HRAlertRepository,
+    # Additional repos if needed in future
+    TrainingRecordRepository,
+    MedicalRecordRepository,
+    SafetyComplianceRepository,
+    EmployeeMonthlyStatsRepository
+)
 from .schemas import (
     DashboardOverview,
     WorkforceStatus,
@@ -56,6 +64,11 @@ class HRReportingService:
         self._session = session
         self._aggregator = HRDataAggregator()
         self._audit = get_audit_logger("hr-reporting-service")
+        
+        # Repositories
+        self.report_repo = ReportRepository(session)
+        self.snapshot_repo = DailySnapshotRepository(session)
+        self.alert_repo = HRAlertRepository(session)
     
     # ═══════════════════════════════════════════════════════════
     # Dashboard Operations
@@ -117,11 +130,12 @@ class HRReportingService:
     ) -> MonthlyReportResponse:
         """Generate monthly absence report."""
         period = f"{year}-{month:02d}"
+        period_start = date(year, month, 1)
         
         # Check for cached report
-        cached = await self._get_cached_report(
+        cached = await self.report_repo.get_cached(
             ReportType.MONTHLY_ABSENCE,
-            date(year, month, 1),
+            period_start,
             department_id,
         )
         if cached and cached.status == ReportStatus.COMPLETED:
@@ -151,7 +165,7 @@ class HRReportingService:
         # Create report record
         report = GeneratedReport(
             report_type=ReportType.MONTHLY_ABSENCE,
-            period_start=date(year, month, 1),
+            period_start=period_start,
             period_end=self._get_month_end(year, month),
             department_id=department_id,
             status=ReportStatus.COMPLETED,
@@ -160,8 +174,9 @@ class HRReportingService:
             generated_by=generated_by,
             generated_at=datetime.utcnow(),
         )
-        self._session.add(report)
-        await self._session.flush()
+        
+        await self.report_repo.create(report)
+        await self._session.commit()
         
         # Audit
         await self._audit.log_action(
@@ -297,18 +312,7 @@ class HRReportingService:
     
     async def get_active_alerts(self, limit: int = 50) -> List[AlertItem]:
         """Get active HR alerts."""
-        stmt = (
-            select(HRAlert)
-            .where(HRAlert.is_active == True)
-            .order_by(
-                # Critical first
-                HRAlert.severity.desc(),
-                HRAlert.created_at.desc(),
-            )
-            .limit(limit)
-        )
-        result = await self._session.execute(stmt)
-        alerts = result.scalars().all()
+        alerts = await self.alert_repo.get_active(limit=limit)
         
         return [
             AlertItem(
@@ -349,8 +353,8 @@ class HRReportingService:
             action_deadline=action_deadline,
             extra_data=metadata,
         )
-        self._session.add(alert)
-        await self._session.flush()
+        await self.alert_repo.create(alert)
+        await self._session.commit()
         return alert
     
     async def acknowledge_alert(
@@ -359,29 +363,29 @@ class HRReportingService:
         acknowledged_by: UUID,
     ) -> HRAlert:
         """Acknowledge an alert."""
-        stmt = select(HRAlert).where(HRAlert.id == alert_id)
-        result = await self._session.execute(stmt)
-        alert = result.scalar_one_or_none()
-        
+        alert = await self.alert_repo.get(alert_id)
         if not alert:
             raise NotFoundError("Alert not found", entity_type="HRAlert", entity_id=str(alert_id))
         
         alert.acknowledged_by = acknowledged_by
         alert.acknowledged_at = datetime.utcnow()
         
+        await self.alert_repo.update(alert)
+        await self._session.commit()
+        
         return alert
     
     async def resolve_alert(self, alert_id: UUID) -> HRAlert:
         """Mark alert as resolved."""
-        stmt = select(HRAlert).where(HRAlert.id == alert_id)
-        result = await self._session.execute(stmt)
-        alert = result.scalar_one_or_none()
-        
+        alert = await self.alert_repo.get(alert_id)
         if not alert:
             raise NotFoundError("Alert not found", entity_type="HRAlert", entity_id=str(alert_id))
         
         alert.is_active = False
         alert.resolved_at = datetime.utcnow()
+        
+        await self.alert_repo.update(alert)
+        await self._session.commit()
         
         return alert
     
@@ -394,16 +398,12 @@ class HRReportingService:
         today = date.today()
         
         # Check if already exists
-        stmt = select(DailySnapshot).where(DailySnapshot.snapshot_date == today)
-        result = await self._session.execute(stmt)
-        existing = result.scalar_one_or_none()
+        existing = await self.snapshot_repo.get_by_date(today)
         
         if existing:
-            # Update existing
             snapshot = existing
         else:
             snapshot = DailySnapshot(snapshot_date=today)
-            self._session.add(snapshot)
         
         # Fetch current data
         workforce = await self._aggregator.get_workforce_status(today)
@@ -418,7 +418,12 @@ class HRReportingService:
         snapshot.pending_leave_requests = approvals.get("leave_requests", 0)
         snapshot.pending_expense_reports = approvals.get("expense_reports", 0)
         
-        await self._session.flush()
+        if existing:
+             await self.snapshot_repo.update(snapshot)
+        else:
+             await self.snapshot_repo.create(snapshot)
+             
+        await self._session.commit()
         
         logger.info(f"Created daily snapshot for {today}")
         return snapshot
@@ -438,28 +443,6 @@ class HRReportingService:
             "ytd_vacation_days_used": 0,
             "ytd_sick_days": 0,
         }
-    
-    async def _get_cached_report(
-        self,
-        report_type: str,
-        period_start: date,
-        department_id: Optional[UUID] = None,
-    ) -> Optional[GeneratedReport]:
-        """Check for cached report."""
-        conditions = [
-            GeneratedReport.report_type == report_type,
-            GeneratedReport.period_start == period_start,
-            GeneratedReport.status == ReportStatus.COMPLETED.value,
-        ]
-        
-        if department_id:
-            conditions.append(GeneratedReport.department_id == department_id)
-        else:
-            conditions.append(GeneratedReport.department_id.is_(None))
-        
-        stmt = select(GeneratedReport).where(and_(*conditions))
-        result = await self._session.execute(stmt)
-        return result.scalar_one_or_none()
     
     def _report_from_cache(self, cached: GeneratedReport) -> MonthlyReportResponse:
         """Reconstruct report from cache."""

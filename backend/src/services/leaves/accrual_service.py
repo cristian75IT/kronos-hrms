@@ -4,12 +4,7 @@ from decimal import Decimal
 from typing import Optional, Any, Tuple
 from uuid import UUID
 
-from sqlalchemy import select, or_
-from sqlalchemy.orm import selectinload
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from src.services.auth.models import EmployeeContract, User
-from src.services.config.models import NationalContractVersion
+from src.services.leaves.repository import ContractRepository
 from src.services.leaves.strategies import StrategyFactory
 from src.shared.clients import LeavesWalletClient as WalletClient
 
@@ -18,13 +13,12 @@ class AccrualService:
 
     def __init__(self, session: AsyncSession, wallet_client: WalletClient):
         self._session = session
+        self._contract_repo = ContractRepository(session)
         self._wallet_client = wallet_client
 
     async def recalculate_all_balances(self, year: int):
         """Recalculate accruals for all users based on contracts."""
-        query = select(EmployeeContract.user_id).distinct()
-        result = await self._session.execute(query)
-        user_ids = result.scalars().all()
+        user_ids = await self._contract_repo.get_distinct_user_ids()
 
         for user_id in user_ids:
             await self.recalculate_user_accrual(user_id, year)
@@ -67,26 +61,9 @@ class AccrualService:
     async def _get_monthly_accrual_params(self, contract: EmployeeContract, reference_date: date):
         # 1. Try CCNL config
         if contract.national_contract_id:
-            query = (
-                select(NationalContractVersion)
-                .where(
-                    NationalContractVersion.national_contract_id == contract.national_contract_id,
-                    NationalContractVersion.valid_from <= reference_date,
-                    or_(
-                        NationalContractVersion.valid_to >= reference_date,
-                        NationalContractVersion.valid_to == None
-                    )
-                )
-                .options(
-                    selectinload(NationalContractVersion.contract_type_configs),
-                    selectinload(NationalContractVersion.vacation_calc_mode),
-                    selectinload(NationalContractVersion.rol_calc_mode)
-                )
-                .order_by(NationalContractVersion.valid_from.desc())
-                .limit(1)
+            version = await self._contract_repo.get_national_contract_version(
+                contract.national_contract_id, reference_date
             )
-            result = await self._session.execute(query)
-            version = result.scalar_one_or_none()
             
             if version:
                 type_config = next(
@@ -128,9 +105,7 @@ class AccrualService:
     async def preview_recalculate(self, year: int) -> list[dict]:
         """Preview recalculation changes."""
         previews = []
-        query = select(EmployeeContract.user_id).distinct()
-        result = await self._session.execute(query)
-        user_ids = result.scalars().all()
+        user_ids = await self._contract_repo.get_distinct_user_ids()
         
         for user_id in user_ids:
             # Get confirmed wallet
@@ -141,6 +116,7 @@ class AccrualService:
             
             new_vacation, new_rol, new_permits = await self._calculate_accrual_preview(user_id, year)
             
+            from src.services.auth.models import User
             user_query = select(User).where(User.keycloak_id == str(user_id))
             user_result = await self._session.execute(user_query)
             user = user_result.scalar_one_or_none()
@@ -159,14 +135,7 @@ class AccrualService:
         return previews
 
     async def _calculate_accrual_preview(self, user_id: UUID, year: int) -> Tuple[float, float, float]:
-        query = (
-            select(EmployeeContract)
-            .options(selectinload(EmployeeContract.contract_type))
-            .where(EmployeeContract.user_id == user_id)
-            .order_by(EmployeeContract.start_date)
-        )
-        result = await self._session.execute(query)
-        contracts = result.scalars().all()
+        contracts = await self._contract_repo.get_user_contracts(user_id)
 
         if not contracts:
             return (0, 0, 0)
@@ -219,9 +188,7 @@ class AccrualService:
 
     async def run_monthly_accruals(self, year: int, month: int):
         """Processes monthly accruals and posts them to WalletService."""
-        query = select(EmployeeContract.user_id).distinct()
-        result = await self._session.execute(query)
-        user_ids = result.scalars().all()
+        user_ids = await self._contract_repo.get_distinct_user_ids()
         
         accrual_date = date(year, month, 1)
         _, days_in_month = monthrange(year, month)
@@ -229,17 +196,7 @@ class AccrualService:
         
         processed_count = 0
         for user_id in user_ids:
-            query = (
-                select(EmployeeContract)
-                .where(
-                    EmployeeContract.user_id == user_id,
-                    EmployeeContract.start_date <= month_end,
-                    or_(EmployeeContract.end_date >= accrual_date, EmployeeContract.end_date == None)
-                )
-                .order_by(EmployeeContract.start_date.desc())
-            )
-            res = await self._session.execute(query)
-            contracts = res.scalars().all()
+            contracts = await self._contract_repo.get_contracts_in_month(user_id, accrual_date, month_end)
             
             if not contracts:
                 continue

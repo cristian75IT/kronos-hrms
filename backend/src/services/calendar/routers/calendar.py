@@ -26,7 +26,7 @@ from ..schemas import (
     ClosureResponse,
     CalendarRangeView,
 )
-from ..service import CalendarService
+from ..services import CalendarService
 
 router = APIRouter()
 

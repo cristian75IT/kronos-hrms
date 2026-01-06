@@ -7,7 +7,7 @@ from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import ValidationError, NotFoundError
-from src.services.leaves.models import LeaveRequest
+from src.services.leaves.repository import LeaveRequestRepository
 from src.services.leaves.schemas import BalanceSummary, BalanceAdjustment
 from src.shared.clients import LeavesWalletClient as WalletClient
 
@@ -16,6 +16,7 @@ class LeaveBalanceService:
 
     def __init__(self, session: AsyncSession, wallet_client: WalletClient):
         self._session = session
+        self._request_repo = LeaveRequestRepository(session)
         self._wallet_client = wallet_client
     
     async def get_balance(self, user_id: UUID, year: int) -> dict:
@@ -66,14 +67,7 @@ class LeaveBalanceService:
             
         # 2. Calculate pending requests from local database
         # These are requests submitted but not yet approved (which would trigger the Wallet deduction)
-        stmt = select(LeaveRequest).where(
-            LeaveRequest.user_id == user_id,
-            LeaveRequest.status.in_(['PENDING', 'APPROVED_CONDITIONAL']),
-            LeaveRequest.start_date >= date(year, 1, 1),
-            LeaveRequest.start_date <= date(year, 12, 31)
-        )
-        result = await self._session.execute(stmt)
-        pending_requests = result.scalars().all()
+        pending_requests = await self._request_repo.get_pending_by_user_and_year(user_id, year)
         
         vacation_pending = sum(
             Decimal(str(r.days_requested)) for r in pending_requests if r.leave_type_code in ["FER"]

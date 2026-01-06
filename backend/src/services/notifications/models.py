@@ -28,6 +28,15 @@ class NotificationChannel(str, enum.Enum):
     SMS = "sms"
 
 
+class NotificationPriority(str, enum.Enum):
+    """Notification priority."""
+    URGENT = "urgent"
+    HIGH = "high"
+    NORMAL = "normal"
+    LOW = "low"
+
+
+
 class NotificationStatus(str, enum.Enum):
     """Notification status."""
     PENDING = "pending"

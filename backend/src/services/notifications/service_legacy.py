@@ -524,10 +524,15 @@ class NotificationService:
             return
         
         # Build variables
+        # Resolve relative action_url to absolute using FRONTEND_URL
+        action_url = notification.action_url or ""
+        if action_url.startswith("/"):
+            action_url = f"{settings.frontend_url}{action_url}"
+        
         variables = {
             "title": notification.title,
             "message": notification.message,
-            "action_url": notification.action_url or "",
+            "action_url": action_url,
             **(notification.payload or {}),
         }
         

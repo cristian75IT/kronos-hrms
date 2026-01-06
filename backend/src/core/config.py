@@ -120,6 +120,33 @@ class Settings(BaseSettings):
     vapid_public_key: str = Field(default="", alias="VAPID_PUBLIC_KEY")
     vapid_subject: str = Field(default="mailto:admin@kronos.local", alias="VAPID_SUBJECT")
 
+    # ─────────────────────────────────────────────────────────────
+    # Frontend URL (for absolute links in emails/notifications)
+    # ─────────────────────────────────────────────────────────────
+    frontend_url: str = Field(
+        default="http://localhost:3000", alias="FRONTEND_URL"
+    )
+
+    # ─────────────────────────────────────────────────────────────
+    # Inter-Service Communication Settings
+    # ─────────────────────────────────────────────────────────────
+    service_timeout: float = Field(
+        default=10.0, alias="SERVICE_TIMEOUT",
+        description="Default timeout in seconds for inter-service HTTP calls"
+    )
+    service_max_retries: int = Field(
+        default=3, alias="SERVICE_MAX_RETRIES",
+        description="Maximum retry attempts for failed service calls"
+    )
+    service_pool_connections: int = Field(
+        default=100, alias="SERVICE_POOL_CONNECTIONS",
+        description="Maximum number of connections in the HTTP pool"
+    )
+    service_pool_keepalive: int = Field(
+        default=20, alias="SERVICE_POOL_KEEPALIVE",
+        description="Maximum number of keep-alive connections"
+    )
+
     @computed_field
     @property
     def is_development(self) -> bool:

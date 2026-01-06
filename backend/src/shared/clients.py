@@ -1,3 +1,30 @@
+"""
+KRONOS - Legacy Service Clients
+
+⚠️  DEPRECATED: This module is deprecated and will be removed in a future release.
+
+Please migrate to the new modular clients package:
+
+    # Old (deprecated)
+    from src.shared.clients import AuthClient, NotificationClient
+
+    # New (recommended) - same import path, now goes to package __init__.py
+    from src.shared.clients import AuthClient, NotificationClient
+    # or explicitly from modules
+    from src.shared.clients.auth import AuthClient
+    from src.shared.clients.notification import NotificationClient
+
+The new clients in src.shared.clients/ provide:
+- Connection pooling via shared httpx.AsyncClient
+- Standardized exception handling
+- Configurable timeouts and retries
+- Better type hints and documentation
+
+NOTE: Python will prefer the package (clients/__init__.py) over this file (clients.py)
+when importing "from src.shared.clients import ...". This file exists for documentation
+purposes and will be removed after migration is complete.
+"""
+import warnings
 import logging
 from datetime import date
 from typing import Optional, Any
@@ -9,6 +36,10 @@ from pydantic import BaseModel
 from src.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+
+
 
 
 class AuthClient:

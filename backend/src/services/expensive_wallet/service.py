@@ -14,13 +14,12 @@ from decimal import Decimal
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 
-from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.core.exceptions import ValidationError, NotFoundError, BusinessRuleError
 from src.shared.audit_client import get_audit_logger
 from .models import TripWallet, TripWalletTransaction
+from .repository import TripWalletRepository, TripWalletTransactionRepository
 
 
 # Default policy limits (can be overridden by config)
@@ -42,6 +41,8 @@ class TripWalletService:
 
     def __init__(self, session: AsyncSession):
         self.session = session
+        self._wallet_repo = TripWalletRepository(session)
+        self._txn_repo = TripWalletTransactionRepository(session)
         self._audit = get_audit_logger("trip-wallet-service")
 
     # ═══════════════════════════════════════════════════════════
@@ -50,13 +51,7 @@ class TripWalletService:
 
     async def get_wallet(self, trip_id: UUID) -> Optional[TripWallet]:
         """Get wallet for a trip."""
-        stmt = (
-            select(TripWallet)
-            .where(TripWallet.trip_id == trip_id)
-            .options(selectinload(TripWallet.transactions))
-        )
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        return await self._wallet_repo.get_by_trip(trip_id)
 
     async def get_wallet_summary(self, trip_id: UUID) -> Dict[str, Any]:
         """Get comprehensive wallet summary."""
@@ -65,8 +60,10 @@ class TripWalletService:
             return None
         
         # Calculate reserved amount (pending expenses)
-        reserved = await self._get_reserved_amount(wallet.id)
+        reserved = await self._txn_repo.get_pending_reservations(wallet.id)
         
+        # Note: wallet.total_budget, wallet.total_expenses etc are mapped columns.
+        # Ensure Decimal -> float conversion for JSON response
         return {
             "wallet_id": str(wallet.id),
             "trip_id": str(wallet.trip_id),
@@ -102,11 +99,8 @@ class TripWalletService:
 
     async def get_transactions(self, wallet_id: UUID, limit: int = 100) -> List[TripWalletTransaction]:
         """Get all transactions for a wallet."""
-        stmt = select(TripWalletTransaction).where(
-            TripWalletTransaction.wallet_id == wallet_id
-        ).order_by(TripWalletTransaction.created_at.desc()).limit(limit)
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        # Using Sequence to List conversion if needed
+        return list(await self._txn_repo.get_by_wallet(wallet_id, limit=limit))
 
     # ═══════════════════════════════════════════════════════════
     # Wallet Lifecycle
@@ -114,9 +108,9 @@ class TripWalletService:
 
     async def create_wallet(self, trip_id: UUID, user_id: UUID, budget: Decimal) -> TripWallet:
         """Initialize a new wallet for a trip."""
-        wallet = await self.get_wallet(trip_id)
-        if wallet:
-            return wallet
+        existing = await self.get_wallet(trip_id)
+        if existing:
+            return existing
 
         wallet = TripWallet(
             trip_id=trip_id,
@@ -129,18 +123,16 @@ class TripWalletService:
             status="OPEN",
             currency="EUR"
         )
-        self.session.add(wallet)
+        wallet = await self._wallet_repo.create(wallet)
         
         # Initial transaction
         tx = TripWalletTransaction(
-            wallet=wallet,
+            wallet_id=wallet.id,
             transaction_type="budget_allocation",
             amount=budget,
             description=f"Initial budget allocation for trip",
         )
-        self.session.add(tx)
-        
-        await self.session.flush()
+        await self._txn_repo.create(tx)
         
         # Audit
         await self._audit.log_action(
@@ -168,7 +160,7 @@ class TripWalletService:
         if not wallet:
             return (False, Decimal(0))
         
-        reserved = await self._get_reserved_amount(wallet.id)
+        reserved = await self._txn_repo.get_pending_reservations(wallet.id)
         available = wallet.total_budget - wallet.total_expenses - reserved
         
         return (available >= amount, available)
@@ -205,10 +197,7 @@ class TripWalletService:
             reference_id=reference_id,
             description=description or "Budget reservation for pending expense",
         )
-        self.session.add(tx)
-        await self.session.flush()
-        
-        return tx
+        return await self._txn_repo.create(tx)
 
     async def confirm_expense(self, trip_id: UUID, reference_id: UUID) -> Optional[TripWalletTransaction]:
         """
@@ -220,14 +209,10 @@ class TripWalletService:
         if not wallet:
             return None
         
-        # Find reservation
-        stmt = select(TripWalletTransaction).where(
-            TripWalletTransaction.wallet_id == wallet.id,
-            TripWalletTransaction.reference_id == reference_id,
-            TripWalletTransaction.transaction_type == "reservation",
-        )
-        result = await self.session.execute(stmt)
-        reservation = result.scalar_one_or_none()
+        # Find reservation calls repo
+        # Use get_by_reference which returns list, find appropriate one
+        txs = await self._txn_repo.get_by_reference(reference_id)
+        reservation = next((t for t in txs if t.transaction_type == "reservation"), None)
         
         if not reservation:
             return None
@@ -245,6 +230,7 @@ class TripWalletService:
         # Mark reservation as consumed
         reservation.transaction_type = "reservation_converted"
         reservation.description = f"{reservation.description} → Confirmed"
+        await self._txn_repo.update(reservation)
         
         # Create actual expense transaction
         expense_tx = TripWalletTransaction(
@@ -258,8 +244,10 @@ class TripWalletService:
             is_reimbursable=reservation.is_reimbursable,
             has_receipt=reservation.has_receipt,
         )
-        self.session.add(expense_tx)
-        await self.session.flush()
+        await self._txn_repo.create(expense_tx)
+        
+        # Update Wallet persistence
+        await self._wallet_repo.update(wallet)
         
         return expense_tx
 
@@ -269,17 +257,9 @@ class TripWalletService:
         
         Releases the reserved budget.
         """
-        wallet = await self.get_wallet(trip_id)
-        if not wallet:
-            return False
-        
-        stmt = select(TripWalletTransaction).where(
-            TripWalletTransaction.wallet_id == wallet.id,
-            TripWalletTransaction.reference_id == reference_id,
-            TripWalletTransaction.transaction_type == "reservation",
-        )
-        result = await self.session.execute(stmt)
-        reservation = result.scalar_one_or_none()
+        # Logic similar to confirm
+        txs = await self._txn_repo.get_by_reference(reference_id)
+        reservation = next((t for t in txs if t.transaction_type == "reservation"), None)
         
         if not reservation:
             return False
@@ -287,17 +267,9 @@ class TripWalletService:
         # Mark as cancelled (don't delete for audit trail)
         reservation.transaction_type = "reservation_cancelled"
         reservation.description = f"{reservation.description} → Cancelled"
+        await self._txn_repo.update(reservation)
         
         return True
-
-    async def _get_reserved_amount(self, wallet_id: UUID) -> Decimal:
-        """Get total reserved (pending) amount."""
-        stmt = select(func.coalesce(func.sum(TripWalletTransaction.amount), Decimal(0))).where(
-            TripWalletTransaction.wallet_id == wallet_id,
-            TripWalletTransaction.transaction_type == "reservation",
-        )
-        result = await self.session.execute(stmt)
-        return result.scalar() or Decimal(0)
 
     # ═══════════════════════════════════════════════════════════
     # Transaction Processing
@@ -342,7 +314,7 @@ class TripWalletService:
             description=description,
             created_by=created_by
         )
-        self.session.add(tx)
+        await self._txn_repo.create(tx)
 
         # Update Wallet Ledgers
         if transaction_type == "expense_approval":
@@ -356,6 +328,8 @@ class TripWalletService:
             if not has_receipt:
                 wallet.policy_violations_count += 1
                 tx.compliance_flags = "MISSING_RECEIPT"
+                # Need to update tx if flags changed
+                await self._txn_repo.update(tx)
                 
         elif transaction_type == "advance_payment":
             wallet.total_advances += amount
@@ -373,7 +347,7 @@ class TripWalletService:
             # Final settlement transaction
             wallet.status = "SETTLED"
         
-        await self.session.flush()
+        await self._wallet_repo.update(wallet)
         
         # Audit
         await self._audit.log_action(
@@ -473,6 +447,7 @@ class TripWalletService:
         
         wallet.is_reconciled = True
         wallet.status = "RECONCILED"
+        await self._wallet_repo.update(wallet)
         
         # Audit
         await self._audit.log_action(
@@ -517,11 +492,10 @@ class TripWalletService:
             description=f"Final settlement. Payment ref: {payment_reference or 'N/A'}",
             created_by=settled_by,
         )
-        self.session.add(tx)
+        await self._txn_repo.create(tx)
         
         wallet.status = "SETTLED"
-        
-        await self.session.flush()
+        await self._wallet_repo.update(wallet)
         
         # Audit
         await self._audit.log_action(
@@ -576,17 +550,13 @@ class TripWalletService:
         voided_by: UUID,
     ) -> TripWalletTransaction:
         """Void a transaction (does not delete, marks as voided)."""
-        stmt = select(TripWalletTransaction).where(
-            TripWalletTransaction.id == transaction_id
-        )
-        result = await self.session.execute(stmt)
-        tx = result.scalar_one_or_none()
+        tx = await self._txn_repo.get(transaction_id)
         
         if not tx:
             raise NotFoundError("Transaction not found", entity_type="TripWalletTransaction", entity_id=str(transaction_id))
         
         # Create reversal transaction
-        wallet = await self.session.get(TripWallet, tx.wallet_id)
+        wallet = await self._wallet_repo.get(tx.wallet_id)
         
         reversal = TripWalletTransaction(
             wallet_id=tx.wallet_id,
@@ -597,7 +567,7 @@ class TripWalletService:
             description=f"VOIDED: {reason}. Original: {tx.description}",
             created_by=voided_by,
         )
-        self.session.add(reversal)
+        await self._txn_repo.create(reversal)
         
         # Reverse wallet totals based on original type
         if tx.transaction_type == "expense_approval":
@@ -608,8 +578,9 @@ class TripWalletService:
             wallet.total_budget -= tx.amount
         
         tx.compliance_flags = f"VOIDED:{reason}"
+        await self._txn_repo.update(tx)
         
-        await self.session.flush()
+        await self._wallet_repo.update(wallet)
         
         # Audit
         await self._audit.log_action(
@@ -625,11 +596,7 @@ class TripWalletService:
 
     async def get_open_wallets(self) -> List[TripWallet]:
         """Get all open (non-settled) wallets."""
-        stmt = select(TripWallet).where(
-            TripWallet.status.in_(["OPEN", "RECONCILED"])
-        ).order_by(TripWallet.created_at.desc())
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        return list(await self._wallet_repo.get_open_wallets())
 
     async def get_policy_violations(
         self,
@@ -637,27 +604,4 @@ class TripWalletService:
         trip_id: Optional[UUID] = None,
     ) -> List[TripWalletTransaction]:
         """Get transactions with policy violations."""
-        conditions = [TripWalletTransaction.compliance_flags.isnot(None)]
-        
-        if trip_id:
-            wallet = await self.get_wallet(trip_id)
-            if wallet:
-                conditions.append(TripWalletTransaction.wallet_id == wallet.id)
-        
-        if user_id:
-            # Need to join with wallet to filter by user
-            conditions.append(TripWallet.user_id == user_id)
-            stmt = (
-                select(TripWalletTransaction)
-                .join(TripWallet)
-                .where(and_(*conditions))
-                .order_by(TripWalletTransaction.created_at.desc())
-            )
-        else:
-            stmt = select(TripWalletTransaction).where(
-                and_(*conditions)
-            ).order_by(TripWalletTransaction.created_at.desc())
-        
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
-
+        return list(await self._txn_repo.get_policy_violations(user_id=user_id, trip_id=trip_id))

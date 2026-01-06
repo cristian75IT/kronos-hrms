@@ -127,9 +127,19 @@ class DailyAllowanceBase(BaseModel):
     notes: Optional[str] = None
 
 
+
 class DailyAllowanceCreate(DailyAllowanceBase):
     """Schema for creating daily allowance."""
     pass
+
+
+class DailyAllowanceUpdate(BaseModel):
+    """Schema for updating daily allowance."""
+    is_full_day: Optional[bool] = None
+    breakfast_provided: Optional[bool] = None
+    lunch_provided: Optional[bool] = None
+    dinner_provided: Optional[bool] = None
+    notes: Optional[str] = None
 
 
 class DailyAllowanceResponse(DailyAllowanceBase, IDMixin, BaseSchema):

@@ -12,7 +12,7 @@ from src.core.config import settings
 from src.core.security import get_current_user, require_permission, TokenPayload
 from src.core.exceptions import NotFoundError, ConflictError
 from src.shared.schemas import MessageResponse
-from src.services.config.service import ConfigService
+from src.services.config.services import ConfigService
 from src.services.config.schemas import (
     SystemConfigResponse,
     SystemConfigCreate,

@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional, List
+from typing import Optional, List, Dict
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -71,3 +71,37 @@ class WalletSummary(BaseModel):
     total_expenses: Decimal
     remaining_budget: Decimal
     reimbursement_due: Decimal
+
+
+# ═══════════════════════════════════════════════════════════
+# Request Schemas
+# ═══════════════════════════════════════════════════════════
+
+class BudgetReserveRequest(BaseModel):
+    amount: Decimal
+    reference_id: UUID
+    category: Optional[str] = None
+    description: Optional[str] = None
+
+
+class PolicyCheckRequest(BaseModel):
+    category: str
+    amount: Decimal
+
+
+class ReconcileRequest(BaseModel):
+    notes: Optional[str] = None
+    adjustments: Optional[List[Dict]] = None
+
+
+class SettleRequest(BaseModel):
+    payment_reference: Optional[str] = None
+
+
+class UpdateBudgetRequest(BaseModel):
+    new_budget: Decimal
+    reason: str
+
+
+class VoidTransactionRequest(BaseModel):
+    reason: str

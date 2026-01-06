@@ -7,7 +7,7 @@ from src.core.security import get_current_user, TokenPayload
 from src.shared.clients import ConfigClient, LeavesWalletClient as WalletClient
 from src.services.leaves.calendar_utils import CalendarUtils
 
-from src.services.leaves.service import LeaveService
+from src.services.leaves.services import LeaveService
 from src.services.leaves.balance_service import LeaveBalanceService
 from src.services.leaves.accrual_service import AccrualService
 from src.services.leaves.calendar_service import LeaveCalendarService

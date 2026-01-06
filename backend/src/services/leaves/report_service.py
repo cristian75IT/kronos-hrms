@@ -1,16 +1,7 @@
 from datetime import date, timedelta
 from decimal import Decimal
 
-from sqlalchemy import select, or_
-from sqlalchemy.orm import selectinload, contains_eager
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from src.services.auth.models import User, UserProfile
-from src.services.leaves.models import LeaveRequest, LeaveRequestStatus
-from src.services.leaves.schemas import (
-    DailyAttendanceRequest, DailyAttendanceResponse, DailyAttendanceItem,
-    AggregateReportRequest, AggregateReportResponse, AggregateReportItem
-)
+from src.services.leaves.repository import LeaveRequestRepository
 from src.services.leaves.calendar_utils import CalendarUtils
 
 class LeaveReportService:
@@ -18,31 +9,13 @@ class LeaveReportService:
     
     def __init__(self, session: AsyncSession, calendar_utils: CalendarUtils):
         self._session = session
+        self._request_repo = LeaveRequestRepository(session)
         self._calendar = calendar_utils
 
     async def get_daily_attendance(self, request: DailyAttendanceRequest) -> DailyAttendanceResponse:
         """Get daily attendance report for HR."""
-        # 1. Fetch active users (filtered by department if provided)
-        stmt = select(User).where(User.is_active == True)
-        if request.department:
-            stmt = stmt.join(User.profile).where(UserProfile.department == request.department).options(contains_eager(User.profile))
-        else:
-            stmt = stmt.options(selectinload(User.profile))
-        
-        result = await self._session.execute(stmt)
-        users = result.scalars().all()
-        
-        # 2. Fetch leave requests for the date
-        leave_stmt = select(LeaveRequest).where(
-            LeaveRequest.start_date <= request.date,
-            LeaveRequest.end_date >= request.date,
-            LeaveRequest.status.in_([
-                LeaveRequestStatus.APPROVED, 
-                LeaveRequestStatus.APPROVED_CONDITIONAL
-            ])
-        )
-        leave_result = await self._session.execute(leave_stmt)
-        leaves = leave_result.scalars().all()
+        # 1. Fetch users and leaves for the date
+        users, leaves = await self._request_repo.get_attendance_data(request.date, request.department)
         leave_map = {l.user_id: l for l in leaves}
         
         # 3. Build response
@@ -91,33 +64,13 @@ class LeaveReportService:
 
     async def get_aggregate_report(self, request: AggregateReportRequest) -> AggregateReportResponse:
         """Get aggregated attendance report for HR."""
-        # 1. Fetch users
-        stmt = select(User).where(User.is_active == True)
-        if request.department:
-            stmt = stmt.join(User.profile).where(UserProfile.department == request.department).options(contains_eager(User.profile))
-        else:
-            stmt = stmt.options(selectinload(User.profile))
-        
-        result = await self._session.execute(stmt)
-        users = result.scalars().all()
-        
-        # 2. Fetch all approved leave requests in range for these users
-        user_ids = [u.id for u in users]
-        if not user_ids:
-            return AggregateReportResponse(start_date=request.start_date, end_date=request.end_date, items=[])
-
-        leave_stmt = select(LeaveRequest).where(
-            LeaveRequest.user_id.in_(user_ids),
-            LeaveRequest.status.in_([
-                LeaveRequestStatus.APPROVED, 
-                LeaveRequestStatus.APPROVED_CONDITIONAL
-            ]),
-            or_(
-                (LeaveRequest.start_date <= request.end_date) & (LeaveRequest.end_date >= request.start_date)
-            )
+        # 1. Fetch users and leaves
+        users, all_leaves = await self._request_repo.get_aggregate_attendance_data(
+            request.start_date, request.end_date, request.department
         )
-        leave_result = await self._session.execute(leave_stmt)
-        all_leaves = leave_result.scalars().all()
+        
+        if not users:
+            return AggregateReportResponse(start_date=request.start_date, end_date=request.end_date, items=[])
         
         # 3. Pre-calculate excluded days for the entire range
         period_days_data = await self._calendar.get_excluded_list(request.start_date, request.end_date)
