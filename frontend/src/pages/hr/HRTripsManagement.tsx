@@ -172,11 +172,11 @@ export function HRTripsManagement() {
                 </div>
                 <div className="p-4">
                     <ServerSideTable
-                        apiEndpoint="/trips/admin/datatable"
-                        method="POST"
+                        apiEndpoint="/hr/management/trips/datatable"
+                        method="GET"
                         columns={columns}
                         extraData={{
-                            status: filters.status
+                            status_filter: filters.status
                         }}
                         className="bg-white"
                         onRowClick={(/* row */) => {

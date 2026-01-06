@@ -14,7 +14,9 @@ from src.services.notifications.models import (
 )
 from src.services.notifications.repository import CalendarExternalRepository
 from src.services.notifications.schemas import NotificationCreate
-
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+from src.core.config import settings
 
 async def _get_async_session() -> AsyncSession:
     """Create async database session for task."""

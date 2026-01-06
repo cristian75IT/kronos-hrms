@@ -27,6 +27,7 @@ from src.services.auth.schemas import (
     WorkScheduleResponse,
     WorkScheduleCreate,
     EmployeeContractCreate,
+    EmployeeContractUpdate,
     EmployeeContractResponse,
     EmployeeTrainingCreate,
     EmployeeTrainingUpdate,
@@ -378,6 +379,32 @@ async def create_user_contract(
     """Add a new contract to user history. Admin only."""
     try:
         return await service.create_employee_contract(user_id, data, actor_id=token.user_id)
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.put("/contracts/{id}", response_model=EmployeeContractResponse)
+async def update_user_contract(
+    id: UUID,
+    data: EmployeeContractUpdate,
+    token: TokenPayload = Depends(require_permission("users:edit")),
+    service: UserService = Depends(get_user_service),
+):
+    """Update contract. Admin/HR only."""
+    try:
+        return await service.update_employee_contract(id, data, actor_id=token.user_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/contracts/{id}", status_code=204)
+async def delete_user_contract(
+    id: UUID,
+    token: TokenPayload = Depends(require_permission("users:edit")),
+    service: UserService = Depends(get_user_service),
+):
+    """Delete contract. Admin/HR only."""
+    try:
+        await service.delete_employee_contract(id, actor_id=token.user_id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

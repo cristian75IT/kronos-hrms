@@ -194,11 +194,11 @@ export function HRExpensesManagement() {
                 </div>
                 <div className="p-4">
                     <ServerSideTable
-                        apiEndpoint="/expenses/admin/datatable"
-                        method="POST"
+                        apiEndpoint="/hr/management/expenses/datatable"
+                        method="GET"
                         columns={columns}
                         extraData={{
-                            status: filters.status
+                            status_filter: filters.status
                         }}
                         className="bg-white"
                     />

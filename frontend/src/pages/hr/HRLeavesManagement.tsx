@@ -197,12 +197,12 @@ export function HRLeavesManagement() {
                 </div>
                 <div className="p-4">
                     <ServerSideTable
-                        apiEndpoint="/leaves/admin/datatable"
-                        method="POST"
+                        apiEndpoint="/hr/management/leaves/datatable"
+                        method="GET"
                         columns={columns}
                         extraData={{
-                            status: filters.status,
-                            leave_type: filters.leave_type
+                            status_filter: filters.status,
+                            leave_type_filter: filters.leave_type
                         }}
                         className="bg-white"
                         onRowClick={(/* row */) => {

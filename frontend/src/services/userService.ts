@@ -63,6 +63,15 @@ export const userService = {
         return response.data;
     },
 
+    updateContract: async (userId: string, contractId: string, data: Partial<EmployeeContractCreate>): Promise<EmployeeContract> => {
+        const response = await authApi.put(`/users/${userId}/contracts/${contractId}`, data);
+        return response.data;
+    },
+
+    deleteContract: async (userId: string, contractId: string): Promise<void> => {
+        await authApi.delete(`/users/${userId}/contracts/${contractId}`);
+    },
+
     getContractTypes: async (): Promise<ContractType[]> => {
         const response = await authApi.get('/contract-types');
         return response.data;

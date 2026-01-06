@@ -19,6 +19,7 @@ import {
     ChevronDown,
     ChevronUp,
     Edit,
+    Trash2,
 } from 'lucide-react';
 
 interface ContractHistoryProps {
@@ -33,6 +34,7 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
     const [nationalContracts, setNationalContracts] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isAdding, setIsAdding] = useState(false);
+    const [editingContract, setEditingContract] = useState<string | null>(null);
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -73,21 +75,52 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
         }
 
         try {
-            await userService.addContract(userId, newContract as EmployeeContractCreate);
+            if (editingContract) {
+                await userService.updateContract(userId, editingContract, newContract as EmployeeContractCreate);
+            } else {
+                await userService.addContract(userId, newContract as EmployeeContractCreate);
+            }
 
             // Integration: Recalculate leave accruals for this user immediately after contract change
             try {
                 await leavesService.recalculateUserAccruals(userId);
             } catch (recalcErr) {
                 console.error('Non-critical error: failed to auto-recalculate accruals', recalcErr);
-                // We don't block the user, as the manual button is available in Config
             }
 
             setIsAdding(false);
+            setEditingContract(null);
             setNewContract({ weekly_hours: 40, start_date: new Date().toISOString().split('T')[0] });
             loadData();
         } catch (err: any) {
             setError(err.message || 'Errore durante il salvataggio');
+        }
+    };
+
+    const handleEdit = (contract: EmployeeContract) => {
+        setNewContract({
+            contract_type_id: contract.contract_type_id,
+            national_contract_id: contract.national_contract_id,
+            level_id: contract.level_id,
+            start_date: contract.start_date,
+            end_date: contract.end_date,
+            weekly_hours: contract.weekly_hours,
+            job_title: contract.job_title,
+            department: contract.department,
+            document_path: contract.document_path,
+        });
+        setEditingContract(contract.id);
+        setIsAdding(true);
+        setExpandedId(null);
+    };
+
+    const handleDelete = async (contractId: string) => {
+        if (!confirm('Sei sicuro di voler eliminare questo contratto?')) return;
+        try {
+            await userService.deleteContract(userId, contractId);
+            loadData();
+        } catch (err: any) {
+            setError(err.message || 'Errore durante l\'eliminazione');
         }
     };
 
@@ -166,7 +199,7 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
                             <div className="px-5 py-4 bg-gray-50 border-b border-gray-200">
                                 <h3 className="flex items-center gap-2 text-base font-semibold text-blue-700">
                                     <FileText size={18} />
-                                    Nuovo Contratto
+                                    {editingContract ? 'Modifica Contratto' : 'Nuovo Contratto'}
                                 </h3>
                             </div>
                             <div className="p-5 space-y-4">
@@ -282,7 +315,7 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
                                 </div>
 
                                 <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 mt-4">
-                                    <button className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" onClick={() => setIsAdding(false)}>
+                                    <button className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" onClick={() => { setIsAdding(false); setEditingContract(null); }}>
                                         Annulla
                                     </button>
                                     <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-sm transition-colors" onClick={handleSave}>
@@ -357,9 +390,19 @@ export function ContractHistory({ userId, userName, onClose }: ContractHistoryPr
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-2">
-                                                    <button className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium transition-colors">
+                                                    <button
+                                                        className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium transition-colors"
+                                                        onClick={() => handleEdit(activeContract)}
+                                                    >
                                                         <Edit size={14} />
                                                         Modifica
+                                                    </button>
+                                                    <button
+                                                        className="flex items-center gap-2 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-md text-sm font-medium transition-colors"
+                                                        onClick={() => handleDelete(activeContract.id)}
+                                                    >
+                                                        <Trash2 size={14} />
+                                                        Elimina
                                                     </button>
                                                 </div>
                                             </div>

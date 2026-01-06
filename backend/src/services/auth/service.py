@@ -584,6 +584,39 @@ class UserService:
         )
         return contract
 
+    async def update_employee_contract(self, id: UUID, data: EmployeeContractUpdate, actor_id: Optional[UUID] = None):
+        """Update employee contract."""
+        contract = await self._emp_contract_repo.update(id, **data.model_dump(exclude_unset=True))
+        if not contract:
+            raise NotFoundError("Contract not found", entity_type="EmployeeContract", entity_id=str(id))
+
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="UPDATE",
+            resource_type="EMPLOYEE_CONTRACT",
+            resource_id=str(id),
+            description=f"Updated contract {id}",
+            request_data=data.model_dump(mode="json", exclude_unset=True)
+        )
+        return contract
+
+    async def delete_employee_contract(self, id: UUID, actor_id: Optional[UUID] = None):
+        """Delete employee contract."""
+        contract = await self._emp_contract_repo.get(id)
+        if not contract:
+            raise NotFoundError("Contract not found", entity_type="EmployeeContract", entity_id=str(id))
+
+        result = await self._emp_contract_repo.delete(id)
+
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="DELETE",
+            resource_type="EMPLOYEE_CONTRACT",
+            resource_id=str(id),
+            description=f"Deleted contract {id}",
+        )
+        return result
+
     # ═══════════════════════════════════════════════════════════
     # Employee Training Operations
     # ═══════════════════════════════════════════════════════════
