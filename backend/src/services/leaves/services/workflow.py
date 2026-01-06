@@ -233,7 +233,22 @@ class LeaveWorkflowService(BaseLeaveService):
         # Send notification
         await self._notifier.notify_approved(request)
         
+        # Sync with Approval Service (if request was created there)
+        if self._approval_client:
+            try:
+                approval_info = await self._approval_client.get_by_entity("leave_request", id)
+                if approval_info and approval_info.get("id"):
+                    await self._approval_client.approve(
+                        approval_request_id=UUID(approval_info["id"]),
+                        approver_id=approver_id,
+                        notes=data.notes,
+                    )
+                    logger.info(f"Synced approval status with Approval Service for leave {id}")
+            except Exception as e:
+                logger.warning(f"Failed to sync with Approval Service: {e}")
+        
         return await self._get_request(id)
+
     
     async def approve_conditional(
         self,
@@ -398,7 +413,22 @@ class LeaveWorkflowService(BaseLeaveService):
             request_data=data.model_dump(mode="json"),
         )
         
+        # Sync with Approval Service (if request was created there)
+        if self._approval_client:
+            try:
+                approval_info = await self._approval_client.get_by_entity("leave_request", id)
+                if approval_info and approval_info.get("id"):
+                    await self._approval_client.reject(
+                        approval_request_id=UUID(approval_info["id"]),
+                        approver_id=approver_id,
+                        notes=data.reason,
+                    )
+                    logger.info(f"Synced rejection status with Approval Service for leave {id}")
+            except Exception as e:
+                logger.warning(f"Failed to sync with Approval Service: {e}")
+        
         return await self._get_request(id)
+
     
     async def revoke_approval(
         self,

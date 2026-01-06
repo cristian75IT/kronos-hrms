@@ -1041,6 +1041,51 @@ class LeaveClient:
             logger.error(f"LeavesClient error get_all_requests: {e}")
         return []
 
+    async def get_all_leaves_datatable(
+        self,
+        draw: int,
+        start: int,
+        length: int,
+        filters: dict,
+        token: Optional[str] = None,
+    ) -> dict:
+        """Get all leaves datatable (admin/hr view)."""
+        url = f"{self.base_url}/api/v1/leaves/admin/datatable"
+        logger.info(f"[LeaveClient] Calling POST {url}")
+        
+        try:
+            payload = {
+                "draw": draw,
+                "start": start,
+                "length": length,
+                "search": {"value": filters.get("search"), "regex": False},
+                "status": filters.get("status"),
+                "year": None,
+            }
+            
+            headers = {}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+                logger.info(f"[LeaveClient] Using token: {token[:20]}...")
+            else:
+                logger.warning("[LeaveClient] No token provided!")
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    url,
+                    json=payload,
+                    headers=headers,
+                    timeout=5.0
+                )
+                logger.info(f"[LeaveClient] Response {response.status_code}: {response.text[:200] if response.text else 'empty'}")
+                if response.status_code == 200:
+                    return response.json()
+                logger.warning(f"LeavesClient get_all_leaves_datatable returned {response.status_code}: {response.text}")
+        except Exception as e:
+            logger.error(f"LeavesClient error get_all_leaves_datatable: {e}")
+        return {"draw": draw, "recordsTotal": 0, "recordsFiltered": 0, "data": []}
+
+
     async def get_leaves_in_period(
         self,
         start_date: date,
@@ -1168,6 +1213,82 @@ class ExpenseClient:
         except Exception as e:
             logger.error(f"ExpenseClient error get_trips_for_date: {e}")
         return []
+
+    async def get_all_trips_datatable(
+        self,
+        draw: int,
+        start: int,
+        length: int,
+        filters: dict,
+        token: Optional[str] = None,
+    ) -> dict:
+        """Get all trips datatable (admin/hr view)."""
+        try:
+            payload = {
+                "draw": draw,
+                "start": start,
+                "length": length,
+                "search": {"value": filters.get("search"), "regex": False},
+                "status": filters.get("status"),
+                "date_from": filters.get("date_from"),
+                "date_to": filters.get("date_to"),
+            }
+            
+            headers = {}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/trips/admin/datatable",
+                    json=payload,
+                    headers=headers,
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+                logger.warning(f"ExpenseClient get_all_trips_datatable returned {response.status_code}: {response.text}")
+        except Exception as e:
+            logger.error(f"ExpenseClient error get_all_trips_datatable: {e}")
+        return {"draw": draw, "recordsTotal": 0, "recordsFiltered": 0, "data": []}
+
+    async def get_all_expenses_datatable(
+        self,
+        draw: int,
+        start: int,
+        length: int,
+        filters: dict,
+        token: Optional[str] = None,
+    ) -> dict:
+        """Get all expenses datatable (admin/hr view)."""
+        try:
+            payload = {
+                "draw": draw,
+                "start": start,
+                "length": length,
+                "search": {"value": filters.get("search"), "regex": False},
+                "status": filters.get("status"),
+                "date_from": filters.get("date_from"),
+                "date_to": filters.get("date_to"),
+            }
+            
+            headers = {}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/expenses/admin/datatable",
+                    json=payload,
+                    headers=headers,
+                    timeout=5.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+                logger.warning(f"ExpenseClient get_all_expenses_datatable returned {response.status_code}: {response.text}")
+        except Exception as e:
+            logger.error(f"ExpenseClient error get_all_expenses_datatable: {e}")
+        return {"draw": draw, "recordsTotal": 0, "recordsFiltered": 0, "data": []}
 
 
 class ApprovalClient:

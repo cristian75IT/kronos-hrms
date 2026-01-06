@@ -786,7 +786,7 @@ const PendingApprovalsPage: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {viewMode === 'pending' ? (
-                                data?.items.length === 0 ? (
+                                (data?.items?.length ?? 0) === 0 ? (
                                     <EmptyState />
                                 ) : (
                                     data?.items.map((item) => (
@@ -874,7 +874,7 @@ const PendingApprovalsPage: React.FC = () => {
                                     ))
                                 )
                             ) : (
-                                archivedData?.items.length === 0 ? (
+                                (archivedData?.items?.length ?? 0) === 0 ? (
                                     <EmptyState type="archive" />
                                 ) : (
                                     archivedData?.items.map((item) => (
@@ -933,7 +933,7 @@ const PendingApprovalsPage: React.FC = () => {
                 </div>
 
                 {/* Footer Stats */}
-                {(data?.items.length || 0) > 0 && (
+                {((viewMode === 'pending' ? data?.items?.length : archivedData?.items?.length) ?? 0) > 0 && (
                     <div className="bg-slate-50 border-t border-slate-200 px-6 py-3 text-xs text-slate-500 flex justify-between items-center">
                         <span>
                             {viewMode === 'pending'

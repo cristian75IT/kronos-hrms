@@ -7,7 +7,7 @@ from datetime import date
 from typing import Optional, Any, Dict
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
@@ -32,6 +32,7 @@ router = APIRouter(prefix="/management", tags=["HR Management"])
 
 @router.get("/leaves/datatable", response_model=DataTableResponse)
 async def get_all_leaves_datatable(
+    request: Request,
     draw: int = Query(default=1),
     start: int = Query(default=0),
     length: int = Query(default=25),
@@ -49,6 +50,10 @@ async def get_all_leaves_datatable(
     """
     client = LeavesClient()
     
+    # Extract token
+    auth_header = request.headers.get("Authorization")
+    token = auth_header.replace("Bearer ", "") if auth_header and "Bearer " in auth_header else None
+
     # Build filters for leaves service
     filters = {}
     if status_filter:
@@ -69,6 +74,7 @@ async def get_all_leaves_datatable(
             start=start,
             length=length,
             filters=filters,
+            token=token,
         )
         
         return DataTableResponse(
@@ -78,13 +84,12 @@ async def get_all_leaves_datatable(
             data=response.get("data", []),
         )
     except Exception as e:
-        # Fallback to empty response
-        return DataTableResponse(
-            draw=draw,
-            recordsTotal=0,
-            recordsFiltered=0,
-            data=[],
-        )
+        # Log error for debugging
+        import logging
+        logging.getLogger(__name__).error(f"HR Leaves datatable error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch leaves data: {str(e)}")
+
+
 
 
 @router.get("/leaves/{leave_id}")
@@ -145,6 +150,7 @@ async def update_leave(
 
 @router.get("/trips/datatable", response_model=DataTableResponse)
 async def get_all_trips_datatable(
+    request: Request,
     draw: int = Query(default=1),
     start: int = Query(default=0),
     length: int = Query(default=25),
@@ -160,6 +166,10 @@ async def get_all_trips_datatable(
     """
     client = ExpenseClient()
     
+    # Extract token
+    auth_header = request.headers.get("Authorization")
+    token = auth_header.replace("Bearer ", "") if auth_header and "Bearer " in auth_header else None
+
     filters = {}
     if status_filter:
         filters["status"] = status_filter
@@ -176,6 +186,7 @@ async def get_all_trips_datatable(
             start=start,
             length=length,
             filters=filters,
+            token=token,
         )
         
         return DataTableResponse(
@@ -184,13 +195,11 @@ async def get_all_trips_datatable(
             recordsFiltered=response.get("recordsFiltered", 0),
             data=response.get("data", []),
         )
-    except Exception:
-        return DataTableResponse(
-            draw=draw,
-            recordsTotal=0,
-            recordsFiltered=0,
-            data=[],
-        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"HR Trips datatable error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch trips data: {str(e)}")
+
 
 
 @router.get("/trips/{trip_id}")
@@ -245,6 +254,7 @@ async def update_trip(
 
 @router.get("/expenses/datatable", response_model=DataTableResponse)
 async def get_all_expenses_datatable(
+    request: Request,
     draw: int = Query(default=1),
     start: int = Query(default=0),
     length: int = Query(default=25),
@@ -260,6 +270,10 @@ async def get_all_expenses_datatable(
     """
     client = ExpenseClient()
     
+    # Extract token
+    auth_header = request.headers.get("Authorization")
+    token = auth_header.replace("Bearer ", "") if auth_header and "Bearer " in auth_header else None
+
     filters = {}
     if status_filter:
         filters["status"] = status_filter
@@ -276,6 +290,7 @@ async def get_all_expenses_datatable(
             start=start,
             length=length,
             filters=filters,
+            token=token,
         )
         
         return DataTableResponse(
@@ -284,13 +299,11 @@ async def get_all_expenses_datatable(
             recordsFiltered=response.get("recordsFiltered", 0),
             data=response.get("data", []),
         )
-    except Exception:
-        return DataTableResponse(
-            draw=draw,
-            recordsTotal=0,
-            recordsFiltered=0,
-            data=[],
-        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"HR Expenses datatable error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch expenses data: {str(e)}")
+
 
 
 @router.get("/expenses/{expense_id}")
