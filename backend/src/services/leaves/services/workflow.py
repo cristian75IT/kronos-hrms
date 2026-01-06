@@ -18,6 +18,10 @@ from src.services.leaves.schemas import (
     CancelRequest,
 )
 from src.services.leaves.services.base import BaseLeaveService
+from src.core.config import settings
+
+if False:  # TYPE_CHECKING
+    from src.shared.clients import ApprovalClient
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +40,10 @@ class LeaveWorkflowService(BaseLeaveService):
     - Reopen (REJECTED/CANCELLED → PENDING)
     - Cancel (any → CANCELLED)
     """
+
+    def __init__(self, session, approval_client: "ApprovalClient" = None):
+        super().__init__(session)
+        self._approval_client = approval_client
     
     # ═══════════════════════════════════════════════════════════════════════
     # Submit Operations
@@ -112,8 +120,12 @@ class LeaveWorkflowService(BaseLeaveService):
                     metadata={
                         "days_requested": float(request.days_requested),
                         "leave_type_id": str(request.leave_type_id),
+                        "start_date": request.start_date.isoformat(),
+                        "end_date": request.end_date.isoformat(),
+                        "days": float(request.days_requested),
+                        "leave_type": request.leave_type_code,
                     },
-                    callback_url=f"http://leave-service:8002/api/v1/leaves/internal/approval-callback/{id}",
+                    callback_url=f"{settings.leave_service_url}/api/v1/leaves/internal/approval-callback/{id}",
                 )
             except Exception as e:
                 # Revert status to DRAFT

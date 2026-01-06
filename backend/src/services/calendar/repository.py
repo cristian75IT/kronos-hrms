@@ -18,6 +18,7 @@ from .models import (
     CalendarClosure,
     WorkingDayException,
     CalendarPermission,
+    LocationSubscription,
 )
 from src.core.exceptions import NotFoundError
 
@@ -60,7 +61,7 @@ class CalendarRepository(BaseRepository):
     async def get_personal_calendar(self, user_id: UUID) -> Optional[Calendar]:
         stmt = select(Calendar).where(
             Calendar.owner_id == user_id,
-            Calendar.calendar_type == CalendarType.PERSONAL
+            Calendar.type == CalendarType.PERSONAL
         ).limit(1)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
@@ -75,7 +76,7 @@ class CalendarRepository(BaseRepository):
             select(Calendar)
             .options(selectinload(Calendar.shares))
             .join(CalendarShare, Calendar.id == CalendarShare.calendar_id)
-            .where(CalendarShare.shared_with_id == user_id)
+            .where(CalendarShare.user_id == user_id)
         )
         result = await self.session.execute(stmt)
         return result.scalars().all()
@@ -113,7 +114,7 @@ class CalendarShareRepository(BaseRepository):
     async def get_with_permission(self, calendar_id: UUID, user_id: UUID, permissions: List[CalendarPermission]) -> Optional[CalendarShare]:
          stmt = select(CalendarShare).where(
             CalendarShare.calendar_id == calendar_id,
-            CalendarShare.shared_with_id == user_id,
+            CalendarShare.user_id == user_id,
             CalendarShare.permission.in_(permissions)
         )
          result = await self.session.execute(stmt)
@@ -122,7 +123,7 @@ class CalendarShareRepository(BaseRepository):
     async def get_by_calendar_and_user(self, calendar_id: UUID, user_id: UUID) -> Optional[CalendarShare]:
         stmt = select(CalendarShare).where(
             CalendarShare.calendar_id == calendar_id,
-            CalendarShare.shared_with_id == user_id
+            CalendarShare.user_id == user_id
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
@@ -231,8 +232,10 @@ class WorkWeekProfileRepository(BaseRepository):
 
 class HolidayProfileRepository(BaseRepository):
     async def get_all(self) -> Sequence[HolidayProfile]:
-        result = await self.session.execute(select(HolidayProfile))
+        stmt = select(HolidayProfile).options(selectinload(HolidayProfile.holidays))
+        result = await self.session.execute(stmt)
         return result.scalars().all()
+
 
     async def get(self, id: UUID) -> Optional[HolidayProfile]:
         return await self.session.get(HolidayProfile, id)
@@ -301,7 +304,9 @@ class LocationCalendarRepository(BaseRepository):
             
         stmt = select(LocationCalendar).options(
             joinedload(LocationCalendar.work_week_profile),
-            selectinload(LocationCalendar.holiday_profiles)
+            selectinload(LocationCalendar.subscriptions)
+            .joinedload(LocationSubscription.calendar)
+            .joinedload(Calendar.holiday_profile)
             .selectinload(HolidayProfile.holidays),
         ).where(LocationCalendar.location_id == location_id)
         
@@ -313,7 +318,9 @@ class LocationCalendarRepository(BaseRepository):
             select(LocationCalendar)
             .options(
                 joinedload(LocationCalendar.work_week_profile),
-                selectinload(LocationCalendar.holiday_profiles)
+                selectinload(LocationCalendar.subscriptions)
+                .joinedload(LocationSubscription.calendar)
+                .joinedload(Calendar.holiday_profile)
                 .selectinload(HolidayProfile.holidays),
             )
             .where(LocationCalendar.location_id == None)
@@ -350,9 +357,20 @@ class CalendarClosureRepository(BaseRepository):
         await self.session.flush()
         return closure
 
+    async def get_by_year(self, year: int, location_id: Optional[UUID] = None) -> Sequence[CalendarClosure]:
+        stmt = select(CalendarClosure).where(
+            func.extract('year', CalendarClosure.start_date) == year
+        )
+        if location_id:
+            stmt = stmt.where(CalendarClosure.location_id == location_id)
+            
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
     async def delete(self, closure: CalendarClosure):
         await self.session.delete(closure)
         await self.session.flush()
+
 
 
 class WorkingDayExceptionRepository(BaseRepository):

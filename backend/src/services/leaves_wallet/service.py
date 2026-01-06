@@ -45,15 +45,22 @@ class WalletService:
             
         wallet = await self._wallet_repo.get_by_user_year(user_id, year)
         if not wallet:
-            # Create new wallet
+            # Create new wallet with correct column names
             wallet = EmployeeWallet(
                 user_id=user_id,
                 year=year,
-                vacation_hours_total=Decimal(0),
-                vacation_hours_ap=Decimal(0),
-                vacation_hours_ac=Decimal(0),
-                rol_hours=Decimal(0),
-                permit_hours=Decimal(0),
+                vacation_previous_year=Decimal(0),
+                vacation_current_year=Decimal(0),
+                vacation_accrued=Decimal(0),
+                vacation_used=Decimal(0),
+                vacation_used_ap=Decimal(0),
+                vacation_used_ac=Decimal(0),
+                rol_previous_year=Decimal(0),
+                rol_current_year=Decimal(0),
+                rol_accrued=Decimal(0),
+                rol_used=Decimal(0),
+                permits_total=Decimal(0),
+                permits_used=Decimal(0),
             )
             await self._wallet_repo.create(wallet)
             logger.info(f"Created new wallet for user {user_id} year {year}")
@@ -126,11 +133,11 @@ class WalletService:
         summary = {
             "year": wallet.year,
             "balances": {
-                "vacation_ap": f(wallet.vacation_hours_ap),
-                "vacation_ac": f(wallet.vacation_hours_ac),
-                "rol": f(wallet.rol_hours),
-                "permits": f(wallet.permit_hours),
-                "total:vacation": f(wallet.vacation_hours_total)
+                "vacation_ap": f(wallet.vacation_available_ap),
+                "vacation_ac": f(wallet.vacation_available_ac),
+                "rol": f(wallet.rol_available),
+                "permits": f(wallet.permits_available),
+                "total_vacation": f(wallet.vacation_available_total)
             },
             "reserved": {
                 "vacation": f(await self._txn_repo.get_pending_reservations(wallet.id, "vacation")),
@@ -163,16 +170,18 @@ class WalletService:
                  raise BusinessRuleError(f"Insufficient balance for {transaction.balance_type}. Attempted: {amount}, Available: {available}")
 
         # Create Record
+        balance_value = self._get_current_balance_value(wallet, transaction.balance_type)
         txn = WalletTransaction(
             wallet_id=wallet.id,
-            transaction_code=transaction.transaction_type,
+            transaction_type=transaction.transaction_type,
             balance_type=transaction.balance_type,
             amount=amount if category == "ADDITION" else -amount,
             remaining_amount=amount if category == "ADDITION" else Decimal(0),
+            balance_after=balance_value + (amount if category == "ADDITION" else -amount),
             description=transaction.description,
             reference_id=transaction.reference_id,
             created_by=transaction.created_by,
-            expires_at=transaction.expires_at,
+            expiry_date=transaction.expires_at,
         )
         
         await self._txn_repo.create(txn)
@@ -212,21 +221,21 @@ class WalletService:
             
         wallet = await self.get_wallet(user_id)
         
+        balance_value = self._get_current_balance_value(wallet, balance_type)
         txn = WalletTransaction(
             wallet_id=wallet.id,
-            transaction_code='RESERVATION',
+            transaction_type='RESERVATION',
             balance_type=balance_type,
-            amount=amount, # Store positive amount for reservation sum logic, logic handles direction
-            # Actually, standard is: amount is amount involved. 
-            # get_pending_reservations sums amount.
-            
+            amount=amount,  # Store positive amount for reservation sum
+            balance_after=balance_value,  # Balance unchanged for reservations
             is_confirmed=False,
             description=f"Reservation for request {reference_id}",
             reference_id=reference_id,
-            expires_at=expiry_date
+            expiry_date=expiry_date
         )
         await self._txn_repo.create(txn)
         return txn
+
 
     async def confirm_reservation(self, reference_id: UUID) -> List[WalletTransaction]:
         """
@@ -235,7 +244,7 @@ class WalletService:
         Converts reservation to actual deduction.
         """
         txns = await self._txn_repo.get_by_reference(reference_id)
-        reservation = next((t for t in txns if t.transaction_code == 'RESERVATION' and not t.is_confirmed), None)
+        reservation = next((t for t in txns if t.transaction_type == 'RESERVATION' and not t.is_confirmed), None)
         
         if not reservation:
             # Already confirmed or not found
@@ -248,17 +257,20 @@ class WalletService:
         reservation.is_confirmed = True
         
         # 2. Create actual Usage transaction
+        balance_value = self._get_current_balance_value(wallet, reservation.balance_type)
         usage_txn = WalletTransaction(
             wallet_id=wallet.id,
-            transaction_code='USAGE',
+            transaction_type='USAGE',
             balance_type=reservation.balance_type,
             amount=-reservation.amount,
             remaining_amount=Decimal(0),
+            balance_after=balance_value - reservation.amount,
             description=f"Usage from reservation {reservation.id}",
             reference_id=reference_id,
             is_confirmed=True
         )
         await self._txn_repo.create(usage_txn)
+
         
         # 3. Update balances (Deduction logic)
         await self._handle_deduction(wallet, reservation.balance_type, reservation.amount)
@@ -274,7 +286,7 @@ class WalletService:
         Releases the held balance back to available.
         """
         txns = await self._txn_repo.get_by_reference(reference_id)
-        reservation = next((t for t in txns if t.transaction_code == 'RESERVATION' and not t.is_confirmed), None)
+        reservation = next((t for t in txns if t.transaction_type == 'RESERVATION' and not t.is_confirmed), None)
         
         if not reservation:
              logger.warning(f"No active reservation found for {reference_id}")
@@ -296,42 +308,39 @@ class WalletService:
         reservation.is_confirmed = True
         reservation.description += " (CANCELLED)"
         # Or change code to RESERVATION_CANCELLED? Standard practice.
-        reservation.transaction_code = 'RESERVATION_CANCELLED'
+        reservation.transaction_type = 'RESERVATION_CANCELLED'
         
         return reservation
 
     async def _handle_deduction(self, wallet: EmployeeWallet, balance_type: str, amount: Decimal):
         """Deduct with FIFO logic across buckets."""
         if balance_type == "rol":
-            wallet.rol_hours -= amount
+            wallet.rol_used += amount
         elif balance_type == "permits":
-            wallet.permit_hours -= amount
+            wallet.permits_used += amount
         elif balance_type == "vacation":
-            # AP first, then AC (FIFO usually handled in buckets, but aggregates updated too)
-            # Logic: If AP available > 0, take from AP.
-            if wallet.vacation_hours_ap >= amount:
-                wallet.vacation_hours_ap -= amount
-            elif wallet.vacation_hours_ap > 0:
-                remaining = amount - wallet.vacation_hours_ap
-                wallet.vacation_hours_ap = Decimal(0)
-                wallet.vacation_hours_ac -= remaining
+            # AP first, then AC (FIFO)
+            available_ap = wallet.vacation_available_ap
+            if available_ap >= amount:
+                wallet.vacation_used_ap += amount
+            elif available_ap > 0:
+                wallet.vacation_used_ap += available_ap
+                wallet.vacation_used_ac += (amount - available_ap)
             else:
-                wallet.vacation_hours_ac -= amount
+                wallet.vacation_used_ac += amount
             
-            wallet.vacation_hours_total -= amount
+            wallet.vacation_used += amount
         
     async def _handle_addition(self, wallet: EmployeeWallet, balance_type: str, amount: Decimal):
         """Add to balance aggregates."""
         if balance_type == "rol":
-            wallet.rol_hours += amount
+            wallet.rol_accrued += amount
         elif balance_type == "permits":
-            wallet.permit_hours += amount
+            wallet.permits_total += amount
         elif balance_type == "vacation_ap":
-             wallet.vacation_hours_ap += amount
-             wallet.vacation_hours_total += amount
+            wallet.vacation_previous_year += amount
         elif balance_type == "vacation_ac":
-             wallet.vacation_hours_ac += amount
-             wallet.vacation_hours_total += amount
+            wallet.vacation_accrued += amount
 
     async def _consume_buckets(self, wallet_id: UUID, balance_type: str, amount: Decimal):
         """Consume remaining_amount from previous transactions (FIFO)."""
@@ -363,15 +372,15 @@ class WalletService:
     def _get_current_balance_value(self, wallet: EmployeeWallet, balance_type: str) -> Decimal:
         """Get current balance value for a type."""
         if balance_type == "vacation":
-            return wallet.vacation_hours_total
+            return wallet.vacation_available_total
         elif balance_type == "vacation_ap":
-            return wallet.vacation_hours_ap
+            return wallet.vacation_available_ap
         elif balance_type == "vacation_ac":
-            return wallet.vacation_hours_ac
+            return wallet.vacation_available_ac
         elif balance_type == "rol":
-            return wallet.rol_hours
+            return wallet.rol_available
         elif balance_type == "permits":
-            return wallet.permit_hours
+            return wallet.permits_available
         return Decimal(0)
 
     def _map_category(self, transaction_type: str) -> str:

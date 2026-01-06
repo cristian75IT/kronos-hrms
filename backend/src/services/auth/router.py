@@ -197,6 +197,16 @@ async def get_internal_approvers(
     return [UserListItem.model_validate(u) for u in approvers]
 
 
+@router.get("/users/internal/by-role/{role_id}", response_model=list[UserListItem])
+async def get_users_by_role(
+    role_id: UUID,
+    service: UserService = Depends(get_user_service),
+):
+    """Get users by role ID (internal use)."""
+    users = await service.get_users_by_role(role_id)
+    return [UserListItem.model_validate(u) for u in users]
+
+
 @router.get("/users/internal/all", response_model=list[UserListItem])
 async def get_internal_users(
     active_only: bool = True,
@@ -379,6 +389,7 @@ async def create_user_contract(
     """Add a new contract to user history. Admin only."""
     try:
         return await service.create_employee_contract(user_id, data, actor_id=token.user_id)
+    except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 

@@ -403,6 +403,50 @@ class CalendarService(BaseCalendarService):
             leaves=leaves,
         )
 
+    # ═══════════════════════════════════════════════════════════════════════
+    # Working Day Exceptions
+    # ═══════════════════════════════════════════════════════════════════════
+
+    async def get_working_day_exceptions(self, year: int, location_id: Optional[UUID] = None) -> List[WorkingDayException]:
+        """Get all working day exceptions for a year."""
+        return await self._ex_repo.get_by_year(year, location_id)
+
+    async def create_working_day_exception(self, data: schemas.WorkingDayExceptionCreate) -> WorkingDayException:
+        """Create a new working day exception."""
+        exception = WorkingDayException(
+            id=uuid4(),
+            **data.model_dump()
+        )
+        await self._ex_repo.create(exception)
+        await self.db.commit()
+        await self.db.refresh(exception)
+
+        await self._audit.log_action(
+            action="CREATE",
+            resource_type="WORKING_DAY_EXCEPTION",
+            resource_id=str(exception.id),
+            description=f"Created working day exception for {exception.date}",
+            request_data=data.model_dump(mode="json")
+        )
+
+        return exception
+
+    async def delete_working_day_exception(self, exception_id: UUID) -> bool:
+        """Delete a working day exception."""
+        exception = await self._ex_repo.get(exception_id)
+        if exception:
+            await self._ex_repo.delete(exception)
+            await self.db.commit()
+            
+            await self._audit.log_action(
+                action="DELETE",
+                resource_type="WORKING_DAY_EXCEPTION",
+                resource_id=str(exception_id),
+                description=f"Deleted working day exception for {exception.date}"
+            )
+            return True
+        return False
+
 
 # Export for backward compatibility
 __all__ = [

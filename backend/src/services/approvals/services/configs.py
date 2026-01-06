@@ -48,7 +48,7 @@ class ApprovalConfigService(BaseApprovalService):
 
     async def get_workflow_config(self, config_id: UUID):
         """Get workflow config by ID."""
-        config = await self._repo.get_workflow_config(config_id)
+        config = await self._config_repo.get_by_id(config_id)
         if not config:
             raise NotFoundError("Workflow configuration not found")
         return config
@@ -59,7 +59,7 @@ class ApprovalConfigService(BaseApprovalService):
         active_only: bool = True,
     ):
         """List workflow configurations."""
-        return await self._repo.list_workflow_configs(entity_type, active_only)
+        return await self._config_repo.list_all(entity_type, active_only)
 
     async def update_workflow_config(
         self,
@@ -68,12 +68,15 @@ class ApprovalConfigService(BaseApprovalService):
     ):
         """Update workflow configuration."""
         config = await self.get_workflow_config(config_id)
-        return await self._repo.update_workflow_config(config, data)
+        
+        # Update fields
+        update_data = data.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(config, field, value)
+            
+        return await self._config_repo.update(config)
 
     async def delete_workflow_config(self, config_id: UUID):
         """Deactivate workflow configuration."""
         config = await self.get_workflow_config(config_id)
-        return await self._repo.update_workflow_config(
-            config, 
-            WorkflowConfigUpdate(is_active=False)
-        )
+        return await self._config_repo.soft_delete(config_id)

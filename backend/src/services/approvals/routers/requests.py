@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.database import get_db
 from src.core.security import get_current_user, require_hr, TokenPayload
 
-from ..service import ApprovalService
+from ..services import ApprovalService
 from ..schemas import (
     ApprovalRequestCreate,
     ApprovalRequestResponse,
@@ -111,7 +111,7 @@ async def cancel_approval_request(
         raise HTTPException(status_code=403, detail="Not authorized to cancel this request")
     
     try:
-        await service.cancel_approval_request(request_id, current_user.sub, reason)
+        await service.cancel_request(request_id, current_user.sub, reason)
         await db.commit()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

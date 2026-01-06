@@ -8,7 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { userService } from '../../services/userService';
 import { leavesService } from '../../services/leaves.service';
-import type { UserWithProfile, LeaveBalance } from '../../types';
+import type { UserWithProfile, LeaveBalanceSummary } from '../../types';
 import {
     Search,
     Filter,
@@ -36,7 +36,7 @@ import {
 import { Button, ConfirmModal } from '../../components/common';
 
 interface UserWithBalance extends UserWithProfile {
-    balance?: LeaveBalance | null;
+    balance?: LeaveBalanceSummary | null;
 }
 
 export function UsersPage() {
@@ -73,11 +73,10 @@ export function UsersPage() {
 
     const loadBalances = async (usersList: UserWithBalance[]) => {
         setIsLoadingBalances(true);
-        const year = new Date().getFullYear();
         const updatedUsers = await Promise.all(
             usersList.map(async (user) => {
                 try {
-                    const balance = await leavesService.getUserBalance(user.id, year);
+                    const balance = await leavesService.getBalanceSummary(user.id);
                     return { ...user, balance };
                 } catch {
                     return { ...user, balance: null };
@@ -316,7 +315,7 @@ export function UsersPage() {
                                             {isLoadingBalances ? (
                                                 <Loader size={14} className="animate-spin text-gray-400 mx-auto" />
                                             ) : (
-                                                <span className="font-bold text-gray-900">{user.balance?.vacation_available_total ?? '-'}</span>
+                                                <span className="font-bold text-gray-900">{user.balance?.vacation_total_available ?? '-'}</span>
                                             )}
                                         </td>
                                         <td className="px-6 py-4 text-center">
@@ -407,7 +406,7 @@ export function UsersPage() {
                                 <div className="flex gap-2 pt-2">
                                     <div className="flex-1 bg-amber-50 rounded-lg p-2 text-center">
                                         <div className="text-lg font-bold text-amber-700">
-                                            {isLoadingBalances ? <Loader size={14} className="animate-spin mx-auto" /> : (user.balance?.vacation_available_total ?? '-')}
+                                            {isLoadingBalances ? <Loader size={14} className="animate-spin mx-auto" /> : (user.balance?.vacation_total_available ?? '-')}
                                         </div>
                                         <div className="text-[10px] text-amber-600 uppercase font-medium">Ferie</div>
                                     </div>

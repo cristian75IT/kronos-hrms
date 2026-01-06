@@ -37,7 +37,7 @@ async def _send_notification(
     entity_id: Optional[str] = None,
 ) -> None:
     """Send notification through all enabled channels."""
-    from src.services.notifications.service import NotificationService
+    from src.services.notifications.services import NotificationService
     
     service = NotificationService(session)
     
@@ -312,7 +312,7 @@ async def _process_email_retries_async():
     """Async implementation of email retry processor."""
     from src.services.notifications.models import EmailLogStatus
     from src.services.notifications.repository import EmailLogRepository, EmailTemplateRepository
-    from src.services.notifications.service import NotificationService
+    from src.services.notifications.services import NotificationService
     
     session = await _get_async_session()
     email_repo = EmailLogRepository(session)

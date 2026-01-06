@@ -147,6 +147,9 @@ class WalletTransaction(Base):
     category: Mapped[Optional[str]] = mapped_column(String(30)) 
     # e.g., ACCRUAL, CONSUMPTION, EXPIRATION, REIMBURSEMENT, TRANSFER
     
+    # Reservation tracking
+    is_confirmed: Mapped[bool] = mapped_column(Boolean, default=True)
+    
     # Metadata
     description: Mapped[Optional[str]] = mapped_column(Text)
     meta_data: Mapped[Optional[dict]] = mapped_column(JSONB, default={})

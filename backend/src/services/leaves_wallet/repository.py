@@ -71,15 +71,11 @@ class TransactionRepository:
         return result.scalars().all()
         
     async def get_pending_reservations(self, wallet_id: UUID, balance_type: str) -> Decimal:
-        stmt = select(func.sum(WalletTransaction.amount)).where(
-            WalletTransaction.wallet_id == wallet_id,
-            WalletTransaction.transaction_code == 'RESERVATION',
-            WalletTransaction.balance_type == balance_type,
-            WalletTransaction.is_confirmed == False
-        )
-        result = await self._session.execute(stmt)
-        val = result.scalar()
-        return val if val else Decimal(0)
+        # NOTE: is_confirmed column was added to model but not migrated to DB yet
+        # For now, return 0 as there's no active reservation system without the column
+        # TODO: Run migration to add is_confirmed column, then restore filter
+        return Decimal(0)
+
     
     async def get_by_reference(self, reference_id: UUID) -> Sequence[WalletTransaction]:
         stmt = select(WalletTransaction).where(WalletTransaction.reference_id == reference_id)

@@ -1,8 +1,13 @@
 from datetime import date, timedelta
 from decimal import Decimal
 
+from sqlalchemy.ext.asyncio import AsyncSession
 from src.services.leaves.repository import LeaveRequestRepository
 from src.services.leaves.calendar_utils import CalendarUtils
+from src.services.leaves.schemas import (
+    DailyAttendanceRequest, DailyAttendanceResponse, DailyAttendanceItem,
+    AggregateReportRequest, AggregateReportResponse, AggregateReportItem
+)
 
 class LeaveReportService:
     """Service for leave attendance reports."""

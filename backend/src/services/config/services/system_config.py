@@ -135,18 +135,26 @@ class SystemConfigService:
     
     def _parse_value(self, value: Any, value_type: str) -> Any:
         """Convert JSONB value to Python type."""
-        if value_type == "integer":
-            return int(value)
-        elif value_type == "float":
-            return float(value)
-        elif value_type == "boolean":
-            if isinstance(value, str):
-                return value.lower() == "true"
-            return bool(value)
-        elif value_type == "json":
+        if value is None:
+            return None
+            
+        try:
+            if value_type == "integer":
+                return int(value)
+            elif value_type in ["float", "decimal"]:
+                return float(value)
+            elif value_type == "boolean":
+                if isinstance(value, str):
+                    return value.lower() in ("true", "1", "yes")
+                return bool(value)
+            elif value_type == "json":
+                if isinstance(value, str):
+                    return json.loads(value)
+                return value
+            else:
+                return str(value)
+        except (ValueError, TypeError, json.JSONDecodeError):
             return value
-        else:
-            return str(value)
     
     async def _invalidate_cache(self, key: Optional[str] = None) -> None:
         """Invalidate cache for a specific key or all config."""

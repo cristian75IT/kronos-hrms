@@ -43,6 +43,14 @@ class AuthClient(BaseClient):
         )
         return result if isinstance(result, list) else []
     
+    async def get_users_by_role(self, role_id: UUID) -> list[dict]:
+        """Get users with specific role ID."""
+        result = await self.get_safe(
+            f"/api/v1/users/internal/by-role/{role_id}",
+            default=[],
+        )
+        return result if isinstance(result, list) else []
+
     async def get_user_email(self, user_id: UUID) -> Optional[str]:
         """Get user email."""
         user = await self.get_user_info(user_id)

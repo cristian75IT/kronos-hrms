@@ -41,7 +41,6 @@ class ExpenseItemService(BaseExpenseService):
             category = self._map_expense_category(expense_type.get("code", ""))
             
         item = await self._item_repo.create(
-            report_id=data.report_id,
             category=category,
             **data.model_dump(),
         )

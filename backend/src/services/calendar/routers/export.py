@@ -7,11 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from ...core.database import get_db
-from ...auth.dependencies import get_current_user
-from ...auth.models import User
-from .. import repository as repo
+from src.core.database import get_db
+from src.core.security import get_current_user, TokenPayload
+from ..services import CalendarService
 from .. import ical_export
+
 
 router = APIRouter()
 

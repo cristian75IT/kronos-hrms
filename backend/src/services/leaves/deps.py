@@ -4,7 +4,7 @@ from uuid import UUID
 
 from src.core.database import get_db
 from src.core.security import get_current_user, TokenPayload
-from src.shared.clients import ConfigClient, LeavesWalletClient as WalletClient
+from src.shared.clients import ConfigClient, LeavesWalletClient as WalletClient, ApprovalClient
 from src.services.leaves.calendar_utils import CalendarUtils
 
 from src.services.leaves.services import LeaveService
@@ -17,7 +17,7 @@ async def get_leave_service(
     session: AsyncSession = Depends(get_db),
 ) -> LeaveService:
     """Dependency for LeaveService."""
-    return LeaveService(session)
+    return LeaveService(session, ApprovalClient())
 
 async def get_balance_service(
     session: AsyncSession = Depends(get_db),

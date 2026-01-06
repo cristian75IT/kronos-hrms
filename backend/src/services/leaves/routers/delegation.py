@@ -16,6 +16,7 @@ from src.core.database import get_db
 from src.core.security import get_current_user, require_approver as require_manager, TokenPayload
 from src.core.exceptions import NotFoundError, BusinessRuleError
 from src.services.leaves.repository import ApprovalDelegationRepository
+from src.services.leaves.models import ApprovalDelegation
 from src.services.leaves.schemas import (
     CreateDelegationRequest,
     DelegationResponse,
@@ -39,8 +40,6 @@ async def get_my_delegations(
     
     Shows who I have delegated my approval authority to.
     """
-    Shows who I have delegated my approval authority to.
-    """
     repo = ApprovalDelegationRepository(db)
     delegations = await repo.get_by_delegator(token.sub, active_only=not include_inactive)
     
@@ -56,8 +55,6 @@ async def get_received_delegations(
     """
     Get all delegations I have received.
     
-    Shows whose approval authority has been delegated to me.
-    """
     Shows whose approval authority has been delegated to me.
     """
     repo = ApprovalDelegationRepository(db)
@@ -76,8 +73,6 @@ async def create_delegation(
     Create a new approval delegation.
     
     Delegate your approval authority to another manager for a specific period.
-    Commonly used when going on vacation.
-    """
     Commonly used when going on vacation.
     """
     repo = ApprovalDelegationRepository(db)
@@ -205,8 +200,6 @@ async def get_active_delegations_for_user(
     """
     Get all currently active delegations for a user (the delegate).
     
-    Used internally to check if a user can approve on behalf of others.
-    """
     Used internally to check if a user can approve on behalf of others.
     """
     repo = ApprovalDelegationRepository(db)

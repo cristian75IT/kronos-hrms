@@ -240,7 +240,9 @@ class DailyAllowanceRuleRepository(BaseRepository):
 class NationalContractRepository(BaseRepository):
     async def get_all(self, active_only: bool = True) -> List[NationalContract]:
         query = select(NationalContract).options(
-            selectinload(NationalContract.versions),
+            selectinload(NationalContract.versions).selectinload(NationalContractVersion.contract_type_configs).selectinload(NationalContractTypeConfig.contract_type),
+            selectinload(NationalContract.versions).selectinload(NationalContractVersion.vacation_calc_mode),
+            selectinload(NationalContract.versions).selectinload(NationalContractVersion.rol_calc_mode),
             selectinload(NationalContract.levels)
         )
         if active_only:

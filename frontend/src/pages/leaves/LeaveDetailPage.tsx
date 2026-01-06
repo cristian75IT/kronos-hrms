@@ -237,8 +237,9 @@ export function LeaveDetailPage() {
             await leavesService.deleteRequest(id);
             toast.success('Richiesta eliminata');
             // Invalidate cache before navigating
-            await queryClient.invalidateQueries({ queryKey: queryKeys.leaveRequests });
             navigate('/leaves');
+            // Invalidate cache after navigating (avoid refetching deleted item while on page)
+            queryClient.invalidateQueries({ queryKey: queryKeys.leaveRequests });
         } catch (error: any) {
             toast.error(formatApiError(error));
             setActionLoading(null);

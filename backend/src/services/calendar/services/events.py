@@ -78,16 +78,32 @@ class CalendarEventService(BaseCalendarService):
             raise HTTPException(status_code=403, detail="No write access to calendar")
         
         # Create event
-        event_data = data.model_dump(exclude={"calendar_id"})
+        event_dict = data.model_dump(exclude={"calendar_id", "participant_ids"})
         event = CalendarEvent(
             id=uuid4(),
             calendar_id=calendar_id,
             created_by=user_id,
-            **event_data
+            **event_dict
         )
         
         event = await self._event_repo.create(event)
         
+        # Add participants
+        if data.participant_ids:
+            for p_user_id in data.participant_ids:
+                participant = EventParticipant(
+                    id=uuid4(),
+                    event_id=event.id,
+                    user_id=p_user_id,
+                    is_organizer=(p_user_id == user_id)
+                )
+                # We could use a repository here, but for now we can add to relationship
+                # assuming the session is managed by the service
+                event.participants.append(participant)
+            
+            await self.db.commit()
+            await self.db.refresh(event)
+
         await self._audit.log_action(
             user_id=user_id,
             action="CREATE",
@@ -96,6 +112,12 @@ class CalendarEventService(BaseCalendarService):
             description=f"Created event: {event.title}",
             request_data=data.model_dump(mode="json")
         )
+        
+        # Reload event to ensure relationships are loaded (e.g. participants)
+        # This prevents MissingGreenlet error in response model validation
+        loaded_event = await self.get_event(event.id)
+        if loaded_event:
+            event = loaded_event
         
         return event
     
@@ -117,13 +139,31 @@ class CalendarEventService(BaseCalendarService):
             from fastapi import HTTPException
             raise HTTPException(status_code=403, detail="No write access to this event")
         
-        update_data = data.model_dump(exclude_unset=True)
-        for key, value in update_data.items():
+        update_dict = data.model_dump(exclude_unset=True, exclude={"participant_ids"})
+        for key, value in update_dict.items():
             setattr(event, key, value)
         
+        # Handle participants update if provided
+        if data.participant_ids is not None:
+            # Clear existing participants
+            event.participants = []
+            # Add new participants
+            for p_user_id in data.participant_ids:
+                participant = EventParticipant(
+                    id=uuid4(),
+                    event_id=event.id,
+                    user_id=p_user_id,
+                    is_organizer=(p_user_id == user_id)
+                )
+                event.participants.append(participant)
+
         await self._event_repo.update(event)
         await self.db.commit()
-        await self.db.refresh(event)
+
+        # Reload event properly to load relationships
+        loaded_event = await self.get_event(event.id)
+        if loaded_event:
+            event = loaded_event
         
         await self._audit.log_action(
             user_id=user_id,
@@ -131,7 +171,7 @@ class CalendarEventService(BaseCalendarService):
             resource_type="CALENDAR_EVENT",
             resource_id=str(event_id),
             description=f"Updated event: {event.title}",
-            request_data=update_data
+            request_data=update_dict
         )
         
         return event
@@ -179,7 +219,7 @@ class CalendarEventService(BaseCalendarService):
             id=uuid4(),
             owner_id=user_id,
             name="Il mio calendario",
-            calendar_type=CalendarType.PERSONAL,
+            type=CalendarType.PERSONAL,
             visibility="private",
             color="#3B82F6",
         )
@@ -205,7 +245,7 @@ class CalendarEventService(BaseCalendarService):
         
         # Check shares
         for share in calendar.shares:
-            if share.shared_with_id == user_id:
+            if share.user_id == user_id:
                 if require_write:
                     from src.services.calendar.models import CalendarPermission
                     if share.permission in [CalendarPermission.WRITE, CalendarPermission.ADMIN]:

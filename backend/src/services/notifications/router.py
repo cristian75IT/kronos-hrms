@@ -14,6 +14,6 @@ router = APIRouter()
 # Previous router didn't seem to have explicit tags on specific endpoints, 
 # but often services have a global tag. 
 # I will not add specific tags to avoid cluttering Swagger with new tags unless requested.
-router.include_router(users.router)
 router.include_router(admin.router)
 router.include_router(internal.router)
+router.include_router(users.router)

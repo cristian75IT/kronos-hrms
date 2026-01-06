@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.exceptions import ValidationError, NotFoundError
 from src.services.leaves.repository import LeaveRequestRepository
 from src.services.leaves.schemas import BalanceSummary, BalanceAdjustment
+from src.services.leaves.models import LeaveRequest
 from src.shared.clients import LeavesWalletClient as WalletClient
 
 class LeaveBalanceService:

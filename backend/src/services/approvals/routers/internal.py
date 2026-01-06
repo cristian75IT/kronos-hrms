@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
 
-from ..service import ApprovalService
+from ..services import ApprovalService
 from ..schemas import (
     ApprovalRequestCreate,
     ApprovalRequestResponse,
@@ -66,6 +66,8 @@ async def create_internal_request(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         await db.rollback()
+        import logging
+        logging.getLogger(__name__).error(f"Error in create_internal_request: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -80,7 +82,23 @@ async def check_internal_status(
     
     Used by other services to check if an entity is pending approval.
     """
-    return await service.check_approval_status(entity_type, entity_id)
+    request = await service.get_approval_by_entity(entity_type, entity_id)
+    if not request:
+        return {
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "status": "none",
+            "has_pending_request": False
+        }
+    
+    return {
+        "entity_type": entity_type,
+        "entity_id": entity_id,
+        "status": request.status,
+        "id": str(request.id),
+        "approval_request_id": str(request.id),
+        "has_pending_request": request.status == "PENDING"
+    }
 
 
 @router.post("/webhook")
@@ -108,7 +126,7 @@ async def get_by_entity(
     
     Returns the approval request for the specified entity, or 404 if not found.
     """
-    request = await service.get_by_entity(entity_type, entity_id)
+    request = await service.get_approval_by_entity(entity_type, entity_id)
     if not request:
         raise HTTPException(status_code=404, detail="Approval request not found")
     

@@ -30,7 +30,7 @@ async def get_my_notifications(
     service: NotificationService = Depends(get_notification_service),
 ):
     """Get current user's notifications."""
-    return await service.get_my_notifications(
+    return await service.get_user_notifications(
         current_user.user_id,
         unread_only=unread_only,
         limit=limit,
@@ -44,7 +44,7 @@ async def get_unread_count(
     service: NotificationService = Depends(get_notification_service),
 ):
     """Get unread notification count."""
-    count = await service.get_unread_count(current_user.user_id)
+    count = await service.count_unread(current_user.user_id)
     return {"count": count}
 
 

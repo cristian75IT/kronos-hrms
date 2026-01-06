@@ -52,7 +52,7 @@ class CalendarManagementService(BaseCalendarService):
             name=data.name,
             description=data.description,
             color=data.color or "#3B82F6",
-            calendar_type=data.calendar_type or CalendarType.PERSONAL,
+            type=data.type or CalendarType.PERSONAL,
             visibility=data.visibility or "private",
         )
         
@@ -163,7 +163,7 @@ class CalendarManagementService(BaseCalendarService):
             share = CalendarShare(
                 id=uuid4(),
                 calendar_id=calendar_id,
-                shared_with_id=shared_with_user_id,
+                user_id=shared_with_user_id,
                 permission=permission,
             )
             await self._share_repo.create(share)

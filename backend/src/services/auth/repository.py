@@ -2,7 +2,7 @@
 from typing import Any, Optional
 from uuid import UUID
 
-from sqlalchemy import select, func, or_, delete, insert
+from sqlalchemy import select, func, or_, delete, insert, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -91,6 +91,39 @@ class UserRepository:
         
         query = query.offset(offset).limit(limit)
         result = await self._session.execute(query)
+        return list(result.scalars().all())
+
+    async def get_datatable(
+        self,
+        request: DataTableRequest,
+        active_only: bool = True,
+    ) -> tuple[list[User], int, int]:
+        """Get datatable users."""
+        # ... logic not needed for this tool call, just insert BEFORE this method
+        pass
+
+    async def get_by_role_id(self, role_id: UUID) -> list[User]:
+        """Get users by role ID."""
+        # 1. Get role name
+        role_result = await self._session.execute(
+            select(Role.name).where(Role.id == role_id)
+        )
+        role_name = role_result.scalar_one_or_none()
+        
+        if not role_name:
+            return []
+            
+        # 2. Get users with this role name from user_roles table
+        stmt = select(User).from_statement(
+            text("""
+                SELECT users.*
+                FROM auth.users users
+                JOIN auth.user_roles ur ON users.id = ur.user_id
+                WHERE ur.role_name = :role_name
+            """)
+        ).params(role_name=role_name)
+        
+        result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
     async def get_datatable(

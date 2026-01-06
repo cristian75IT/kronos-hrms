@@ -162,7 +162,7 @@ class CalendarBase(BaseModel):
     color: str = Field(default="#4F46E5")
     type: CalendarType = CalendarType.PERSONAL
     is_active: bool = True
-    is_public: bool = False
+    visibility: str = "private"
 
 class CalendarCreate(CalendarBase):
     pass
@@ -172,7 +172,7 @@ class CalendarUpdate(BaseModel):
     description: Optional[str] = None
     color: Optional[str] = None
     is_active: Optional[bool] = None
-    is_public: Optional[bool] = None
+    visibility: Optional[str] = None
 
 class CalendarResponse(CalendarBase):
     model_config = ConfigDict(from_attributes=True)
@@ -254,7 +254,7 @@ class EventUpdate(BaseModel):
     end_time: Optional[time] = None
     is_all_day: Optional[bool] = None
     calendar_id: Optional[UUID] = None
-    participants: Optional[List[UUID]] = None
+    participant_ids: Optional[List[UUID]] = None
 
 class EventResponse(EventBase):
     model_config = ConfigDict(from_attributes=True)

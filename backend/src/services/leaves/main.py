@@ -41,10 +41,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Main router (backward compatible)
+# Main router (backward compatible, includes calendar, requests, balances, reports)
 app.include_router(router, prefix="/api/v1")
 
-# Enterprise routers
+# Enterprise routers (specific modules)
 app.include_router(user_router, prefix="/api/v1/leaves")
 app.include_router(approver_router, prefix="/api/v1/leaves")
 app.include_router(delegation_router, prefix="/api/v1/leaves")

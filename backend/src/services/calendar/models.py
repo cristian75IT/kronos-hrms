@@ -57,6 +57,7 @@ class Calendar(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
     color: Mapped[str] = mapped_column(String(7), default="#4F46E5")
+    visibility: Mapped[str] = mapped_column(String(20), default="private")
     
     # Ownership (System calendars have no owner)
     owner_id: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True), index=True)

@@ -55,11 +55,11 @@ class ApprovalService(BaseApprovalService):
     async def get_approval_by_entity(self, entity_type: str, entity_id: UUID):
         return await self._requests.get_approval_by_entity(entity_type, entity_id)
 
-    async def get_pending_approvals(self, approver_id: UUID, entity_type: Optional[str] = None):
-        return await self._requests.get_pending_approvals(approver_id, entity_type)
+    async def get_pending_approvals(self, approver_id: UUID, entity_type: Optional[str] = None, include_all: bool = False):
+        return await self._requests.get_pending_approvals(approver_id, entity_type, include_all)
 
-    async def get_archived_approvals(self, approver_id: UUID, status_filter: Optional[str] = None):
-        return await self._requests.get_archived_approvals(approver_id, status_filter)
+    async def get_archived_approvals(self, approver_id: UUID, status_filter: Optional[str] = None, entity_type: Optional[str] = None):
+        return await self._requests.get_archived_approvals(approver_id, status_filter, entity_type)
 
     async def get_pending_count(self, approver_id: UUID):
         return await self._requests.get_pending_count(approver_id)
@@ -68,8 +68,14 @@ class ApprovalService(BaseApprovalService):
     async def approve_request(self, request_id: UUID, approver_id: UUID, notes: Optional[str] = None, override_authority: bool = False):
         return await self._actions.approve_request(request_id, approver_id, notes, override_authority)
         
-    async def reject_request(self, request_id: UUID, approver_id: UUID, notes: Optional[str] = None):
-        return await self._actions.reject_request(request_id, approver_id, notes)
+    async def reject_request(self, request_id: UUID, approver_id: UUID, notes: Optional[str] = None, override_authority: bool = False):
+        return await self._actions.reject_request(request_id, approver_id, notes, override_authority)
+        
+    async def approve_conditional_request(self, request_id: UUID, approver_id: UUID, condition_type: str, condition_details: str, notes: Optional[str] = None, override_authority: bool = False):
+        return await self._actions.approve_conditional_request(request_id, approver_id, condition_type, condition_details, notes, override_authority)
+        
+    async def delegate_request(self, request_id: UUID, approver_id: UUID, delegate_to_id: UUID, delegate_to_name: Optional[str] = None, notes: Optional[str] = None, override_authority: bool = False):
+        return await self._actions.delegate_request(request_id, approver_id, delegate_to_id, delegate_to_name, notes, override_authority)
         
     async def cancel_request(self, request_id: UUID, cancelled_by: UUID, reason: Optional[str] = None):
         return await self._actions.cancel_request(request_id, cancelled_by, reason)

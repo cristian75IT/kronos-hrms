@@ -35,6 +35,7 @@ from src.services.auth.schemas import (
     ContractTypeUpdate,
     WorkScheduleCreate,
     EmployeeContractCreate,
+    EmployeeContractUpdate,
     EmployeeTrainingCreate,
     EmployeeTrainingUpdate,
     KeycloakSyncRequest,
@@ -99,6 +100,10 @@ class UserService:
         if not user:
             raise NotFoundError(f"User not found with Keycloak ID: {keycloak_id}")
         return user
+
+    async def get_users_by_role(self, role_id: UUID) -> list:
+        """Get users with specific role ID."""
+        return await self._user_repo.get_by_role_id(role_id)
 
     async def get_or_create_from_token(
         self,

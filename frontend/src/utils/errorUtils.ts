@@ -8,7 +8,20 @@
 export const formatApiError = (error: any): string => {
     if (!error) return 'Errore sconosciuto';
 
-    const detail = error?.response?.data?.detail;
+    const data = error?.response?.data;
+
+    // 1. Standard KRONOS Error Format ({ error: { message: "..." } })
+    if (data?.error?.message) {
+        return data.error.message;
+    }
+
+    // 2. Simple Error Format ({ error: "..." })
+    if (typeof data?.error === 'string') {
+        return data.error;
+    }
+
+    // 3. FastAPI Default Format ({ detail: ... })
+    const detail = data?.detail;
 
     if (!detail) {
         return error.message || 'Si è verificato un errore';

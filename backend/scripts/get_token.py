@@ -2,7 +2,7 @@ import httpx
 import asyncio
 
 async def get_token():
-    async with httpx.AsyncClient(base_url="http://localhost:8001/api/v1") as client:
+    async with httpx.AsyncClient(base_url="http://localhost:80/api/v1") as client:
         # We need an admin user. Let's try to login as admin.
         # Usually credentials are in seed or env. 
         # But I can also just skip auth if I run inside a service with special trust? 

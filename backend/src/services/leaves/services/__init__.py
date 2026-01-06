@@ -42,6 +42,9 @@ from src.services.leaves.schemas import (
 )
 from src.shared.schemas import DataTableRequest
 
+if False:  # TYPE_CHECKING
+    from src.shared.clients import ApprovalClient
+
 # Import sub-services
 from src.services.leaves.services.query import LeaveQueryService
 from src.services.leaves.services.crud import LeaveCrudService
@@ -63,14 +66,23 @@ class LeaveService:
     - _enterprise: Italian Labor Law features (recall, sickness, etc.)
     """
     
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, approval_client: "ApprovalClient" = None) -> None:
         self._session = session
         
         # Initialize sub-services
         self._query = LeaveQueryService(session)
         self._crud = LeaveCrudService(session)
-        self._workflow = LeaveWorkflowService(session)
+        self._workflow = LeaveWorkflowService(session, approval_client)
         self._enterprise = LeaveEnterpriseService(session)
+
+    @property
+    def _approval_client(self) -> "ApprovalClient":
+        """Access the approval client via workflow service."""
+        return self._workflow._approval_client
+
+    async def _get_user_info(self, user_id: UUID) -> Optional[dict]:
+        """Delegate user info fetch to query service."""
+        return await self._query._get_user_info(user_id)
     
     # ═══════════════════════════════════════════════════════════════════════
     # Query Operations (delegated to LeaveQueryService)

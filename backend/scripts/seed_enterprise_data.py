@@ -30,7 +30,7 @@ async def seed():
                 print(f"   👤 Creating Admin: Cristian")
                 cristian = User(
                     id=ADMIN_ID,
-                    keycloak_id="cristian-kc-id",
+                    keycloak_id="456255c9-3f01-42c1-87b6-1f9240b4087b",
                     email="cristian@example.com",
                     username="cristian",
                     first_name="Cristian",

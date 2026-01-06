@@ -65,6 +65,17 @@ async def get_user_balance(
     return balance
 
 
+@router.get("/balances/{user_id}/summary", response_model=BalanceSummary)
+async def get_user_balance_summary(
+    user_id: UUID,
+    year: int = Query(default_factory=lambda: date.today().year),
+    token: TokenPayload = Depends(require_permission("leaves:manage")),
+    service: LeaveBalanceService = Depends(get_balance_service),
+):
+    """Get a user's balance summary. Admin only."""
+    return await service.get_balance_summary(user_id, year)
+
+
 @router.post("/balances/{user_id}/adjust", response_model=LeaveBalanceResponse)
 async def adjust_balance(
     user_id: UUID,

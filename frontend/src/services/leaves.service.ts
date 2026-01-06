@@ -17,7 +17,6 @@ import type {
 } from '../types';
 
 const ENDPOINT = '/leaves';
-import { walletsService } from './wallets.service';
 
 export const leavesService = {
     // ═══════════════════════════════════════════════════════════════════
@@ -156,19 +155,15 @@ export const leavesService = {
     // ═══════════════════════════════════════════════════════════════════
 
     getMyBalance: async (year?: number, userId?: string): Promise<LeaveBalance> => {
-        if (userId) {
-            return await walletsService.getLeavesWallet(userId, year);
-        }
+        const url = userId ? `/balances/${userId}` : '/balances/me';
         const params = year ? { year } : {};
-        const response = await leavesApi.get('/balances/me', { params });
+        const response = await leavesApi.get(url, { params });
         return response.data;
     },
 
     getBalanceSummary: async (userId?: string): Promise<LeaveBalanceSummary> => {
-        if (userId) {
-            return await walletsService.getLeavesBalanceSummary(userId);
-        }
-        const response = await leavesApi.get('/balances/me/summary');
+        const url = userId ? `/balances/${userId}/summary` : '/balances/me/summary';
+        const response = await leavesApi.get(url);
         return response.data;
     },
 
