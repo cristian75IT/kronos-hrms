@@ -226,10 +226,9 @@ class ExpenseTripService(BaseExpenseService):
         # Initialize Trip Wallet
         budget = trip.estimated_budget or Decimal(0)
         try:
-            # The ExpensiveWalletClient already handles the HTTP connection
-            await self._wallet_client.initialize_wallet(id, trip.user_id, float(budget))
+            await self._wallet_service.create_wallet(id, trip.user_id, budget)
         except Exception as e:
-            logger.error(f"Failed to initialize wallet for trip {id}: {e}")
+            logger.error(f"Failed to initialize local wallet for trip {id}: {e}")
         
         # Send notification to employee
         await self._send_notification(

@@ -43,7 +43,7 @@ class TripWalletService:
         self.session = session
         self._wallet_repo = TripWalletRepository(session)
         self._txn_repo = TripWalletTransactionRepository(session)
-        self._audit = get_audit_logger("trip-wallet-service")
+        self._audit = get_audit_logger("expense-wallet-service")
 
     # ═══════════════════════════════════════════════════════════
     # Query Operations

@@ -10,7 +10,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from src.core.database import get_db_context
 from src.services.auth.models import User
-from src.services.leaves_wallet.models import EmployeeWallet, WalletTransaction
+from src.services.leaves.wallet.models import EmployeeWallet, WalletTransaction
 from src.services.expensive_wallet.models import TripWallet
 from src.services.hr_reporting.models import HRAlert, DailySnapshot, AlertSeverity
 

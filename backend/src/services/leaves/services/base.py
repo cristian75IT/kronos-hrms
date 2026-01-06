@@ -3,19 +3,11 @@ KRONOS - Leave Service Base Module
 
 Contains shared dependencies and initialization logic used by all leave sub-services.
 """
-from datetime import date, datetime
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.config import settings
-from src.core.exceptions import (
-    NotFoundError,
-    ConflictError,
-    BusinessRuleError,
-    ValidationError,
-)
 from src.services.leaves.repository import (
     LeaveRequestRepository,
     LeaveInterruptionRepository,
@@ -26,14 +18,7 @@ from src.services.leaves.calendar_utils import CalendarUtils
 from src.services.leaves.balance_service import LeaveBalanceService
 from src.services.leaves.notification_handler import LeaveNotificationHandler
 from src.shared.audit_client import get_audit_logger
-
-if TYPE_CHECKING:
-    from src.shared.clients import (
-        AuthClient,
-        ConfigClient,
-        LeavesWalletClient,
-        ApprovalClient,
-    )
+from src.shared.clients import AuthClient, ConfigClient, ApprovalClient
 
 
 class BaseLeaveService:
@@ -42,7 +27,8 @@ class BaseLeaveService:
     
     Provides shared dependencies and initialization for:
     - Database session and repository
-    - External service clients (auth, config, wallet, approval)
+    - External service clients (auth, config, approval)
+    - Local wallet service (no HTTP calls)
     - Audit logging
     - Notification handler
     - Balance service
@@ -58,24 +44,17 @@ class BaseLeaveService:
         # Audit logging
         self._audit = get_audit_logger("leave-service")
         
-        # Initialize clients (lazy import to avoid circular dependencies)
-        from src.shared.clients import (
-            AuthClient,
-            ConfigClient,
-            LeavesWalletClient as WalletClient,
-            ApprovalClient,
-        )
+        # External service clients (still HTTP-based)
         self._auth_client = AuthClient()
         self._config_client = ConfigClient()
-        self._wallet_client = WalletClient()
         self._approval_client = ApprovalClient()
         
         # Notification handler
         self._notifier = LeaveNotificationHandler()
         
-        # Utility services
+        # Utility services (now with local wallet)
         self._calendar_utils = CalendarUtils(self._config_client)
-        self._balance_service = LeaveBalanceService(session, self._wallet_client)
+        self._balance_service = LeaveBalanceService(session)
         
         # Policy engine
         self._policy_engine = PolicyEngine(

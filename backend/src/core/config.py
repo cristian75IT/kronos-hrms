@@ -91,12 +91,6 @@ class Settings(BaseSettings):
     audit_service_url: str = Field(
         default="http://localhost:8007", alias="AUDIT_SERVICE_URL"
     )
-    expensive_wallet_service_url: str = Field(
-        default="http://localhost:8006", alias="EXPENSIVE_WALLET_SERVICE_URL"
-    )
-    leaves_wallet_service_url: str = Field(
-        default="http://localhost:8008", alias="LEAVES_WALLET_SERVICE_URL"
-    )
     calendar_service_url: str = Field(
         default="http://localhost:8009", alias="CALENDAR_SERVICE_URL"
     )

@@ -14,15 +14,16 @@ from src.shared.clients import (
     AuthClient, 
     ConfigClient, 
     NotificationClient, 
-    ExpensiveWalletClient as WalletClient,
     ApprovalClient
 )
+
 from src.services.expenses.repository import (
     BusinessTripRepository,
     DailyAllowanceRepository,
     ExpenseReportRepository,
     ExpenseItemRepository,
 )
+from src.services.expenses.wallet.service import TripWalletService
 
 logger = logging.getLogger(__name__)
 
@@ -38,11 +39,13 @@ class BaseExpenseService:
         self._item_repo = ExpenseItemRepository(session)
         self._audit = get_audit_logger("expense-service")
         
+        # Local Services
+        self._wallet_service = TripWalletService(session)
+        
         # Shared Clients
         self._auth_client = AuthClient()
         self._config_client = ConfigClient()
         self._notifications = NotificationClient()
-        self._wallet_client = WalletClient()
         self._approval_client = ApprovalClient()
 
     @property

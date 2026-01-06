@@ -1,35 +1,31 @@
 """
-KRONOS Wallet Service - Enterprise Grade
+KRONOS - Wallet Service (Integrated into Leaves).
 
-Central authority for all balance operations:
-- Balance queries (available, reserved, used)
-- FIFO consumption across buckets
-- Reservation system for pending requests
-- Audit trail integration
+Central authority for all balance operations.
 """
 import logging
 from datetime import datetime, date
 from decimal import Decimal
-from typing import Optional, List, Dict
+from typing import Optional, List
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.exceptions import ValidationError, NotFoundError, BusinessRuleError
+from src.core.exceptions import BusinessRuleError
 from src.shared.audit_client import get_audit_logger
-from .models import EmployeeWallet, WalletTransaction
-from .schemas import TransactionCreate
-from .repository import WalletRepository, TransactionRepository
+from src.services.leaves.wallet.models import EmployeeWallet, WalletTransaction
+from src.services.leaves.wallet.repository import WalletRepository, TransactionRepository
+from src.services.leaves.wallet.schemas import TransactionCreate
 
 logger = logging.getLogger(__name__)
 
 
 class WalletService:
     """
-    Enterprise Wallet Service.
+    Enterprise Wallet Service - integrated into leaves.
     
     Single source of truth for all balance operations.
-    The Leave Service calls this for all balance changes.
+    No HTTP calls - direct database access.
     """
     
     def __init__(self, session: AsyncSession):
@@ -45,7 +41,6 @@ class WalletService:
             
         wallet = await self._wallet_repo.get_by_user_year(user_id, year)
         if not wallet:
-            # Create new wallet with correct column names
             wallet = EmployeeWallet(
                 user_id=user_id,
                 year=year,
@@ -73,7 +68,7 @@ class WalletService:
 
     async def get_transactions(self, wallet_id: UUID, limit: int = 100) -> List[WalletTransaction]:
         """Get transactions for a wallet."""
-        return await self._txn_repo.get_by_wallet(wallet_id, limit=limit)
+        return list(await self._txn_repo.get_by_wallet(wallet_id, limit=limit))
 
     async def get_available_balance(
         self, 
@@ -82,21 +77,11 @@ class WalletService:
         year: int = None,
         exclude_reserved: bool = True,
     ) -> Decimal:
-        """
-        Get available balance for a specific type.
-        
-        Args:
-            user_id: The user ID
-            balance_type: 'vacation', 'vacation_ap', 'vacation_ac', 'rol', 'permits'
-            year: Fiscal year (defaults to current)
-            exclude_reserved: If True, subtracts any reserved (pending) amounts
-        """
+        """Get available balance for a specific type."""
         if not year:
             year = datetime.utcnow().year
             
         wallet = await self.get_wallet(user_id, year)
-        
-        # Get raw balance
         raw_balance = self._get_current_balance_value(wallet, balance_type)
         
         if exclude_reserved:
@@ -112,11 +97,7 @@ class WalletService:
         amount: Decimal,
         year: int = None,
     ) -> tuple[bool, Decimal]:
-        """
-        Check if balance is sufficient for a request.
-        
-        Returns (is_sufficient, available_amount)
-        """
+        """Check if balance is sufficient for a request."""
         available = await self.get_available_balance(user_id, balance_type, year)
         return (available >= amount), available
 
@@ -130,8 +111,9 @@ class WalletService:
         def f(val): 
             return float(val) if val is not None else 0.0
             
-        summary = {
+        return {
             "year": wallet.year,
+            "wallet_id": str(wallet.id),
             "balances": {
                 "vacation_ap": f(wallet.vacation_available_ap),
                 "vacation_ac": f(wallet.vacation_available_ac),
@@ -145,20 +127,14 @@ class WalletService:
                 "permits": f(await self._txn_repo.get_pending_reservations(wallet.id, "permits")),
             }
         }
-        return summary
 
     async def process_transaction(self, transaction: TransactionCreate) -> WalletTransaction:
-        """
-        Process a balance transaction.
-        
-        This is the main entry point for all balance changes.
-        """
+        """Process a balance transaction."""
         amount = Decimal(str(transaction.amount))
         wallet = await self.get_wallet(transaction.user_id, transaction.year)
         
         category = self._map_category(transaction.transaction_type)
         
-        # Validation for DEDUCTION
         if category == "DEDUCTION":
             available = await self.get_available_balance(
                 transaction.user_id, 
@@ -167,9 +143,11 @@ class WalletService:
                 exclude_reserved=True
             )
             if available < amount:
-                 raise BusinessRuleError(f"Insufficient balance for {transaction.balance_type}. Attempted: {amount}, Available: {available}")
+                raise BusinessRuleError(
+                    f"Insufficient balance for {transaction.balance_type}. "
+                    f"Attempted: {amount}, Available: {available}"
+                )
 
-        # Create Record
         balance_value = self._get_current_balance_value(wallet, transaction.balance_type)
         txn = WalletTransaction(
             wallet_id=wallet.id,
@@ -186,10 +164,6 @@ class WalletService:
         
         await self._txn_repo.create(txn)
         
-        # Allow repo to flush to generate ID/defaults if needed before further ops? 
-        # Usually flush is enough.
-        
-        # Update Aggregates and FIFO
         if category == "DEDUCTION":
             await self._handle_deduction(wallet, transaction.balance_type, amount)
             await self._consume_buckets(wallet.id, transaction.balance_type, amount)
@@ -208,13 +182,7 @@ class WalletService:
         reference_id: UUID,
         expiry_date: Optional[date] = None,
     ) -> WalletTransaction:
-        """
-        Reserve balance for a pending request.
-        
-        Creates a 'reservation' transaction that holds the balance
-        until approved (confirm) or rejected (cancel).
-        """
-        # Check balance
+        """Reserve balance for a pending request."""
         available = await self.get_available_balance(user_id, balance_type, exclude_reserved=True)
         if available < amount:
             raise BusinessRuleError("Insufficient balance for reservation")
@@ -226,8 +194,8 @@ class WalletService:
             wallet_id=wallet.id,
             transaction_type='RESERVATION',
             balance_type=balance_type,
-            amount=amount,  # Store positive amount for reservation sum
-            balance_after=balance_value,  # Balance unchanged for reservations
+            amount=amount,
+            balance_after=balance_value,
             is_confirmed=False,
             description=f"Reservation for request {reference_id}",
             reference_id=reference_id,
@@ -236,27 +204,22 @@ class WalletService:
         await self._txn_repo.create(txn)
         return txn
 
-
     async def confirm_reservation(self, reference_id: UUID) -> List[WalletTransaction]:
-        """
-        Confirm a reservation when request is approved.
-        
-        Converts reservation to actual deduction.
-        """
+        """Confirm a reservation when request is approved."""
         txns = await self._txn_repo.get_by_reference(reference_id)
-        reservation = next((t for t in txns if t.transaction_type == 'RESERVATION' and not t.is_confirmed), None)
+        reservation = next(
+            (t for t in txns if t.transaction_type == 'RESERVATION' and not t.is_confirmed), 
+            None
+        )
         
         if not reservation:
-            # Already confirmed or not found
             logger.warning(f"No active reservation found for {reference_id}")
             return []
             
         wallet = await self._wallet_repo.get(reservation.wallet_id)
         
-        # 1. Mark reservation as confirmed (so it doesn't count as pending anymore)
         reservation.is_confirmed = True
         
-        # 2. Create actual Usage transaction
         balance_value = self._get_current_balance_value(wallet, reservation.balance_type)
         usage_txn = WalletTransaction(
             wallet_id=wallet.id,
@@ -270,56 +233,40 @@ class WalletService:
             is_confirmed=True
         )
         await self._txn_repo.create(usage_txn)
-
         
-        # 3. Update balances (Deduction logic)
         await self._handle_deduction(wallet, reservation.balance_type, reservation.amount)
         await self._consume_buckets(wallet.id, reservation.balance_type, reservation.amount)
         await self._wallet_repo.update(wallet)
         
         return [reservation, usage_txn]
 
-    async def cancel_reservation(self, reference_id: UUID) -> WalletTransaction:
-        """
-        Cancel a reservation when request is rejected.
-        
-        Releases the held balance back to available.
-        """
+    async def cancel_reservation(self, reference_id: UUID) -> Optional[WalletTransaction]:
+        """Cancel a reservation when request is rejected."""
         txns = await self._txn_repo.get_by_reference(reference_id)
-        reservation = next((t for t in txns if t.transaction_type == 'RESERVATION' and not t.is_confirmed), None)
+        reservation = next(
+            (t for t in txns if t.transaction_type == 'RESERVATION' and not t.is_confirmed), 
+            None
+        )
         
         if not reservation:
-             logger.warning(f"No active reservation found for {reference_id}")
-             return None
-             
-        # Just mark as confirmed (or deleted/cancelled status if we had one).
-        # We assume marking distinct from not-pending.
-        # Ideally we might delete it or have 'is_cancelled' flag.
-        # But get_pending_reservations uses 'is_confirmed=False'.
-        # If we set is_confirmed=True WITHOUT creating a usage, it is effectively released.
-        # But we should probably mark it as 'CANCELLED' status if we had one.
-        # For now, let's delete it or mark it confirmed but 0 amount? NO.
-        # Let's delete it? No, audit trail.
-        # Add `is_cancelled` field? Not in schema.
-        # Let's assume setting `is_confirmed=True` effectively removes it from "Pending" sum.
-        # And since we don't create USAGE, nothing is deducted.
-        # But we should update description or code?
-        
+            logger.warning(f"No active reservation found for {reference_id}")
+            return None
+            
         reservation.is_confirmed = True
         reservation.description += " (CANCELLED)"
-        # Or change code to RESERVATION_CANCELLED? Standard practice.
         reservation.transaction_type = 'RESERVATION_CANCELLED'
         
         return reservation
 
-    async def _handle_deduction(self, wallet: EmployeeWallet, balance_type: str, amount: Decimal):
+    async def _handle_deduction(
+        self, wallet: EmployeeWallet, balance_type: str, amount: Decimal
+    ):
         """Deduct with FIFO logic across buckets."""
         if balance_type == "rol":
             wallet.rol_used += amount
         elif balance_type == "permits":
             wallet.permits_used += amount
         elif balance_type == "vacation":
-            # AP first, then AC (FIFO)
             available_ap = wallet.vacation_available_ap
             if available_ap >= amount:
                 wallet.vacation_used_ap += amount
@@ -331,7 +278,9 @@ class WalletService:
             
             wallet.vacation_used += amount
         
-    async def _handle_addition(self, wallet: EmployeeWallet, balance_type: str, amount: Decimal):
+    async def _handle_addition(
+        self, wallet: EmployeeWallet, balance_type: str, amount: Decimal
+    ):
         """Add to balance aggregates."""
         if balance_type == "rol":
             wallet.rol_accrued += amount
@@ -342,12 +291,10 @@ class WalletService:
         elif balance_type == "vacation_ac":
             wallet.vacation_accrued += amount
 
-    async def _consume_buckets(self, wallet_id: UUID, balance_type: str, amount: Decimal):
+    async def _consume_buckets(
+        self, wallet_id: UUID, balance_type: str, amount: Decimal
+    ):
         """Consume remaining_amount from previous transactions (FIFO)."""
-        # Map generic 'vacation' to specific buckets? 
-        # Usually buckets have 'vacation_ap' or 'vacation_ac'.
-        # If user asks to consume 'vacation', we must consume 'vacation_ap' buckets first, then 'vacation_ac'.
-        
         targets = [balance_type]
         if balance_type == 'vacation':
             targets = ['vacation_ap', 'vacation_ac']
@@ -366,10 +313,13 @@ class WalletService:
                 remaining_to_deduct -= take
                 
         if remaining_to_deduct > 0:
-            logger.warning(f"Consumed all buckets but still {remaining_to_deduct} needed for deduction.")
-            # This implies negative balance allowed or aggregates out of sync with buckets.
+            logger.warning(
+                f"Consumed all buckets but still {remaining_to_deduct} needed"
+            )
 
-    def _get_current_balance_value(self, wallet: EmployeeWallet, balance_type: str) -> Decimal:
+    def _get_current_balance_value(
+        self, wallet: EmployeeWallet, balance_type: str
+    ) -> Decimal:
         """Get current balance value for a type."""
         if balance_type == "vacation":
             return wallet.vacation_available_total
@@ -389,15 +339,10 @@ class WalletService:
             return 'ADDITION'
         return 'DEDUCTION'
 
-    async def process_expiration(self, wallet_id: UUID, balance_type: str, amount: Decimal):
-        """Process balance expiration (e.g., AP expires on June 30)."""
-        # Logic to expire amount
-        pass
-
     async def get_wallets_for_accrual(self, year: int) -> List[EmployeeWallet]:
         """Get all wallets that need monthly accrual processing."""
-        return await self._wallet_repo.get_wallets_for_year(year)
+        return list(await self._wallet_repo.get_wallets_for_year(year))
 
     async def get_expiring_balances(self, expiry_date: date) -> List[WalletTransaction]:
         """Get all transactions expiring on or before a date."""
-        return await self._txn_repo.get_expiring(expiry_date)
+        return list(await self._txn_repo.get_expiring(expiry_date))

@@ -79,6 +79,41 @@ class LeaveClient(BaseClient):
             params={"target_date": target_date.isoformat()},
         )
 
+    async def get_leaves_for_date(self, target_date: date) -> list[dict]:
+        """Alias for get_requests_for_date for aggregator compatibility."""
+        return await self.get_requests_for_date(target_date)
+
+    async def get_leaves_in_period(
+        self,
+        start_date: date,
+        end_date: date,
+        user_id: Optional[UUID] = None,
+        status: Optional[str] = None
+    ) -> list[dict]:
+        """Get leaves in period (internal use)."""
+        params = {
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+        }
+        if user_id:
+            params["user_id"] = str(user_id)
+        if status:
+            params["status"] = status
+            
+        return await self.get_safe(
+            "/api/v1/leaves/internal/in-period",
+            default=[],
+            params=params,
+        )
+
+    async def get_balance_summary(self, user_id: UUID, year: int = None) -> Optional[dict]:
+        """Get comprehensive balance summary from the integrated wallet module."""
+        params = {"year": year} if year else {}
+        return await self.get_safe(
+            f"/api/v1/leaves/wallet/{user_id}/summary",
+            params=params,
+        )
+
 
 # Backward compatibility alias
 LeavesClient = LeaveClient

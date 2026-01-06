@@ -1,10 +1,13 @@
+"""
+KRONOS - Leave Service Dependencies
+"""
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
 from src.core.database import get_db
 from src.core.security import get_current_user, TokenPayload
-from src.shared.clients import ConfigClient, LeavesWalletClient as WalletClient, ApprovalClient
+from src.shared.clients import ConfigClient, ApprovalClient
 from src.services.leaves.calendar_utils import CalendarUtils
 
 from src.services.leaves.services import LeaveService
@@ -13,31 +16,38 @@ from src.services.leaves.accrual_service import AccrualService
 from src.services.leaves.calendar_service import LeaveCalendarService
 from src.services.leaves.report_service import LeaveReportService
 
+
 async def get_leave_service(
     session: AsyncSession = Depends(get_db),
 ) -> LeaveService:
     """Dependency for LeaveService."""
     return LeaveService(session, ApprovalClient())
 
+
 async def get_balance_service(
     session: AsyncSession = Depends(get_db),
 ) -> LeaveBalanceService:
-    return LeaveBalanceService(session, WalletClient())
+    """Dependency for LeaveBalanceService - now uses local WalletService."""
+    return LeaveBalanceService(session)
+
 
 async def get_calendar_service(
     session: AsyncSession = Depends(get_db),
 ) -> LeaveCalendarService:
     return LeaveCalendarService(session)
 
+
 async def get_report_service(
     session: AsyncSession = Depends(get_db),
 ) -> LeaveReportService:
     return LeaveReportService(session, CalendarUtils(ConfigClient()))
 
+
 async def get_accrual_service(
     session: AsyncSession = Depends(get_db),
 ) -> AccrualService:
-    return AccrualService(session, WalletClient())
+    """Dependency for AccrualService - now uses local WalletService."""
+    return AccrualService(session)
 
 
 async def get_current_user_id(

@@ -24,10 +24,9 @@ from src.shared.clients.base import BaseClient
 from src.shared.clients.auth import AuthClient
 from src.shared.clients.config import ConfigClient
 from src.shared.clients.notification import NotificationClient
-from src.shared.clients.leaves_wallet import LeavesWalletClient
-from src.shared.clients.expensive_wallet import ExpensiveWalletClient
 from src.shared.clients.calendar import CalendarClient
 from src.shared.clients.approval import ApprovalClient
+
 from src.shared.clients.leave import LeaveClient, LeavesClient
 from src.shared.clients.expense import ExpenseClient
 
@@ -38,11 +37,11 @@ __all__ = [
     "AuthClient",
     "ConfigClient",
     "NotificationClient",
-    "LeavesWalletClient",
-    "ExpensiveWalletClient",
     "CalendarClient",
+
     "ApprovalClient",
     "LeaveClient",
-    "LeavesClient",  # Alias for backward compatibility
+    "LeavesClient",
     "ExpenseClient",
 ]
+

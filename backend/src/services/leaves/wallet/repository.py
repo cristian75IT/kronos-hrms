@@ -1,17 +1,20 @@
 """
-KRONOS Leaves Wallet - Repository Layer.
+KRONOS - Wallet Repository Layer (Integrated into Leaves).
 """
-from typing import Optional, List, Sequence
+from typing import Optional, Sequence
 from uuid import UUID
 from datetime import date
 from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func
+from sqlalchemy import select
 
-from src.services.leaves_wallet.models import EmployeeWallet, WalletTransaction
+from src.services.leaves.wallet.models import EmployeeWallet, WalletTransaction
+
 
 class WalletRepository:
+    """Repository for employee wallet operations."""
+    
     def __init__(self, session: AsyncSession):
         self._session = session
 
@@ -38,10 +41,6 @@ class WalletRepository:
         return wallet
         
     async def update(self, wallet: EmployeeWallet) -> EmployeeWallet:
-        # Assuming object is attached to session and modified
-        # Explicit update might not be needed if ORM tracking is used, 
-        # but good for explicit intent or if dealing with detached objects.
-        # Here we just flush.
         await self._session.flush()
         return wallet
     
@@ -52,6 +51,8 @@ class WalletRepository:
 
 
 class TransactionRepository:
+    """Repository for wallet transaction operations."""
+    
     def __init__(self, session: AsyncSession):
         self._session = session
 
@@ -63,40 +64,49 @@ class TransactionRepository:
         await self._session.flush()
         return txn
 
-    async def get_by_wallet(self, wallet_id: UUID, limit: int = 100, offset: int = 0) -> Sequence[WalletTransaction]:
-        stmt = select(WalletTransaction).where(
-            WalletTransaction.wallet_id == wallet_id
-        ).order_by(WalletTransaction.created_at.desc()).limit(limit).offset(offset)
+    async def get_by_wallet(
+        self, wallet_id: UUID, limit: int = 100, offset: int = 0
+    ) -> Sequence[WalletTransaction]:
+        stmt = (
+            select(WalletTransaction)
+            .where(WalletTransaction.wallet_id == wallet_id)
+            .order_by(WalletTransaction.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
         result = await self._session.execute(stmt)
         return result.scalars().all()
         
     async def get_pending_reservations(self, wallet_id: UUID, balance_type: str) -> Decimal:
-        # NOTE: is_confirmed column was added to model but not migrated to DB yet
-        # For now, return 0 as there's no active reservation system without the column
-        # TODO: Run migration to add is_confirmed column, then restore filter
-        return Decimal(0)
-
+        """Get sum of pending (unconfirmed) reservations."""
+        return Decimal(0)  # Reservation system not fully implemented
     
     async def get_by_reference(self, reference_id: UUID) -> Sequence[WalletTransaction]:
-        stmt = select(WalletTransaction).where(WalletTransaction.reference_id == reference_id)
+        stmt = select(WalletTransaction).where(
+            WalletTransaction.reference_id == reference_id
+        )
         result = await self._session.execute(stmt)
         return result.scalars().all()
 
-    async def get_available_buckets(self, wallet_id: UUID, balance_type: str) -> Sequence[WalletTransaction]:
+    async def get_available_buckets(
+        self, wallet_id: UUID, balance_type: str
+    ) -> Sequence[WalletTransaction]:
         """Get positive transactions with remaining amount > 0 (FIFO candidates)."""
-        stmt = select(WalletTransaction).where(
-            WalletTransaction.wallet_id == wallet_id,
-            WalletTransaction.balance_type == balance_type,
-            WalletTransaction.remaining_amount > 0,
-            # Usually only ACCRUAL or MANUAL_ADD have remaining amount used for deductions
-            # But let's rely on remaining_amount > 0
-        ).order_by(WalletTransaction.created_at.asc()) # FIFO: Oldest first
+        stmt = (
+            select(WalletTransaction)
+            .where(
+                WalletTransaction.wallet_id == wallet_id,
+                WalletTransaction.balance_type == balance_type,
+                WalletTransaction.remaining_amount > 0,
+            )
+            .order_by(WalletTransaction.created_at.asc())
+        )
         result = await self._session.execute(stmt)
         return result.scalars().all()
         
     async def get_expiring(self, expiry_date: date) -> Sequence[WalletTransaction]:
         stmt = select(WalletTransaction).where(
-            WalletTransaction.expires_at <= expiry_date,
+            WalletTransaction.expiry_date <= expiry_date,
             WalletTransaction.remaining_amount > 0
         )
         result = await self._session.execute(stmt)

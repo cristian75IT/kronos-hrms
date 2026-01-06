@@ -15,8 +15,10 @@ CREATE SCHEMA IF NOT EXISTS config;
 CREATE SCHEMA IF NOT EXISTS notifications;
 CREATE SCHEMA IF NOT EXISTS audit;
 CREATE SCHEMA IF NOT EXISTS hr_reporting;
-CREATE SCHEMA IF NOT EXISTS wallet;
-CREATE SCHEMA IF NOT EXISTS time_wallet;
+CREATE SCHEMA IF NOT EXISTS approvals;
+CREATE SCHEMA IF NOT EXISTS calendar;
+CREATE SCHEMA IF NOT EXISTS wallet;           -- Deprecated (consolidated in expenses)
+CREATE SCHEMA IF NOT EXISTS time_wallet;      -- Deprecated (consolidated in leaves)
 
 -- Grant privileges
 GRANT ALL ON SCHEMA auth TO kronos;
@@ -26,16 +28,18 @@ GRANT ALL ON SCHEMA config TO kronos;
 GRANT ALL ON SCHEMA notifications TO kronos;
 GRANT ALL ON SCHEMA audit TO kronos;
 GRANT ALL ON SCHEMA hr_reporting TO kronos;
+GRANT ALL ON SCHEMA approvals TO kronos;
+GRANT ALL ON SCHEMA calendar TO kronos;
 GRANT ALL ON SCHEMA wallet TO kronos;
 GRANT ALL ON SCHEMA time_wallet TO kronos;
 
 -- Set search path
-ALTER DATABASE kronos SET search_path TO public, auth, leaves, expenses, config, notifications, audit, hr_reporting, wallet, time_wallet;
+ALTER DATABASE kronos SET search_path TO public, auth, leaves, expenses, config, notifications, audit, hr_reporting, approvals, calendar;
 
 -- Log initialization
 DO $$
 BEGIN
-    RAISE NOTICE 'KRONOS database initialized with schemas: auth, leaves, expenses, config, notifications, audit, hr_reporting, wallet, time_wallet';
+    RAISE NOTICE 'KRONOS database initialized with core and service schemas.';
 END
 $$;
 

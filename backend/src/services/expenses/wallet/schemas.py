@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -64,13 +64,50 @@ class TripWalletResponse(BaseModel):
         from_attributes = True
 
 
+class WalletBudgetSummary(BaseModel):
+    total: float
+    reserved: float
+    available: float
+
+
+class WalletExpenseSummary(BaseModel):
+    total: float
+    taxable: float
+    non_taxable: float
+
+
+class WalletAdvanceSummary(BaseModel):
+    total: float
+
+
+class WalletSettlementSummary(BaseModel):
+    current_balance: float
+    net_to_pay: float
+
+
+class WalletComplianceSummary(BaseModel):
+    policy_violations_count: int
+    is_reconciled: bool
+
+
+class WalletTimestampSummary(BaseModel):
+    created_at: str
+    updated_at: str
+
+
 class WalletSummary(BaseModel):
-    """Summary of the wallet for the trip."""
-    total_budget: Decimal
-    total_advances: Decimal
-    total_expenses: Decimal
-    remaining_budget: Decimal
-    reimbursement_due: Decimal
+    """Comprehensive wallet summary."""
+    wallet_id: str
+    trip_id: str
+    user_id: str
+    currency: str
+    status: str
+    budget: WalletBudgetSummary
+    expenses: WalletExpenseSummary
+    advances: WalletAdvanceSummary
+    settlement: WalletSettlementSummary
+    compliance: WalletComplianceSummary
+    timestamps: WalletTimestampSummary
 
 
 # ═══════════════════════════════════════════════════════════
@@ -89,12 +126,24 @@ class PolicyCheckRequest(BaseModel):
     amount: Decimal
 
 
-class ReconcileRequest(BaseModel):
+class ProcessTransactionRequest(BaseModel):
+    transaction_type: str
+    amount: Decimal
+    reference_id: Optional[UUID] = None
+    description: Optional[str] = None
+    category: Optional[str] = None
+    tax_rate: Optional[Decimal] = None
+    is_taxable: bool = False
+    has_receipt: bool = True
+    is_reimbursable: bool = True
+
+
+class ReconciliationRequest(BaseModel):
     notes: Optional[str] = None
-    adjustments: Optional[List[Dict]] = None
+    adjustments: Optional[List[Dict[str, Any]]] = None
 
 
-class SettleRequest(BaseModel):
+class SettlementRequest(BaseModel):
     payment_reference: Optional[str] = None
 
 

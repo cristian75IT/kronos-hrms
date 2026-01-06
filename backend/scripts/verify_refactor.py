@@ -56,17 +56,17 @@ async def verify():
         print(f"❌ ApprovalService Validation Failed: {e}")
         sys.exit(1)
 
-    # 4. Leaves Wallet Service
+    # 4. Leaves Wallet Service (Integrated in Leaves)
     try:
-        from src.services.leaves_wallet.service import WalletService
-        print("Initializing LeavesWalletService...")
+        from src.services.leaves.wallet import WalletService
+        print("Initializing Integrated WalletService...")
         wallet_svc = WalletService(mock_session)
-        print("✅ LeavesWalletService initialized.")
+        print("✅ Integrated WalletService initialized.")
         # Check repos existence
         assert hasattr(wallet_svc, "_wallet_repo"), "Missing _wallet_repo"
         assert hasattr(wallet_svc, "_txn_repo"), "Missing _txn_repo"
     except Exception as e:
-        print(f"❌ LeavesWalletService Validation Failed: {e}")
+        print(f"❌ Integrated WalletService Validation Failed: {e}")
         sys.exit(1)
 
     # 5. Expensive Wallet Service

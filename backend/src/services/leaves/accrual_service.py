@@ -1,22 +1,27 @@
-from datetime import date, timedelta
+"""
+KRONOS - Accrual Service
+
+Calculates leave accruals and syncs with local Wallet module.
+"""
+from datetime import date
 from calendar import monthrange
 from decimal import Decimal
-from typing import Optional, Any, Tuple
+from typing import Tuple
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.services.leaves.repository import ContractRepository
-from src.services.leaves.strategies import StrategyFactory
-from src.services.auth.models import EmployeeContract
-from src.shared.clients import LeavesWalletClient as WalletClient
+from src.services.leaves.wallet import WalletService, TransactionCreate
+
 
 class AccrualService:
-    """Service for calculating leave accruals and delegating updates to WalletService."""
+    """Service for calculating leave accruals - now uses local WalletService."""
 
-    def __init__(self, session: AsyncSession, wallet_client: WalletClient):
+    def __init__(self, session: AsyncSession):
         self._session = session
         self._contract_repo = ContractRepository(session)
-        self._wallet_client = wallet_client
+        self._wallet_service = WalletService(session)
 
     async def recalculate_all_balances(self, year: int):
         """Recalculate accruals for all users based on contracts."""
@@ -26,20 +31,15 @@ class AccrualService:
             await self.recalculate_user_accrual(user_id, year)
 
     async def recalculate_user_accrual(self, user_id: UUID, year: int):
-        """Recalculate accruals for specific user and year, then sync with WalletService."""
-        # 1. Calculate what the balance SHOULD be
+        """Recalculate accruals for specific user and year."""
         new_vacation, new_rol, new_permits = await self._calculate_accrual_preview(user_id, year)
         
-        # 2. Get current wallet to find delta
-        wallet = await self._wallet_client.get_wallet(user_id, year)
-        if not wallet:
-            return
-            
-        current_vacation = Decimal(str(wallet.get("vacation_accrued", 0)))
-        current_rol = Decimal(str(wallet.get("rol_accrued", 0)))
-        current_permits = Decimal(str(wallet.get("permits_total", 0)))
+        wallet = await self._wallet_service.get_wallet(user_id, year)
         
-        # 3. Apply adjustments if any difference
+        current_vacation = wallet.vacation_accrued
+        current_rol = wallet.rol_accrued
+        current_permits = wallet.permits_total
+        
         deltas = {
             "vacation_ac": Decimal(str(new_vacation)) - current_vacation,
             "rol": Decimal(str(new_rol)) - current_rol,
@@ -50,18 +50,19 @@ class AccrualService:
             if delta == 0:
                 continue
             
-            payload = {
-                "user_id": str(user_id),
-                "transaction_type": "adjustment",
-                "balance_type": balance_type,
-                "amount": float(delta),
-                "description": f"Ricalcolo automatico accrual anno {year}",
-                "created_by": None # System
-            }
-            await self._wallet_client.create_transaction(user_id, payload)
+            txn = TransactionCreate(
+                user_id=user_id,
+                year=year,
+                transaction_type="ADJUSTMENT_ADD" if delta > 0 else "ADJUSTMENT_SUB",
+                balance_type=balance_type,
+                amount=abs(delta),
+                description=f"Ricalcolo automatico accrual anno {year}",
+                created_by=None
+            )
+            await self._wallet_service.process_transaction(txn)
 
-    async def _get_monthly_accrual_params(self, contract: EmployeeContract, reference_date: date):
-        # 1. Try CCNL config
+    async def _get_monthly_accrual_params(self, contract, reference_date: date):
+        """Get accrual parameters for a contract."""
         if contract.national_contract_id:
             version = await self._contract_repo.get_national_contract_version(
                 contract.national_contract_id, reference_date
@@ -92,7 +93,6 @@ class AccrualService:
                     "rol_mode": version.rol_calc_mode
                 }
 
-        # 2. Legacy fallback
         if contract.contract_type:
             ctype = contract.contract_type
             return {
@@ -110,20 +110,15 @@ class AccrualService:
         user_ids = await self._contract_repo.get_distinct_user_ids()
         
         for user_id in user_ids:
-            # Get confirmed wallet
-            wallet = await self._wallet_client.get_wallet(user_id, year)
-            current_vacation = float(wallet.get("vacation_accrued", 0)) if wallet else 0
-            current_rol = float(wallet.get("rol_accrued", 0)) if wallet else 0
-            current_permits = float(wallet.get("permits_total", 0)) if wallet else 0
+            wallet = await self._wallet_service.get_wallet(user_id, year)
+            current_vacation = float(wallet.vacation_accrued)
+            current_rol = float(wallet.rol_accrued)
+            current_permits = float(wallet.permits_total)
             
             new_vacation, new_rol, new_permits = await self._calculate_accrual_preview(user_id, year)
             
-            user = await self._contract_repo.get_user_by_keycloak_id(user_id)
-            name = f"{user.first_name} {user.last_name}" if user else str(user_id)
-            
             previews.append({
-                "user_id": user_id,
-                "name": name,
+                "user_id": str(user_id),
                 "current_vacation": current_vacation,
                 "new_vacation": new_vacation,
                 "current_rol": current_rol,
@@ -134,6 +129,7 @@ class AccrualService:
         return previews
 
     async def _calculate_accrual_preview(self, user_id: UUID, year: int) -> Tuple[float, float, float]:
+        """Calculate expected accruals for preview."""
         contracts = await self._contract_repo.get_user_contracts(user_id)
 
         if not contracts:
@@ -167,7 +163,6 @@ class AccrualService:
                 params = await self._get_monthly_accrual_params(active_contract, month_start)
                 
                 if params:
-                    # Logic matches Strategies logic
                     ratio = Decimal(active_contract.weekly_hours or params["full_time_hours"]) / params["full_time_hours"]
                     
                     monthly_vacation = (params["vacation"] / 12) * ratio
@@ -185,8 +180,8 @@ class AccrualService:
         for user_id in user_ids:
             await self.recalculate_user_accrual(user_id, year)
 
-    async def run_monthly_accruals(self, year: int, month: int):
-        """Processes monthly accruals and posts them to WalletService."""
+    async def run_monthly_accruals(self, year: int, month: int) -> int:
+        """Processes monthly accruals."""
         user_ids = await self._contract_repo.get_distinct_user_ids()
         
         accrual_date = date(year, month, 1)
@@ -221,36 +216,39 @@ class AccrualService:
                     m_permits = (params["permits"] / 12) * ratio
                     
                     if m_vacation > 0:
-                        payload = {
-                            "user_id": str(user_id),
-                            "transaction_type": "accrual",
-                            "balance_type": "vacation_ac",
-                            "amount": float(m_vacation),
-                            "description": f"Maturazione mensile Ferie {month}/{year}",
-                            "expiry_date": date(year + 1, 6, 30).isoformat()
-                        }
-                        await self._wallet_client.create_transaction(user_id, payload)
+                        txn = TransactionCreate(
+                            user_id=user_id,
+                            year=year,
+                            transaction_type="ACCRUAL",
+                            balance_type="vacation_ac",
+                            amount=m_vacation,
+                            description=f"Maturazione mensile Ferie {month}/{year}",
+                            expires_at=date(year + 1, 6, 30)
+                        )
+                        await self._wallet_service.process_transaction(txn)
 
                     if m_rol > 0:
-                        payload = {
-                            "user_id": str(user_id),
-                            "transaction_type": "accrual",
-                            "balance_type": "rol",
-                            "amount": float(m_rol),
-                            "description": f"Maturazione mensile ROL {month}/{year}",
-                            "expiry_date": date(year + 2, 12, 31).isoformat()
-                        }
-                        await self._wallet_client.create_transaction(user_id, payload)
+                        txn = TransactionCreate(
+                            user_id=user_id,
+                            year=year,
+                            transaction_type="ACCRUAL",
+                            balance_type="rol",
+                            amount=m_rol,
+                            description=f"Maturazione mensile ROL {month}/{year}",
+                            expires_at=date(year + 2, 12, 31)
+                        )
+                        await self._wallet_service.process_transaction(txn)
                     
                     if m_permits > 0:
-                        payload = {
-                            "user_id": str(user_id),
-                            "transaction_type": "accrual",
-                            "balance_type": "permits",
-                            "amount": float(m_permits),
-                            "description": f"Maturazione mensile Permessi {month}/{year}"
-                        }
-                        await self._wallet_client.create_transaction(user_id, payload)
+                        txn = TransactionCreate(
+                            user_id=user_id,
+                            year=year,
+                            transaction_type="ACCRUAL",
+                            balance_type="permits",
+                            amount=m_permits,
+                            description=f"Maturazione mensile Permessi {month}/{year}"
+                        )
+                        await self._wallet_service.process_transaction(txn)
                         
                     processed_count += 1
         return processed_count

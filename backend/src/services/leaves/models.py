@@ -369,5 +369,5 @@ class BalanceReservation(Base):
     )
 
 
-# LeaveBalance and BalanceTransaction moved to specialized leaves_wallet microservice.
+# LeaveBalance and BalanceTransaction are now integrated in src.services.leaves.wallet.models.
 

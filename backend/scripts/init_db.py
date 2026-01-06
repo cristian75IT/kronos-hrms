@@ -17,7 +17,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from src.core.config import settings
 
 
-SCHEMAS = ["auth", "leaves", "expenses", "config", "notifications", "audit", "wallet", "time_wallet", "calendar", "hr_reporting"]
+SCHEMAS = ["auth", "leaves", "expenses", "config", "notifications", "audit", "calendar", "hr_reporting", "approvals", "time_wallet", "wallet"]
+
 
 
 async def create_schemas():
@@ -70,8 +71,8 @@ async def verify_tables():
         ("config", "calculation_modes"),
         ("notifications", "notifications"),
         ("audit", "audit_logs"),
-        ("time_wallet", "employee_wallets"),
-        ("wallet", "trip_wallets"),
+        ("leaves", "employee_wallets"),
+        ("expenses", "trip_wallets"),
         ("calendar", "holidays"),
         ("hr_reporting", "daily_snapshots"),
     ]

@@ -9,7 +9,7 @@ from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func
 
-from src.services.expensive_wallet.models import TripWallet, TripWalletTransaction
+from .models import TripWallet, TripWalletTransaction
 
 class TripWalletRepository:
     def __init__(self, session: AsyncSession):
@@ -101,7 +101,7 @@ class TripWalletTransactionRepository:
         if trip_id:
              query = query.where(TripWallet.trip_id == trip_id)
         
-        query = query.order_by(TripTransaction.created_at.desc())
+        query = query.order_by(TripWalletTransaction.created_at.desc())
         
         result = await self._session.execute(query)
         return result.scalars().all()

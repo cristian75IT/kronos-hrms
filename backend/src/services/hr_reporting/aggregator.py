@@ -14,9 +14,7 @@ from src.core.config import settings
 from src.shared.clients import (
     AuthClient,
     LeavesClient,
-    LeavesWalletClient,
     ExpenseClient,
-    ExpensiveWalletClient,
     CalendarClient,
 )
 
@@ -36,9 +34,7 @@ class HRDataAggregator:
     def __init__(self):
         self._auth_client = AuthClient()
         self._leaves_client = LeavesClient()
-        self._leaves_wallet_client = LeavesWalletClient()
         self._expense_client = ExpenseClient()
-        self._expense_wallet_client = ExpensiveWalletClient()
         self._calendar_client = CalendarClient()
     
     # ═══════════════════════════════════════════════════════════
@@ -616,7 +612,7 @@ class HRDataAggregator:
     async def _get_employee_balance(self, employee_id: UUID) -> Dict[str, Any]:
         """Get current leave balance for employee."""
         try:
-            balance = await self._leaves_wallet_client.get_balance_summary(employee_id)
+            balance = await self._leaves_client.get_balance_summary(employee_id)
             if balance:
                 return {
                     "vacation_remaining": {

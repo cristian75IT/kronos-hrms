@@ -1,3 +1,6 @@
+"""
+KRONOS - Wallet Schemas (Integrated into Leaves).
+"""
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
@@ -18,7 +21,7 @@ class WalletTransactionResponse(BaseModel):
     category: Optional[str] = None
     monetary_value: Optional[Decimal] = None
     description: Optional[str] = None
-    meta_data: Optional[Dict[str, Any]] = None  # Renamed from metadata
+    meta_data: Optional[Dict[str, Any]] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -66,20 +69,27 @@ class WalletResponse(BaseModel):
 
 class TransactionCreate(BaseModel):
     user_id: UUID
+    year: Optional[int] = None
     reference_id: Optional[UUID] = None
-    transaction_type: str  # 'deduction', 'accrual', 'refund', 'adjustment', 'carry_over'
-    balance_type: str      # 'vacation', 'vacation_ap', 'vacation_ac', 'rol', 'permits'
+    transaction_type: str
+    balance_type: str
     amount: Decimal
-    expiry_date: Optional[date] = None
+    expires_at: Optional[date] = None
     description: Optional[str] = None
-    category: Optional[str] = None # e.g. ACCRUAL, CONSUMPTION
+    category: Optional[str] = None
     monetary_value: Optional[Decimal] = None
     meta_data: Optional[Dict[str, Any]] = None
     created_by: Optional[UUID] = None
 
 
 class AccrualRequest(BaseModel):
-    # For manual trigger of monthly accrual
     year: int
     month: int
-    user_ids: Optional[List[UUID]] = None  # None = All active users
+    user_ids: Optional[List[UUID]] = None
+
+
+class BalanceSummaryResponse(BaseModel):
+    year: int
+    wallet_id: str
+    balances: Dict[str, float]
+    reserved: Dict[str, float]

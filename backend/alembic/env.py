@@ -22,8 +22,13 @@ from src.services.expenses.models import Base as ExpensesBase
 from src.services.config.models import Base as ConfigBase
 from src.services.notifications.models import Base as NotificationsBase
 from src.services.audit.models import Base as AuditBase
-from src.services.leaves_wallet.models import Base as LeavesWalletBase
-from src.services.expensive_wallet.models import Base as ExpensiveWalletBase
+from src.services.approvals.models import Base as ApprovalsBase
+from src.services.calendar.models import Base as CalendarBase
+from src.services.hr_reporting.models import Base as HRReportingBase
+
+# Import sub-module models to ensure registration
+from src.services.leaves.wallet.models import EmployeeWallet
+from src.services.expenses.wallet.models import TripWallet
 
 # Use a combined metadata
 from src.core.database import Base
@@ -42,7 +47,8 @@ target_metadata = Base.metadata
 config.set_main_option("sqlalchemy.url", settings.database_url.replace("+asyncpg", ""))
 
 # List of schemas to include
-SCHEMAS = ["auth", "leaves", "expenses", "config", "notifications", "audit", "wallet"]
+SCHEMAS = ["auth", "leaves", "expenses", "config", "notifications", "audit", "calendar", "hr_reporting", "approvals", "time_wallet", "wallet"]
+
 
 
 def include_object(object, name, type_, reflected, compare_to):

@@ -24,7 +24,7 @@ class TripWallet(Base):
     """Wallet associated with a Business Trip."""
     
     __tablename__ = "trip_wallets"
-    __table_args__ = {"schema": "wallet"}
+    __table_args__ = {"schema": "expenses"}
     
     id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -81,7 +81,7 @@ class TripWalletTransaction(Base):
     """Individual movements in the Trip Wallet."""
     
     __tablename__ = "trip_wallet_transactions"
-    __table_args__ = {"schema": "wallet"}
+    __table_args__ = {"schema": "expenses"}
     
     id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -90,7 +90,7 @@ class TripWalletTransaction(Base):
     )
     wallet_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("wallet.trip_wallets.id", ondelete="CASCADE"),
+        ForeignKey("expenses.trip_wallets.id", ondelete="CASCADE"),
         nullable=False,
     )
     

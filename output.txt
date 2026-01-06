@@ -1,0 +1,213 @@
+
+==================================================
+🏢 KRONOS Database Initialization
+==================================================
+
+📍 Database: localhost:5432/kronos
+
+🔧 Creating database schemas...
+   ✓ Schema 'auth' created/verified
+   ✓ Schema 'leaves' created/verified
+   ✓ Schema 'expenses' created/verified
+   ✓ Schema 'config' created/verified
+   ✓ Schema 'notifications' created/verified
+   ✓ Schema 'audit' created/verified
+   ✓ Schema 'calendar' created/verified
+   ✓ Schema 'hr_reporting' created/verified
+✅ All schemas created successfully!
+
+🚀 Running database migrations...
+❌ Migration failed:
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 001_initial, KRONOS Initial Migration - All Schemas.
+INFO  [alembic.runtime.migration] Running upgrade 001_initial -> 002_seed_data, KRONOS Seed Data Migration.
+INFO  [alembic.runtime.migration] Running upgrade 002_seed_data -> 003_seed_cont_types, Seed Contract Types
+INFO  [alembic.runtime.migration] Running upgrade 003_seed_cont_types -> 004_national_contracts, National Contracts (CCNL) with Versioning
+INFO  [alembic.runtime.migration] Running upgrade 004_national_contracts -> 005_holiday_enhancements, Add regional holidays and confirmation fields
+INFO  [alembic.runtime.migration] Running upgrade 005_holiday_enhancements -> 006_seed_holidays, Seed holidays for Italy - National and Local
+INFO  [alembic.runtime.migration] Running upgrade 006_seed_holidays -> 007_contract_levels, Contract Levels
+INFO  [alembic.runtime.migration] Running upgrade 007_contract_levels -> 008_link_contract_types, Link Contract Types to CCNL Versions
+INFO  [alembic.runtime.migration] Running upgrade 008_link_contract_types -> 009_enhance_employee_contracts, Enhance employee contracts with CCNL and Level associations.
+INFO  [alembic.runtime.migration] Running upgrade 009_enhance_employee_contracts -> 010_balance_transaction_expiry, Add expiry_date to balance_transactions
+INFO  [alembic.runtime.migration] Running upgrade 010_balance_transaction_expiry -> 011_balance_tx_remaining, Add remaining_amount to balance_transactions
+INFO  [alembic.runtime.migration] Running upgrade 011_balance_tx_remaining -> 012_notification_settings, Add more notification settings to system_config
+INFO  [alembic.runtime.migration] Running upgrade 012_notification_settings -> 013_calculation_modes, Add calculation modes table
+INFO  [alembic.runtime.migration] Running upgrade 013_calculation_modes -> 014_seed_ced_modes, Seed CED Calculation Modes
+INFO  [alembic.runtime.migration] Running upgrade 014_seed_ced_modes -> 015_link_ced_modes, Link CED Modes to Contracts
+INFO  [alembic.runtime.migration] Running upgrade 015_link_ced_modes -> 4b6b04201f01, add_hr_role
+INFO  [alembic.runtime.migration] Running upgrade 4b6b04201f01 -> 016_smart_deduction_config, smart_deduction_config
+INFO  [alembic.runtime.migration] Running upgrade 016_smart_deduction_config -> 017_fix_balance_tx_reason, fix_balance_tx_reason
+INFO  [alembic.runtime.migration] Running upgrade 017_fix_balance_tx_reason -> 018_add_recall_columns, add_recall_columns
+INFO  [alembic.runtime.migration] Running upgrade 018_add_recall_columns -> e4a097073c62, create_wallet_schema
+Traceback (most recent call last):
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 546, in _prepare_and_execute
+    self._rows = await prepared_stmt.fetch(*parameters)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/asyncpg/prepared_stmt.py", line 176, in fetch
+    data = await self.__bind_execute(args, 0, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/asyncpg/prepared_stmt.py", line 241, in __bind_execute
+    data, status, _ = await self.__do_execute(
+                      ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/asyncpg/prepared_stmt.py", line 230, in __do_execute
+    return await executor(protocol)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "asyncpg/protocol/protocol.pyx", line 207, in bind_execute
+asyncpg.exceptions.InvalidSchemaNameError: schema "time_wallet" does not exist
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 580, in execute
+    self._adapt_connection.await_(
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 130, in await_only
+    return current.driver.switch(awaitable)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 195, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 558, in _prepare_and_execute
+    self._handle_exception(error)
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 509, in _handle_exception
+    self._adapt_connection._handle_exception(error)
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 797, in _handle_exception
+    raise translated_error from error
+sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.Error: <class 'asyncpg.exceptions.InvalidSchemaNameError'>: schema "time_wallet" does not exist
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/cristian/.pyenv/versions/3.11.13/bin/alembic", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/alembic/config.py", line 641, in main
+    CommandLine(prog=prog).main(argv=argv)
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/alembic/config.py", line 631, in main
+    self.run_cmd(cfg, options)
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/alembic/config.py", line 608, in run_cmd
+    fn(
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/alembic/command.py", line 403, in upgrade
+    script.run_env()
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/alembic/script/base.py", line 583, in run_env
+    util.load_python_file(self.dir, "env.py")
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/alembic/util/pyfiles.py", line 95, in load_python_file
+    module = load_module_py(module_id, path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/alembic/util/pyfiles.py", line 113, in load_module_py
+    spec.loader.exec_module(module)  # type: ignore
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/cristian/Desktop/app-gestione-presenze/backend/alembic/env.py", line 135, in <module>
+    run_migrations_online()
+  File "/Users/cristian/Desktop/app-gestione-presenze/backend/alembic/env.py", line 129, in run_migrations_online
+    asyncio.run(run_async_migrations())
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/asyncio/runners.py", line 190, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/Users/cristian/Desktop/app-gestione-presenze/backend/alembic/env.py", line 118, in run_async_migrations
+    await connection.run_sync(do_run_migrations)
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/ext/asyncio/engine.py", line 891, in run_sync
+    return await greenlet_spawn(fn, self._proxied, *arg, **kw)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 202, in greenlet_spawn
+    result = context.switch(value)
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/cristian/Desktop/app-gestione-presenze/backend/alembic/env.py", line 100, in do_run_migrations
+    context.run_migrations()
+  File "<string>", line 8, in run_migrations
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/alembic/runtime/environment.py", line 948, in run_migrations
+    self.get_context().run_migrations(**kw)
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/alembic/runtime/migration.py", line 627, in run_migrations
+    step.migration_fn(**kw)
+  File "/Users/cristian/Desktop/app-gestione-presenze/backend/alembic/versions/20260102_0617_e4a097073c62_create_wallet_schema.py", line 23, in upgrade
+    op.create_table('employee_wallets',
+  File "<string>", line 8, in create_table
+  File "<string>", line 3, in create_table
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/alembic/operations/ops.py", line 1311, in create_table
+    return operations.invoke(op)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/alembic/operations/base.py", line 445, in invoke
+    return fn(self, operation)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/alembic/operations/toimpl.py", line 131, in create_table
+    operations.impl.create_table(table)
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/alembic/ddl/impl.py", line 366, in create_table
+    self._exec(schema.CreateTable(table))
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/alembic/ddl/impl.py", line 207, in _exec
+    return conn.execute(construct, multiparams)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1416, in execute
+    return meth(
+           ^^^^^
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/sql/ddl.py", line 181, in _execute_on_connection
+    return connection._execute_ddl(
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1528, in _execute_ddl
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1848, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1988, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2344, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 580, in execute
+    self._adapt_connection.await_(
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 130, in await_only
+    return current.driver.switch(awaitable)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 195, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 558, in _prepare_and_execute
+    self._handle_exception(error)
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 509, in _handle_exception
+    self._adapt_connection._handle_exception(error)
+  File "/Users/cristian/.pyenv/versions/3.11.13/lib/python3.11/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 797, in _handle_exception
+    raise translated_error from error
+sqlalchemy.exc.DBAPIError: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.InvalidSchemaNameError'>: schema "time_wallet" does not exist
+[SQL: 
+CREATE TABLE time_wallet.employee_wallets (
+	id UUID NOT NULL, 
+	user_id UUID NOT NULL, 
+	year INTEGER NOT NULL, 
+	vacation_previous_year NUMERIC(5, 2) NOT NULL, 
+	vacation_current_year NUMERIC(5, 2) NOT NULL, 
+	vacation_accrued NUMERIC(5, 2) NOT NULL, 
+	vacation_used NUMERIC(5, 2) NOT NULL, 
+	vacation_used_ap NUMERIC(5, 2) NOT NULL, 
+	vacation_used_ac NUMERIC(5, 2) NOT NULL, 
+	rol_previous_year NUMERIC(6, 2) NOT NULL, 
+	rol_current_year NUMERIC(6, 2) NOT NULL, 
+	rol_accrued NUMERIC(6, 2) NOT NULL, 
+	rol_used NUMERIC(6, 2) NOT NULL, 
+	permits_total NUMERIC(6, 2) NOT NULL, 
+	permits_used NUMERIC(6, 2) NOT NULL, 
+	ap_expiry_date DATE, 
+	last_accrual_date DATE, 
+	notes TEXT, 
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	PRIMARY KEY (id)
+)
+
+]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+
