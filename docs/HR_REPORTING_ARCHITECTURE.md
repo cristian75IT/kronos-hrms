@@ -191,24 +191,14 @@ The HR Reporting Service is the central hub for workforce analytics, compliance 
 
 ```
 backend/src/services/hr_reporting/
-├── __init__.py
-├── main.py                 # FastAPI app
-├── models.py               # SQLAlchemy models (reports, snapshots)
-├── schemas.py              # Pydantic schemas
-├── service.py              # Business logic
-├── aggregator.py           # Data aggregation from sources
-├── generators/             # Report generators
-│   ├── __init__.py
-│   ├── monthly_report.py
-│   ├── compliance_report.py
-│   ├── budget_report.py
-│   └── export_pdf.py
-├── routers/
-│   ├── __init__.py
-│   ├── dashboard.py        # Real-time endpoints
-│   ├── reports.py          # Report generation
-│   └── admin.py            # Admin operations
-└── cache.py                # Redis caching layer
+├── models.py               # ORM Models (Report, Snapshot, Alert)
+├── repository.py           # NEW - Central data access with specialized repositories
+├── schemas.py              # Pydantic models for I/O
+├── service.py              # Business logic (coordinates repos)
+├── routers/                # HTTP Endpoints (Router Layer)
+│   ├── dashboard.py        # Real-time metrics
+│   ├── reports.py          # Report management
+│   └── training.py         # Specialized training reporting
 ```
 
 ### Key APIs

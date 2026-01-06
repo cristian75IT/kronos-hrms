@@ -57,6 +57,7 @@ export interface UserProfile {
     phone?: string;
     position?: string;
     hire_date?: string;
+    termination_date?: string;
     contract_type?: string;
     weekly_hours?: number;
     manager_id?: string;

@@ -64,6 +64,10 @@ class ConfigService:
         # Expense types and allowances (remain in main service for now)
         self._expense_type_repo = ExpenseTypeRepository(session)
         self._allowance_repo = DailyAllowanceRuleRepository(session)
+        
+        from ..repository import CalculationModeRepository
+        self._calc_repo = CalculationModeRepository(session)
+        
         self._audit = get_audit_logger("config-service")
     
     # ═══════════════════════════════════════════════════════════════════════
@@ -277,39 +281,23 @@ class ConfigService:
     
     async def get_calculation_modes(self):
         """Get all calculation modes."""
-        from src.services.config.models import CalculationMode
-        from sqlalchemy import select
-        
-        stmt = select(CalculationMode).where(CalculationMode.is_active == True)
-        result = await self._session.execute(stmt)
-        return result.scalars().all()
+        return await self._calc_repo.get_all()
     
     async def get_calculation_mode(self, id: UUID):
         """Get calculation mode by ID."""
-        from src.services.config.models import CalculationMode
-        from sqlalchemy import select
-        
-        stmt = select(CalculationMode).where(CalculationMode.id == id)
-        result = await self._session.execute(stmt)
-        mode = result.scalar_one_or_none()
-        
+        mode = await self._calc_repo.get(id)
         if not mode:
             raise NotFoundError("Calculation mode not found", entity_type="CalculationMode", entity_id=str(id))
         return mode
     
     async def create_calculation_mode(self, data, actor_id: Optional[UUID] = None):
         """Create new calculation mode."""
-        from src.services.config.models import CalculationMode
-        from sqlalchemy import select
-        
         # Check for duplicate code
-        stmt = select(CalculationMode).where(CalculationMode.code == data.code)
-        result = await self._session.execute(stmt)
-        if result.scalar_one_or_none():
+        existing = await self._calc_repo.get_by_code(data.code)
+        if existing:
             raise ConflictError(f"Calculation mode code already exists: {data.code}")
         
-        mode = CalculationMode(**data.model_dump())
-        self._session.add(mode)
+        mode = await self._calc_repo.create(**data.model_dump())
         await self._session.commit()
         await self._session.refresh(mode)
         
@@ -325,19 +313,12 @@ class ConfigService:
     
     async def update_calculation_mode(self, id: UUID, data, actor_id: Optional[UUID] = None):
         """Update calculation mode."""
-        from src.services.config.models import CalculationMode
-        from sqlalchemy import select
-        
-        stmt = select(CalculationMode).where(CalculationMode.id == id)
-        result = await self._session.execute(stmt)
-        mode = result.scalar_one_or_none()
-        
+        mode = await self._calc_repo.get(id)
         if not mode:
             raise NotFoundError("Calculation mode not found", entity_type="CalculationMode", entity_id=str(id))
         
         update_data = data.model_dump(exclude_unset=True)
-        for key, value in update_data.items():
-            setattr(mode, key, value)
+        await self._calc_repo.update(id, **update_data)
         
         await self._session.commit()
         await self._session.refresh(mode)
@@ -354,17 +335,11 @@ class ConfigService:
     
     async def delete_calculation_mode(self, id: UUID, actor_id: Optional[UUID] = None) -> bool:
         """Deactivate calculation mode (soft delete)."""
-        from src.services.config.models import CalculationMode
-        from sqlalchemy import select
-        
-        stmt = select(CalculationMode).where(CalculationMode.id == id)
-        result = await self._session.execute(stmt)
-        mode = result.scalar_one_or_none()
-        
+        mode = await self._calc_repo.get(id)
         if not mode:
             raise NotFoundError("Calculation mode not found", entity_type="CalculationMode", entity_id=str(id))
         
-        mode.is_active = False
+        await self._calc_repo.update(id, is_active=False)
         mode_name = mode.name
         await self._session.commit()
         

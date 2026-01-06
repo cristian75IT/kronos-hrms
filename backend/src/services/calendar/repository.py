@@ -60,11 +60,30 @@ class CalendarRepository(BaseRepository):
     async def get_personal_calendar(self, user_id: UUID) -> Optional[Calendar]:
         stmt = select(Calendar).where(
             Calendar.owner_id == user_id,
-            Calendar.type == CalendarType.PERSONAL,
-            Calendar.is_active == True
+            Calendar.calendar_type == CalendarType.PERSONAL
         ).limit(1)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def get_owned_calendars(self, user_id: UUID) -> Sequence[Calendar]:
+        stmt = select(Calendar).options(selectinload(Calendar.shares)).where(Calendar.owner_id == user_id)
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
+    async def get_shared_with_user(self, user_id: UUID) -> Sequence[Calendar]:
+        stmt = (
+            select(Calendar)
+            .options(selectinload(Calendar.shares))
+            .join(CalendarShare, Calendar.id == CalendarShare.calendar_id)
+            .where(CalendarShare.shared_with_id == user_id)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
+    async def get_public_calendars(self) -> Sequence[Calendar]:
+        stmt = select(Calendar).options(selectinload(Calendar.shares)).where(Calendar.visibility == "public")
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
 
     async def create(self, calendar: Calendar) -> Calendar:
         self.session.add(calendar)
@@ -94,11 +113,19 @@ class CalendarShareRepository(BaseRepository):
     async def get_with_permission(self, calendar_id: UUID, user_id: UUID, permissions: List[CalendarPermission]) -> Optional[CalendarShare]:
          stmt = select(CalendarShare).where(
             CalendarShare.calendar_id == calendar_id,
-            CalendarShare.user_id == user_id,
+            CalendarShare.shared_with_id == user_id,
             CalendarShare.permission.in_(permissions)
         )
          result = await self.session.execute(stmt)
          return result.scalar_one_or_none()
+
+    async def get_by_calendar_and_user(self, calendar_id: UUID, user_id: UUID) -> Optional[CalendarShare]:
+        stmt = select(CalendarShare).where(
+            CalendarShare.calendar_id == calendar_id,
+            CalendarShare.shared_with_id == user_id
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def create(self, share: CalendarShare) -> CalendarShare:
         self.session.add(share)
@@ -274,9 +301,24 @@ class LocationCalendarRepository(BaseRepository):
             
         stmt = select(LocationCalendar).options(
             joinedload(LocationCalendar.work_week_profile),
-            selectinload(LocationCalendar.subscriptions)
+            selectinload(LocationCalendar.holiday_profiles)
+            .selectinload(HolidayProfile.holidays),
         ).where(LocationCalendar.location_id == location_id)
         
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_default(self) -> Optional[LocationCalendar]:
+        stmt = (
+            select(LocationCalendar)
+            .options(
+                joinedload(LocationCalendar.work_week_profile),
+                selectinload(LocationCalendar.holiday_profiles)
+                .selectinload(HolidayProfile.holidays),
+            )
+            .where(LocationCalendar.location_id == None)
+            .where(LocationCalendar.is_default == True)
+        )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 

@@ -36,6 +36,20 @@ class NationalContractService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._audit = get_audit_logger("config-service")
+        
+        # Inject repositories
+        from ..repository import (
+            NationalContractRepository,
+            NationalContractVersionRepository,
+            NationalContractLevelRepository,
+            NationalContractTypeConfigRepository,
+            ContractTypeRepository
+        )
+        self._repo = NationalContractRepository(session)
+        self._version_repo = NationalContractVersionRepository(session)
+        self._level_repo = NationalContractLevelRepository(session)
+        self._config_repo = NationalContractTypeConfigRepository(session)
+        self._type_repo = ContractTypeRepository(session)
     
     # ═══════════════════════════════════════════════════════════════════════
     # National Contracts
@@ -43,39 +57,11 @@ class NationalContractService:
     
     async def get_national_contracts(self, active_only: bool = True) -> list:
         """Get all national contracts with eager loading."""
-        query = select(NationalContract).options(
-            selectinload(NationalContract.versions)
-            .selectinload(NationalContractVersion.contract_type_configs)
-            .selectinload(NationalContractTypeConfig.contract_type),
-            selectinload(NationalContract.versions)
-            .selectinload(NationalContractVersion.vacation_calc_mode),
-            selectinload(NationalContract.versions)
-            .selectinload(NationalContractVersion.rol_calc_mode),
-            selectinload(NationalContract.levels)
-        )
-        if active_only:
-            query = query.where(NationalContract.is_active == True)
-        query = query.order_by(NationalContract.name)
-        
-        result = await self._session.execute(query)
-        return result.scalars().all()
+        return await self._repo.get_all(active_only=active_only)
     
     async def get_national_contract(self, id: UUID):
         """Get national contract by ID with eager loading."""
-        query = select(NationalContract).options(
-            selectinload(NationalContract.versions)
-            .selectinload(NationalContractVersion.contract_type_configs)
-            .selectinload(NationalContractTypeConfig.contract_type),
-            selectinload(NationalContract.versions)
-            .selectinload(NationalContractVersion.vacation_calc_mode),
-            selectinload(NationalContract.versions)
-            .selectinload(NationalContractVersion.rol_calc_mode),
-            selectinload(NationalContract.levels)
-        ).where(NationalContract.id == id)
-        
-        result = await self._session.execute(query)
-        contract = result.scalar_one_or_none()
-        
+        contract = await self._repo.get(id)
         if not contract:
             raise NotFoundError("National contract not found", entity_type="NationalContract", entity_id=str(id))
         return contract
@@ -83,15 +69,12 @@ class NationalContractService:
     async def create_national_contract(self, data, user_id: Optional[UUID] = None):
         """Create new national contract."""
         # Check if code exists
-        query = select(NationalContract).where(NationalContract.code == data.code)
-        result = await self._session.execute(query)
-        existing = result.scalar_one_or_none()
+        existing = await self._repo.get_by_code(data.code)
         
         if existing:
             raise ConflictError(f"National contract code already exists: {data.code}")
         
-        contract = NationalContract(**data.model_dump())
-        self._session.add(contract)
+        contract = await self._repo.create(**data.model_dump())
         await self._session.commit()
         await self._session.refresh(contract)
         
@@ -107,18 +90,13 @@ class NationalContractService:
     
     async def update_national_contract(self, id: UUID, data, user_id: Optional[UUID] = None):
         """Update national contract."""
-        query = select(NationalContract).options(
-            selectinload(NationalContract.versions)
-        ).where(NationalContract.id == id)
-        result = await self._session.execute(query)
-        contract = result.scalar_one_or_none()
+        contract = await self._repo.get(id)
         
         if not contract:
             raise NotFoundError("National contract not found", entity_type="NationalContract", entity_id=str(id))
         
         update_data = data.model_dump(exclude_unset=True)
-        for key, value in update_data.items():
-            setattr(contract, key, value)
+        await self._repo.update(id, **update_data)
         
         await self._session.commit()
         await self._session.refresh(contract)
@@ -135,14 +113,12 @@ class NationalContractService:
     
     async def delete_national_contract(self, id: UUID, user_id: Optional[UUID] = None) -> bool:
         """Deactivate national contract (soft delete)."""
-        query = select(NationalContract).where(NationalContract.id == id)
-        result = await self._session.execute(query)
-        contract = result.scalar_one_or_none()
+        contract = await self._repo.get(id)
         
         if not contract:
             raise NotFoundError("National contract not found", entity_type="NationalContract", entity_id=str(id))
         
-        contract.is_active = False
+        await self._repo.update(id, is_active=False)
         contract_name = contract.name
         await self._session.commit()
         
@@ -161,29 +137,11 @@ class NationalContractService:
     
     async def get_contract_versions(self, contract_id: UUID) -> list:
         """Get all versions for a national contract."""
-        query = select(NationalContractVersion).options(
-            selectinload(NationalContractVersion.contract_type_configs)
-            .selectinload(NationalContractTypeConfig.contract_type),
-            selectinload(NationalContractVersion.vacation_calc_mode),
-            selectinload(NationalContractVersion.rol_calc_mode)
-        ).where(
-            NationalContractVersion.national_contract_id == contract_id
-        ).order_by(NationalContractVersion.valid_from.desc())
-        
-        result = await self._session.execute(query)
-        return result.scalars().all()
+        return await self._version_repo.get_by_contract(contract_id)
     
     async def get_contract_version(self, version_id: UUID):
         """Get a specific version by ID."""
-        query = select(NationalContractVersion).options(
-            selectinload(NationalContractVersion.contract_type_configs)
-            .selectinload(NationalContractTypeConfig.contract_type),
-            selectinload(NationalContractVersion.vacation_calc_mode),
-            selectinload(NationalContractVersion.rol_calc_mode)
-        ).where(NationalContractVersion.id == version_id)
-        result = await self._session.execute(query)
-        version = result.scalar_one_or_none()
-        
+        version = await self._version_repo.get(version_id)
         if not version:
             raise NotFoundError("Contract version not found", entity_type="NationalContractVersion", entity_id=str(version_id))
         return version
@@ -194,24 +152,7 @@ class NationalContractService:
         This is the core method for historical calculations.
         Returns the version where valid_from <= reference_date AND (valid_to is NULL OR valid_to >= reference_date).
         """
-        query = select(NationalContractVersion).options(
-            selectinload(NationalContractVersion.contract_type_configs)
-            .selectinload(NationalContractTypeConfig.contract_type),
-            selectinload(NationalContractVersion.vacation_calc_mode),
-            selectinload(NationalContractVersion.rol_calc_mode)
-        ).where(
-            and_(
-                NationalContractVersion.national_contract_id == contract_id,
-                NationalContractVersion.valid_from <= reference_date,
-                or_(
-                    NationalContractVersion.valid_to == None,
-                    NationalContractVersion.valid_to >= reference_date
-                )
-            )
-        ).order_by(NationalContractVersion.valid_from.desc()).limit(1)
-        
-        result = await self._session.execute(query)
-        version = result.scalar_one_or_none()
+        version = await self._version_repo.get_valid_at_date(contract_id, reference_date)
         
         if not version:
             raise NotFoundError(
@@ -227,34 +168,22 @@ class NationalContractService:
         Automatically updates the valid_to of the previous version.
         """
         # Verify contract exists
-        query = select(NationalContract).where(NationalContract.id == data.national_contract_id)
-        result = await self._session.execute(query)
-        contract = result.scalar_one_or_none()
+        contract = await self._repo.get(data.national_contract_id)
         
         if not contract:
             raise NotFoundError("National contract not found", entity_type="NationalContract", entity_id=str(data.national_contract_id))
         
         # Find the previous version that is still valid (valid_to is NULL)
-        query = select(NationalContractVersion).where(
-            and_(
-                NationalContractVersion.national_contract_id == data.national_contract_id,
-                NationalContractVersion.valid_to == None,
-                NationalContractVersion.valid_from < data.valid_from
-            )
-        ).order_by(NationalContractVersion.valid_from.desc()).limit(1)
-        
-        result = await self._session.execute(query)
-        previous_version = result.scalar_one_or_none()
+        previous_version = await self._version_repo.get_previous_valid(data.national_contract_id, data.valid_from)
         
         # Update the previous version's valid_to to day before new version starts
         if previous_version:
-            previous_version.valid_to = data.valid_from - timedelta(days=1)
+            await self._version_repo.update(previous_version.id, valid_to=data.valid_from - timedelta(days=1))
         
         # Create new version
         version_data = data.model_dump()
         version_data['created_by'] = created_by
-        version = NationalContractVersion(**version_data)
-        self._session.add(version)
+        version = await self._version_repo.create(**version_data)
         
         await self._session.commit()
         await self._session.refresh(version)
@@ -271,16 +200,13 @@ class NationalContractService:
     
     async def update_contract_version(self, version_id: UUID, data, user_id: Optional[UUID] = None):
         """Update a contract version."""
-        query = select(NationalContractVersion).where(NationalContractVersion.id == version_id)
-        result = await self._session.execute(query)
-        version = result.scalar_one_or_none()
+        version = await self._version_repo.get(version_id)
         
         if not version:
             raise NotFoundError("Contract version not found", entity_type="NationalContractVersion", entity_id=str(version_id))
         
         update_data = data.model_dump(exclude_unset=True)
-        for key, value in update_data.items():
-            setattr(version, key, value)
+        await self._version_repo.update(version_id, **update_data)
         
         await self._session.commit()
         await self._session.refresh(version)
@@ -297,15 +223,13 @@ class NationalContractService:
     
     async def delete_contract_version(self, version_id: UUID, user_id: Optional[UUID] = None) -> bool:
         """Delete a contract version (hard delete)."""
-        query = select(NationalContractVersion).where(NationalContractVersion.id == version_id)
-        result = await self._session.execute(query)
-        version = result.scalar_one_or_none()
+        version = await self._version_repo.get(version_id)
         
         if not version:
             raise NotFoundError("Contract version not found", entity_type="NationalContractVersion", entity_id=str(version_id))
         
         version_name = version.version_name
-        await self._session.delete(version)
+        await self._version_repo.delete(version_id)
         await self._session.commit()
         
         await self._audit.log_action(
@@ -323,14 +247,11 @@ class NationalContractService:
     
     async def get_contract_types(self):
         """Get all available contract types."""
-        stmt = select(ContractType).where(ContractType.is_active == True)
-        result = await self._session.execute(stmt)
-        return result.scalars().all()
+        return await self._type_repo.get_all(active_only=True)
     
     async def create_contract_type_config(self, data, actor_id: Optional[UUID] = None):
         """Create contract type parameter configuration."""
-        config = NationalContractTypeConfig(**data.model_dump())
-        self._session.add(config)
+        config = await self._config_repo.create(**data.model_dump())
         await self._session.commit()
         await self._session.refresh(config)
         
@@ -346,19 +267,13 @@ class NationalContractService:
     
     async def update_contract_type_config(self, config_id: UUID, data, actor_id: Optional[UUID] = None):
         """Update contract type parameter configuration."""
-        stmt = select(NationalContractTypeConfig).options(
-            selectinload(NationalContractTypeConfig.contract_type)
-        ).where(NationalContractTypeConfig.id == config_id)
-        
-        result = await self._session.execute(stmt)
-        config = result.scalar_one_or_none()
+        config = await self._config_repo.get(config_id)
         
         if not config:
             raise NotFoundError("Contract type configuration not found", entity_type="NationalContractTypeConfig", entity_id=str(config_id))
         
         update_data = data.model_dump(exclude_unset=True)
-        for key, value in update_data.items():
-            setattr(config, key, value)
+        await self._config_repo.update(config_id, **update_data)
         
         await self._session.commit()
         await self._session.refresh(config)
@@ -375,14 +290,12 @@ class NationalContractService:
     
     async def delete_contract_type_config(self, config_id: UUID, actor_id: Optional[UUID] = None) -> bool:
         """Delete contract type parameter configuration."""
-        stmt = select(NationalContractTypeConfig).where(NationalContractTypeConfig.id == config_id)
-        result = await self._session.execute(stmt)
-        config = result.scalar_one_or_none()
+        config = await self._config_repo.get(config_id)
         
         if not config:
             raise NotFoundError("Config not found", entity_type="NationalContractTypeConfig", entity_id=str(config_id))
         
-        await self._session.delete(config)
+        await self._config_repo.delete(config_id)
         await self._session.commit()
         
         await self._audit.log_action(
@@ -400,8 +313,7 @@ class NationalContractService:
     
     async def create_national_contract_level(self, data, actor_id: Optional[UUID] = None):
         """Create new level for a national contract."""
-        level = NationalContractLevel(**data.model_dump())
-        self._session.add(level)
+        level = await self._level_repo.create(**data.model_dump())
         await self._session.commit()
         await self._session.refresh(level)
         
@@ -417,16 +329,13 @@ class NationalContractService:
     
     async def update_national_contract_level(self, level_id: UUID, data, actor_id: Optional[UUID] = None):
         """Update a contract level."""
-        stmt = select(NationalContractLevel).where(NationalContractLevel.id == level_id)
-        result = await self._session.execute(stmt)
-        level = result.scalar_one_or_none()
+        level = await self._level_repo.get(level_id)
         
         if not level:
             raise NotFoundError("Contract level not found", entity_type="NationalContractLevel", entity_id=str(level_id))
         
         update_data = data.model_dump(exclude_unset=True)
-        for key, value in update_data.items():
-            setattr(level, key, value)
+        await self._level_repo.update(level_id, **update_data)
         
         await self._session.commit()
         await self._session.refresh(level)
@@ -443,15 +352,13 @@ class NationalContractService:
     
     async def delete_national_contract_level(self, level_id: UUID, actor_id: Optional[UUID] = None) -> bool:
         """Delete a contract level."""
-        stmt = select(NationalContractLevel).where(NationalContractLevel.id == level_id)
-        result = await self._session.execute(stmt)
-        level = result.scalar_one_or_none()
+        level = await self._level_repo.get(level_id)
         
         if not level:
             raise NotFoundError("Contract level not found", entity_type="NationalContractLevel", entity_id=str(level_id))
         
         level_name = level.name
-        await self._session.delete(level)
+        await self._level_repo.delete(level_id)
         await self._session.commit()
         
         await self._audit.log_action(

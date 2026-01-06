@@ -255,6 +255,21 @@ class ApprovalRequestRepository:
             )
         )
         return list(result.scalars().all())
+
+    async def get_resolved_before(
+        self,
+        cutoff: datetime,
+    ) -> List[ApprovalRequest]:
+        """Get requests resolved before a given time."""
+        result = await self._session.execute(
+            select(ApprovalRequest).where(
+                and_(
+                    ApprovalRequest.status != "PENDING",
+                    ApprovalRequest.resolved_at < cutoff,
+                )
+            )
+        )
+        return list(result.scalars().all())
     
     async def get_by_requester(
         self,

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.database import get_db
 from src.core.security import get_current_user, require_hr, TokenPayload
+from ..repository import TrainingRecordRepository, MedicalRecordRepository, SafetyComplianceRepository
 
 from ..models import TrainingRecord, MedicalRecord, SafetyCompliance
 from ..schemas import (
@@ -39,7 +40,11 @@ router = APIRouter(prefix="/training", tags=["Training & Safety"])
 # Training Records CRUD
 # ═══════════════════════════════════════════════════════════
 
-@router.get("/overview", response_model=TrainingOverviewResponse)
+@router.get(
+    "/overview",
+    response_model=TrainingOverviewResponse,
+    summary="Get training and safety overview stats"
+)
 async def get_training_overview(
     session: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(require_hr),
@@ -48,11 +53,12 @@ async def get_training_overview(
     today = date.today()
     threshold_30_days = today + timedelta(days=30)
     
+    training_repo = TrainingRecordRepository(session)
+    medical_repo = MedicalRecordRepository(session)
+    compliance_repo = SafetyComplianceRepository(session)
+    
     # Get all compliance records
-    result = await session.execute(
-        select(SafetyCompliance)
-    )
-    all_compliance = result.scalars().all()
+    all_compliance = await compliance_repo.get_all()
     
     # Calculate stats
     fully_compliant = sum(1 for c in all_compliance if c.is_compliant and c.compliance_score >= 90)
@@ -60,49 +66,16 @@ async def get_training_overview(
     non_compliant = sum(1 for c in all_compliance if not c.is_compliant)
     
     # Count expiring trainings
-    expiring_result = await session.execute(
-        select(func.count()).select_from(TrainingRecord).where(
-            and_(
-                TrainingRecord.expiry_date <= threshold_30_days,
-                TrainingRecord.expiry_date >= today,
-                TrainingRecord.status != "scaduto"
-            )
-        )
-    )
-    trainings_expiring = expiring_result.scalar() or 0
+    trainings_expiring = await training_repo.get_expiring_count(today, threshold_30_days)
     
     # Count expired trainings
-    expired_result = await session.execute(
-        select(func.count()).select_from(TrainingRecord).where(
-            and_(
-                TrainingRecord.expiry_date < today,
-                TrainingRecord.status != "programmato"
-            )
-        )
-    )
-    trainings_expired = expired_result.scalar() or 0
+    trainings_expired = await training_repo.get_expired_count(today)
     
     # Count medical visits due
-    medical_due_result = await session.execute(
-        select(func.count()).select_from(MedicalRecord).where(
-            and_(
-                MedicalRecord.next_visit_date <= threshold_30_days,
-                MedicalRecord.next_visit_date >= today
-            )
-        )
-    )
-    medical_visits_due = medical_due_result.scalar() or 0
+    medical_visits_due = await medical_repo.get_due_count(today, threshold_30_days)
     
     # Compliance by type
-    type_result = await session.execute(
-        select(
-            TrainingRecord.training_type,
-            func.count()
-        ).where(
-            TrainingRecord.status == "valido"
-        ).group_by(TrainingRecord.training_type)
-    )
-    compliance_by_type = {row[0]: row[1] for row in type_result.all()}
+    compliance_by_type = await training_repo.get_compliance_by_type()
     
     # Fetch employee names from auth service
     try:
@@ -149,7 +122,11 @@ async def get_training_overview(
     )
 
 
-@router.get("/expiring", response_model=List[TrainingExpiringItem])
+@router.get(
+    "/expiring",
+    response_model=List[TrainingExpiringItem],
+    summary="List trainings expiring in the next 30 days"
+)
 async def get_expiring_trainings(
     days: int = Query(default=60, ge=1, le=365),
     session: AsyncSession = Depends(get_db),
@@ -159,15 +136,9 @@ async def get_expiring_trainings(
     today = date.today()
     threshold = today + timedelta(days=days)
     
-    result = await session.execute(
-        select(TrainingRecord).where(
-            and_(
-                TrainingRecord.expiry_date <= threshold,
-                TrainingRecord.expiry_date >= today,
-                TrainingRecord.status != "scaduto"
-            )
-        ).order_by(TrainingRecord.expiry_date)
-    )
+    training_repo = TrainingRecordRepository(session)
+    trainings = await training_repo.get_expiring(today, threshold)
+    
     # Fetch employee names from auth service
     try:
         from src.shared.clients import AuthClient
@@ -200,12 +171,8 @@ async def get_employee_trainings(
     current_user: TokenPayload = Depends(require_hr),
 ):
     """Get all training records for an employee."""
-    result = await session.execute(
-        select(TrainingRecord)
-        .where(TrainingRecord.employee_id == employee_id)
-        .order_by(TrainingRecord.training_date.desc())
-    )
-    trainings = result.scalars().all()
+    training_repo = TrainingRecordRepository(session)
+    trainings = await training_repo.get_by_employee(employee_id)
     
     today = date.today()
     response = []
@@ -265,6 +232,7 @@ async def create_training_record(
     if data.training_date > today:
         status_value = "programmato"
     
+    training_repo = TrainingRecordRepository(session)
     record = TrainingRecord(
         employee_id=data.employee_id,
         training_type=data.training_type,
@@ -281,7 +249,7 @@ async def create_training_record(
         recorded_by=current_user.user_id,
     )
     
-    session.add(record)
+    await training_repo.create(record)
     await session.commit()
     await session.refresh(record)
     
@@ -314,18 +282,15 @@ async def update_training_record(
     current_user: TokenPayload = Depends(require_hr),
 ):
     """Update a training record."""
-    result = await session.execute(
-        select(TrainingRecord).where(TrainingRecord.id == training_id)
-    )
-    record = result.scalar_one_or_none()
+    training_repo = TrainingRecordRepository(session)
+    record = await training_repo.get(training_id)
     
     if not record:
         raise HTTPException(status_code=404, detail="Training record not found")
     
     # Update fields
     update_data = data.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(record, field, value)
+    await training_repo.update(training_id, **update_data)
     
     await session.commit()
     await session.refresh(record)
@@ -358,17 +323,12 @@ async def delete_training_record(
     current_user: TokenPayload = Depends(require_hr),
 ):
     """Delete a training record."""
-    result = await session.execute(
-        select(TrainingRecord).where(TrainingRecord.id == training_id)
-    )
-    record = result.scalar_one_or_none()
+    training_repo = TrainingRecordRepository(session)
+    success = await training_repo.delete(training_id)
     
-    if not record:
+    if not success:
         raise HTTPException(status_code=404, detail="Training record not found")
     
-    employee_id = record.employee_id
-    
-    await session.delete(record)
     await session.commit()
 
 
@@ -383,12 +343,8 @@ async def get_employee_medical_records(
     current_user: TokenPayload = Depends(require_hr),
 ):
     """Get all medical records for an employee."""
-    result = await session.execute(
-        select(MedicalRecord)
-        .where(MedicalRecord.employee_id == employee_id)
-        .order_by(MedicalRecord.visit_date.desc())
-    )
-    records = result.scalars().all()
+    medical_repo = MedicalRecordRepository(session)
+    records = await medical_repo.get_by_employee(employee_id)
     
     today = date.today()
     response = []
@@ -424,6 +380,7 @@ async def create_medical_record(
     current_user: TokenPayload = Depends(require_hr),
 ):
     """Create a new medical record."""
+    medical_repo = MedicalRecordRepository(session)
     record = MedicalRecord(
         employee_id=data.employee_id,
         visit_type=data.visit_type,
@@ -436,7 +393,7 @@ async def create_medical_record(
         recorded_by=current_user.user_id,
     )
     
-    session.add(record)
+    await medical_repo.create(record)
     await session.commit()
     await session.refresh(record)
     
@@ -465,18 +422,15 @@ async def update_medical_record(
     current_user: TokenPayload = Depends(require_hr),
 ):
     """Update a medical record."""
-    result = await session.execute(
-        select(MedicalRecord).where(MedicalRecord.id == record_id)
-    )
-    record = result.scalar_one_or_none()
+    medical_repo = MedicalRecordRepository(session)
+    record = await medical_repo.get(record_id)
     
     if not record:
         raise HTTPException(status_code=404, detail="Medical record not found")
     
     # Update fields
     update_data = data.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(record, field, value)
+    await medical_repo.update(record_id, **update_data)
     
     await session.commit()
     await session.refresh(record)
@@ -505,17 +459,12 @@ async def delete_medical_record(
     current_user: TokenPayload = Depends(require_hr),
 ):
     """Delete a medical record."""
-    result = await session.execute(
-        select(MedicalRecord).where(MedicalRecord.id == record_id)
-    )
-    record = result.scalar_one_or_none()
+    medical_repo = MedicalRecordRepository(session)
+    success = await medical_repo.delete(record_id)
     
-    if not record:
+    if not success:
         raise HTTPException(status_code=404, detail="Medical record not found")
     
-    employee_id = record.employee_id
-    
-    await session.delete(record)
     await session.commit()
 
 
@@ -530,10 +479,8 @@ async def get_employee_compliance(
     current_user: TokenPayload = Depends(require_hr),
 ):
     """Get safety compliance status for an employee."""
-    result = await session.execute(
-        select(SafetyCompliance).where(SafetyCompliance.employee_id == employee_id)
-    )
-    compliance = result.scalar_one_or_none()
+    compliance_repo = SafetyComplianceRepository(session)
+    compliance = await compliance_repo.get_by_employee(employee_id)
     
     if not compliance:
         # Return default empty compliance
@@ -568,7 +515,11 @@ async def get_employee_compliance(
     )
 
 
-@router.get("/datatable", response_model=DataTableResponse)
+@router.get(
+    "/datatable",
+    response_model=DataTableResponse,
+    summary="Paginated training records for DataTable"
+)
 async def get_training_datatable(
     draw: int = Query(default=1),
     start: int = Query(default=0),
@@ -580,50 +531,18 @@ async def get_training_datatable(
     current_user: TokenPayload = Depends(require_hr),
 ):
     """Get training records in DataTable format."""
-    # Base query
-    query = select(TrainingRecord)
+    training_repo = TrainingRecordRepository(session)
     
-    # Search filter
-    if search_value:
-        query = query.where(
-            or_(
-                TrainingRecord.training_name.ilike(f"%{search_value}%"),
-                TrainingRecord.training_type.ilike(f"%{search_value}%"),
-            )
-        )
+    records = await training_repo.get_datatable(
+        start=start,
+        length=length,
+        search_value=search_value,
+        order_column=order_column,
+        order_dir=order_dir
+    )
     
-    # Get total count
-    count_query = select(func.count()).select_from(TrainingRecord)
-    total_result = await session.execute(count_query)
-    records_total = total_result.scalar() or 0
-    
-    # Get filtered count
-    if search_value:
-        filtered_count_query = select(func.count()).select_from(query.subquery())
-        filtered_result = await session.execute(filtered_count_query)
-        records_filtered = filtered_result.scalar() or 0
-    else:
-        records_filtered = records_total
-    
-    # Ordering
-    if order_column == "training_date":
-        query = query.order_by(
-            TrainingRecord.training_date.desc() if order_dir == "desc" 
-            else TrainingRecord.training_date
-        )
-    elif order_column == "expiry_date":
-        query = query.order_by(
-            TrainingRecord.expiry_date.desc() if order_dir == "desc" 
-            else TrainingRecord.expiry_date
-        )
-    else:
-        query = query.order_by(TrainingRecord.created_at.desc())
-    
-    # Pagination
-    query = query.offset(start).limit(length)
-    
-    result = await session.execute(query)
-    records = result.scalars().all()
+    records_total = await training_repo.get_total_count()
+    records_filtered = await training_repo.get_filtered_count(search_value) if search_value else records_total
     
     # Fetch employee names from auth service
     try:

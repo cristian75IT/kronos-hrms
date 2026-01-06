@@ -368,38 +368,20 @@ Real-time calendar administration:
 
 ```
 backend/src/services/calendar/
-├── models.py                    # ENHANCED - Enterprise models
-│   ├── WorkWeekProfile         # NEW
-│   ├── HolidayProfile          # NEW
-│   ├── LocationCalendar        # NEW
-│   ├── CalendarHoliday         # ENHANCED (linked to profiles)
-│   ├── CalendarClosure         # EXISTING
-│   ├── CalendarEvent           # EXISTING
-│   └── WorkingDayException     # EXISTING
-│
-├── schemas.py                   # ENHANCED - Enterprise schemas
-│   ├── WorkWeekProfileCreate/Response
-│   ├── HolidayProfileCreate/Response
-│   ├── LocationCalendarCreate/Response
-│   ├── CalendarAnalytics
-│   └── AdminDashboard
-│
-├── service.py                   # ENHANCED - Enterprise logic
-│   ├── Profile Management
-│   ├── Holiday Generation
-│   ├── Location Calendars
-│   └── Analytics & Reporting
-│
-├── routers/
-│   ├── profiles.py             # NEW - Work week & holiday profiles
-│   ├── locations.py            # NEW - Location calendar config
-│   ├── analytics.py            # NEW - Calendar analytics
-│   ├── admin.py                # NEW - Admin dashboard
-│   └── internal.py             # NEW - Internal API for services
-│
-└── utils/
-    ├── easter.py               # Easter calculation algorithm
-    └── recurrence.py           # Holiday recurrence engine
+├── models.py                    # Enterprise models
+├── repository.py                # NEW - Central data access with 9 separate repositories
+├── schemas.py                   # Pydantic models for I/O
+├── services/                    # MODULAR SERVICE ARCHITECTURE
+│   ├── __init__.py              # CalendarService (Facade)
+│   ├── base.py                  # Base class with repository injection
+│   ├── calendars.py             # Location-based profiles & logic
+│   ├── events.py                # Shared & Private events logic
+│   └── profiles.py              # WorkWeek & Holiday profiles logic
+├── routers/                     # HTTP Endpoints (Router Layer)
+│   ├── admin.py                 # Admin-only settings
+│   ├── calendar.py              # Core calendar viewing
+│   ├── events.py                # Event management
+│   └── analytics.py             # Stats & Reporting
 ```
 
 ---

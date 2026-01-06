@@ -225,25 +225,24 @@ This document outlines the enterprise-grade refactoring of the Leave and Wallet 
 
 ## 📁 Implementation Files
 
-### New Files to Create:
+### Backend Architecture (Microservice standard)
 ```
 backend/src/services/leaves/
-├── routers/
-│   ├── user_actions.py      # Employee-facing endpoints
-│   ├── approver_actions.py  # Manager-facing endpoints
-│   └── admin_actions.py     # HR/Admin endpoints
-├── workflows/
-│   ├── interruption.py      # Sickness during vacation
-│   ├── partial_recall.py    # Single-day recall
-│   └── delegation.py        # Approval delegation
-```
-
-### Files to Modify:
-```
-backend/src/services/leaves/
-├── service.py              # Refactor into UserService + ApproverService
-├── schemas.py              # Add new action schemas
-├── models.py               # Add interruption, delegation models
+├── models.py               # Enterprise models
+├── repository.py           # NEW - Central data access with specialized repositories
+├── schemas.py              # Pydantic models for I/O
+├── services/               # MODULAR SERVICE ARCHITECTURE
+│   ├── base.py             # Base class with repository injection
+│   ├── enterprise.py       # Core leave logic & interruptions
+│   ├── query.py            # Read-only queries & analytics
+│   └── strategies/         # Leave calculation strategies
+├── routers/                # HTTP Endpoints (Router Layer)
+│   ├── leave.py            # Core leave requests
+│   ├── delegation.py       # Approval delegation
+│   └── balance.py          # Wallet integration & balances
+├── accrual_service.py      # Monthly accrual logic
+├── balance_service.py      # Balance calculation orchestration
+└── report_service.py       # Attendance & aggregate reporting
 ```
 
 ---

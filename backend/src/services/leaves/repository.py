@@ -688,3 +688,10 @@ class ContractRepository:
         )
         res = await self._session.execute(query)
         return list(res.scalars().all())
+
+    async def get_user_by_keycloak_id(self, keycloak_id: UUID) -> Optional[User]:
+        """Get user by Keycloak ID."""
+        result = await self._session.execute(
+            select(User).where(User.keycloak_id == str(keycloak_id))
+        )
+        return result.scalar_one_or_none()

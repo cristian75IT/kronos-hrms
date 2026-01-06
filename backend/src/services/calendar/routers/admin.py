@@ -26,7 +26,13 @@ router = APIRouter()
 # WORK WEEK PROFILES
 # ════════════════════════════════════════════════
 
-@router.get("/work-week-profiles", response_model=List[WorkWeekProfileResponse])
+@router.get(
+    "/work-week-profiles",
+    response_model=List[WorkWeekProfileResponse],
+    tags=["Calendar Admin"],
+    summary="List all work week profiles",
+    description="Retrieve a list of all defined work week profiles (e.g., Standard 5-day, 6-day)."
+)
 async def list_work_week_profiles(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
@@ -34,7 +40,13 @@ async def list_work_week_profiles(
     service = CalendarService(db)
     return await service.get_work_week_profiles()
 
-@router.post("/work-week-profiles", response_model=WorkWeekProfileResponse, status_code=201)
+@router.post(
+    "/work-week-profiles",
+    response_model=WorkWeekProfileResponse,
+    status_code=201,
+    tags=["Calendar Admin"],
+    summary="Create a new work week profile"
+)
 async def create_work_week_profile(
     data: WorkWeekProfileCreate,
     db: AsyncSession = Depends(get_db),
@@ -43,7 +55,12 @@ async def create_work_week_profile(
     service = CalendarService(db)
     return await service.create_work_week_profile(data)
 
-@router.get("/work-week-profiles/{profile_id}", response_model=WorkWeekProfileResponse)
+@router.get(
+    "/work-week-profiles/{profile_id}",
+    response_model=WorkWeekProfileResponse,
+    tags=["Calendar Admin"],
+    summary="Get a specific work week profile"
+)
 async def get_work_week_profile(
     profile_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -55,7 +72,12 @@ async def get_work_week_profile(
         raise HTTPException(status_code=404, detail="Profile not found")
     return obj
 
-@router.put("/work-week-profiles/{profile_id}", response_model=WorkWeekProfileResponse)
+@router.put(
+    "/work-week-profiles/{profile_id}",
+    response_model=WorkWeekProfileResponse,
+    tags=["Calendar Admin"],
+    summary="Update a work week profile"
+)
 async def update_work_week_profile(
     profile_id: UUID,
     data: WorkWeekProfileUpdate,
@@ -68,7 +90,12 @@ async def update_work_week_profile(
         raise HTTPException(status_code=404, detail="Profile not found")
     return obj
 
-@router.delete("/work-week-profiles/{profile_id}", status_code=204)
+@router.delete(
+    "/work-week-profiles/{profile_id}",
+    status_code=204,
+    tags=["Calendar Admin"],
+    summary="Delete a work week profile"
+)
 async def delete_work_week_profile(
     profile_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -84,7 +111,12 @@ async def delete_work_week_profile(
 # HOLIDAY PROFILES
 # ════════════════════════════════════════════════
 
-@router.get("/holiday-profiles", response_model=List[HolidayProfileResponse])
+@router.get(
+    "/holiday-profiles",
+    response_model=List[HolidayProfileResponse],
+    tags=["Calendar Admin"],
+    summary="List all holiday profiles"
+)
 async def list_holiday_profiles(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
@@ -92,7 +124,13 @@ async def list_holiday_profiles(
     service = CalendarService(db)
     return await service.get_holiday_profiles()
 
-@router.post("/holiday-profiles", response_model=HolidayProfileResponse, status_code=201)
+@router.post(
+    "/holiday-profiles",
+    response_model=HolidayProfileResponse,
+    status_code=201,
+    tags=["Calendar Admin"],
+    summary="Create a new holiday profile"
+)
 async def create_holiday_profile(
     data: HolidayProfileCreate,
     db: AsyncSession = Depends(get_db),
@@ -101,7 +139,12 @@ async def create_holiday_profile(
     service = CalendarService(db)
     return await service.create_holiday_profile(data)
 
-@router.get("/holiday-profiles/{profile_id}", response_model=HolidayProfileResponse)
+@router.get(
+    "/holiday-profiles/{profile_id}",
+    response_model=HolidayProfileResponse,
+    tags=["Calendar Admin"],
+    summary="Get a specific holiday profile"
+)
 async def get_holiday_profile(
     profile_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -142,7 +185,12 @@ async def delete_holiday_profile(
 # HOLIDAYS (Nested in Profile)
 # ════════════════════════════════════════════════
 
-@router.get("/holiday-profiles/{profile_id}/holidays", response_model=List[HolidayResponse])
+@router.get(
+    "/holiday-profiles/{profile_id}/holidays",
+    response_model=List[HolidayResponse],
+    tags=["Calendar Admin"],
+    summary="List all holidays within a profile"
+)
 async def list_holidays_in_profile(
     profile_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -191,7 +239,12 @@ async def delete_holiday(
 # LOCATION CALENDARS
 # ════════════════════════════════════════════════
 
-@router.get("/location-calendars", response_model=List[LocationCalendarResponse])
+@router.get(
+    "/location-calendars",
+    response_model=List[LocationCalendarResponse],
+    tags=["Calendar Admin"],
+    summary="List all location calendar configurations"
+)
 async def list_location_calendars(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),

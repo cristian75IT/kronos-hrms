@@ -4,8 +4,10 @@ from decimal import Decimal
 from typing import Optional, Any, Tuple
 from uuid import UUID
 
+from sqlalchemy.ext.asyncio import AsyncSession
 from src.services.leaves.repository import ContractRepository
 from src.services.leaves.strategies import StrategyFactory
+from src.services.auth.models import EmployeeContract
 from src.shared.clients import LeavesWalletClient as WalletClient
 
 class AccrualService:
@@ -116,10 +118,7 @@ class AccrualService:
             
             new_vacation, new_rol, new_permits = await self._calculate_accrual_preview(user_id, year)
             
-            from src.services.auth.models import User
-            user_query = select(User).where(User.keycloak_id == str(user_id))
-            user_result = await self._session.execute(user_query)
-            user = user_result.scalar_one_or_none()
+            user = await self._contract_repo.get_user_by_keycloak_id(user_id)
             name = f"{user.first_name} {user.last_name}" if user else str(user_id)
             
             previews.append({

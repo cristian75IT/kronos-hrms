@@ -33,15 +33,11 @@ class CalendarProfileService(BaseCalendarService):
     
     async def get_work_week_profiles(self) -> List[WorkWeekProfile]:
         """Get all work week profiles."""
-        stmt = select(WorkWeekProfile)
-        result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return await self._profile_repo.get_all()
     
     async def get_work_week_profile(self, id: UUID) -> Optional[WorkWeekProfile]:
         """Get work week profile by ID."""
-        stmt = select(WorkWeekProfile).where(WorkWeekProfile.id == id)
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+        return await self._profile_repo.get(id)
     
     async def create_work_week_profile(self, data: schemas.WorkWeekProfileCreate) -> WorkWeekProfile:
         """Create a new work week profile."""
@@ -49,7 +45,7 @@ class CalendarProfileService(BaseCalendarService):
             id=uuid4(),
             **data.model_dump()
         )
-        self.db.add(profile)
+        await self._profile_repo.create(profile)
         await self.db.commit()
         await self.db.refresh(profile)
         
@@ -78,6 +74,7 @@ class CalendarProfileService(BaseCalendarService):
         for key, value in update_data.items():
             setattr(profile, key, value)
         
+        await self._profile_repo.update(profile)
         await self.db.commit()
         await self.db.refresh(profile)
         
@@ -99,7 +96,7 @@ class CalendarProfileService(BaseCalendarService):
             raise HTTPException(status_code=404, detail="Work week profile not found")
         
         profile_name = profile.name
-        await self.db.delete(profile)
+        await self._profile_repo.delete(profile)
         await self.db.commit()
         
         await self._audit.log_action(
@@ -117,17 +114,11 @@ class CalendarProfileService(BaseCalendarService):
     
     async def get_holiday_profiles(self) -> List[HolidayProfile]:
         """Get all holiday profiles."""
-        stmt = select(HolidayProfile).options(selectinload(HolidayProfile.holidays))
-        result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return await self._holiday_repo.get_all()
     
     async def get_holiday_profile(self, id: UUID) -> Optional[HolidayProfile]:
         """Get holiday profile by ID."""
-        stmt = select(HolidayProfile).options(
-            selectinload(HolidayProfile.holidays)
-        ).where(HolidayProfile.id == id)
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+        return await self._holiday_repo.get(id)
     
     async def create_holiday_profile(self, data: schemas.HolidayProfileCreate) -> HolidayProfile:
         """Create a new holiday profile."""
@@ -135,7 +126,7 @@ class CalendarProfileService(BaseCalendarService):
             id=uuid4(),
             **data.model_dump()
         )
-        self.db.add(profile)
+        await self._holiday_repo.create(profile)
         await self.db.commit()
         await self.db.refresh(profile)
         
@@ -164,6 +155,7 @@ class CalendarProfileService(BaseCalendarService):
         for key, value in update_data.items():
             setattr(profile, key, value)
         
+        await self._holiday_repo.update(profile)
         await self.db.commit()
         await self.db.refresh(profile)
         
@@ -185,7 +177,7 @@ class CalendarProfileService(BaseCalendarService):
             raise HTTPException(status_code=404, detail="Holiday profile not found")
         
         profile_name = profile.name
-        await self.db.delete(profile)
+        await self._holiday_repo.delete(profile)
         await self.db.commit()
         
         await self._audit.log_action(
@@ -203,9 +195,7 @@ class CalendarProfileService(BaseCalendarService):
     
     async def get_holidays_in_profile(self, profile_id: UUID) -> List[CalendarHoliday]:
         """Get all holidays in a profile."""
-        stmt = select(CalendarHoliday).where(CalendarHoliday.profile_id == profile_id)
-        result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return await self._cal_holiday_repo.get_by_profile(profile_id)
     
     async def create_holiday(self, profile_id: UUID, data: schemas.HolidayCreate) -> CalendarHoliday:
         """Create a holiday in a profile."""
@@ -214,7 +204,7 @@ class CalendarProfileService(BaseCalendarService):
             profile_id=profile_id,
             **data.model_dump()
         )
-        self.db.add(holiday)
+        await self._cal_holiday_repo.create(holiday)
         await self.db.commit()
         await self.db.refresh(holiday)
         
@@ -230,9 +220,7 @@ class CalendarProfileService(BaseCalendarService):
     
     async def update_holiday(self, id: UUID, data: schemas.HolidayUpdate) -> CalendarHoliday:
         """Update a holiday."""
-        stmt = select(CalendarHoliday).where(CalendarHoliday.id == id)
-        result = await self.db.execute(stmt)
-        holiday = result.scalar_one_or_none()
+        holiday = await self._cal_holiday_repo.get(id)
         
         if not holiday:
             from fastapi import HTTPException
@@ -242,6 +230,7 @@ class CalendarProfileService(BaseCalendarService):
         for key, value in update_data.items():
             setattr(holiday, key, value)
         
+        await self._cal_holiday_repo.update(holiday)
         await self.db.commit()
         await self.db.refresh(holiday)
         
@@ -257,16 +246,14 @@ class CalendarProfileService(BaseCalendarService):
     
     async def delete_holiday(self, id: UUID) -> bool:
         """Delete a holiday."""
-        stmt = select(CalendarHoliday).where(CalendarHoliday.id == id)
-        result = await self.db.execute(stmt)
-        holiday = result.scalar_one_or_none()
+        holiday = await self._cal_holiday_repo.get(id)
         
         if not holiday:
             from fastapi import HTTPException
             raise HTTPException(status_code=404, detail="Holiday not found")
         
         holiday_name = holiday.name
-        await self.db.delete(holiday)
+        await self._cal_holiday_repo.delete(holiday)
         await self.db.commit()
         
         await self._audit.log_action(
@@ -284,11 +271,7 @@ class CalendarProfileService(BaseCalendarService):
     
     async def get_location_calendars(self) -> List[LocationCalendar]:
         """Get all location calendars."""
-        stmt = select(LocationCalendar).options(
-            selectinload(LocationCalendar.work_week_profile),
-        )
-        result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return await self._loc_repo.get_all()
     
     async def create_location_calendar(self, data: schemas.LocationCalendarCreate) -> LocationCalendar:
         """Create a location calendar."""
@@ -296,7 +279,7 @@ class CalendarProfileService(BaseCalendarService):
             id=uuid4(),
             **data.model_dump(exclude={"holiday_profile_ids"})
         )
-        self.db.add(loc_cal)
+        await self._loc_repo.create(loc_cal)
         await self.db.commit()
         await self.db.refresh(loc_cal)
         

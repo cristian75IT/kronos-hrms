@@ -224,11 +224,7 @@ class CalendarService(BaseCalendarService):
     
     async def get_system_holidays(self, year: int) -> List[Dict[str, Any]]:
         """Get all holidays from System calendars for a given year."""
-        stmt = select(HolidayProfile).options(
-            selectinload(HolidayProfile.holidays)
-        )
-        result = await self.db.execute(stmt)
-        profiles = result.scalars().all()
+        profiles = await self._holiday_repo.get_all()
         
         holidays_list = []
         for profile in profiles:
@@ -256,18 +252,7 @@ class CalendarService(BaseCalendarService):
     
     async def get_location_closures(self, year: int, location_id: Optional[UUID]) -> List[Dict[str, Any]]:
         """Get closures for a location."""
-        stmt = select(CalendarClosure).where(
-            and_(
-                or_(
-                    CalendarClosure.location_id == location_id,
-                    CalendarClosure.location_id == None  # Company-wide closures
-                ),
-                CalendarClosure.start_date >= date(year, 1, 1),
-                CalendarClosure.end_date <= date(year, 12, 31),
-            )
-        )
-        result = await self.db.execute(stmt)
-        closures = result.scalars().all()
+        closures = await self._closure_repo.get_by_year(year, location_id)
         
         return [
             {
@@ -288,7 +273,7 @@ class CalendarService(BaseCalendarService):
             id=uuid4(),
             **data.model_dump()
         )
-        self.db.add(closure)
+        await self._closure_repo.create(closure)
         await self.db.commit()
         await self.db.refresh(closure)
         
@@ -304,9 +289,7 @@ class CalendarService(BaseCalendarService):
     
     async def update_closure(self, id: UUID, data: schemas.ClosureUpdate) -> CalendarClosure:
         """Update a closure."""
-        stmt = select(CalendarClosure).where(CalendarClosure.id == id)
-        result = await self.db.execute(stmt)
-        closure = result.scalar_one_or_none()
+        closure = await self._closure_repo.get(id)
         
         if not closure:
             from fastapi import HTTPException
@@ -316,6 +299,7 @@ class CalendarService(BaseCalendarService):
         for key, value in update_data.items():
             setattr(closure, key, value)
         
+        await self._closure_repo.update(closure)
         await self.db.commit()
         await self.db.refresh(closure)
         
@@ -331,12 +315,10 @@ class CalendarService(BaseCalendarService):
     
     async def delete_closure(self, id: UUID) -> bool:
         """Delete a closure."""
-        stmt = select(CalendarClosure).where(CalendarClosure.id == id)
-        result = await self.db.execute(stmt)
-        closure = result.scalar_one_or_none()
+        closure = await self._closure_repo.get(id)
         
         if closure:
-            await self.db.delete(closure)
+            await self._closure_repo.delete(closure)
             await self.db.commit()
         
         return True

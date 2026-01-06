@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 
 from src.services.calendar.models import (
     Calendar, CalendarShare, CalendarType, CalendarPermission
@@ -29,31 +29,20 @@ class CalendarManagementService(BaseCalendarService):
     async def get_calendars(self, user_id: UUID) -> List[Calendar]:
         """Get all calendars accessible by user (Personal + Shared + Public)."""
         # Own calendars
-        own_stmt = select(Calendar).options(
-            selectinload(Calendar.shares)
-        ).where(Calendar.owner_id == user_id)
-        
-        own_result = await self.db.execute(own_stmt)
-        own_calendars = list(own_result.scalars().all())
+        own_calendars = await self._repo.get_owned_calendars(user_id)
         
         # Shared with me
-        shared_stmt = (
-            select(Calendar)
-            .options(selectinload(Calendar.shares))
-            .join(CalendarShare, Calendar.id == CalendarShare.calendar_id)
-            .where(CalendarShare.shared_with_id == user_id)
-        )
-        shared_result = await self.db.execute(shared_stmt)
-        shared_calendars = list(shared_result.scalars().all())
+        shared_calendars = await self._repo.get_shared_with_user(user_id)
         
         # Combine and deduplicate
-        calendar_ids = {c.id for c in own_calendars}
+        combined = list(own_calendars)
+        calendar_ids = {c.id for c in combined}
         for cal in shared_calendars:
             if cal.id not in calendar_ids:
-                own_calendars.append(cal)
+                combined.append(cal)
                 calendar_ids.add(cal.id)
         
-        return own_calendars
+        return combined
     
     async def create_calendar(self, user_id: UUID, data: schemas.CalendarCreate) -> Calendar:
         """Create a new calendar."""
@@ -67,7 +56,7 @@ class CalendarManagementService(BaseCalendarService):
             visibility=data.visibility or "private",
         )
         
-        self.db.add(calendar)
+        await self._repo.create(calendar)
         await self.db.commit()
         await self.db.refresh(calendar)
         
@@ -89,9 +78,7 @@ class CalendarManagementService(BaseCalendarService):
         data: schemas.CalendarUpdate
     ) -> Calendar:
         """Update a calendar."""
-        stmt = select(Calendar).where(Calendar.id == calendar_id)
-        result = await self.db.execute(stmt)
-        calendar = result.scalar_one_or_none()
+        calendar = await self._repo.get(calendar_id)
         
         if not calendar:
             from fastapi import HTTPException
@@ -121,9 +108,7 @@ class CalendarManagementService(BaseCalendarService):
     
     async def delete_calendar(self, user_id: UUID, calendar_id: UUID) -> bool:
         """Delete a calendar."""
-        stmt = select(Calendar).where(Calendar.id == calendar_id)
-        result = await self.db.execute(stmt)
-        calendar = result.scalar_one_or_none()
+        calendar = await self._repo.get(calendar_id)
         
         if not calendar:
             from fastapi import HTTPException
@@ -134,7 +119,7 @@ class CalendarManagementService(BaseCalendarService):
             raise HTTPException(status_code=403, detail="Not owner of calendar")
         
         calendar_name = calendar.name
-        await self.db.delete(calendar)
+        await self._repo.delete(calendar)
         await self.db.commit()
         
         await self._audit.log_action(
@@ -159,9 +144,7 @@ class CalendarManagementService(BaseCalendarService):
         permission: CalendarPermission
     ) -> CalendarShare:
         """Share a calendar with another user."""
-        stmt = select(Calendar).where(Calendar.id == calendar_id)
-        result = await self.db.execute(stmt)
-        calendar = result.scalar_one_or_none()
+        calendar = await self._repo.get(calendar_id)
         
         if not calendar:
             from fastapi import HTTPException
@@ -172,15 +155,7 @@ class CalendarManagementService(BaseCalendarService):
             raise HTTPException(status_code=403, detail="Not owner of calendar")
         
         # Check if already shared
-        existing = await self.db.execute(
-            select(CalendarShare).where(
-                and_(
-                    CalendarShare.calendar_id == calendar_id,
-                    CalendarShare.shared_with_id == shared_with_user_id
-                )
-            )
-        )
-        share = existing.scalar_one_or_none()
+        share = await self._share_repo.get_by_calendar_and_user(calendar_id, shared_with_user_id)
         
         if share:
             share.permission = permission
@@ -191,7 +166,7 @@ class CalendarManagementService(BaseCalendarService):
                 shared_with_id=shared_with_user_id,
                 permission=permission,
             )
-            self.db.add(share)
+            await self._share_repo.create(share)
         
         await self.db.commit()
         await self.db.refresh(share)
@@ -214,9 +189,7 @@ class CalendarManagementService(BaseCalendarService):
         shared_with_user_id: UUID
     ) -> bool:
         """Remove calendar sharing."""
-        stmt = select(Calendar).where(Calendar.id == calendar_id)
-        result = await self.db.execute(stmt)
-        calendar = result.scalar_one_or_none()
+        calendar = await self._repo.get(calendar_id)
         
         if not calendar:
             from fastapi import HTTPException
@@ -226,18 +199,10 @@ class CalendarManagementService(BaseCalendarService):
             from fastapi import HTTPException
             raise HTTPException(status_code=403, detail="Not owner of calendar")
         
-        share_result = await self.db.execute(
-            select(CalendarShare).where(
-                and_(
-                    CalendarShare.calendar_id == calendar_id,
-                    CalendarShare.shared_with_id == shared_with_user_id
-                )
-            )
-        )
-        share = share_result.scalar_one_or_none()
+        share = await self._share_repo.get_by_calendar_and_user(calendar_id, shared_with_user_id)
         
         if share:
-            await self.db.delete(share)
+            await self._share_repo.delete(share)
             await self.db.commit()
             
             await self._audit.log_action(

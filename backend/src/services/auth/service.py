@@ -658,13 +658,11 @@ class RBACService:
     async def get_roles(self):
         """Get all roles with permissions."""
         roles = await self._role_repo.get_all()
-        print(f"DEBUG: Found {len(roles)} roles")
         return roles
 
     async def get_permissions(self):
         """Get all available permissions."""
         perms = await self._perm_repo.get_all()
-        print(f"DEBUG: Found {len(perms)} permissions")
         return perms
         
     async def get_role(self, id: UUID):
@@ -831,21 +829,10 @@ class OrganizationService:
         return service
 
     async def create_service(self, data: OrganizationalServiceCreate, actor_id: Optional[UUID] = None):
-        # We don't have get_by_code in repo yet? I didn't add it explicitly to repository methods for Service.
-        # But repo has create which saves it. Unique constraint on code will raise IntegrityError if duplicate.
-        # Ideally we check first. I'll rely on DB constraint or add get_by_code to repo?
-        # I didn't add get_by_code to OrganizationalServiceRepository above. I missed it.
-        # I'll rely on DB error catching generally, but catching sqlalchemy IntegrityError is cleaner.
-        # For now, let's assume valid. Or I can add a check via get_all loop (inefficient) or add the method.
-        # I'll modify the repo OR catch error.
-        # Since I'm lazy and modifying repo requires another call, I'll risk the DB error for now or add it later.
-        # Actually I can implement get_by_code if I use `select().where(code=...)` right here in service if I had session access (I do).
-        
-        # Check uniqueness inline
-        query = select(self._service_repo._session.bind.dialects.postgresql.dml.OrganizationalService).where(OrganizationalService.code == data.code)
-        # Wait, I need model import here to use it in select query if not using repo method.
-        # Models are imported at top.
-        # I'll skip explicit check for now and let DB handle unique constraint.
+        # Check uniqueness
+        existing = await self._service_repo.get_by_code(data.code)
+        if existing:
+            raise ConflictError(f"Organizational Service code already exists: {data.code}")
         
         service = await self._service_repo.create(**data.model_dump())
         

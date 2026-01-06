@@ -362,6 +362,18 @@ export function UserDetailPage() {
                                                 </div>
                                             </div>
 
+                                            {profile?.termination_date && (
+                                                <div className="pt-4 border-t border-gray-50 bg-red-50/50 -mx-2 px-2 rounded-lg">
+                                                    <label className="text-[0.6rem] font-black text-red-400 uppercase tracking-widest block mb-1.5">Data Cessazione</label>
+                                                    <div className="flex items-center gap-2">
+                                                        <User size={16} className="text-red-400" />
+                                                        <span className="text-base font-bold text-red-900">
+                                                            {safeFormatDate(profile.termination_date.toString(), 'd MMMM yyyy')}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             <div className="pt-4 border-t border-gray-50">
                                                 <label className="text-[0.6rem] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Sede Operativa</label>
                                                 <div className="text-base font-bold text-gray-900 flex items-center gap-2">

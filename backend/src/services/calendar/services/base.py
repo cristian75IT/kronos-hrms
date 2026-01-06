@@ -12,6 +12,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.services.calendar.models import LocationCalendar, HolidayProfile, CalendarHoliday
+from src.services.calendar.repository import (
+    CalendarRepository,
+    CalendarShareRepository,
+    CalendarEventRepository,
+    WorkWeekProfileRepository,
+    HolidayProfileRepository,
+    CalendarHolidayRepository,
+    LocationCalendarRepository,
+    CalendarClosureRepository,
+    WorkingDayExceptionRepository,
+)
 from src.shared.audit_client import get_audit_logger
 import logging
 
@@ -32,6 +43,17 @@ class BaseCalendarService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self._audit = get_audit_logger("calendar-service")
+        
+        # Repositories
+        self._repo = CalendarRepository(db)
+        self._share_repo = CalendarShareRepository(db)
+        self._event_repo = CalendarEventRepository(db)
+        self._profile_repo = WorkWeekProfileRepository(db)
+        self._holiday_repo = HolidayProfileRepository(db)
+        self._cal_holiday_repo = CalendarHolidayRepository(db)
+        self._loc_repo = LocationCalendarRepository(db)
+        self._closure_repo = CalendarClosureRepository(db)
+        self._ex_repo = WorkingDayExceptionRepository(db)
     
     # ═══════════════════════════════════════════════════════════════════════
     # Location Configuration
@@ -40,33 +62,12 @@ class BaseCalendarService:
     async def _get_location_config(self, location_id: Optional[UUID]) -> LocationCalendar:
         """Fetch LocationCalendar. If not found or None, return a DEFAULT."""
         if location_id:
-            stmt = (
-                select(LocationCalendar)
-                .options(
-                    selectinload(LocationCalendar.work_week_profile),
-                    selectinload(LocationCalendar.holiday_profiles)
-                    .selectinload(HolidayProfile.holidays),
-                )
-                .where(LocationCalendar.location_id == location_id)
-            )
-            result = await self.db.execute(stmt)
-            loc_cal = result.scalar_one_or_none()
+            loc_cal = await self._loc_repo.get_by_location(location_id)
             if loc_cal:
                 return loc_cal
         
         # Try default (where location_id IS NULL and is_default=True)
-        stmt = (
-            select(LocationCalendar)
-            .options(
-                selectinload(LocationCalendar.work_week_profile),
-                selectinload(LocationCalendar.holiday_profiles)
-                .selectinload(HolidayProfile.holidays),
-            )
-            .where(LocationCalendar.location_id == None)
-            .where(LocationCalendar.is_default == True)
-        )
-        result = await self.db.execute(stmt)
-        default_cal = result.scalar_one_or_none()
+        default_cal = await self._loc_repo.get_default()
         
         if default_cal:
             return default_cal

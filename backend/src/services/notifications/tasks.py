@@ -8,21 +8,11 @@ from typing import Optional
 from uuid import UUID
 
 from celery import shared_task
-from sqlalchemy import select, and_
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-
-from src.core.config import settings
-from src.services.calendar.models import (
-    CalendarHoliday,
-    CalendarClosure,
-    CalendarEvent,
-    CalendarShare,
-)
 from src.services.notifications.models import (
     NotificationType,
     NotificationChannel,
 )
+from src.services.notifications.repository import CalendarExternalRepository
 from src.services.notifications.schemas import NotificationCreate
 
 
@@ -82,38 +72,22 @@ async def _check_system_deadlines_async():
     session = await _get_async_session()
     
     try:
+        from src.services.notifications.repository import CalendarExternalRepository
+        cal_repo = CalendarExternalRepository(session)
+        
         # Get deadlines in the next 24 hours
         now = datetime.utcnow()
         tomorrow = now + timedelta(days=1)
         
         # Check for closures starting tomorrow
-        closures = await session.execute(
-            select(CalendarClosure)
-            .where(
-                and_(
-                    CalendarClosure.start_date == tomorrow.date(),
-                    CalendarClosure.is_active == True,
-                )
-            )
-        )
-        closures = closures.scalars().all()
+        closures = await cal_repo.get_upcoming_closures(tomorrow.date())
         
         for closure in closures:
             # Get all active users (simplified - in production, query auth service)
             await _notify_all_users_about_closure(session, closure)
         
         # Check for holidays tomorrow
-        holidays = await session.execute(
-            select(CalendarHoliday)
-            .where(
-                and_(
-                    CalendarHoliday.date == tomorrow.date(),
-                    CalendarHoliday.is_active == True,
-                    CalendarHoliday.scope == "national",
-                )
-            )
-        )
-        holidays = holidays.scalars().all()
+        holidays = await cal_repo.get_upcoming_holidays(tomorrow.date())
         
         for holiday in holidays:
             await _notify_all_users_about_holiday(session, holiday)
@@ -201,21 +175,14 @@ async def _check_personal_deadlines_async():
     session = await _get_async_session()
     
     try:
+        from src.services.notifications.repository import CalendarExternalRepository
+        cal_repo = CalendarExternalRepository(session)
+        
         now = datetime.utcnow()
         in_24_hours = now + timedelta(hours=24)
         
         # Get events starting in the next 24 hours
-        events = await session.execute(
-            select(CalendarEvent)
-            .where(
-                and_(
-                    CalendarEvent.start_date == in_24_hours.date(),
-                    CalendarEvent.status == "confirmed",
-                    CalendarEvent.user_id.isnot(None),
-                )
-            )
-        )
-        events = events.scalars().all()
+        events = await cal_repo.get_upcoming_personal_events(in_24_hours.date())
         
         for event in events:
             await _notify_about_personal_event(session, event)
@@ -272,22 +239,14 @@ async def _check_shared_deadlines_async():
     session = await _get_async_session()
     
     try:
+        from src.services.notifications.repository import CalendarExternalRepository
+        cal_repo = CalendarExternalRepository(session)
+        
         now = datetime.utcnow()
         in_24_hours = now + timedelta(hours=24)
         
         # Get shared calendar events starting in the next 24 hours
-        events = await session.execute(
-            select(CalendarEvent)
-            .where(
-                and_(
-                    CalendarEvent.start_date == in_24_hours.date(),
-                    CalendarEvent.status == "confirmed",
-                    CalendarEvent.calendar_id.isnot(None),
-                    CalendarEvent.visibility.in_(["team", "public"]),
-                )
-            )
-        )
-        events = events.scalars().all()
+        events = await cal_repo.get_upcoming_shared_events(in_24_hours.date())
         
         for event in events:
             if event.calendar_id:
@@ -308,11 +267,10 @@ async def _notify_shared_calendar_users(session: AsyncSession, event) -> None:
     import httpx
     
     # Get calendar shares
-    shares = await session.execute(
-        select(CalendarShare)
-        .where(CalendarShare.calendar_id == event.calendar_id)
-    )
-    shares = shares.scalars().all()
+    from src.services.notifications.repository import CalendarExternalRepository
+    cal_repo = CalendarExternalRepository(session)
+    
+    shares = await cal_repo.get_calendar_shares(event.calendar_id)
     
     for share in shares:
         try:

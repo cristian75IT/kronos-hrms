@@ -7,7 +7,6 @@ import logging
 from datetime import datetime, timedelta
 
 from celery import shared_task
-from sqlalchemy import select, and_
 
 from src.core.database import async_session_factory
 from src.shared.clients import NotificationClient
@@ -40,18 +39,10 @@ async def _check_expirations_async():
     
     async with async_session_factory() as session:
         try:
+            request_repo = ApprovalRequestRepository(session)
             # Get expired requests
             now = datetime.utcnow()
-            result = await session.execute(
-                select(ApprovalRequest).where(
-                    and_(
-                        ApprovalRequest.status == ApprovalStatus.PENDING.value,
-                        ApprovalRequest.expires_at <= now,
-                        ApprovalRequest.expired_action_taken == False,
-                    )
-                )
-            )
-            expired_requests = list(result.scalars().all())
+            expired_requests = await request_repo.get_expiring_requests(now)
             
             if not expired_requests:
                 logger.debug("No expired approval requests found")
@@ -180,16 +171,11 @@ async def _cleanup_old_requests_async():
     
     async with async_session_factory() as session:
         try:
+            from .repository import ApprovalRequestRepository
+            request_repo = ApprovalRequestRepository(session)
+            
             # Count old resolved requests
-            result = await session.execute(
-                select(ApprovalRequest).where(
-                    and_(
-                        ApprovalRequest.status != "PENDING",
-                        ApprovalRequest.resolved_at < cutoff,
-                    )
-                )
-            )
-            old_requests = list(result.scalars().all())
+            old_requests = await request_repo.get_resolved_before(cutoff)
             
             if not old_requests:
                 logger.debug("No old requests to archive")

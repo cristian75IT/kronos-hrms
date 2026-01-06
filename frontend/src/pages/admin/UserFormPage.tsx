@@ -44,6 +44,7 @@ interface UserFormValues {
 
     // Profile Info
     hire_date?: string;
+    termination_date?: string;
     department_id?: string;
     service_id?: string;
     executive_level_id?: string;
@@ -166,6 +167,7 @@ export function UserFormPage() {
                 // Profile fields
                 phone: user.profile?.phone || '',
                 hire_date: user.profile?.hire_date ? user.profile.hire_date.split('T')[0] : '', // Format YYYY-MM-DD
+                termination_date: user.profile?.termination_date ? user.profile.termination_date.split('T')[0] : '',
                 department_id: user.department_id || user.profile?.department_id || '',
                 service_id: user.service_id || user.profile?.service_id || '',
                 executive_level_id: user.executive_level_id || user.profile?.executive_level_id || '',
@@ -220,6 +222,7 @@ export function UserFormPage() {
                     executive_level_id: data.executive_level_id || null,
                     position: data.has_contract ? data.job_title : data.position, // Use job title if contract set
                     hire_date: data.has_contract ? data.contract_start_date : (data.hire_date || null),
+                    termination_date: data.termination_date || null,
                     employee_number: data.employee_code,
                 }
             };
@@ -482,6 +485,23 @@ export function UserFormPage() {
                                                 <input type="date" className="block w-full rounded-lg border-gray-300 pl-10 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" {...register('hire_date')} />
                                             </div>
                                         </div>
+
+                                        {isEditing && (
+                                            <div className="space-y-1.5">
+                                                <label className="block text-sm font-medium text-gray-700">Data Cessazione</label>
+                                                <div className="relative rounded-md shadow-sm">
+                                                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                                        <User size={16} className="text-red-400" />
+                                                    </div>
+                                                    <input
+                                                        type="date"
+                                                        className="block w-full rounded-lg border-red-200 pl-10 focus:border-red-500 focus:ring-red-500 sm:text-sm bg-red-50/30"
+                                                        {...register('termination_date')}
+                                                    />
+                                                </div>
+                                                <p className="text-[10px] text-gray-500">Impostando questa data l'utente verrà disattivato dopo tale giorno.</p>
+                                            </div>
+                                        )}
                                     </>
                                 )}
                             </div>

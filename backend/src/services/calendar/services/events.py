@@ -37,46 +37,32 @@ class CalendarEventService(BaseCalendarService):
     ) -> List[CalendarEvent]:
         """Get events from all calendars visible to the user."""
         # Get calendar IDs the user can see
-        own_calendars = await self.db.execute(
-            select(Calendar.id).where(Calendar.owner_id == user_id)
-        )
-        own_ids = [r[0] for r in own_calendars.fetchall()]
+        own_calendars = await self._repo.get_owned_calendars(user_id)
+        own_ids = [c.id for c in own_calendars]
         
-        shared_calendars = await self.db.execute(
-            select(CalendarShare.calendar_id).where(CalendarShare.shared_with_id == user_id)
-        )
-        shared_ids = [r[0] for r in shared_calendars.fetchall()]
+        shared_calendars = await self._repo.get_shared_with_user(user_id)
+        shared_ids = [c.id for c in shared_calendars]
         
         # Get public calendars
-        public_calendars = await self.db.execute(
-            select(Calendar.id).where(Calendar.visibility == "public")
-        )
-        public_ids = [r[0] for r in public_calendars.fetchall()]
+        public_calendars = await self._repo.get_public_calendars()
+        public_ids = [c.id for c in public_calendars]
         
         all_calendar_ids = list(set(own_ids + shared_ids + public_ids))
         
         if not all_calendar_ids:
             return []
         
-        # Build query
-        stmt = select(CalendarEvent).where(CalendarEvent.calendar_id.in_(all_calendar_ids))
-        
-        if start_date:
-            stmt = stmt.where(CalendarEvent.end_date >= start_date)
-        if end_date:
-            stmt = stmt.where(CalendarEvent.start_date <= end_date)
-        if event_type:
-            stmt = stmt.where(CalendarEvent.event_type == event_type)
-        
-        stmt = stmt.order_by(CalendarEvent.start_date)
-        result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        # Build query via repo
+        return await self._event_repo.get_visible_events(
+            calendar_ids=all_calendar_ids,
+            start_date=start_date,
+            end_date=end_date,
+            event_type=event_type
+        )
     
     async def get_event(self, event_id: UUID) -> Optional[CalendarEvent]:
         """Get event by ID."""
-        stmt = select(CalendarEvent).where(CalendarEvent.id == event_id)
-        result = await self.db.execute(stmt)
-        return result.scalar_one_or_none()
+        return await self._event_repo.get(event_id)
     
     async def create_event(self, user_id: UUID, data: schemas.EventCreate) -> CalendarEvent:
         """Create a new calendar event."""
@@ -100,9 +86,7 @@ class CalendarEventService(BaseCalendarService):
             **event_data
         )
         
-        self.db.add(event)
-        await self.db.commit()
-        await self.db.refresh(event)
+        event = await self._event_repo.create(event)
         
         await self._audit.log_action(
             user_id=user_id,
@@ -137,6 +121,7 @@ class CalendarEventService(BaseCalendarService):
         for key, value in update_data.items():
             setattr(event, key, value)
         
+        await self._event_repo.update(event)
         await self.db.commit()
         await self.db.refresh(event)
         
@@ -165,7 +150,7 @@ class CalendarEventService(BaseCalendarService):
             raise HTTPException(status_code=403, detail="No write access to this event")
         
         event_title = event.title
-        await self.db.delete(event)
+        await self._event_repo.delete(event)
         await self.db.commit()
         
         await self._audit.log_action(
@@ -184,14 +169,7 @@ class CalendarEventService(BaseCalendarService):
     
     async def _get_or_create_default_calendar(self, user_id: UUID) -> UUID:
         """Get or create user's default personal calendar."""
-        stmt = select(Calendar).where(
-            and_(
-                Calendar.owner_id == user_id,
-                Calendar.calendar_type == CalendarType.PERSONAL
-            )
-        ).limit(1)
-        result = await self.db.execute(stmt)
-        calendar = result.scalar_one_or_none()
+        calendar = await self._repo.get_personal_calendar(user_id)
         
         if calendar:
             return calendar.id
@@ -205,7 +183,7 @@ class CalendarEventService(BaseCalendarService):
             visibility="private",
             color="#3B82F6",
         )
-        self.db.add(calendar)
+        await self._repo.create(calendar)
         await self.db.commit()
         return calendar.id
     
@@ -216,11 +194,7 @@ class CalendarEventService(BaseCalendarService):
         require_write: bool = False
     ) -> Optional[Calendar]:
         """Get calendar if user has access."""
-        stmt = select(Calendar).options(
-            selectinload(Calendar.shares)
-        ).where(Calendar.id == calendar_id)
-        result = await self.db.execute(stmt)
-        calendar = result.scalar_one_or_none()
+        calendar = await self._repo.get(calendar_id)
         
         if not calendar:
             return None

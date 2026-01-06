@@ -521,21 +521,7 @@ export const calendarService = {
     // iCal Export
     // ═══════════════════════════════════════════════════════════
 
-    /**
-     * Get URL for downloading holidays as ICS file
-     */
-    getHolidaysIcsUrl: (year: number, scope?: string): string => {
-        let url = `${CALENDAR_BASE}/export/holidays.ics?year=${year}`;
-        if (scope) url += `&scope=${scope}`;
-        return url;
-    },
 
-    /**
-     * Get URL for downloading closures as ICS file
-     */
-    getClosuresIcsUrl: (year: number): string => {
-        return `${CALENDAR_BASE}/export/closures.ics?year=${year}`;
-    },
 
     /**
      * Get URL for downloading combined calendar as ICS file
@@ -547,28 +533,27 @@ export const calendarService = {
     /**
      * Get URL for downloading personal events as ICS file
      */
-    getMyEventsIcsUrl: (year?: number): string => {
-        const yearParam = year ? `?year=${year}` : '';
-        return `${CALENDAR_BASE}/export/my-events.ics${yearParam}`;
+    /**
+     * Get Holiday ICS URL
+     */
+    getHolidaysIcsUrl: (year?: number): string => {
+        const query = year ? `?year=${year}` : '';
+        return `${api.defaults.baseURL}${CALENDAR_BASE}/export/holidays.ics${query}`;
     },
 
     /**
-     * Get subscription URLs and instructions for external calendar apps
+     * Get Closures ICS URL
      */
-    getSubscriptionUrls: async (year: number): Promise<{
-        holidays: { url: string; description: string; refresh_interval: string };
-        closures: { url: string; description: string; refresh_interval: string };
-        combined: { url: string; description: string; refresh_interval: string };
-        instructions: {
-            google_calendar: string;
-            outlook: string;
-            apple_calendar: string;
-        };
-    }> => {
-        const response = await api.get(`/export/subscription-url`, {
-            params: { year }
-        });
-        return response.data;
+    getClosuresIcsUrl: (year?: number): string => {
+        const query = year ? `?year=${year}` : '';
+        return `${api.defaults.baseURL}${CALENDAR_BASE}/export/closures.ics${query}`;
+    },
+
+    /**
+     * Get User Personal Calendar ICS URL
+     */
+    getUserCalendarIcsUrl: (userId: string, token: string): string => {
+        return `${api.defaults.baseURL}${CALENDAR_BASE}/export/user/${userId}/calendar.ics?token=${token}`;
     },
 
     /**
@@ -586,9 +571,37 @@ export const calendarService = {
     /**
      * Download holidays ICS file
      */
-    downloadHolidaysIcs: (year: number, scope?: string): void => {
-        const url = calendarService.getHolidaysIcsUrl(year, scope);
+    downloadHolidaysIcs: (year: number): void => {
+        const url = calendarService.getHolidaysIcsUrl(year);
         calendarService.downloadIcs(url, `kronos_holidays_${year}.ics`);
+    },
+
+    /**
+     * Download combined ICS file
+     */
+    downloadCombinedIcs: (year: number): void => {
+        const url = calendarService.getCombinedIcsUrl(year);
+        calendarService.downloadIcs(url, `kronos_combined_${year}.ics`);
+    },
+
+    /**
+     * Get all subscription URLs
+     */
+    getSubscriptionUrls: (year: number) => {
+        return {
+            combined: {
+                url: calendarService.getCombinedIcsUrl(year),
+                description: 'Calendario completo (Eventi personali + Festività + Chiusure)'
+            },
+            holidays: {
+                url: calendarService.getHolidaysIcsUrl(year),
+                description: 'Solo Festività Nazionali'
+            },
+            closures: {
+                url: calendarService.getClosuresIcsUrl(year),
+                description: 'Solo Chiusure Aziendali'
+            }
+        };
     },
 
     /**
@@ -600,12 +613,12 @@ export const calendarService = {
     },
 
     /**
-     * Download combined calendar ICS file
+     * Download user calendar ICS file
      */
-    downloadCombinedIcs: (year: number): void => {
-        const url = calendarService.getCombinedIcsUrl(year);
-        calendarService.downloadIcs(url, `kronos_calendar_${year}.ics`);
-    },
+    downloadUserCalendarIcs: (userId: string, token: string): void => {
+        const url = calendarService.getUserCalendarIcsUrl(userId, token);
+        calendarService.downloadIcs(url, `kronos_my_calendar.ics`);
+    }
 };
 
 export default calendarService;

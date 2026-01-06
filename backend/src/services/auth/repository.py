@@ -709,6 +709,13 @@ class OrganizationalServiceRepository:
         )
         return list(result.scalars().all())
 
+    async def get_by_code(self, code: str) -> Optional[OrganizationalService]:
+        """Get service by code."""
+        result = await self._session.execute(
+            select(OrganizationalService).where(OrganizationalService.code == code)
+        )
+        return result.scalar_one_or_none()
+
     async def get_all(self, active_only: bool = True) -> list[OrganizationalService]:
         """Get all services."""
         query = select(OrganizationalService).order_by(OrganizationalService.name)

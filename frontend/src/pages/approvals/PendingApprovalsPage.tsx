@@ -23,14 +23,13 @@ import {
     Check,
     MessageSquare,
     Ban,
-    AlertCircle,
-    Search
+
+    ArrowRight
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { it } from 'date-fns/locale';
 
 import { Button } from '../../components/common/Button';
-import { Card } from '../../components/common/Card';
 import { Modal } from '../../components/common/Modal';
 import approvalsService from '../../services/approvals.service';
 import type {
@@ -105,34 +104,7 @@ const EntityTypeBadge: React.FC<{ type: string }> = ({ type }) => {
     );
 };
 
-const UrgencyIndicator: React.FC<{ item: PendingApprovalItem }> = ({ item }) => {
-    if (item.is_urgent) {
-        return (
-            <div className="flex items-center gap-1 text-red-600 animate-pulse">
-                <AlertTriangle className="h-4 w-4" />
-                <span className="text-xs font-medium">Urgente</span>
-            </div>
-        );
-    }
 
-    if (item.expires_at) {
-        const expiresDate = new Date(item.expires_at);
-        const hoursRemaining = (expiresDate.getTime() - Date.now()) / (1000 * 60 * 60);
-
-        if (hoursRemaining < 48) {
-            return (
-                <div className="flex items-center gap-1 text-orange-500">
-                    <Clock className="h-4 w-4" />
-                    <span className="text-xs">
-                        Scade {formatDistanceToNow(expiresDate, { addSuffix: true, locale: it })}
-                    </span>
-                </div>
-            );
-        }
-    }
-
-    return null;
-};
 
 // ═══════════════════════════════════════════════════════════
 // Decision Modal
@@ -593,7 +565,7 @@ const PendingApprovalsPage: React.FC = () => {
     const [selectedItem, setSelectedItem] = useState<PendingApprovalItem | null>(null);
     const [isDecisionModalOpen, setIsDecisionModalOpen] = useState(false);
     const [filterType, setFilterType] = useState<string>('');
-    const [archiveStatusFilter, setArchiveStatusFilter] = useState<string>('all');
+    const [archiveStatusFilter] = useState<string>('all');
 
     useEffect(() => {
         if (viewMode === 'pending') {
@@ -693,7 +665,7 @@ const PendingApprovalsPage: React.FC = () => {
         setIsDecisionModalOpen(true);
     };
 
-    const getEntityUrl = (item: PendingApprovalItem) => {
+    const getEntityUrl = (item: PendingApprovalItem | ArchivedApprovalItem) => {
         switch (item.entity_type) {
             case 'LEAVE':
                 return `/leaves/${item.entity_id}`;
@@ -838,8 +810,8 @@ const PendingApprovalsPage: React.FC = () => {
                                             <td className="py-4 px-6 align-top">
                                                 <div className="flex items-start gap-3">
                                                     <div className={`mt-1 p-1.5 rounded-lg shrink-0 ${item.entity_type === 'LEAVE' ? 'bg-blue-50 text-blue-600' :
-                                                            item.entity_type === 'TRIP' ? 'bg-purple-50 text-purple-600' :
-                                                                'bg-emerald-50 text-emerald-600'
+                                                        item.entity_type === 'TRIP' ? 'bg-purple-50 text-purple-600' :
+                                                            'bg-emerald-50 text-emerald-600'
                                                         }`}>
                                                         <EntityIcon type={item.entity_type} className="h-4 w-4" />
                                                     </div>
@@ -916,8 +888,8 @@ const PendingApprovalsPage: React.FC = () => {
                                         >
                                             <td className="py-4 px-6 align-middle">
                                                 <div className={`h-8 w-8 rounded-full flex items-center justify-center ${item.decision === 'APPROVED' ? 'bg-emerald-100 text-emerald-600' :
-                                                        item.decision === 'REJECTED' ? 'bg-red-100 text-red-600' :
-                                                            'bg-slate-100 text-slate-600'
+                                                    item.decision === 'REJECTED' ? 'bg-red-100 text-red-600' :
+                                                        'bg-slate-100 text-slate-600'
                                                     }`}>
                                                     {item.decision === 'APPROVED' ? <Check size={16} /> :
                                                         item.decision === 'REJECTED' ? <XCircle size={16} /> :

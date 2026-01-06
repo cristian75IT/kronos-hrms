@@ -34,7 +34,12 @@ router = APIRouter()
 # WORKING DAYS CALCULATIONS
 # ════════════════════════════════════════════════
 
-@router.post("/working-days", response_model=WorkingDaysResponse)
+@router.post(
+    "/working-days",
+    response_model=WorkingDaysResponse,
+    tags=["Calendar"],
+    summary="Calculate working days between two dates"
+)
 async def calculate_working_days(
     request: WorkingDaysRequest,
     db: AsyncSession = Depends(get_db),
@@ -50,7 +55,12 @@ async def calculate_working_days(
     )
     return result
 
-@router.get("/holidays-list", response_model=List[dict])
+@router.get(
+    "/holidays-list",
+    response_model=List[dict],
+    tags=["Calendar"],
+    summary="List all holidays for a range"
+)
 async def list_holidays(
     year: int = Query(...),
     start_date: Optional[date] = Query(None),
@@ -78,7 +88,11 @@ async def list_closures(
     closures = await service.get_location_closures(year, location_id)
     return closures
 
-@router.get("/working-days/check/{check_date}")
+@router.get(
+    "/working-days/check/{check_date}",
+    tags=["Calendar"],
+    summary="Check if a date is a working day"
+)
 async def is_working_day(
     check_date: date,
     location_id: Optional[UUID] = Query(None),
@@ -96,7 +110,12 @@ async def is_working_day(
 # UNIFIED CALENDARS CRUD
 # ════════════════════════════════════════════════
 
-@router.get("/calendars", response_model=List[CalendarResponse])
+@router.get(
+    "/calendars",
+    response_model=List[CalendarResponse],
+    tags=["Calendar"],
+    summary="Get user's calendars (owned and shared)"
+)
 async def get_calendars(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
