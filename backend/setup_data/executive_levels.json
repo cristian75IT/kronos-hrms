@@ -1,0 +1,44 @@
+{
+    "levels": [
+        {
+            "code": "CEO",
+            "title": "Chief Executive Officer",
+            "hierarchy_level": 1,
+            "can_override_workflow": true,
+            "max_approval_amount": null,
+            "escalates_to_code": null
+        },
+        {
+            "code": "CIO",
+            "title": "Chief Information Officer",
+            "hierarchy_level": 2,
+            "can_override_workflow": true,
+            "max_approval_amount": 50000.0,
+            "escalates_to_code": "CEO"
+        },
+        {
+            "code": "CFO",
+            "title": "Chief Financial Officer",
+            "hierarchy_level": 2,
+            "can_override_workflow": true,
+            "max_approval_amount": 100000.0,
+            "escalates_to_code": "CEO"
+        },
+        {
+            "code": "CHRO",
+            "title": "Chief Human Resources Officer",
+            "hierarchy_level": 2,
+            "can_override_workflow": true,
+            "max_approval_amount": 20000.0,
+            "escalates_to_code": "CEO"
+        },
+        {
+            "code": "COO",
+            "title": "Chief Operating Officer",
+            "hierarchy_level": 2,
+            "can_override_workflow": true,
+            "max_approval_amount": 50000.0,
+            "escalates_to_code": "CEO"
+        }
+    ]
+}

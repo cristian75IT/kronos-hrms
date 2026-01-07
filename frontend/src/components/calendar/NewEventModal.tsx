@@ -17,7 +17,8 @@ import {
     CalendarPlus,
     MapPin,
     Video,
-    Link as LinkIcon
+    Link as LinkIcon,
+    Repeat
 } from 'lucide-react';
 
 interface NewEventModalProps {
@@ -44,6 +45,9 @@ interface EventFormData {
     location?: string;
     is_virtual: boolean;
     meeting_url?: string;
+    participant_ids?: string[];
+    is_recurring: boolean;
+    recurrence_rule?: string;
 }
 
 export function NewEventModal({ isOpen, onClose, onEventCreated, selectedDate, userCalendars }: NewEventModalProps) {
@@ -54,6 +58,7 @@ export function NewEventModal({ isOpen, onClose, onEventCreated, selectedDate, u
             event_type: 'meeting',
             color: '#4F46E5',
             is_virtual: false,
+            is_recurring: false,
         }
     });
     const [loading, setLoading] = useState(false);
@@ -61,6 +66,7 @@ export function NewEventModal({ isOpen, onClose, onEventCreated, selectedDate, u
 
     const isAllDay = watch('is_all_day');
     const isVirtual = watch('is_virtual');
+    const isRecurring = watch('is_recurring');
     const selectedColor = watch('color');
 
     useEffect(() => {
@@ -71,6 +77,7 @@ export function NewEventModal({ isOpen, onClose, onEventCreated, selectedDate, u
                 event_type: 'meeting',
                 color: '#4F46E5',
                 is_virtual: false,
+                is_recurring: false,
                 start_date: selectedDate || format(new Date(), 'yyyy-MM-dd'),
                 end_date: selectedDate || format(new Date(), 'yyyy-MM-dd'),
                 start_time: '09:00',
@@ -90,6 +97,9 @@ export function NewEventModal({ isOpen, onClose, onEventCreated, selectedDate, u
                 calendar_id: data.calendar_id || undefined,
                 meeting_url: data.is_virtual ? data.meeting_url : undefined,
                 alert_before_minutes: data.alert_before_minutes ? Number(data.alert_before_minutes) : null,
+                participant_ids: data.participant_ids?.filter(id => id) || undefined,
+                is_recurring: data.is_recurring,
+                recurrence_rule: data.is_recurring ? data.recurrence_rule : undefined,
             };
 
             await calendarService.createEvent(payload);
@@ -361,6 +371,58 @@ export function NewEventModal({ isOpen, onClose, onEventCreated, selectedDate, u
                             </div>
                         </div>
                     </div>
+
+                    {/* Recurrence Section */}
+                    <div className="bg-amber-50/50 rounded-xl p-6 border border-amber-100 space-y-4">
+                        <div className="flex items-center gap-2 pb-2 border-b border-amber-200/60">
+                            <Repeat className="text-amber-500" size={18} />
+                            <h4 className="font-semibold text-slate-800">Ricorrenza</h4>
+                        </div>
+
+                        <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200">
+                            <div className="flex items-center gap-2">
+                                <Repeat className="text-slate-400" size={18} />
+                                <span className="text-sm font-medium text-slate-700">Evento ricorrente</span>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    {...register('is_recurring')}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-300/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                            </label>
+                        </div>
+
+                        {isRecurring && (
+                            <div className="space-y-1 animate-fadeIn">
+                                <InputLabel label="Frequenza" icon={Repeat} />
+                                <select
+                                    {...register('recurrence_rule')}
+                                    className={inputClasses(null)}
+                                >
+                                    <option value="FREQ=DAILY">Ogni giorno</option>
+                                    <option value="FREQ=WEEKLY">Ogni settimana</option>
+                                    <option value="FREQ=BIWEEKLY">Ogni 2 settimane</option>
+                                    <option value="FREQ=MONTHLY">Ogni mese</option>
+                                    <option value="FREQ=YEARLY">Ogni anno</option>
+                                </select>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Participants Section (Placeholder - requires useUsers hook) */}
+                    {/* 
+                    <div className="bg-violet-50/50 rounded-xl p-6 border border-violet-100 space-y-4">
+                        <div className="flex items-center gap-2 pb-2 border-b border-violet-200/60">
+                            <UserPlus className="text-violet-500" size={18} />
+                            <h4 className="font-semibold text-slate-800">Partecipanti</h4>
+                        </div>
+                        <p className="text-sm text-slate-500">
+                            Seleziona gli utenti da invitare all'evento.
+                        </p>
+                    </div>
+                    */}
 
                     {/* Color Picker Section */}
                     <div className="space-y-3">

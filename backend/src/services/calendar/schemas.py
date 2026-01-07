@@ -303,6 +303,30 @@ class CalendarDayView(BaseModel):
     holiday_name: Optional[str] = None
     items: List[CalendarDayItem] = []
 
+
+# ═══════════════════════════════════════════════════════════
+# Setup / Bulk Import Schemas
+# ═══════════════════════════════════════════════════════════
+
+class SetupHoliday(BaseModel):
+    """Setup schema for a single Holiday."""
+    name: str
+    date: Optional[dt.date] = None
+    is_recurring: bool = True
+    recurrence_rule: Optional[Dict[str, Any]] = None
+
+class SetupHolidayProfile(BaseModel):
+    """Setup schema for a Holiday Profile with its holidays."""
+    code: str
+    name: str
+    country_code: str = "IT"
+    region_code: Optional[str] = None
+    holidays: list[SetupHoliday]
+
+class SetupHolidaysPayload(BaseModel):
+    """Payload for bulk holiday setup."""
+    profiles: list[SetupHolidayProfile]
+
 class CalendarRangeView(BaseModel):
     """Aggregated calendar view for a date range."""
     start_date: date

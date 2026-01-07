@@ -49,6 +49,7 @@ import WorkflowConfigPage from './pages/admin/WorkflowConfigPage';
 import PendingApprovalsPage from './pages/approvals/PendingApprovalsPage';
 import RolesPage from './pages/admin/RolesPage';
 import OrganizationPage from './pages/admin/OrganizationPage';
+import SystemInitializationPage from './pages/admin/SystemInitializationPage';
 
 function App() {
   return (
@@ -103,6 +104,7 @@ function App() {
                 {/* Admin - Notifications & Email */}
                 <Route path="/admin/notifications" element={<ProtectedRoute permissions={['notifications:send']}><NotificationCenterPage /></ProtectedRoute>} />
                 <Route path="/admin/email-logs" element={<ProtectedRoute permissions={['notifications:view']}><EmailLogsPage /></ProtectedRoute>} />
+                <Route path="/admin/setup" element={<ProtectedRoute permissions={['settings:edit']}><SystemInitializationPage /></ProtectedRoute>} />
 
                 {/* Admin - Tools & Audit */}
                 <Route path="/admin/organization" element={<ProtectedRoute permissions={['settings:edit']}><OrganizationPage /></ProtectedRoute>} />

@@ -530,8 +530,70 @@ class OrganizationalServiceUpdate(BaseModel):
     deputy_coordinator_id: Optional[UUID] = None
     is_active: Optional[bool] = None
 
+
 class OrganizationalServiceResponse(OrganizationalServiceBase, IDMixin, TimestampMixin, BaseSchema):
     is_active: bool
     department_name: Optional[str] = None
     coordinator: Optional[UserListItem] = None
     deputy_coordinator: Optional[UserListItem] = None
+
+
+# ═══════════════════════════════════════════════════════════
+# Setup / Bulk Import Schemas
+# ═══════════════════════════════════════════════════════════
+
+class SetupExecutiveLevel(BaseModel):
+    """Setup schema for Executive Level."""
+    code: str
+    title: str
+    hierarchy_level: int
+    escalates_to_code: Optional[str] = None
+    max_approval_amount: Optional[float] = None
+    can_override_workflow: bool = False
+
+class SetupExecutiveLevelsPayload(BaseModel):
+    """Payload for bulk executive levels setup."""
+    levels: list[SetupExecutiveLevel]
+
+class SetupOrganizationalService(BaseModel):
+    """Setup schema for Organizational Service."""
+    code: str
+    name: str
+    description: Optional[str] = None
+    coordinator_email: Optional[str] = None
+
+class SetupDepartment(BaseModel):
+    """Setup schema for Department."""
+    code: str
+    name: str
+    description: Optional[str] = None
+    cost_center_code: Optional[str] = None
+    manager_email: Optional[str] = None
+    services: list[SetupOrganizationalService] = []
+
+
+class SetupOrganizationPayload(BaseModel):
+    """Payload for bulk organization setup."""
+    departments: list[SetupDepartment]
+
+
+class SetupUser(UserBase):
+    """Setup schema for a single user."""
+    keycloak_id: str
+    is_admin: bool = False
+    is_manager: bool = False
+    is_hr: bool = False
+    is_employee: bool = True
+    department_code: Optional[str] = None
+    service_code: Optional[str] = None
+    executive_level_code: Optional[str] = None
+    manager_email: Optional[str] = None
+    work_schedule_code: Optional[str] = None
+    location_code: Optional[str] = None
+    contract_type_code: Optional[str] = None
+
+class SetupUsersPayload(BaseModel):
+    """Payload for bulk users setup."""
+    users: list[SetupUser]
+
+

@@ -15,7 +15,8 @@ import {
     ArrowRight,
     X,
     Check,
-    Mail
+    Mail,
+    FileJson
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { leavesService } from '../../services/leaves.service';
@@ -377,6 +378,21 @@ export function AdminToolsPage() {
                             >
                                 Anteprima Modifiche
                             </Button>
+                        </div>
+
+                        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-emerald-500 text-white shadow-sm mb-4">
+                                <FileJson size={20} />
+                            </div>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">Inizializzazione Sistema</h3>
+                            <p className="text-sm text-gray-500 mb-4">Importa configurazioni core, utenti e flussi da file JSON per il primo setup.</p>
+                            <Link
+                                to="/admin/setup"
+                                className="inline-flex items-center justify-center gap-2 w-full py-2 px-4 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm text-sm font-medium"
+                            >
+                                <ArrowRight size={16} />
+                                Vai al Setup
+                            </Link>
                         </div>
                     </div>
 

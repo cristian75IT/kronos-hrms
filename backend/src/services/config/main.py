@@ -41,6 +41,8 @@ app.add_middleware(
 
 # Include routers
 app.include_router(router, prefix="/api/v1")
+from src.services.config.routers.setup import router as setup_router
+app.include_router(setup_router, prefix="/api/v1/config")
 
 
 

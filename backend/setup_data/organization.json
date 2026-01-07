@@ -1,0 +1,46 @@
+{
+    "departments": [
+        {
+            "code": "IT",
+            "name": "Information Technology",
+            "description": "Information Technology Department",
+            "cost_center_code": "IT-001",
+            "manager_email": "cristian@example.com",
+            "services": [
+                {
+                    "code": "DEV",
+                    "name": "Software Development",
+                    "description": "Custom Software Solutions",
+                    "coordinator_email": "cristian@example.com"
+                },
+                {
+                    "code": "OPS",
+                    "name": "DevOps & Infrastructure",
+                    "description": "Cloud & On-prem systems management",
+                    "coordinator_email": null
+                }
+            ]
+        },
+        {
+            "code": "HR",
+            "name": "Human Resources",
+            "description": "Human Resources & Payroll",
+            "cost_center_code": "HR-001",
+            "manager_email": "valentina@example.com",
+            "services": [
+                {
+                    "code": "TA",
+                    "name": "Talent Acquisition",
+                    "description": "Recruitment & Onboarding",
+                    "coordinator_email": null
+                },
+                {
+                    "code": "ADMIN",
+                    "name": "HR Administration",
+                    "description": "Personnel management",
+                    "coordinator_email": null
+                }
+            ]
+        }
+    ]
+}

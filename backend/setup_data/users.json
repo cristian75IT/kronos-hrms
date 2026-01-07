@@ -1,0 +1,52 @@
+{
+    "users": [
+        {
+            "keycloak_id": "456255c9-3f01-42c1-87b6-1f9240b4087b",
+            "email": "cristian@example.com",
+            "username": "cristian",
+            "first_name": "Cristian",
+            "last_name": "Manager",
+            "is_admin": true,
+            "is_manager": true,
+            "is_hr": true,
+            "is_employee": true,
+            "department_code": "IT",
+            "service_code": "DEV",
+            "executive_level_code": "CIO",
+            "location_code": "HQ",
+            "contract_type_code": "FT"
+        },
+        {
+            "keycloak_id": "valentina-kc-id",
+            "email": "valentina@example.com",
+            "username": "valentina",
+            "first_name": "Valentina",
+            "last_name": "HR",
+            "is_admin": false,
+            "is_manager": true,
+            "is_hr": true,
+            "is_employee": false,
+            "department_code": "HR",
+            "service_code": "ADMIN",
+            "executive_level_code": "CHRO",
+            "location_code": "HQ",
+            "contract_type_code": "FT"
+        },
+        {
+            "keycloak_id": "marco-kc-id",
+            "email": "marco@example.com",
+            "username": "marco",
+            "first_name": "Marco",
+            "last_name": "Employee",
+            "is_admin": false,
+            "is_manager": false,
+            "is_hr": false,
+            "is_employee": true,
+            "department_code": "IT",
+            "service_code": "DEV",
+            "manager_email": "cristian@example.com",
+            "location_code": "HQ",
+            "contract_type_code": "PT75"
+        }
+    ]
+}

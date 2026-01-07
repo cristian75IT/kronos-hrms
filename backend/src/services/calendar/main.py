@@ -23,6 +23,8 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix="/api/v1")
+from .routers.setup import router as setup_router
+app.include_router(setup_router, prefix="/api/v1/calendar")
 
 
 

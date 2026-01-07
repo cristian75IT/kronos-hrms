@@ -271,11 +271,20 @@ async def create_event(
     db: AsyncSession = Depends(get_db),
     current_user: TokenPayload = Depends(get_current_user),
 ):
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Received create_event request from user {current_user.user_id}")
+    logger.info(f"Event payload: {data.model_dump(mode='json')}")
+    
     service = CalendarService(db)
     try:
         return await service.create_event(current_user.user_id, data)
     except ValueError as e:
+        logger.warning(f"ValueError in create_event: {e}")
         raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error in create_event: {e}", exc_info=True)
+        raise
 
 @router.put("/events/{event_id}", response_model=EventResponse)
 async def update_event(

@@ -6,6 +6,9 @@ Handles calendar events CRUD operations.
 from datetime import date, datetime, time, timedelta
 from typing import Optional, List
 from uuid import UUID, uuid4
+import logging
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -69,11 +72,14 @@ class CalendarEventService(BaseCalendarService):
         # Get or create default calendar for user
         calendar_id = data.calendar_id
         if not calendar_id:
+            logger.info(f"No calendar_id provided, resolving default for user {user_id}")
             calendar_id = await self._get_or_create_default_calendar(user_id)
+            logger.info(f"Resolved default calendar_id: {calendar_id}")
         
         # Validate calendar access
         calendar = await self._get_calendar_with_access(calendar_id, user_id, require_write=True)
         if not calendar:
+            logger.warning(f"User {user_id} denied write access to calendar {calendar_id}")
             from fastapi import HTTPException
             raise HTTPException(status_code=403, detail="No write access to calendar")
         
@@ -97,12 +103,13 @@ class CalendarEventService(BaseCalendarService):
                     user_id=p_user_id,
                     is_organizer=(p_user_id == user_id)
                 )
-                # We could use a repository here, but for now we can add to relationship
                 # assuming the session is managed by the service
                 event.participants.append(participant)
             
-            await self.db.commit()
-            await self.db.refresh(event)
+        
+        logger.info("Committing event to DB")
+        await self.db.commit()
+        await self.db.refresh(event)
 
         await self._audit.log_action(
             user_id=user_id,

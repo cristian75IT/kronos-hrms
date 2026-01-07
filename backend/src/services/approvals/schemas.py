@@ -393,5 +393,19 @@ class DataTableResponse(BaseModel):
     data: List[Any]
 
 
+
+# ═══════════════════════════════════════════════════════════
+# Setup / Bulk Import Schemas
+# ═══════════════════════════════════════════════════════════
+
+class SetupWorkflow(WorkflowConfigBase):
+    """Setup schema for a single workflow."""
+    pass
+
+class SetupWorkflowsPayload(BaseModel):
+    """Payload for bulk workflow setup."""
+    workflows: List[SetupWorkflow]
+
+
 # Update forward references
 ApprovalRequestResponse.model_rebuild()

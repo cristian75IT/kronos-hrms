@@ -205,12 +205,17 @@ export function LeavesPage() {
       {/* Wallet Transactions Modal */}
       {isWalletModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden animate-scaleIn flex flex-col max-h-[85vh]">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden animate-scaleIn flex flex-col max-h-[85vh]">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 shrink-0">
-              <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                <TrendingUp className="text-indigo-600" size={20} />
-                Storico Movimenti Wallet
-              </h3>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
+                  <TrendingUp size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900">Storico Movimenti Wallet</h3>
+                  <p className="text-[11px] text-gray-500 font-medium">Cronologia completa di maturazioni, utilizzi e ricalcoli dei tuoi saldi.</p>
+                </div>
+              </div>
               <button onClick={() => setIsWalletModalOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
                 <X size={20} />
               </button>
@@ -218,77 +223,103 @@ export function LeavesPage() {
 
             <div className="flex-1 overflow-y-auto p-0">
               {isLoadingWallet ? (
-                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                <div className="flex flex-col items-center justify-center py-20 gap-3">
                   <div className="animate-spin text-indigo-600"><History size={32} /></div>
-                  <span className="text-sm text-gray-500">Caricamento movimenti...</span>
+                  <span className="text-sm text-gray-500">Recupero movimenti in corso...</span>
                 </div>
               ) : walletTransactions.length === 0 ? (
-                <div className="text-center py-12 text-gray-400">Nessun movimento registrato.</div>
+                <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+                  <History size={48} className="text-gray-200 mb-4" />
+                  <h4 className="text-gray-900 font-semibold mb-1">Nessun movimento registrato</h4>
+                  <p className="text-sm text-gray-400 max-w-xs mx-auto">
+                    I primi movimenti appariranno non appena verrà elaborata la tua prima maturazione mensile o quando una tua richiesta verrà approvata.
+                  </p>
+                </div>
               ) : (
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50 sticky top-0">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantità</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Causale</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {walletTransactions.map((tx: any) => (
-                      <tr key={tx.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
-                          {format(new Date(tx.created_at), 'dd/MM/yyyy HH:mm', { locale: it })}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-xs font-semibold text-gray-700">
-                          {tx.transaction_type}
-                        </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${tx.amount >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                          {tx.amount > 0 ? '+' : ''}{tx.amount}
-                        </td>
-                        <td className="px-6 py-4 text-xs text-gray-500">
-                          <div className="font-medium text-gray-700">{tx.description || tx.reason || '-'}</div>
-
-                          {/* Rich Metadata Display */}
-                          {tx.meta_data?.request_date && (
-                            <div className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
-                              <span className="uppercase tracking-wider font-semibold">Richiesta:</span>
-                              {format(new Date(tx.meta_data.request_date), 'dd/MM/yyyy HH:mm', { locale: it })}
-                            </div>
-                          )}
-
-                          {/* Approval History */}
-                          {tx.meta_data?.approvals && Array.isArray(tx.meta_data.approvals) && tx.meta_data.approvals.length > 0 ? (
-                            <div className="mt-1.5 space-y-1 border-l-2 border-emerald-100 pl-2">
-                              {tx.meta_data.approvals.map((app: any, idx: number) => (
-                                <div key={idx} className="flex flex-col">
-                                  <div className="flex items-center gap-1.5 text-[10px]">
-                                    <span className="text-emerald-600 font-medium">✓ {app.approver_name}</span>
-                                    <span className="text-gray-300">•</span>
-                                    <span className="text-gray-400">{format(new Date(app.date), 'dd/MM/yy HH:mm', { locale: it })}</span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : tx.meta_data?.approver_name && (
-                            <div className="mt-1 flex items-center gap-1 text-[10px] text-emerald-600">
-                              <span className="font-medium">✓ Approvato da:</span>
-                              <span>{tx.meta_data.approver_name}</span>
-                              {tx.meta_data.approved_at && (
-                                <span className="text-gray-400">({format(new Date(tx.meta_data.approved_at), 'dd/MM/yy', { locale: it })})</span>
-                              )}
-                            </div>
-                          )}
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50/50 sticky top-0 z-10">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Data</th>
+                        <th className="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tipo</th>
+                        <th className="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Saldo</th>
+                        <th className="px-6 py-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest">Variazione</th>
+                        <th className="px-6 py-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest">Saldo Finale</th>
+                        <th className="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Dettaglio / Causale</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-100">
+                      {walletTransactions.map((tx: any) => (
+                        <tr key={tx.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-medium">
+                            {format(new Date(tx.created_at), 'dd/MM/yyyy HH:mm', { locale: it })}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="text-xs font-semibold text-gray-700">
+                              {getTransactionTypeLabel(tx.transaction_type)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 uppercase">
+                              {getBalanceTypeLabel(tx.balance_type)}
+                            </span>
+                          </td>
+                          <td className={`px-6 py-4 whitespace-nowrap text-center text-sm font-bold ${tx.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {tx.amount > 0 ? '+' : ''}{tx.amount}
+                            <span className="text-[10px] ml-1 font-medium">{tx.balance_type.includes('rol') || tx.balance_type.includes('permit') ? 'h' : 'gg'}</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-bold text-gray-900 bg-gray-50/30">
+                            {tx.balance_after}
+                            <span className="text-[10px] ml-1 font-medium text-gray-400">{tx.balance_type.includes('rol') || tx.balance_type.includes('permit') ? 'h' : 'gg'}</span>
+                          </td>
+                          <td className="px-6 py-4 text-xs text-gray-500 max-w-xs">
+                            <div className="font-medium text-gray-700 leading-relaxed mb-1">{tx.description || tx.reason || '-'}</div>
+
+                            {/* Rich Metadata Display */}
+                            {tx.meta_data?.request_date && (
+                              <div className="text-[10px] text-gray-400 flex items-center gap-1.5 bg-gray-50 w-fit px-1.5 py-0.5 rounded border border-gray-100">
+                                <span className="uppercase tracking-wider font-bold text-[9px]">Richiesta:</span>
+                                {format(new Date(tx.meta_data.request_date), 'dd/MM/yyyy HH:mm', { locale: it })}
+                              </div>
+                            )}
+
+                            {/* Approval History */}
+                            {tx.meta_data?.approvals && Array.isArray(tx.meta_data.approvals) && tx.meta_data.approvals.length > 0 ? (
+                              <div className="mt-2 space-y-1 border-l-2 border-emerald-200 pl-3">
+                                {tx.meta_data.approvals.map((app: any, idx: number) => (
+                                  <div key={idx} className="flex flex-col">
+                                    <div className="flex items-center gap-1.5 text-[10px]">
+                                      <span className="text-emerald-600 font-bold">✓ {app.approver_name}</span>
+                                      <span className="text-gray-300">•</span>
+                                      <span className="text-gray-400 italic">{format(new Date(app.date), 'dd/MM/yy HH:mm', { locale: it })}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : tx.meta_data?.approver_name && (
+                              <div className="mt-2 flex items-center gap-1.5 text-[10px] text-emerald-600 bg-emerald-50 w-fit px-2 py-0.5 rounded-full border border-emerald-100">
+                                <span className="font-bold">✓ Approvato da:</span>
+                                <span>{tx.meta_data.approver_name}</span>
+                                {tx.meta_data.approved_at && (
+                                  <span className="text-gray-400 font-normal ml-1">({format(new Date(tx.meta_data.approved_at), 'dd/MM/yy', { locale: it })})</span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
 
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end shrink-0">
-              <Button variant="secondary" onClick={() => setIsWalletModalOpen(false)}>Chiudi</Button>
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center shrink-0">
+              <p className="text-[10px] text-gray-400 leading-tight max-w-md">
+                Nota: I saldi sono espressi in giorni (gg) per le Ferie e in ore (h) per ROL e Permessi.
+                Le variazioni negative indicano l'utilizzo di ore o giorni.
+              </p>
+              <Button variant="secondary" onClick={() => setIsWalletModalOpen(false)}>Chiudi Finestra</Button>
             </div>
           </div>
         </div>
@@ -297,7 +328,36 @@ export function LeavesPage() {
   );
 }
 
-// Helper functions (same as before)
+// ═══════════════════════════════════════════════════════════════════
+// Helper Functions
+// ═══════════════════════════════════════════════════════════════════
+
+function getTransactionTypeLabel(type: string): string {
+  const map: Record<string, string> = {
+    ACCRUAL: 'Maturazione',
+    LEAVE_DEDUCTION: 'Utilizzo Ferie',
+    ROL_DEDUCTION: 'Utilizzo ROL',
+    ADJUSTMENT_ADD: 'Rettifica Saldo (+)',
+    ADJUSTMENT_SUB: 'Rettifica Saldo (-)',
+    EXPIRATION: 'Scadenza Residui',
+    ROLLOVER: 'Trasferimento AP',
+    RESERVATION: 'Impegnato',
+    CANCEL_RESERVATION: 'Ripristino'
+  };
+  return map[type] || type;
+}
+
+function getBalanceTypeLabel(type: string): string {
+  const map: Record<string, string> = {
+    vacation_ac: 'Ferie AC',
+    vacation_ap: 'Ferie AP',
+    vacation: 'Ferie',
+    rol: 'ROL',
+    permits: 'Permessi',
+  };
+  return map[type] || type;
+}
+
 function getStatusBadge(status: string): string {
   const map: Record<string, string> = {
     draft: 'bg-gray-100 text-gray-700 border-gray-200',

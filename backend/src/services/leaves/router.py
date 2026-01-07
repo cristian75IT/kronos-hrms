@@ -9,5 +9,5 @@ router.include_router(requests.router, tags=["Leave Requests"])
 router.include_router(balances.router, tags=["Leave Balances"])
 router.include_router(reports.router, tags=["Leave Reports"])
 
-router.include_router(wallet.router, prefix="/wallet", tags=["Leave Wallet"])
+router.include_router(wallet.router, prefix="/leaves/wallet", tags=["Leave Wallet"])
 

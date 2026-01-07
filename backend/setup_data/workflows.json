@@ -1,0 +1,42 @@
+{
+    "workflows": [
+        {
+            "entity_type": "LEAVE",
+            "name": "Approvazione Ferie Standard",
+            "description": "Flusso standard per richieste ferie e permessi",
+            "min_approvers": 1,
+            "max_approvers": 1,
+            "approval_mode": "ANY",
+            "auto_assign_approvers": true,
+            "allow_self_approval": false,
+            "expiration_hours": 72,
+            "expiration_action": "NOTIFY_ONLY",
+            "reminder_hours_before": 24,
+            "send_reminders": true,
+            "priority": 100,
+            "is_active": true,
+            "is_default": true,
+            "target_role_ids": [],
+            "approver_role_ids": []
+        },
+        {
+            "entity_type": "TRIP",
+            "name": "Approvazione Trasferta Standard",
+            "description": "Flusso standard per richieste trasferta",
+            "min_approvers": 1,
+            "max_approvers": 1,
+            "approval_mode": "ANY",
+            "auto_assign_approvers": true,
+            "allow_self_approval": false,
+            "expiration_hours": 48,
+            "expiration_action": "NOTIFY_ONLY",
+            "reminder_hours_before": 12,
+            "send_reminders": true,
+            "priority": 100,
+            "is_active": true,
+            "is_default": true,
+            "target_role_ids": [],
+            "approver_role_ids": []
+        }
+    ]
+}

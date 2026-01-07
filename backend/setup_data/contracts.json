@@ -1,0 +1,109 @@
+{
+    "contracts": [
+        {
+            "code": "COMMERCIO",
+            "name": "CCNL Commercio - Terziario, Distribuzione e Servizi",
+            "sector": "Terziario",
+            "description": "Contratto Collettivo Nazionale di Lavoro per i dipendenti da aziende del terziario della distribuzione e dei servizi.",
+            "source_url": "https://www.confcommercio.it",
+            "levels": [
+                {
+                    "code": "Q",
+                    "name": "Quadro",
+                    "description": "Livello Quadro",
+                    "order": 1
+                },
+                {
+                    "code": "1",
+                    "name": "I Livello",
+                    "description": "Livello 1",
+                    "order": 2
+                },
+                {
+                    "code": "2",
+                    "name": "II Livello",
+                    "description": "Livello 2",
+                    "order": 3
+                },
+                {
+                    "code": "3",
+                    "name": "III Livello",
+                    "description": "Livello 3",
+                    "order": 4
+                },
+                {
+                    "code": "4",
+                    "name": "IV Livello",
+                    "description": "Livello 4",
+                    "order": 5
+                },
+                {
+                    "code": "5",
+                    "name": "V Livello",
+                    "description": "Livello 5",
+                    "order": 6
+                },
+                {
+                    "code": "6",
+                    "name": "VI Livello",
+                    "description": "Livello 6",
+                    "order": 7
+                },
+                {
+                    "code": "7",
+                    "name": "VII Livello",
+                    "description": "Livello 7",
+                    "order": 8
+                }
+            ],
+            "versions": [
+                {
+                    "version_name": "Rinnovo 2024-2027",
+                    "valid_from": "2024-03-01",
+                    "valid_to": "2027-02-28",
+                    "weekly_hours_full_time": 40.0,
+                    "working_days_per_week": 5,
+                    "daily_hours": 8.0,
+                    "vacation_days": 26,
+                    "rol_hours": 72,
+                    "ex_festivita_hours": 32,
+                    "notes": "Rinnovo CCNL Commercio marzo 2024",
+                    "vacation_calc_mode_code": "FIXED_RATE",
+                    "rol_calc_mode_code": "FIXED_RATE",
+                    "vacation_calc_params": {
+                        "monthly_accrual": 2.166
+                    },
+                    "rol_calc_params": {
+                        "monthly_accrual": 6.0
+                    },
+                    "types": [
+                        {
+                            "contract_type_code": "FT",
+                            "weekly_hours": 40.0,
+                            "annual_vacation_days": 26,
+                            "annual_rol_hours": 72,
+                            "annual_ex_festivita_hours": 32,
+                            "description": "Full Time 100%"
+                        },
+                        {
+                            "contract_type_code": "PT50",
+                            "weekly_hours": 20.0,
+                            "annual_vacation_days": 26,
+                            "annual_rol_hours": 36,
+                            "annual_ex_festivita_hours": 16,
+                            "description": "Part Time 50%"
+                        },
+                        {
+                            "contract_type_code": "PT75",
+                            "weekly_hours": 30.0,
+                            "annual_vacation_days": 26,
+                            "annual_rol_hours": 54,
+                            "annual_ex_festivita_hours": 24,
+                            "description": "Part Time 75%"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

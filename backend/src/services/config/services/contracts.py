@@ -322,7 +322,7 @@ class NationalContractService:
             action="CREATE",
             resource_type="NATIONAL_CONTRACT_LEVEL",
             resource_id=str(level.id),
-            description=f"Created contract level: {level.name} ({level.code})",
+            description=f"Created contract level: {level.level_name}",
             request_data=data.model_dump(mode="json")
         )
         return level
@@ -345,7 +345,7 @@ class NationalContractService:
             action="UPDATE",
             resource_type="NATIONAL_CONTRACT_LEVEL",
             resource_id=str(level_id),
-            description=f"Updated contract level: {level.name}",
+            description=f"Updated contract level: {level.level_name}",
             request_data=update_data
         )
         return level
@@ -357,7 +357,7 @@ class NationalContractService:
         if not level:
             raise NotFoundError("Contract level not found", entity_type="NationalContractLevel", entity_id=str(level_id))
         
-        level_name = level.name
+        level_name = level.level_name
         await self._level_repo.delete(level_id)
         await self._session.commit()
         

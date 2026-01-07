@@ -119,7 +119,8 @@ export function CalendarPage() {
                 const isHoliday = item.item_type === 'holiday';
                 const isClosure = item.item_type === 'closure';
                 const isLeave = item.item_type === 'leave';
-                const isEvent = item.item_type === 'event';
+                const eventTypes = ['event', 'meeting', 'task', 'reminder', 'personal', 'deadline', 'other'];
+                const isEvent = eventTypes.includes(item.item_type);
 
                 // Skip if filtered out
                 if (isHoliday) {
@@ -169,7 +170,17 @@ export function CalendarPage() {
                     const calendarId = (item.metadata as any)?.calendar_id;
                     const customCal = userCalendars.find(c => c.id === calendarId);
 
-                    title = `📅 ${item.title}`;
+                    const eventTypeIcons: Record<string, string> = {
+                        meeting: '📅',
+                        task: '✅',
+                        reminder: '🔔',
+                        personal: '👤',
+                        deadline: '⏰',
+                        other: '📌',
+                        event: '📅'
+                    };
+                    const icon = eventTypeIcons[item.item_type] || '📅';
+                    title = `${icon} ${item.title}`;
                     color = customCal?.color || item.color;
                     classNames = ['personal-event', '!font-medium', 'shadow-sm', 'rounded-lg'];
                 }

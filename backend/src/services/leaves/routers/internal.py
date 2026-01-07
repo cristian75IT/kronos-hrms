@@ -160,5 +160,15 @@ async def handle_approval_callback(
             return {"status": "ignored", "reason": "unknown_status"}
             
     except Exception as e:
-        logger.error(f"Error handling approval callback: {e}", exc_info=True)
+        # Check if it is a BusinessRuleError (e.g. balance issues)
+        from src.core.exceptions import BusinessRuleError
+        if isinstance(e, BusinessRuleError):
+            logger.error(
+                f"🚨 SYNC FAILURE: Business rule violation during approval callback for leave {leave_id}. "
+                f"Error: {str(e)} | Status: {payload.status}",
+                exc_info=True
+            )
+        else:
+            logger.error(f"❌ Error handling approval callback for leave {leave_id}: {e}", exc_info=True)
+            
         raise HTTPException(status_code=500, detail=str(e))

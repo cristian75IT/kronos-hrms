@@ -360,6 +360,7 @@ class NationalContractTypeConfigCreate(NationalContractTypeConfigBase):
 
 
 
+
 class NationalContractTypeConfigUpdate(BaseModel):
     """Schema for updating Contract Type Configuration."""
     
@@ -368,6 +369,22 @@ class NationalContractTypeConfigUpdate(BaseModel):
     annual_rol_hours: Optional[int] = None
     annual_ex_festivita_hours: Optional[int] = None
     description: Optional[str] = None
+
+
+class ContractTypeBase(BaseModel):
+    """Base schema for Contract Type."""
+    
+    code: str = Field(..., max_length=10)
+    name: str = Field(..., max_length=100)
+    description: Optional[str] = None
+    is_part_time: bool = False
+    part_time_percentage: float = 100.0
+
+
+class ContractTypeCreate(ContractTypeBase):
+    """Schema for creating Contract Type."""
+    pass
+
 
 
 class ContractTypeMinimalResponse(BaseModel):
@@ -564,8 +581,68 @@ class NationalContractListResponse(BaseModel):
     total: int
 
 
+
 class NationalContractVersionListResponse(BaseModel):
     """List response for CCNL Versions."""
     
     items: list[NationalContractVersionResponse]
     total: int
+
+
+# ═══════════════════════════════════════════════════════════
+# Setup / Bulk Import Schemas
+# ═══════════════════════════════════════════════════════════
+
+class SetupContractTypeConfig(BaseModel):
+    """Setup schema for Contract Type Config."""
+    contract_type_code: str
+    weekly_hours: float
+    annual_vacation_days: int
+    annual_rol_hours: int
+    annual_ex_festivita_hours: int
+    description: Optional[str] = None
+
+class SetupContractVersion(BaseModel):
+    """Setup schema for Contract Version."""
+    version_name: str
+    valid_from: date
+    valid_to: date
+    weekly_hours_full_time: float = 40.0
+    working_days_per_week: int = 5
+    daily_hours: float = 8.0
+    vacation_days: int = 26
+    rol_hours: int = 72
+    ex_festivita_hours: int = 32
+    notes: Optional[str] = None
+    
+    # Calculation Modes
+    vacation_calc_mode_code: Optional[str] = None
+    rol_calc_mode_code: Optional[str] = None
+    vacation_calc_params: Optional[dict] = None
+    rol_calc_params: Optional[dict] = None
+    
+    # Nested configs for contract types
+    types: list[SetupContractTypeConfig] = []
+
+class SetupContractLevel(BaseModel):
+    """Setup schema for Contract Level."""
+    code: str
+    name: str
+    order: int
+    description: Optional[str] = None
+
+class SetupContract(BaseModel):
+    """Setup schema for National Contract."""
+    code: str
+    name: str
+    sector: Optional[str] = None
+    description: Optional[str] = None
+    source_url: Optional[str] = None
+    
+    levels: list[SetupContractLevel] = []
+    versions: list[SetupContractVersion] = []
+
+class SetupContractsPayload(BaseModel):
+    """Payload for bulk contract setup."""
+    contracts: list[SetupContract]
+

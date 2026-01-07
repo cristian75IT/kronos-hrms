@@ -41,6 +41,8 @@ app.include_router(config_router, prefix="/api/v1/approvals")
 app.include_router(requests_router, prefix="/api/v1/approvals")
 app.include_router(decisions_router, prefix="/api/v1/approvals")
 app.include_router(internal_router, prefix="/api/v1/approvals")
+from .routers.setup import router as setup_router
+app.include_router(setup_router, prefix="/api/v1/approvals")
 
 
 @app.get("/health")

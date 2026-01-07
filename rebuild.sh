@@ -406,29 +406,16 @@ step_initialize_database() {
         return 0
     fi
     
-    # Run seed scripts in order
-    local seeds=(
-        "seed_enterprise_calendar_data.py:Enterprise Calendar"
-        "seed_executive_levels.py:Executive Levels"
-        "seed_enterprise_data.py:Enterprise Data (Users, Wallets)"
-        "seed_organization.py:Organization Structure"
-        "seed_workflows.py:Approval Workflows"
-    )
-    
-    print_substep "Running seed scripts"
-    for seed_entry in "${seeds[@]}"; do
-        local script="${seed_entry%%:*}"
-        local description="${seed_entry##*:}"
-        
-        print_info "Seeding: ${description}"
-        if ! execute docker exec "$AUTH_CONTAINER" python "scripts/${script}"; then
-            print_error "Seed script failed: ${script}"
-            exit 1
-        fi
-    done
+    # Run core bootstrap script
+    print_substep "Running System Bootstrap (RBAC, Admin, Templates)"
+    if ! execute docker exec "$AUTH_CONTAINER" python scripts/bootstrap_system.py; then
+        print_error "System bootstrap failed"
+        exit 1
+    fi
     
     local init_time=$(get_elapsed_time $init_start)
-    print_success "Database initialized and seeded (${init_time})"
+    print_success "Database initialized and bootstrapped (${init_time})"
+    print_info "System is now ready for UI-based Initialization."
 }
 
 step_show_summary() {

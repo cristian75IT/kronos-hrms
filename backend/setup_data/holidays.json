@@ -1,0 +1,120 @@
+{
+    "profiles": [
+        {
+            "code": "IT_STD",
+            "name": "Festività Italiane Standard",
+            "country_code": "IT",
+            "region_code": null,
+            "holidays": [
+                {
+                    "name": "Capodanno",
+                    "date": "2026-01-01",
+                    "is_recurring": true,
+                    "recurrence_rule": {
+                        "type": "fixed",
+                        "month": 1,
+                        "day": 1
+                    }
+                },
+                {
+                    "name": "Epifania",
+                    "date": "2026-01-06",
+                    "is_recurring": true,
+                    "recurrence_rule": {
+                        "type": "fixed",
+                        "month": 1,
+                        "day": 6
+                    }
+                },
+                {
+                    "name": "Lunedì dell'Angelo",
+                    "is_recurring": true,
+                    "recurrence_rule": {
+                        "type": "easter_offset",
+                        "days": 1
+                    }
+                },
+                {
+                    "name": "Festa della Liberazione",
+                    "date": "2026-04-25",
+                    "is_recurring": true,
+                    "recurrence_rule": {
+                        "type": "fixed",
+                        "month": 4,
+                        "day": 25
+                    }
+                },
+                {
+                    "name": "Festa del Lavoro",
+                    "date": "2026-05-01",
+                    "is_recurring": true,
+                    "recurrence_rule": {
+                        "type": "fixed",
+                        "month": 5,
+                        "day": 1
+                    }
+                },
+                {
+                    "name": "Festa della Repubblica",
+                    "date": "2026-06-02",
+                    "is_recurring": true,
+                    "recurrence_rule": {
+                        "type": "fixed",
+                        "month": 6,
+                        "day": 2
+                    }
+                },
+                {
+                    "name": "Assunzione di Maria (Ferragosto)",
+                    "date": "2026-08-15",
+                    "is_recurring": true,
+                    "recurrence_rule": {
+                        "type": "fixed",
+                        "month": 8,
+                        "day": 15
+                    }
+                },
+                {
+                    "name": "Ognissanti",
+                    "date": "2026-11-01",
+                    "is_recurring": true,
+                    "recurrence_rule": {
+                        "type": "fixed",
+                        "month": 11,
+                        "day": 1
+                    }
+                },
+                {
+                    "name": "Immacolata Concezione",
+                    "date": "2026-12-08",
+                    "is_recurring": true,
+                    "recurrence_rule": {
+                        "type": "fixed",
+                        "month": 12,
+                        "day": 8
+                    }
+                },
+                {
+                    "name": "Natale",
+                    "date": "2026-12-25",
+                    "is_recurring": true,
+                    "recurrence_rule": {
+                        "type": "fixed",
+                        "month": 12,
+                        "day": 25
+                    }
+                },
+                {
+                    "name": "Santo Stefano",
+                    "date": "2026-12-26",
+                    "is_recurring": true,
+                    "recurrence_rule": {
+                        "type": "fixed",
+                        "month": 12,
+                        "day": 26
+                    }
+                }
+            ]
+        }
+    ]
+}
