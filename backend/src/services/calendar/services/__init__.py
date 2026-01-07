@@ -434,6 +434,7 @@ class CalendarService(BaseCalendarService):
                         title=e.title,
                         item_type=e.event_type or "event",
                         date=current,
+                        start_date=e.start_date,
                         start_time=e.start_time,
                         end_time=e.end_time,
                         is_all_day=e.is_all_day,

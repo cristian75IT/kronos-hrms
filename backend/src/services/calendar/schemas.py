@@ -278,6 +278,7 @@ class CalendarDayItem(BaseModel):
     title: str
     item_type: str # Simplified from ENUM to allow flexibility
     date: date
+    start_date: Optional[date] = None # Added for frontend compatibility
     end_date: Optional[date] = None # Optional, defaults to date
     color: Optional[str] = None
     is_all_day: bool = True

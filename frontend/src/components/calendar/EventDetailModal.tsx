@@ -28,24 +28,7 @@ interface EventDetailModalProps {
     onEventDeleted: () => void;
     userCalendars: UserCalendar[];
     currentUserId?: string;
-}
-
-interface EventFormData {
-    title: string;
-    description?: string;
-    start_date: string;
-    end_date: string;
-    start_time?: string;
-    end_time?: string;
-    is_all_day: boolean;
-    event_type: string;
-    visibility: string;
-    calendar_id?: string;
-    color: string;
-    alert_before_minutes?: number;
-    location?: string;
-    is_virtual: boolean;
-    meeting_url?: string;
+    initialIsEditing?: boolean;
 }
 
 export function EventDetailModal({
@@ -55,7 +38,8 @@ export function EventDetailModal({
     onEventUpdated,
     onEventDeleted,
     userCalendars,
-    currentUserId
+    currentUserId,
+    initialIsEditing = false
 }: EventDetailModalProps) {
     const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<EventFormData>();
     const [loading, setLoading] = useState(false);
@@ -88,10 +72,10 @@ export function EventDetailModal({
                 is_virtual: event.is_virtual || false,
                 meeting_url: event.meeting_url || '',
             });
-            setIsEditing(false);
+            setIsEditing(initialIsEditing && canModify);
             setShowDeleteConfirm(false);
         }
-    }, [isOpen, event, reset]);
+    }, [isOpen, event, reset, initialIsEditing, canModify]);
 
     const onSubmit = async (data: EventFormData) => {
         if (!event) return;

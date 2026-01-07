@@ -15,6 +15,7 @@ from src.services.calendar.models import (
 )
 from src.services.calendar import schemas
 from src.services.calendar.services.base import BaseCalendarService
+from src.services.calendar.exceptions import CalendarNotFound, CalendarAccessDenied
 
 
 class CalendarManagementService(BaseCalendarService):
@@ -192,12 +193,10 @@ class CalendarManagementService(BaseCalendarService):
         calendar = await self._repo.get(calendar_id)
         
         if not calendar:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=404, detail="Calendar not found")
+            raise CalendarNotFound(calendar_id)
         
         if calendar.owner_id != user_id:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=403, detail="Not owner of calendar")
+            raise CalendarAccessDenied(calendar_id, user_id, "unshare")
         
         share = await self._share_repo.get_by_calendar_and_user(calendar_id, shared_with_user_id)
         

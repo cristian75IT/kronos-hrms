@@ -73,6 +73,7 @@ function FilterToggle({ label, color, checked, onChange }: FilterToggleProps) {
 
 export function CalendarPage() {
     const calendarRef = useRef<FullCalendar>(null);
+    const lastClickRef = useRef<{ id: string, time: number } | null>(null); // For double click detection
     const [currentDate, setCurrentDate] = useState(new Date());
     const [currentView, setCurrentView] = useState<CalendarView>('dayGridMonth');
     const [filters, setFilters] = useState<CalendarFilters>({
@@ -98,6 +99,7 @@ export function CalendarPage() {
     const [sharingCalendarId, setSharingCalendarId] = useState<string | null>(null);
     const [editingCalendarId, setEditingCalendarId] = useState<string | null>(null);
     const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+    const [isEditModeInitial, setIsEditModeInitial] = useState(false);
     const { user } = useAuth();
 
     const startDate = format(startOfMonth(subMonths(currentDate, 1)), 'yyyy-MM-dd');
@@ -119,7 +121,7 @@ export function CalendarPage() {
                 const isHoliday = item.item_type === 'holiday';
                 const isClosure = item.item_type === 'closure';
                 const isLeave = item.item_type === 'leave';
-                const eventTypes = ['event', 'meeting', 'task', 'reminder', 'personal', 'deadline', 'other'];
+                const eventTypes = ['event', 'meeting', 'task', 'reminder', 'personal', 'deadline', 'other', 'generic'];
                 const isEvent = eventTypes.includes(item.item_type);
 
                 // Skip if filtered out
@@ -177,7 +179,8 @@ export function CalendarPage() {
                         personal: '👤',
                         deadline: '⏰',
                         other: '📌',
-                        event: '📅'
+                        event: '📅',
+                        generic: '📅'
                     };
                     const icon = eventTypeIcons[item.item_type] || '📅';
                     title = `${icon} ${item.title}`;
@@ -459,8 +462,14 @@ export function CalendarPage() {
                                 const eventType = info.event.extendedProps?.type;
                                 // Only open detail modal for user events, not holidays/closures/leaves
                                 if (eventType === 'event') {
+                                    const now = new Date().getTime();
+                                    const last = lastClickRef.current;
+                                    const isDoubleClick = last && last.id === info.event.id && (now - last.time) < 500;
+                                    lastClickRef.current = { id: info.event.id, time: now };
+
                                     try {
                                         const eventData = await calendarService.getEvent(info.event.id);
+                                        setIsEditModeInitial(!!isDoubleClick);
                                         setSelectedEvent(eventData);
                                     } catch (err) {
                                         console.error('Error fetching event:', err);
@@ -502,18 +511,24 @@ export function CalendarPage() {
             {/* Event Detail Modal */}
             <EventDetailModal
                 isOpen={!!selectedEvent}
-                onClose={() => setSelectedEvent(null)}
+                onClose={() => {
+                    setSelectedEvent(null);
+                    setIsEditModeInitial(false);
+                }}
                 event={selectedEvent}
                 onEventUpdated={() => {
                     queryClient.invalidateQueries({ queryKey: ['calendar-range'] });
                     setSelectedEvent(null);
+                    setIsEditModeInitial(false);
                 }}
                 onEventDeleted={() => {
                     queryClient.invalidateQueries({ queryKey: ['calendar-range'] });
                     setSelectedEvent(null);
+                    setIsEditModeInitial(false);
                 }}
                 userCalendars={userCalendars}
                 currentUserId={user?.id}
+                initialIsEditing={isEditModeInitial}
             />
 
             {/* Calendar Management Modal */}

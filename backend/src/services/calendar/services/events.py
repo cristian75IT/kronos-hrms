@@ -19,6 +19,7 @@ from src.services.calendar.models import (
 )
 from src.services.calendar import schemas
 from src.services.calendar.services.base import BaseCalendarService
+from src.services.calendar.exceptions import EventNotFound, EventAccessDenied, CalendarAccessDenied
 
 
 class CalendarEventService(BaseCalendarService):
@@ -80,8 +81,7 @@ class CalendarEventService(BaseCalendarService):
         calendar = await self._get_calendar_with_access(calendar_id, user_id, require_write=True)
         if not calendar:
             logger.warning(f"User {user_id} denied write access to calendar {calendar_id}")
-            from fastapi import HTTPException
-            raise HTTPException(status_code=403, detail="No write access to calendar")
+            raise CalendarAccessDenied(calendar_id, user_id, "write")
         
         # Create event
         event_dict = data.model_dump(exclude={"calendar_id", "participant_ids"})
@@ -137,14 +137,12 @@ class CalendarEventService(BaseCalendarService):
         """Update a calendar event."""
         event = await self.get_event(event_id)
         if not event:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=404, detail="Event not found")
+            raise EventNotFound(event_id)
         
         # Check write access
         calendar = await self._get_calendar_with_access(event.calendar_id, user_id, require_write=True)
         if not calendar:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=403, detail="No write access to this event")
+            raise EventAccessDenied(event_id, user_id, "delete")
         
         update_dict = data.model_dump(exclude_unset=True, exclude={"participant_ids"})
         for key, value in update_dict.items():
@@ -187,14 +185,12 @@ class CalendarEventService(BaseCalendarService):
         """Delete a calendar event."""
         event = await self.get_event(event_id)
         if not event:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=404, detail="Event not found")
+            raise EventNotFound(event_id)
         
         # Check write access
         calendar = await self._get_calendar_with_access(event.calendar_id, user_id, require_write=True)
         if not calendar:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=403, detail="No write access to this event")
+            raise EventAccessDenied(event_id, user_id, "write")
         
         event_title = event.title
         await self._event_repo.delete(event)

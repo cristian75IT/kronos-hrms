@@ -24,7 +24,7 @@ celery_app.conf.update(
         "src.services.notifications.tasks",
         "src.services.audit.tasks",
         "src.services.hr_reporting.tasks",
-        "celery.tasks.reconciliation",
+        # "celery.tasks.reconciliation", # FIXME: Reconciliation task module missing
         # Add other service tasks here as needed
     ],
     # Cron tasks (Beat)
@@ -81,11 +81,11 @@ celery_app.conf.update(
         # Balance Reconciliation Tasks
         # ─────────────────────────────────────────────────────────────
         # Daily reconciliation - runs at 2 AM
-        "balance-reconciliation": {
-            "task": "reconciliation.check_balance_consistency",
-            "schedule": 86400.0,  # Daily
-            "options": {"queue": "maintenance"},
-        },
+        # "balance-reconciliation": {
+        #     "task": "reconciliation.check_balance_consistency",
+        #     "schedule": 86400.0,  # Daily
+        #     "options": {"queue": "maintenance"},
+        # },
     },
 )
 

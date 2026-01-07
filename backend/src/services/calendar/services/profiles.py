@@ -15,6 +15,11 @@ from src.services.calendar.models import (
 )
 from src.services.calendar import schemas
 from src.services.calendar.services.base import BaseCalendarService
+from src.services.calendar.exceptions import (
+    WorkWeekProfileNotFound,
+    HolidayProfileNotFound,
+    HolidayNotFound
+)
 
 
 class CalendarProfileService(BaseCalendarService):
@@ -67,8 +72,7 @@ class CalendarProfileService(BaseCalendarService):
         """Update a work week profile."""
         profile = await self.get_work_week_profile(id)
         if not profile:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=404, detail="Work week profile not found")
+            raise WorkWeekProfileNotFound(id)
         
         update_data = data.model_dump(exclude_unset=True)
         for key, value in update_data.items():
@@ -92,8 +96,7 @@ class CalendarProfileService(BaseCalendarService):
         """Delete a work week profile."""
         profile = await self.get_work_week_profile(id)
         if not profile:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=404, detail="Work week profile not found")
+            raise WorkWeekProfileNotFound(id)
         
         profile_name = profile.name
         await self._profile_repo.delete(profile)
@@ -158,8 +161,7 @@ class CalendarProfileService(BaseCalendarService):
         """Update a holiday profile."""
         profile = await self.get_holiday_profile(id)
         if not profile:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=404, detail="Holiday profile not found")
+            raise HolidayProfileNotFound(id)
         
         update_data = data.model_dump(exclude_unset=True)
         for key, value in update_data.items():
@@ -183,8 +185,7 @@ class CalendarProfileService(BaseCalendarService):
         """Delete a holiday profile."""
         profile = await self.get_holiday_profile(id)
         if not profile:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=404, detail="Holiday profile not found")
+            raise HolidayProfileNotFound(id)
         
         profile_name = profile.name
         await self._holiday_repo.delete(profile)
@@ -233,8 +234,7 @@ class CalendarProfileService(BaseCalendarService):
         holiday = await self._cal_holiday_repo.get(id)
         
         if not holiday:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=404, detail="Holiday not found")
+            raise HolidayNotFound(id)
         
         update_data = data.model_dump(exclude_unset=True)
         for key, value in update_data.items():
@@ -259,8 +259,7 @@ class CalendarProfileService(BaseCalendarService):
         holiday = await self._cal_holiday_repo.get(id)
         
         if not holiday:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=404, detail="Holiday not found")
+            raise HolidayNotFound(id)
         
         holiday_name = holiday.name
         await self._cal_holiday_repo.delete(holiday)
