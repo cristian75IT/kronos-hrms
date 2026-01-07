@@ -460,8 +460,10 @@ export function CalendarPage() {
                             events={events}
                             eventClick={async (info) => {
                                 const eventType = info.event.extendedProps?.type;
-                                // Only open detail modal for user events, not holidays/closures/leaves
-                                if (eventType === 'event') {
+                                const personalEventTypes = ['event', 'meeting', 'task', 'reminder', 'personal', 'deadline', 'other', 'generic'];
+
+                                // Only open detail modal for user events, explicitly excluding leaves/holidays
+                                if (personalEventTypes.includes(eventType)) {
                                     const now = new Date().getTime();
                                     const last = lastClickRef.current;
                                     const isDoubleClick = last && last.id === info.event.id && (now - last.time) < 500;
