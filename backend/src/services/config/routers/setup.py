@@ -179,3 +179,64 @@ async def setup_contracts(
                         results["configs_created"] += 1
 
     return results
+
+
+@router.post("/setup/leave-types", response_model=dict)
+async def setup_leave_types(
+    payload: List[dict],
+    token: TokenPayload = Depends(require_permission("settings:edit")),
+    service: ConfigService = Depends(get_config_service)
+):
+    """
+    Bulk setup/import of Leave Types.
+    Idempotent: updates if exists by code, creates if not.
+    """
+    from sqlalchemy import select
+    from src.services.config.models import LeaveType
+    
+    results = {
+        "created": 0,
+        "updated": 0,
+        "errors": []
+    }
+    
+    for lt_data in payload:
+        code = lt_data.get("code")
+        if not code:
+            results["errors"].append("Missing 'code' field in entry")
+            continue
+            
+        # Check if exists
+        stmt = select(LeaveType).where(LeaveType.code == code)
+        res = await service._session.execute(stmt)
+        existing = res.scalar_one_or_none()
+        
+        if existing:
+            # Update
+            existing.name = lt_data.get("name", existing.name)
+            existing.description = lt_data.get("description", existing.description)
+            existing.max_single_request_days = lt_data.get("max_single_request_days")
+            existing.max_consecutive_days = lt_data.get("max_consecutive_days")
+            existing.min_notice_days = lt_data.get("min_notice_days")
+            existing.requires_protocol = lt_data.get("requires_protocol", existing.requires_protocol)
+            existing.balance_type = lt_data.get("balance_type", existing.balance_type)
+            existing.is_active = lt_data.get("is_active", existing.is_active)
+            results["updated"] += 1
+        else:
+            # Create
+            new_lt = LeaveType(
+                code=code,
+                name=lt_data.get("name", code),
+                description=lt_data.get("description"),
+                max_single_request_days=lt_data.get("max_single_request_days"),
+                max_consecutive_days=lt_data.get("max_consecutive_days"),
+                min_notice_days=lt_data.get("min_notice_days"),
+                requires_protocol=lt_data.get("requires_protocol", False),
+                balance_type=lt_data.get("balance_type"),
+                is_active=lt_data.get("is_active", True),
+            )
+            service._session.add(new_lt)
+            results["created"] += 1
+    
+    await service._session.commit()
+    return results

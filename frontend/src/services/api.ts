@@ -34,16 +34,31 @@ const setupInterceptors = (instance: AxiosInstance) => {
                         if (Date.now() > exp - 10000) { // Refresh if exp < 10s away
                             const refresh = tokenStorage.getRefreshToken();
                             if (refresh) {
-                                // Double check if another refresh is already running?
-                                // For simplicity, just refresh
-                                const newTokens = await authService.refreshToken(refresh);
-                                tokenStorage.setTokens(newTokens.access_token, newTokens.refresh_token);
-                                token = newTokens.access_token;
+                                try {
+                                    const newTokens = await authService.refreshToken(refresh);
+                                    tokenStorage.setTokens(newTokens.access_token, newTokens.refresh_token);
+                                    token = newTokens.access_token;
+                                } catch (refreshError) {
+                                    // Refresh failed - session expired, trigger logout
+                                    console.warn('Proactive token refresh failed, logging out');
+                                    tokenStorage.clear();
+                                    window.dispatchEvent(new Event('auth:logout'));
+                                    return Promise.reject(refreshError);
+                                }
+                            } else {
+                                // No refresh token available - logout
+                                tokenStorage.clear();
+                                window.dispatchEvent(new Event('auth:logout'));
+                                return Promise.reject(new Error('Session expired'));
                             }
                         }
                     }
                 } catch (e) {
-                    // Ignore decoding errors
+                    // Token decoding error - token is malformed, logout
+                    console.warn('Token decode error, logging out');
+                    tokenStorage.clear();
+                    window.dispatchEvent(new Event('auth:logout'));
+                    return Promise.reject(e);
                 }
 
                 config.headers.Authorization = `Bearer ${token}`;

@@ -189,7 +189,7 @@ export function LeaveRequestForm() {
                                     {leaveTypes.map((type) => (
                                         <option key={type.id} value={type.id}>
                                             {type.name}
-                                            {type.max_consecutive_days ? ` (Max ${type.max_consecutive_days} gg)` : ''}
+                                            {(type.max_single_request_days || type.max_consecutive_days) ? ` (Max ${type.max_single_request_days || type.max_consecutive_days} gg)` : ''}
                                         </option>
                                     ))}
                                 </select>

@@ -50,6 +50,7 @@ import PendingApprovalsPage from './pages/approvals/PendingApprovalsPage';
 import RolesPage from './pages/admin/RolesPage';
 import OrganizationPage from './pages/admin/OrganizationPage';
 import SystemInitializationPage from './pages/admin/SystemInitializationPage';
+import AdminLeaveTypesPage from './pages/admin/AdminLeaveTypesPage';
 
 function App() {
   return (
@@ -100,6 +101,7 @@ function App() {
                 <Route path="/admin/system-calendars" element={<ProtectedRoute permissions={['calendar:manage']}><SystemCalendarsPage /></ProtectedRoute>} />
                 <Route path="/admin/national-contracts" element={<ProtectedRoute permissions={['contracts:view']}><NationalContractsPage /></ProtectedRoute>} />
                 <Route path="/admin/national-contracts/:id" element={<ProtectedRoute permissions={['contracts:view']}><NationalContractDetailPage /></ProtectedRoute>} />
+                <Route path="/admin/leave-types" element={<ProtectedRoute permissions={['settings:edit']}><AdminLeaveTypesPage /></ProtectedRoute>} />
 
                 {/* Admin - Notifications & Email */}
                 <Route path="/admin/notifications" element={<ProtectedRoute permissions={['notifications:send']}><NotificationCenterPage /></ProtectedRoute>} />

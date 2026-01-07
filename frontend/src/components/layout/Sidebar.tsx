@@ -67,6 +67,7 @@ const adminConfigItems: NavItem[] = [
   { label: 'Workflow Approvazioni', path: '/admin/workflows', icon: <GitBranch size={20} />, permission: 'approvals:config' },
   { label: 'Calendari di Sistema', path: '/admin/system-calendars', icon: <Calendar size={20} />, permission: 'calendar:manage' },
   { label: 'Contratti CCNL', path: '/admin/national-contracts', icon: <FileText size={20} />, permission: 'contracts:view' },
+  { label: 'Tipi Assenza', path: '/admin/leave-types', icon: <TreePalm size={20} />, permission: 'settings:edit' },
   { label: 'Strumenti Admin', path: '/admin/tools', icon: <Settings size={20} />, permission: 'settings:edit' },
 ];
 

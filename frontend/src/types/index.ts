@@ -323,6 +323,7 @@ export interface LeaveType {
     requires_attachment: boolean;
     requires_protocol: boolean;
     max_consecutive_days?: number;
+    max_single_request_days?: number;
     min_notice_days?: number;
     is_active: boolean;
 }

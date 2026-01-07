@@ -86,6 +86,7 @@ class LeaveType(Base):
     min_notice_days: Mapped[Optional[int]] = mapped_column(Integer)
     max_consecutive_days: Mapped[Optional[int]] = mapped_column(Integer)
     max_per_month: Mapped[Optional[int]] = mapped_column(Integer)
+    max_single_request_days: Mapped[Optional[int]] = mapped_column(Integer)  # Max days per single request
     allow_past_dates: Mapped[bool] = mapped_column(Boolean, default=False)
     allow_half_day: Mapped[bool] = mapped_column(Boolean, default=True)
     allow_negative_balance: Mapped[bool] = mapped_column(Boolean, default=False)

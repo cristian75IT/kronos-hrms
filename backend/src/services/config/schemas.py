@@ -71,6 +71,7 @@ class LeaveTypeBase(BaseModel):
     min_notice_days: Optional[int] = Field(None, ge=0)
     max_consecutive_days: Optional[int] = Field(None, ge=1)
     max_per_month: Optional[int] = Field(None, ge=1)
+    max_single_request_days: Optional[int] = Field(None, ge=1)  # Max days per single request
     allow_past_dates: bool = False
     allow_half_day: bool = True
     allow_negative_balance: bool = False
@@ -98,6 +99,7 @@ class LeaveTypeUpdate(BaseModel):
     min_notice_days: Optional[int] = None
     max_consecutive_days: Optional[int] = None
     max_per_month: Optional[int] = None
+    max_single_request_days: Optional[int] = None
     allow_past_dates: Optional[bool] = None
     allow_half_day: Optional[bool] = None
     allow_negative_balance: Optional[bool] = None

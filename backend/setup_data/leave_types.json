@@ -1,0 +1,112 @@
+[
+    {
+        "code": "FER",
+        "name": "Ferie",
+        "description": "Ferie annuali retribuite",
+        "max_single_request_days": 15,
+        "max_consecutive_days": 21,
+        "min_notice_days": 5,
+        "requires_protocol": false,
+        "balance_type": "vacation_ac",
+        "is_active": true
+    },
+    {
+        "code": "ROL",
+        "name": "Riduzione Orario Lavoro",
+        "description": "Permessi ROL da contratto",
+        "max_single_request_days": 3,
+        "max_consecutive_days": 3,
+        "min_notice_days": 0,
+        "requires_protocol": false,
+        "balance_type": "rol_hours",
+        "is_active": true
+    },
+    {
+        "code": "PAR",
+        "name": "Permessi Retribuiti",
+        "description": "Permessi retribuiti generici",
+        "max_single_request_days": 5,
+        "max_consecutive_days": 5,
+        "min_notice_days": 1,
+        "requires_protocol": false,
+        "balance_type": null,
+        "is_active": true
+    },
+    {
+        "code": "MAL",
+        "name": "Malattia",
+        "description": "Assenza per malattia con certificato INPS",
+        "max_single_request_days": null,
+        "max_consecutive_days": null,
+        "min_notice_days": null,
+        "requires_protocol": true,
+        "balance_type": null,
+        "is_active": true
+    },
+    {
+        "code": "MAT",
+        "name": "Maternità/Paternità",
+        "description": "Congedo parentale obbligatorio e facoltativo",
+        "max_single_request_days": null,
+        "max_consecutive_days": null,
+        "min_notice_days": 30,
+        "requires_protocol": false,
+        "balance_type": null,
+        "is_active": true
+    },
+    {
+        "code": "LUT",
+        "name": "Lutto",
+        "description": "Permesso per lutto familiare",
+        "max_single_request_days": 3,
+        "max_consecutive_days": 3,
+        "min_notice_days": null,
+        "requires_protocol": false,
+        "balance_type": null,
+        "is_active": true
+    },
+    {
+        "code": "STU",
+        "name": "Studio",
+        "description": "Permesso per motivi di studio",
+        "max_single_request_days": 5,
+        "max_consecutive_days": 5,
+        "min_notice_days": 7,
+        "requires_protocol": false,
+        "balance_type": null,
+        "is_active": true
+    },
+    {
+        "code": "DON",
+        "name": "Donazione Sangue",
+        "description": "Permesso per donazione sangue",
+        "max_single_request_days": 1,
+        "max_consecutive_days": 1,
+        "min_notice_days": null,
+        "requires_protocol": false,
+        "balance_type": null,
+        "is_active": true
+    },
+    {
+        "code": "L104",
+        "name": "Legge 104",
+        "description": "Permessi Legge 104/92 per assistenza disabili",
+        "max_single_request_days": 3,
+        "max_consecutive_days": 3,
+        "min_notice_days": 2,
+        "requires_protocol": false,
+        "balance_type": null,
+        "is_active": true
+    },
+    {
+        "code": "EXFE",
+        "name": "Ex-Festività",
+        "description": "Permessi ex-festività abolite",
+        "max_single_request_days": 1,
+        "max_consecutive_days": 1,
+        "min_notice_days": 3,
+        "requires_protocol": false,
+        "balance_type": "ex_festivita",
+        "is_active": true
+    }
+]

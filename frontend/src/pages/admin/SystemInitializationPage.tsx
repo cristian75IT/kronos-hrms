@@ -82,6 +82,14 @@ export function SystemInitializationPage() {
             icon: GitBranch,
             importFn: setupService.importWorkflows,
             order: 6
+        },
+        {
+            id: 'leave_types',
+            title: 'Tipi Assenza',
+            description: 'Configura i tipi di ferie/permessi con limiti e regole di business.',
+            icon: Calendar,
+            importFn: setupService.importLeaveTypes,
+            order: 7
         }
     ];
 

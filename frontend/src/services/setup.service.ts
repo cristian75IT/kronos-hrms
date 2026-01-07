@@ -47,5 +47,13 @@ export const setupService = {
     importWorkflows: async (data: any) => {
         const response = await api.post('/approvals/setup/workflows', data);
         return response.data;
+    },
+
+    /**
+     * Import Leave Types
+     */
+    importLeaveTypes: async (data: any) => {
+        const response = await api.post('/config/setup/leave-types', data);
+        return response.data;
     }
 };

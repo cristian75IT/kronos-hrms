@@ -61,6 +61,19 @@ class LeaveCrudService(BaseLeaveService):
                 rule="PROTOCOL_REQUIRED"
             )
 
+        # Validate notice period
+        min_notice = leave_type.get("min_notice_days")
+        if min_notice is not None:
+            today = date.today()
+            days_notice = (data.start_date - today).days
+            if days_notice < min_notice:
+                msg_suffix = "nel passato" if days_notice < 0 else f"tra {days_notice} giorni"
+                raise BusinessRuleError(
+                    f"Il tipo '{leave_type.get('name')}' richiede un preavviso minimo di {min_notice} giorni. "
+                    f"La richiesta inizia {msg_suffix}.",
+                    rule="MIN_NOTICE_PERIOD_REQUIRED"
+                )
+
         # Calculate days
         days = await self._calculate_days(
             data.start_date,
@@ -69,6 +82,15 @@ class LeaveCrudService(BaseLeaveService):
             data.end_half_day,
             user_id,
         )
+        
+        # Validate max single request days
+        max_days = leave_type.get("max_single_request_days")
+        if max_days and days > max_days:
+            raise BusinessRuleError(
+                f"Il tipo '{leave_type.get('name')}' consente un massimo di {max_days} giorni per richiesta. "
+                f"Hai richiesto {days} giorni.",
+                rule="MAX_SINGLE_REQUEST_DAYS_EXCEEDED"
+            )
         
         # Create request
         request = await self._request_repo.create(
