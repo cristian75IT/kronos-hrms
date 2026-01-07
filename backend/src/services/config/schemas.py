@@ -612,6 +612,7 @@ class SetupContractVersion(BaseModel):
     weekly_hours_full_time: float = 40.0
     working_days_per_week: int = 5
     daily_hours: float = 8.0
+    count_saturday_as_leave: bool = False
     vacation_days: int = 26
     rol_hours: int = 72
     ex_festivita_hours: int = 32

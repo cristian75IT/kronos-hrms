@@ -16,7 +16,9 @@ from src.services.leaves.schemas import (
     RecalculatePreviewResponse,
     RolloverPreviewResponse,
     ApplyChangesRequest,
+    ApplyChangesRequest,
     EmployeePreviewItem,
+    ImportBalanceRequest,
 )
 from src.services.leaves.deps import get_balance_service, get_accrual_service
 
@@ -235,7 +237,30 @@ async def run_reconciliation_check(
                 message=f"⚠️ Rilevate {missing_ledger_count} anomalie: richieste approvate senza entry nel ledger. Verificare i log per dettagli."
             )
         
+
         return MessageResponse(message="✅ Nessuna anomalia rilevata. Wallet e Ledger sono sincronizzati.")
         
     except Exception as e:
         return MessageResponse(message=f"❌ Errore durante la verifica: {str(e)}")
+
+
+@router.post("/balances/import", response_model=MessageResponse)
+async def import_historical_balances(
+    data: ImportBalanceRequest,
+    token: TokenPayload = Depends(require_permission("leaves:manage")),
+    service: LeaveBalanceService = Depends(get_balance_service),
+):
+    """
+    Import historical balances from CSV/JSON. (Admin only)
+    """
+    admin_id = token.user_id
+    results = await service.import_balances(admin_id, data.items, data.mode)
+    
+    msg = f"Import completato: {results['success']} successi, {results['failed']} falliti."
+    if results['errors']:
+        # Log errors or return them? For now just summarize.
+        # Maybe returning detailed response is better but MessageResponse is standard here.
+        pass
+        
+    return MessageResponse(message=msg)
+

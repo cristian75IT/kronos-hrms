@@ -659,3 +659,24 @@ class BulkActionResponse(BaseModel):
     results: list[BulkActionResult]
 
 
+
+# ═══════════════════════════════════════════════════════════
+# Historical Import
+# ═══════════════════════════════════════════════════════════
+
+class ImportBalanceItem(BaseModel):
+    """Single item for balance import."""
+    
+    email: str
+    year: int
+    balance_type: str = Field(..., pattern="^(vacation|rol|permits|ex_festivita)$")
+    amount: Decimal
+    expiry_date: Optional[date] = None
+    notes: Optional[str] = None
+
+
+class ImportBalanceRequest(BaseModel):
+    """Request to import balances."""
+    
+    items: list[ImportBalanceItem]
+    mode: str = Field("APPEND", description="APPEND or REPLACE (clears existing for that year/type)")

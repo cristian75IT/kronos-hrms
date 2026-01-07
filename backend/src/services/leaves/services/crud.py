@@ -259,6 +259,10 @@ class LeaveCrudService(BaseLeaveService):
         user_id: Optional[UUID] = None,
     ) -> Decimal:
         """Calculate working days between dates."""
+        count_saturday = False
+        if user_id:
+            count_saturday = await self._get_saturday_rule(user_id, start_date)
+            
         return await self._calendar_utils.calculate_working_days(
-            start_date, end_date, start_half, end_half, user_id=user_id
+            start_date, end_date, start_half, end_half, user_id=user_id, count_saturday=count_saturday
         )

@@ -15,6 +15,10 @@ from src.services.leaves.calendar_utils import CalendarUtils
 from src.shared.clients import AuthClient
 from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, and_, desc
+
+from src.services.auth.models import EmployeeContract
+from src.services.config.models import NationalContractVersion
 
 class LeaveCalendarService:
     """Service for calendar views and day calculations."""
@@ -144,17 +148,56 @@ class LeaveCalendarService:
             
         return CalendarResponse(events=events, holidays=holidays, closures=closures)
 
-    async def get_excluded_days(self, start_date: date, end_date: date) -> dict:
+    async def get_excluded_days(self, start_date: date, end_date: date, user_id: Optional[UUID] = None) -> dict:
         """Get detailed list of excluded days (weekends, holidays, closures) in a date range."""
-        return await self._calendar_utils.get_excluded_list(start_date, end_date)
+        count_saturday = False
+        if user_id:
+            count_saturday = await self._get_saturday_rule(user_id, start_date)
+            
+        # We need to expose count_saturday to CalendarUtils.get_excluded_list/days_data
+        # Note: CalendarUtils.get_excluded_list internally calls get_excluded_days_data which accepts count_saturday
+        # But get_excluded_list signature doesn't expose it. We should call get_excluded_days_data directly and format here
+        # OR assume get_excluded_list handles it?
+        # looking at utils code, get_excluded_list DOES NOT accept count_saturday.
+        # So we should call get_excluded_days_data manually.
+        
+        data = await self._calendar_utils.get_excluded_days_data(start_date, end_date, user_id, count_saturday=count_saturday)
+        
+        # Format for UI (same as get_excluded_list)
+        details = data["details"]
+        sorted_keys = sorted(details.keys())
+        excluded_list = []
+        for k in sorted_keys:
+            val = details[k]
+            item = {
+                "date": val["date"],
+                "reason": val["reason"],
+                "name": val["name"]
+            }
+            if val["info"]:
+                item.update(val["info"])
+            excluded_list.append(item)
+            
+        return {
+            "start_date": start_date,
+            "end_date": end_date,
+            "working_days": data["working_days_count"],
+            "excluded_days": excluded_list
+        }
 
-    async def calculate_preview(self, request: DaysCalculationRequest) -> DaysCalculationResponse:
+    async def calculate_preview(self, request: DaysCalculationRequest, user_id: Optional[UUID] = None) -> DaysCalculationResponse:
         """Preview working days calculation."""
+        count_saturday = False
+        if user_id:
+            count_saturday = await self._get_saturday_rule(user_id, request.start_date)
+
         days = await self._calendar_utils.calculate_working_days(
             request.start_date,
             request.end_date,
             request.start_half_day,
             request.end_half_day,
+            user_id=user_id,
+            count_saturday=count_saturday
         )
         
         return DaysCalculationResponse(
@@ -162,6 +205,43 @@ class LeaveCalendarService:
             hours=days * Decimal("8"), # Approximation
             message=f"Calcolati {days} giorni lavorativi escludendo festività e chiusure."
         )
+
+    async def _get_saturday_rule(self, user_id: UUID, date_ref: date) -> bool:
+        """Check if Saturday should be counted as leave for the user at given date."""
+        try:
+            # 1. Find active employee contract
+            query = select(EmployeeContract).where(
+                and_(
+                    EmployeeContract.user_id == user_id,
+                    EmployeeContract.start_date <= date_ref,
+                    # Handle NULL end_date (active indefinitely)
+                    # or end_date >= date_ref
+                    (EmployeeContract.end_date.is_(None) | (EmployeeContract.end_date >= date_ref))
+                )
+            ).order_by(desc(EmployeeContract.start_date)).limit(1)
+            
+            contract = await self._session.scalar(query)
+            if not contract or not contract.national_contract_id:
+                return False
+                
+            # 2. Find active national contract version
+            # We need the version valid at date_ref
+            query_nc = select(NationalContractVersion).where(
+                and_(
+                    NationalContractVersion.national_contract_id == contract.national_contract_id,
+                    NationalContractVersion.valid_from <= date_ref,
+                    (NationalContractVersion.valid_to.is_(None) | (NationalContractVersion.valid_to >= date_ref))
+                )
+            ).order_by(desc(NationalContractVersion.valid_from)).limit(1)
+            
+            version = await self._session.scalar(query_nc)
+            if version:
+                return version.count_saturday_as_leave
+                
+            return False
+        except Exception as e:
+            print(f"Error fetching Saturday rule for user {user_id}: {e}")
+            return False
 
     def _get_event_color(self, status: LeaveRequestStatus, leave_type: str) -> str:
         """Get color for calendar event."""

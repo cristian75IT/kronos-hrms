@@ -26,6 +26,7 @@ import { EmailSettingsPanel } from '../../components/admin/EmailSettingsPanel';
 import { EmailTemplatesPanel } from '../../components/admin/EmailTemplatesPanel';
 import { Link } from 'react-router-dom';
 import { GitBranch } from 'lucide-react';
+import { BalanceImportTool } from './BalanceImportTool';
 
 interface NotificationSetting {
     key: string;
@@ -414,6 +415,11 @@ export function AdminToolsPage() {
                                 Vai al Setup
                             </Link>
                         </div>
+                    </div>
+
+                    {/* Import Tools Section */}
+                    <div className="grid grid-cols-1 gap-6">
+                        <BalanceImportTool />
                     </div>
 
                     {/* Preview Report Section */}

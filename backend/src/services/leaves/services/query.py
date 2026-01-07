@@ -145,8 +145,40 @@ class LeaveQueryService(BaseLeaveService):
         user_id: Optional[UUID] = None,
     ) -> Decimal:
         """Calculate working days between dates."""
+        count_saturday = False
+        
+        # Determine if Saturday counts as leave for this user
+        if user_id:
+            try:
+                # We need to fetch the user's contract version.
+                # Since we don't have direct access to User model or Config repo here easily without circular deps or new imports,
+                # we might need to rely on the CalendarUtils or ConfigClient to resolve this, 
+                # OR use a raw query or repo method if available.
+                # For now, let's assume we can get it via a specialized method or ConfigClient if we had one.
+                # But ConfigClient is in shared/. 
+                # Faster approach: Repo query via self._session
+                from sqlalchemy import select
+                from src.services.config.models import NationalContractVersion, NationalContract
+                from src.services.users.models import EmployeeContract
+                
+                # Join EmployeeContract -> NationalContractVersion
+                stmt = (
+                    select(NationalContractVersion.count_saturday_as_leave)
+                    .join(EmployeeContract, EmployeeContract.national_contract_version_id == NationalContractVersion.id)
+                    .where(EmployeeContract.user_id == user_id)
+                    .where(EmployeeContract.is_active == True)
+                    .limit(1)
+                )
+                result = await self._session.execute(stmt)
+                val = result.scalar()
+                if val:
+                    count_saturday = True
+            except Exception as e:
+                # Log error but fallback to default
+                pass
+
         return await self._calendar_utils.calculate_working_days(
-            start_date, end_date, start_half, end_half, user_id=user_id
+            start_date, end_date, start_half, end_half, user_id=user_id, count_saturday=count_saturday
         )
     
     async def get_excluded_days(

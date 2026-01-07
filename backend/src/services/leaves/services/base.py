@@ -7,6 +7,11 @@ from typing import Optional
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, and_, desc, or_
+from datetime import date
+
+from src.services.auth.models import EmployeeContract
+from src.services.config.models import NationalContractVersion
 
 from src.services.leaves.repository import (
     LeaveRequestRepository,
@@ -84,3 +89,41 @@ class BaseLeaveService:
     async def _get_subordinates(self, manager_id: UUID) -> list[UUID]:
         """Get subordinate user IDs from auth service."""
         return await self._auth_client.get_subordinates(manager_id)
+
+    async def _get_saturday_rule(self, user_id: UUID, date_ref: date) -> bool:
+        """Check if Saturday should be counted as leave for the user at given date."""
+        try:
+            # 1. Find active employee contract
+            query = select(EmployeeContract).where(
+                and_(
+                    EmployeeContract.user_id == user_id,
+                    EmployeeContract.start_date <= date_ref,
+                    # Handle NULL end_date (active indefinitely)
+                    # or end_date >= date_ref
+                    or_(EmployeeContract.end_date.is_(None), EmployeeContract.end_date >= date_ref)
+                )
+            ).order_by(desc(EmployeeContract.start_date)).limit(1)
+            
+            contract = await self._session.scalar(query)
+            if not contract or not contract.national_contract_id:
+                return False
+                
+            # 2. Find active national contract version
+            # We need the version valid at date_ref
+            query_nc = select(NationalContractVersion).where(
+                and_(
+                    NationalContractVersion.national_contract_id == contract.national_contract_id,
+                    NationalContractVersion.valid_from <= date_ref,
+                    or_(NationalContractVersion.valid_to.is_(None), NationalContractVersion.valid_to >= date_ref)
+                )
+            ).order_by(desc(NationalContractVersion.valid_from)).limit(1)
+            
+            version = await self._session.scalar(query_nc)
+            if version:
+                return version.count_saturday_as_leave
+                
+            return False
+        except Exception as e:
+            # Log error but don't block
+            print(f"Error fetching Saturday rule for user {user_id}: {e}")
+            return False

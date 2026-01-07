@@ -438,6 +438,7 @@ class NationalContractVersion(Base):
     weekly_hours_full_time: Mapped[float] = mapped_column(Numeric(4, 1), default=40.0)
     working_days_per_week: Mapped[int] = mapped_column(Integer, default=5)
     daily_hours: Mapped[float] = mapped_column(Numeric(4, 2), default=8.0)
+    count_saturday_as_leave: Mapped[bool] = mapped_column(Boolean, default=False)
     
     # Vacation Parameters (in working days per year)
     annual_vacation_days: Mapped[int] = mapped_column(Integer, default=26)

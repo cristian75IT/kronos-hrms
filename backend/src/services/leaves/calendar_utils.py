@@ -51,7 +51,7 @@ class CalendarUtils:
         
         return all_closures
 
-    async def get_excluded_days_data(self, start_date: date, end_date: date, user_id: Optional[UUID] = None) -> Dict[str, Any]:
+    async def get_excluded_days_data(self, start_date: date, end_date: date, user_id: Optional[UUID] = None, count_saturday: bool = False) -> Dict[str, Any]:
         """Get detailed exclusion data using the Calendar microservice."""
         location_id = None
         if user_id:
@@ -84,7 +84,19 @@ class CalendarUtils:
                     d_date = date.fromisoformat(d_str) if isinstance(d_str, str) else d_str
                     iso = d_date.isoformat()
                     
-                    if not day.get("is_working_day"):
+                    is_excluded = not day.get("is_working_day")
+                    
+                    # CCNL Override: if Saturday is configured as count_saturday and it's a Saturday (5),
+                    # treat it as working day UNLESS it's a holiday/closure.
+                    # d_date.weekday() == 5 is Saturday
+                    if is_excluded and count_saturday and d_date.weekday() == 5:
+                        # Check strictly for holiday/closure items
+                        items = day.get("items", [])
+                        has_blocker = any(i.get("item_type") in ["holiday", "closure"] for i in items)
+                        if not has_blocker:
+                            is_excluded = False
+
+                    if is_excluded:
                         excluded_dates_set.add(iso)
                         
                         # Identify the primary reason
@@ -125,7 +137,7 @@ class CalendarUtils:
                     "excluded_dates": excluded_dates_set,
                     "details": details,
                     "working_days_count": working_days_count,
-                    "working_days_limit": 5  # Default
+                    "working_days_limit": 5  # Default, though effectively 6 if Sat is counted
                 }
         except Exception as e:
             print(f"Calendar service get_calendar_range failed: {e}")
@@ -181,10 +193,15 @@ class CalendarUtils:
                  is_excluded = True
                  reason = "closure"
                  name = closure_map[iso]["name"]
-            elif weekday >= working_days_limit:
-                 is_excluded = True
-                 reason = "weekend"
-                 name = day_names[weekday]
+            else:
+                 # Check working days limit
+                 # If count_saturday is True and day is Saturday (5), treated as working day
+                 if count_saturday and weekday == 5:
+                     is_excluded = False
+                 elif weekday >= working_days_limit:
+                     is_excluded = True
+                     reason = "weekend"
+                     name = day_names[weekday]
             
             if is_excluded:
                 excluded_dates_set.add(iso)
@@ -209,10 +226,11 @@ class CalendarUtils:
         end_date: date, 
         start_half: bool = False, 
         end_half: bool = False,
-        user_id: Optional[UUID] = None
+        user_id: Optional[UUID] = None,
+        count_saturday: bool = False
     ) -> Decimal:
         """Calculate number of working days."""
-        data = await self.get_excluded_days_data(start_date, end_date, user_id=user_id)
+        data = await self.get_excluded_days_data(start_date, end_date, user_id=user_id, count_saturday=count_saturday)
         working_days = Decimal(data["working_days_count"])
         
         if start_half and working_days > 0:

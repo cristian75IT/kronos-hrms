@@ -308,6 +308,11 @@ export const leavesService = {
         const response = await leavesApi.post('/leaves/aggregate-attendance', request);
         return response.data;
     },
+
+    importBalances: async (items: any[], mode: 'APPEND' | 'REPLACE' = 'APPEND'): Promise<string> => {
+        const response = await leavesApi.post('/balances/import', { items, mode });
+        return response.data.message;
+    },
 };
 
 export default leavesService;

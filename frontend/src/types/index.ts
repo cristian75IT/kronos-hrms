@@ -213,6 +213,8 @@ export interface NationalContractVersion {
     sick_leave_carenza_days: number;
     sick_leave_max_days_year?: number;
 
+    count_saturday_as_leave?: boolean;
+
     notes?: string;
 
     // Dynamic Calculation Modes

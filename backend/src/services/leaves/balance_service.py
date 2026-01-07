@@ -197,3 +197,90 @@ class LeaveBalanceService:
         """Run year end rollover."""
         return 0
 
+    async def import_balances(self, admin_id: UUID, items: list["ImportBalanceItem"], mode: str = "APPEND") -> dict:
+        """
+        Import historical balances.
+        
+        Args:
+            admin_id: Admin performing import
+            items: List of ImportBalanceItem
+            mode: APPEND (add to existing) or REPLACE (clear year/type before adding - NOT FULLY IMPLEMENTED)
+        
+        Returns:
+            Dict with stats
+        """
+        from uuid import uuid4
+        from sqlalchemy import select
+        from src.auth.models import User
+        from src.services.leaves.ledger.repository import TimeLedgerRepository
+        from src.services.leaves.ledger.models import TimeLedgerEntry
+        
+        results = {"success": 0, "failed": 0, "errors": []}
+        email_map = {}
+        repo = TimeLedgerRepository(self._session)
+        
+        for item in items:
+            try:
+                # 1. Resolve User
+                if item.email not in email_map:
+                    stmt = select(User).where(User.email == item.email)
+                    user = await self._session.scalar(stmt)
+                    if not user:
+                        results["failed"] += 1
+                        results["errors"].append(f"User not found: {item.email}")
+                        continue
+                    email_map[item.email] = user.id
+                
+                user_id = email_map[item.email]
+                
+                # 2. Map Balance Type
+                ledger_type = None
+                legacy_type = item.balance_type.lower()
+                
+                if "vacation" in legacy_type:
+                    # Default to VACATION_AC for import unless specified? 
+                    # If importing past years, usually it's AC of that year.
+                    # If importing "residui anno fa", it might be AP.
+                    # Let's assume standard vacations are AC of that year.
+                    ledger_type = TimeLedgerBalanceType.VACATION_AC
+                elif "rol" in legacy_type:
+                    ledger_type = TimeLedgerBalanceType.ROL
+                elif "permi" in legacy_type or "festivita" in legacy_type:
+                    ledger_type = TimeLedgerBalanceType.PERMITS
+                else:
+                    results["failed"] += 1
+                    results["errors"].append(f"Unknown balance type: {item.balance_type}")
+                    continue
+
+                # 3. Create Entry
+                # Use ADJUSTMENT_ADD for positive, ADJUSTMENT_SUB for negative (if any)
+                entry_type = "ADJUSTMENT_ADD"
+                amount = item.amount
+                if amount < 0:
+                    entry_type = "ADJUSTMENT_SUB"
+                    amount = abs(amount)
+                
+                entry = TimeLedgerEntry(
+                    id=uuid4(),
+                    user_id=user_id,
+                    year=item.year,
+                    entry_type=entry_type,
+                    balance_type=ledger_type,
+                    amount=amount,
+                    reference_type="MANUAL_ADJUSTMENT",
+                    reference_id=uuid4(), # Unique ID for this import line
+                    reference_status="COMPLETED",
+                    created_by=admin_id,
+                    notes=item.notes or f"Historical Import ({mode})"
+                )
+                
+                await repo.create(entry)
+                results["success"] += 1
+                
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                results["failed"] += 1
+                results["errors"].append(f"Error processing {item.email}: {str(e)}")
+        
+        return results
