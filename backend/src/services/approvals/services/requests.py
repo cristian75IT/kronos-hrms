@@ -45,11 +45,7 @@ class ApprovalRequestService(BaseApprovalService):
         if not config:
              raise BusinessRuleError(f"No matching workflow configuration for {data.entity_type}")
              
-        # Use config steps directly
-        steps = [] # config.steps # WorkflowConfig logic refactor might be needed if steps are not in config
-        
         # 3. Create Request
-        # Map schema to model
         request = ApprovalRequest(
             entity_type=data.entity_type, 
             entity_id=data.entity_id,
@@ -64,8 +60,48 @@ class ApprovalRequestService(BaseApprovalService):
         )
         await self._request_repo.create(request)
         
-        # 4. Invoke engine logic to start workflow (assign approvers)
-        await self._engine.assign_approvers(request, config)
+        # 4. Resolve approvers from workflow config
+        approver_ids = []
+        approver_info = {}
+        
+        # Get approvers from configured role IDs
+        role_ids = config.approver_role_ids or []
+        if role_ids and config.auto_assign_approvers:
+            for role_id_str in role_ids:
+                # Skip dynamic role placeholders (e.g., DYNAMIC:DEPARTMENT_MANAGER)
+                if role_id_str.startswith("DYNAMIC:"):
+                    continue
+                    
+                try:
+                    role_id = UUID(role_id_str)
+                    users = await self._auth_client.get_users_by_role(role_id)
+                    for user in users:
+                        user_id = UUID(user["id"])
+                        # Don't allow self-approval unless explicitly configured
+                        if not config.allow_self_approval and user_id == data.requester_id:
+                            continue
+                        if user_id not in approver_ids:
+                            approver_ids.append(user_id)
+                            approver_info[user_id] = {
+                                "name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip(),
+                                "role": role_id_str,
+                            }
+                except (ValueError, TypeError) as e:
+                    import logging
+                    logging.getLogger(__name__).warning(f"Invalid role ID '{role_id_str}': {e}")
+        
+        # Limit to max approvers if configured
+        if config.max_approvers and len(approver_ids) > config.max_approvers:
+            approver_ids = approver_ids[:config.max_approvers]
+        
+        # 5. Assign approvers via engine
+        if approver_ids:
+            await self._engine.assign_approvers(request, config, approver_ids, approver_info)
+        else:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"No approvers found for request {request.id} with role_ids {role_ids}"
+            )
         
         return request
 
@@ -123,12 +159,37 @@ class ApprovalRequestService(BaseApprovalService):
 
 
     async def get_archived_approvals(self, approver_id: UUID, status_filter: Optional[str] = None, entity_type: Optional[str] = None):
-        # Assuming repo has this method (was get_archived_approvals or similar logic)
-        return await self._decision_repo.get_decided_by_approver(
+        decisions = await self._decision_repo.get_decided_by_approver(
              approver_id, 
              status_filter=status_filter, 
              entity_type=entity_type
         )
+        
+        items = []
+        for d in decisions:
+            # Load request details (eager loaded in repo but good to be safe)
+            req = d.approval_request
+            if not req:
+                continue
+                
+            items.append({
+                "request_id": req.id,
+                "entity_type": req.entity_type,
+                "entity_id": req.entity_id,
+                "entity_ref": req.entity_ref,
+                "title": req.title,
+                "description": req.description,
+                "requester_name": req.requester_name,
+                "decision": d.decision,
+                "decision_notes": d.decision_notes,
+                "decided_at": d.decided_at,
+                "created_at": req.created_at,
+            })
+            
+        return {
+            "total": len(items),
+            "items": items
+        }
 
     async def get_pending_count(self, approver_id: UUID):
         counts = await self._request_repo.count_pending_for_approver(approver_id)

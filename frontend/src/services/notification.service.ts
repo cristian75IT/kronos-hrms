@@ -115,7 +115,7 @@ const notificationService = {
     },
 
     getNotifications: async (unreadOnly = false, limit = 50, channel?: string) => {
-        const response = await api.get<Notification[]>('/notifications', {
+        const response = await api.get<Notification[]>('/notifications/me', {
             params: { unread_only: unreadOnly, limit, channel },
         });
         return response.data;
@@ -127,11 +127,11 @@ const notificationService = {
     },
 
     markAsRead: async (notificationIds: string[]) => {
-        await api.post('/notifications/mark-read', { notification_ids: notificationIds });
+        await api.post('/notifications/read', { notification_ids: notificationIds });
     },
 
     markAllAsRead: async () => {
-        await api.post('/notifications/mark-all-read');
+        await api.post('/notifications/read/all');
     },
 
     getPreferences: async () => {

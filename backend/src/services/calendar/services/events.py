@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.services.calendar.models import (
-    Calendar, CalendarEvent, CalendarShare, CalendarType
+    Calendar, CalendarEvent, CalendarShare, CalendarType, EventParticipant
 )
 from src.services.calendar import schemas
 from src.services.calendar.services.base import BaseCalendarService

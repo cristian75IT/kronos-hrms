@@ -114,7 +114,17 @@ class CalendarProfileService(BaseCalendarService):
     
     async def get_holiday_profiles(self) -> List[HolidayProfile]:
         """Get all holiday profiles."""
-        return await self._holiday_repo.get_all()
+        try:
+            result = await self._holiday_repo.get_all()
+            print(f"DEBUG: get_holiday_profiles found {len(result)} profiles")
+            for p in result:
+                print(f"Profile: {p.id} code={p.code} name={p.name}")
+            return result
+        except Exception as e:
+            import traceback
+            print(f"ERROR getting holiday profiles: {e}")
+            traceback.print_exc()
+            raise e
     
     async def get_holiday_profile(self, id: UUID) -> Optional[HolidayProfile]:
         """Get holiday profile by ID."""

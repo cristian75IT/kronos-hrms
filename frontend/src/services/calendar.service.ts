@@ -267,19 +267,29 @@ export const calendarService = {
         return response.data;
     },
 
-    createHoliday: async (_data: HolidayCreate): Promise<Holiday> => {
-        // Requires Admin profile management usually. 
-        // We map this to creating a holiday in a default profile? 
-        // Or fail. 
-        throw new Error("Use Admin Profile Management to create holidays");
+    createHoliday: async (data: HolidayCreate): Promise<Holiday> => {
+        // Creating holidays requires a holiday profile ID
+        // First fetch existing profiles (or use a default system profile)
+        const profilesResp = await api.get('/admin/holiday-profiles');
+        const profiles = profilesResp.data || [];
+
+        // Use first profile as default, or throw if none exist
+        if (profiles.length === 0) {
+            throw new Error("No holiday profiles exist. Create a profile first.");
+        }
+
+        const profileId = profiles[0].id;
+        const response = await api.post(`/admin/holiday-profiles/${profileId}/holidays`, data);
+        return response.data;
     },
 
-    updateHoliday: async (_id: string, _data: HolidayUpdate): Promise<Holiday> => {
-        throw new Error("Use Admin Profile Management to update holidays");
+    updateHoliday: async (id: string, data: HolidayUpdate): Promise<Holiday> => {
+        const response = await api.put(`/admin/holidays/${id}`, data);
+        return response.data;
     },
 
-    deleteHoliday: async (_id: string): Promise<void> => {
-        throw new Error("Use Admin Profile Management to delete holidays");
+    deleteHoliday: async (id: string): Promise<void> => {
+        await api.delete(`/admin/holidays/${id}`);
     },
 
     // Closures

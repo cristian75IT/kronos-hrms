@@ -14,6 +14,9 @@ const api: AxiosInstance = axios.create({
     },
 });
 
+// Error deduplication: prevents the same error from triggering multiple toasts
+const recentErrors = new Set<string>();
+
 // Helper to add auth token and handle refresh
 const setupInterceptors = (instance: AxiosInstance) => {
     // Request interceptor
@@ -76,17 +79,21 @@ const setupInterceptors = (instance: AxiosInstance) => {
                 }
             }
 
-            // 2. Global Error Handling
+            // 2. Enterprise Error Handling with Smart Parsing
             if (error.response) {
                 const status = error.response.status;
                 const data = error.response.data as any;
 
-                // Extract meaningful message
-                let message = 'Si è verificato un errore imprevisto'; // Default fallback
+                // Extract meaningful message with priority parsing
+                let message = 'Si è verificato un errore imprevisto';
+                let requestId: string | undefined;
+                let errorCode: string | undefined;
 
-                // Priority 1: KRONOS Standard Error format { error: { message: ... } }
+                // Priority 1: KRONOS Standard Error format { error: { message: ..., code: ..., request_id: ... } }
                 if (data?.error?.message) {
                     message = data.error.message;
+                    requestId = data.error.request_id;
+                    errorCode = data.error.code;
                 }
                 // Priority 2: FastAPI HTTP Exception format { detail: ... }
                 else if (data?.detail) {
@@ -94,7 +101,7 @@ const setupInterceptors = (instance: AxiosInstance) => {
                         message = data.detail;
                     } else if (Array.isArray(data.detail)) {
                         // Pydantic validation errors
-                        message = data.detail.map((e: any) => e.msg).join(', ');
+                        message = data.detail.map((e: any) => `${e.loc?.slice(-1)?.[0] || 'campo'}: ${e.msg}`).join('; ');
                     }
                 }
                 // Priority 3: Generic message field
@@ -102,26 +109,49 @@ const setupInterceptors = (instance: AxiosInstance) => {
                     message = data.message;
                 }
 
-                // Dispatch Global Toast Event
-                // We skip 401 because it's handled by refresh or logout flow above
-                if (status !== 401) {
+                // Categorize error severity
+                const severity = status >= 500 ? 'critical' : status >= 400 ? 'error' : 'warning';
+
+                // Build display message
+                let displayMessage = `[${status}] ${message}`;
+
+                // For 5xx errors, append request ID for debugging
+                if (status >= 500 && requestId) {
+                    displayMessage += ` (Ref: ${requestId.slice(0, 8)})`;
+                }
+
+                // Deduplication: prevent same error toast within 2 seconds
+                const errorKey = `${status}-${errorCode || message.slice(0, 50)}`;
+                if (!recentErrors.has(errorKey)) {
+                    recentErrors.add(errorKey);
+                    setTimeout(() => recentErrors.delete(errorKey), 2000);
+
+                    // Dispatch Global Toast Event (skip 401 - handled by refresh/logout)
+                    if (status !== 401) {
+                        window.dispatchEvent(new CustomEvent('toast:show', {
+                            detail: {
+                                message: displayMessage,
+                                type: severity === 'critical' ? 'error' : severity,
+                                duration: severity === 'critical' ? 8000 : 6000
+                            }
+                        }));
+                    }
+                }
+            } else if (error.request) {
+                // Network Error (no response)
+                const errorKey = 'network-error';
+                if (!recentErrors.has(errorKey)) {
+                    recentErrors.add(errorKey);
+                    setTimeout(() => recentErrors.delete(errorKey), 3000);
+
                     window.dispatchEvent(new CustomEvent('toast:show', {
                         detail: {
-                            message: `[${status}] ${message}`,
+                            message: 'Impossibile contattare il server. Verifica la connessione.',
                             type: 'error',
                             duration: 6000
                         }
                     }));
                 }
-            } else if (error.request) {
-                // Network Error (no response)
-                window.dispatchEvent(new CustomEvent('toast:show', {
-                    detail: {
-                        message: 'Impossibile contattare il server. Verifica la connessione.',
-                        type: 'error',
-                        duration: 6000
-                    }
-                }));
             }
 
             return Promise.reject(error);

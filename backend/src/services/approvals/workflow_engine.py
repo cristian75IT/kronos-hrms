@@ -264,8 +264,17 @@ class WorkflowEngine:
                 notes = f"[ADMIN OVERRIDE by {approver_id}] {notes or ''}"
                 # Reassign the decision to the admin so it shows in their history
                 decision.approver_id = approver_id
-                # Logic to update name from auth service would be ideal, but for now we rely on history
-                # Ideally we should fetch the admin's name, but even ID update fixes the query issue
+            else:
+                # Emergency creation if no pending decisions exist (e.g. broken request)
+                logger.warning(f"Creating emergency decision for admin {approver_id} on request {request.id}")
+                decision = ApprovalDecision(
+                    approval_request_id=request.id,
+                    approver_id=approver_id,
+                    approver_name="System Admin", # Fallback name
+                    approval_level=request.current_level,
+                )
+                await self._decision_repo.create(decision)
+                notes = f"[ADMIN FORCE DECISION] {notes or ''}"
         
         if request.status != ApprovalStatus.PENDING.value:
             raise ValueError(f"Request is not pending (status: {request.status})")

@@ -360,7 +360,7 @@ const DecisionModal: React.FC<DecisionModalProps> = ({
                 </div>
 
                 {/* Integrated Action Form */}
-                <div className={`overflow-hidden transition-all duration-500 ease-in-out ${action ? 'max-h-[600px] opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
+                <div className={`overflow-hidden transition-all duration-500 ease-in-out ${action ? 'max-h-[2000px] opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
                     <div className="rounded-2xl bg-gray-50/80 p-6 border border-gray-100 ring-1 ring-white/50">
                         {action === 'approve_conditional' && (
                             <div className="space-y-6 animate-in slide-in-from-top-4 duration-500">

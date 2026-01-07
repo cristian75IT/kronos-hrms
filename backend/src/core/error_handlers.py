@@ -27,6 +27,9 @@ from src.core.exceptions import (
 )
 from src.core.config import settings
 
+# Import shared exceptions for unified handling
+from src.shared.exceptions import MicroserviceError as SharedMicroserviceError
+
 logger = logging.getLogger(__name__)
 
 
@@ -187,6 +190,26 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     )
 
 
+async def microservice_exception_handler(request: Request, exc: SharedMicroserviceError) -> JSONResponse:
+    """Handle shared MicroserviceError exceptions from shared/exceptions.py.
+    
+    This handler provides unified error handling for exceptions raised
+    using the enterprise exception hierarchy in src.shared.exceptions.
+    """
+    # Log based on severity
+    if exc.http_status >= 500:
+        logger.error(f"{exc.code}: {exc.message} (URL: {request.url})")
+    else:
+        logger.warning(f"{exc.code}: {exc.message} (URL: {request.url})")
+    
+    return create_error_response(
+        status_code=exc.http_status,
+        code=exc.code,
+        message=exc.message,
+        details=exc.details if exc.details else None,
+        request=request,
+    )
+
 
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     """Handle standard HTTP exceptions (404, 405, etc.)."""
@@ -199,9 +222,21 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 
 
 def register_error_handlers(app: FastAPI) -> None:
-    """Register all error handlers on the application."""
+    """Register all error handlers on the application.
+    
+    Handler order matters! More specific handlers should be registered first.
+    The Exception handler should always be last as a catch-all.
+    """
+    # KRONOS core exceptions (legacy)
     app.add_exception_handler(KronosException, kronos_exception_handler)
+    
+    # Shared MicroserviceError hierarchy (enterprise standard)
+    app.add_exception_handler(SharedMicroserviceError, microservice_exception_handler)
+    
+    # Framework & ORM exceptions
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    
+    # Global catch-all (must be last)
     app.add_exception_handler(Exception, global_exception_handler)
