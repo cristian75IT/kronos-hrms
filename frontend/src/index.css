@@ -21,14 +21,18 @@
    CSS Custom Properties (Design Tokens) - Enterprise Theme
    ───────────────────────────────────────────────────────────────────── */
 :root {
-  /* Premium Brand Colors - Enterprise Slate & Blue */
-  --color-primary: #1e40af;
-  /* Blue 800 */
-  --color-primary-light: #3b82f6;
-  --color-primary-lighter: #60a5fa;
-  --color-primary-dark: #1e3a8a;
-  --color-primary-darker: #172554;
-  --color-primary-rgb: 30, 64, 175;
+  /* Premium Brand Colors - Indigo Theme (Modern Enterprise) */
+  --color-primary: #4f46e5;
+  /* Indigo 600 */
+  --color-primary-light: #6366f1;
+  /* Indigo 500 */
+  --color-primary-lighter: #818cf8;
+  /* Indigo 400 */
+  --color-primary-dark: #4338ca;
+  /* Indigo 700 */
+  --color-primary-darker: #3730a3;
+  /* Indigo 800 */
+  --color-primary-rgb: 79, 70, 229;
 
   --color-secondary: #475569;
   /* Slate 600 */
@@ -1480,8 +1484,7 @@ input[type="number"].input {
 
 .leave-event,
 .holiday-event,
-.closure-event,
-.team-leave-event {
+.closure-event {
   border: none !important;
   box-shadow: none !important;
   border-radius: 4px !important;
@@ -1500,8 +1503,4 @@ input[type="number"].input {
 .holiday-event,
 .closure-event {
   pointer-events: none;
-}
-
-.team-leave-event {
-  border-left: 3px solid #3b82f6 !important;
 }

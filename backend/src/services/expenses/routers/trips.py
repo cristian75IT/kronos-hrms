@@ -21,6 +21,7 @@ from src.services.expenses.schemas import (
     DailyAllowanceResponse,
     DailyAllowanceUpdate
 )
+from src.services.expenses.models import TripStatus
 
 router = APIRouter()
 
