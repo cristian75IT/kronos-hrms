@@ -23,24 +23,12 @@ from src.services.expenses.repository import (
     ExpenseReportRepository,
     ExpenseItemRepository,
 )
-from src.services.expenses.wallet.service import TripWalletService
-
-logger = logging.getLogger(__name__)
-
-
-class BaseExpenseService:
-    """Base class for expense sub-services."""
-    
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
-        self._trip_repo = BusinessTripRepository(session)
-        self._allowance_repo = DailyAllowanceRepository(session)
-        self._report_repo = ExpenseReportRepository(session)
-        self._item_repo = ExpenseItemRepository(session)
-        self._audit = get_audit_logger("expense-service")
-        
         # Local Services
-        self._wallet_service = TripWalletService(session)
+        # self._wallet_service = TripWalletService(session)  # Removed legacy wallet
+
+        
+        # Enterprise Ledger Service (new)
+        self._ledger_service = ExpenseLedgerService(session)
         
         # Shared Clients
         self._auth_client = AuthClient()

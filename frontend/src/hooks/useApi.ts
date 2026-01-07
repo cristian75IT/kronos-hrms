@@ -4,7 +4,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { leavesService } from '../services/leaves.service';
 import { tripsService, reportsService } from '../services/expenses.service';
-import { walletsService } from '../services/wallets.service';
+// walletsService removed
 import { userService } from '../services/userService';
 import { configService } from '../services/config.service';
 import { calendarService } from '../services/calendar.service';
@@ -16,8 +16,6 @@ import type {
     ExpenseReport,
     ExpenseItem,
     UserWithProfile,
-    TripWallet,
-    TripWalletTransaction,
 } from '../types';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -42,8 +40,7 @@ export const queryKeys = {
     reports: ['expense-reports'] as const,
     report: (id: string) => ['expense-reports', id] as const,
     pendingReports: ['expense-reports', 'pending'] as const,
-    tripWallet: (tripId: string) => ['trip-wallet', tripId] as const,
-    tripTransactions: (tripId: string) => ['trip-wallet', tripId, 'transactions'] as const,
+    // tripWallet keys removed
 
     // Users
     users: ['users'] as const,
@@ -369,43 +366,7 @@ export function useUploadTripAttachment() {
     });
 }
 
-export function useTripWallet(tripId: string, options?: { enabled?: boolean }) {
-    return useQuery<TripWallet | null>({
-        queryKey: queryKeys.tripWallet(tripId),
-        queryFn: async () => {
-            try {
-                return await walletsService.getTripWallet(tripId);
-            } catch (error: any) {
-                // 404 means wallet doesn't exist yet - this is expected for unapproved trips
-                if (error?.response?.status === 404) {
-                    return null;
-                }
-                throw error;
-            }
-        },
-        enabled: options?.enabled !== undefined ? options.enabled : !!tripId,
-        retry: false, // Don't retry on 404
-    });
-}
-
-export function useTripTransactions(tripId: string, options?: { enabled?: boolean }) {
-    return useQuery<TripWalletTransaction[]>({
-        queryKey: queryKeys.tripTransactions(tripId),
-        queryFn: async () => {
-            try {
-                return await walletsService.getTripTransactions(tripId);
-            } catch (error: any) {
-                // 404 means wallet doesn't exist yet
-                if (error?.response?.status === 404) {
-                    return [];
-                }
-                throw error;
-            }
-        },
-        enabled: options?.enabled !== undefined ? options.enabled : !!tripId,
-        retry: false, // Don't retry on 404
-    });
-}
+// trip wallet hooks removed
 
 // ═══════════════════════════════════════════════════════════════════
 // Expense Report Hooks

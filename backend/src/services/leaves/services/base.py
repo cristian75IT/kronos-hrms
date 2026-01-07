@@ -17,6 +17,7 @@ from src.services.leaves.policy_engine import PolicyEngine
 from src.services.leaves.calendar_utils import CalendarUtils
 from src.services.leaves.balance_service import LeaveBalanceService
 from src.services.leaves.notification_handler import LeaveNotificationHandler
+from src.services.leaves.ledger import TimeLedgerService
 from src.shared.audit_client import get_audit_logger
 from src.shared.clients import AuthClient, ConfigClient, ApprovalClient
 
@@ -29,6 +30,7 @@ class BaseLeaveService:
     - Database session and repository
     - External service clients (auth, config, approval)
     - Local wallet service (no HTTP calls)
+    - Time Ledger service (enterprise ledger)
     - Audit logging
     - Notification handler
     - Balance service
@@ -55,6 +57,9 @@ class BaseLeaveService:
         # Utility services (now with local wallet)
         self._calendar_utils = CalendarUtils(self._config_client)
         self._balance_service = LeaveBalanceService(session)
+        
+        # Enterprise Ledger Service (new)
+        self._ledger_service = TimeLedgerService(session)
         
         # Policy engine
         self._policy_engine = PolicyEngine(

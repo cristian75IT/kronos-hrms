@@ -363,6 +363,10 @@ export interface LeaveBalanceSummary {
     permits_available: number;
     ap_expiry_date?: string;
     days_until_ap_expiry?: number;
+    // Pending reservations from ledger (days/hours in pending approval)
+    pending_vacation?: number;
+    pending_rol?: number;
+    pending_permits?: number;
 }
 
 export interface LeaveRequest {
@@ -514,44 +518,7 @@ export interface ExpenseItem {
     receipt_path?: string;
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// Wallet Types (Leaves & Expensive)
-// ═══════════════════════════════════════════════════════════════════
 
-export interface TripWallet {
-    id: string;
-    trip_id: string;
-    user_id: string;
-    budget: number;
-    spent: number;
-    balance: number;
-    total_taxable: number;
-    total_non_taxable: number;
-    currency: string;
-    status: string;
-    policy_violations_count: number;
-    compliance_flags: Record<string, any>;
-    last_transaction_at?: string;
-}
-
-export interface TripWalletTransaction {
-    id: string;
-    wallet_id: string;
-    transaction_type: string;
-    category: string;
-    amount: number;
-    tax_amount: number;
-    tax_rate: number;
-    is_reimbursable: boolean;
-    is_taxable: boolean;
-    has_receipt: boolean;
-    reference_id?: string;
-    description?: string;
-    compliance_flags: Record<string, any>;
-    policy_violations: string[];
-    created_at: string;
-    created_by?: string;
-}
 
 // ═══════════════════════════════════════════════════════════════════
 // Calendar Types

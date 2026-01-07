@@ -24,6 +24,7 @@ celery_app.conf.update(
         "src.services.notifications.tasks",
         "src.services.audit.tasks",
         "src.services.hr_reporting.tasks",
+        "celery.tasks.reconciliation",
         # Add other service tasks here as needed
     ],
     # Cron tasks (Beat)
@@ -75,6 +76,15 @@ celery_app.conf.update(
             "task": "hr_reporting.calculate_monthly_stats",
             "schedule": 2592000.0,  # Monthly (30 days)
             "options": {"queue": "reporting"},
+        },
+        # ─────────────────────────────────────────────────────────────
+        # Balance Reconciliation Tasks
+        # ─────────────────────────────────────────────────────────────
+        # Daily reconciliation - runs at 2 AM
+        "balance-reconciliation": {
+            "task": "reconciliation.check_balance_consistency",
+            "schedule": 86400.0,  # Daily
+            "options": {"queue": "maintenance"},
         },
     },
 )

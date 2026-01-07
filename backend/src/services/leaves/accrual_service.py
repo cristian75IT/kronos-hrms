@@ -1,27 +1,28 @@
 """
 KRONOS - Accrual Service
 
-Calculates leave accruals and syncs with local Wallet module.
+Calculates leave accruals and syncs with Enterprise Time Ledger.
+Legacy Wallet integration removed.
 """
 from datetime import date
 from calendar import monthrange
 from decimal import Decimal
 from typing import Tuple
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.services.leaves.repository import ContractRepository
-from src.services.leaves.wallet import WalletService, TransactionCreate
+from src.services.leaves.ledger import TimeLedgerService, TimeLedgerBalanceType
 
 
 class AccrualService:
-    """Service for calculating leave accruals - now uses local WalletService."""
+    """Service for calculating leave accruals via TimeLedgerService."""
 
     def __init__(self, session: AsyncSession):
         self._session = session
         self._contract_repo = ContractRepository(session)
-        self._wallet_service = WalletService(session)
+        self._ledger_service = TimeLedgerService(session)
 
     async def recalculate_all_balances(self, year: int):
         """Recalculate accruals for all users based on contracts."""
@@ -32,34 +33,45 @@ class AccrualService:
 
     async def recalculate_user_accrual(self, user_id: UUID, year: int):
         """Recalculate accruals for specific user and year."""
+        # Calculate what SHOULD be there
         new_vacation, new_rol, new_permits = await self._calculate_accrual_preview(user_id, year)
         
-        wallet = await self._wallet_service.get_wallet(user_id, year)
+        # Get what IS there
+        summary = await self._ledger_service.get_balance_summary(user_id, year)
         
-        current_vacation = wallet.vacation_accrued
-        current_rol = wallet.rol_accrued
-        current_permits = wallet.permits_total
+        current_vacation = summary.vacation_ac.total_credited
+        current_rol = summary.rol.total_credited
+        current_permits = summary.permits.total_credited
         
         deltas = {
-            "vacation_ac": Decimal(str(new_vacation)) - current_vacation,
-            "rol": Decimal(str(new_rol)) - current_rol,
-            "permits": Decimal(str(new_permits)) - current_permits
+            TimeLedgerBalanceType.VACATION_AC: Decimal(str(new_vacation)) - current_vacation,
+            TimeLedgerBalanceType.ROL: Decimal(str(new_rol)) - current_rol,
+            TimeLedgerBalanceType.PERMITS: Decimal(str(new_permits)) - current_permits
         }
         
+        from src.services.leaves.ledger.repository import TimeLedgerRepository
+        from src.services.leaves.ledger.models import TimeLedgerEntry, TimeLedgerEntryType
+        repo = TimeLedgerRepository(self._session)
+
         for balance_type, delta in deltas.items():
             if delta == 0:
                 continue
             
-            txn = TransactionCreate(
+            entry_type = TimeLedgerEntryType.ADJUSTMENT_ADD if delta > 0 else TimeLedgerEntryType.ADJUSTMENT_SUB
+            
+            # Record adjustment directly
+            entry = TimeLedgerEntry(
                 user_id=user_id,
                 year=year,
-                transaction_type="ADJUSTMENT_ADD" if delta > 0 else "ADJUSTMENT_SUB",
+                entry_type=entry_type,
                 balance_type=balance_type,
                 amount=abs(delta),
-                description=f"Ricalcolo automatico accrual anno {year}",
-                created_by=None
+                reference_type="ACCRUAL_RECALCULATION",
+                reference_id=uuid4(),
+                reference_status="COMPLETED",
+                notes=f"Ricalcolo automatico accrual anno {year}"
             )
-            await self._wallet_service.process_transaction(txn)
+            await repo.create(entry)
 
     async def _get_monthly_accrual_params(self, contract, reference_date: date):
         """Get accrual parameters for a contract."""
@@ -110,10 +122,11 @@ class AccrualService:
         user_ids = await self._contract_repo.get_distinct_user_ids()
         
         for user_id in user_ids:
-            wallet = await self._wallet_service.get_wallet(user_id, year)
-            current_vacation = float(wallet.vacation_accrued)
-            current_rol = float(wallet.rol_accrued)
-            current_permits = float(wallet.permits_total)
+            summary = await self._ledger_service.get_balance_summary(user_id, year)
+            
+            current_vacation = float(summary.vacation_ac.total_credited)
+            current_rol = float(summary.rol.total_credited)
+            current_permits = float(summary.permits.total_credited)
             
             new_vacation, new_rol, new_permits = await self._calculate_accrual_preview(user_id, year)
             
@@ -188,6 +201,8 @@ class AccrualService:
         _, days_in_month = monthrange(year, month)
         month_end = date(year, month, days_in_month)
         
+        job_id = uuid4() # Generate a job ID for this run
+        
         processed_count = 0
         for user_id in user_ids:
             contracts = await self._contract_repo.get_contracts_in_month(user_id, accrual_date, month_end)
@@ -216,39 +231,34 @@ class AccrualService:
                     m_permits = (params["permits"] / 12) * ratio
                     
                     if m_vacation > 0:
-                        txn = TransactionCreate(
+                        await self._ledger_service.record_accrual(
                             user_id=user_id,
-                            year=year,
-                            transaction_type="ACCRUAL",
-                            balance_type="vacation_ac",
+                            balance_type=TimeLedgerBalanceType.VACATION_AC,
                             amount=m_vacation,
-                            description=f"Maturazione mensile Ferie {month}/{year}",
-                            expires_at=date(year + 1, 6, 30)
+                            year=year,
+                            job_id=job_id,
+                            notes=f"Maturazione mensile Ferie {month}/{year}"
                         )
-                        await self._wallet_service.process_transaction(txn)
 
                     if m_rol > 0:
-                        txn = TransactionCreate(
+                        await self._ledger_service.record_accrual(
                             user_id=user_id,
-                            year=year,
-                            transaction_type="ACCRUAL",
-                            balance_type="rol",
+                            balance_type=TimeLedgerBalanceType.ROL,
                             amount=m_rol,
-                            description=f"Maturazione mensile ROL {month}/{year}",
-                            expires_at=date(year + 2, 12, 31)
+                            year=year,
+                            job_id=job_id,
+                            notes=f"Maturazione mensile ROL {month}/{year}"
                         )
-                        await self._wallet_service.process_transaction(txn)
                     
                     if m_permits > 0:
-                        txn = TransactionCreate(
+                        await self._ledger_service.record_accrual(
                             user_id=user_id,
-                            year=year,
-                            transaction_type="ACCRUAL",
-                            balance_type="permits",
+                            balance_type=TimeLedgerBalanceType.PERMITS,
                             amount=m_permits,
-                            description=f"Maturazione mensile Permessi {month}/{year}"
+                            year=year,
+                            job_id=job_id,
+                            notes=f"Maturazione mensile Permessi {month}/{year}"
                         )
-                        await self._wallet_service.process_transaction(txn)
                         
                     processed_count += 1
         return processed_count

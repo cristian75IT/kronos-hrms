@@ -200,3 +200,42 @@ async def process_rollover(
     """Close a year and transfer remaining balances to the next year. (Admin only)"""
     count = await service.run_year_end_rollover(year)
     return MessageResponse(message=f"Chiusura anno {year} completata per {count} dipendenti. I residui sono stati trasferiti al {year+1}.")
+
+
+@router.post("/balances/reconciliation/check", response_model=MessageResponse, dependencies=[Depends(require_permission("leaves:manage"))])
+async def run_reconciliation_check(
+    service: LeaveBalanceService = Depends(get_balance_service),
+):
+    """
+    Trigger manual reconciliation check between wallet and ledger. (Admin only)
+    
+    Runs the reconciliation check synchronously and returns results.
+    """
+    from sqlalchemy import text
+    
+    try:
+        # Check for approved requests without ledger entries
+        query = text("""
+            SELECT COUNT(*) FROM leaves.leave_requests lr
+            WHERE lr.status = 'APPROVED'
+            AND lr.balance_deducted = true
+            AND NOT EXISTS (
+                SELECT 1 FROM leaves.time_ledger tl
+                WHERE tl.reference_type = 'LEAVE_REQUEST'
+                AND tl.reference_id = lr.id
+                AND tl.entry_type = 'USAGE'
+            )
+        """)
+        
+        result = await service._session.execute(query)
+        missing_ledger_count = result.scalar() or 0
+        
+        if missing_ledger_count > 0:
+            return MessageResponse(
+                message=f"⚠️ Rilevate {missing_ledger_count} anomalie: richieste approvate senza entry nel ledger. Verificare i log per dettagli."
+            )
+        
+        return MessageResponse(message="✅ Nessuna anomalia rilevata. Wallet e Ledger sono sincronizzati.")
+        
+    except Exception as e:
+        return MessageResponse(message=f"❌ Errore durante la verifica: {str(e)}")

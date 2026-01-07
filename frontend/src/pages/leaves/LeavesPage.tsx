@@ -19,7 +19,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Button } from '../../components/common';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { walletsService } from '../../services/wallets.service';
+import { leavesService } from '../../services/leaves.service';
 import { useToast } from '../../context/ToastContext';
 
 export function LeavesPage() {
@@ -41,11 +41,9 @@ export function LeavesPage() {
     if (!user?.id) return;
     setIsLoadingWallet(true);
     try {
-      const wallet = await walletsService.getLeavesWallet(user.id, currentYear);
-      if (wallet?.id) {
-        const transactions = await walletsService.getLeavesTransactions(wallet.id);
-        setWalletTransactions(transactions);
-      }
+      // Use User ID as Balance ID for new Ledger Service
+      const transactions = await leavesService.getTransactions(user.id);
+      setWalletTransactions(transactions || []);
     } catch (error) {
       console.error(error);
       toast.error('Errore caricamento dettagli wallet');
@@ -106,6 +104,11 @@ export function LeavesPage() {
           <div className="flex-1 min-w-0">
             <div className="text-xs uppercase font-semibold text-gray-500 tracking-wider mb-0.5">Ferie AP</div>
             <div className="text-2xl font-bold text-gray-900 truncate">{balance?.vacation_available_ap ?? '-'}</div>
+            {balance?.pending_vacation && balance.pending_vacation > 0 && (
+              <div className="text-[10px] text-amber-600 font-medium mt-0.5">
+                ({balance.pending_vacation} gg in approvazione)
+              </div>
+            )}
           </div>
           {balance?.ap_expiry_date && (
             <div className="absolute top-2 right-2 text-[10px] font-semibold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">

@@ -26,9 +26,7 @@ from src.services.approvals.models import Base as ApprovalsBase
 from src.services.calendar.models import Base as CalendarBase
 from src.services.hr_reporting.models import Base as HRReportingBase
 
-# Import sub-module models to ensure registration
-from src.services.leaves.wallet.models import EmployeeWallet
-from src.services.expenses.wallet.models import TripWallet
+# Wallet models removed
 
 # Use a combined metadata
 from src.core.database import Base

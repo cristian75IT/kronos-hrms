@@ -605,11 +605,39 @@ class LeaveWorkflowService(BaseLeaveService):
         breakdown: dict,
         metadata: Optional[dict] = None,
     ) -> None:
-        """Deduct balance based on breakdown."""
-        await self._balance_service.deduct_balance(request, breakdown, metadata=metadata)
+        """
+        Deduct balance based on breakdown.
+        
+        Writes to:
+        1. New TimeLedger (enterprise ledger)
+        """
+        from decimal import Decimal
+        
+        # New ledger entry (idempotent)
+        approver_id = metadata.get("approver_id") if metadata else None
+        await self._ledger_service.record_usage(
+            user_id=request.user_id,
+            leave_request_id=request.id,
+            breakdown={k: Decimal(str(v)) for k, v in breakdown.items() if v},
+            actor_id=approver_id if approver_id else request.user_id,
+            notes=metadata.get("notes") if metadata else None,
+        )
+        
         await self._request_repo.update(request.id, balance_deducted=True)
     
     async def _restore_balance(self, request: LeaveRequest) -> None:
-        """Restore balance when request is cancelled/recalled."""
-        await self._balance_service.restore_balance(request)
+        """
+        Restore balance when request is cancelled/recalled.
+        
+        Writes to:
+        1. New TimeLedger (enterprise ledger) - creates reversal entry
+        """
+        # New ledger reversal entry (idempotent)
+        await self._ledger_service.reverse_usage(
+            user_id=request.user_id,
+            leave_request_id=request.id,
+            actor_id=request.user_id,  # Could be approver in revoke case
+            reason="Request cancelled/revoked",
+        )
+        
         await self._request_repo.update(request.id, balance_deducted=False)

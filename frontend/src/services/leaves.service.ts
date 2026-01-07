@@ -237,6 +237,11 @@ export const leavesService = {
         return response.data.message;
     },
 
+    runReconciliation: async (): Promise<string> => {
+        const response = await leavesApi.post('/balances/reconciliation/check');
+        return response.data.message;
+    },
+
     // ═══════════════════════════════════════════════════════════════════
     // Preview & Selective Apply (Admin Tools)
     // ═══════════════════════════════════════════════════════════════════

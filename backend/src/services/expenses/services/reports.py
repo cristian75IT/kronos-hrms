@@ -185,19 +185,7 @@ class ExpenseReportService(BaseExpenseService):
         
         # Create approval request
         try:
-            # Reserve budget in wallet if linked to trip
-            if report.trip_id:
-                for item in report.items:
-                    try:
-                        await self._wallet_service.reserve_budget(
-                            trip_id=report.trip_id,
-                            amount=item.amount_eur,
-                            reference_id=item.id,
-                            category=item.expense_type_code,
-                            description=item.description
-                        )
-                    except Exception as e:
-                        logger.warning(f"Wallet reservation failed for item {item.id}: {e}")
+            # Wallet reservation removed (Legacy)
             
             user_info = await self._auth_client.get_user_info(user_id)
             requester_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip() if user_info else None
@@ -255,13 +243,7 @@ class ExpenseReportService(BaseExpenseService):
             request_data=data.model_dump(mode="json"),
         )
         
-        # Confirm wallet transactions if linked to trip
-        if report.trip_id:
-            for item in report.items:
-                try:
-                    await self._wallet_service.confirm_expense(report.trip_id, item.id)
-                except Exception as e:
-                    logger.error(f"Failed to confirm wallet transaction for item {item.id}: {e}")
+        # Wallet transaction confirmation removed (Legacy)
         
         # If linked to wallet (future implementation) or trip management
         # For now, simply notify
@@ -300,13 +282,7 @@ class ExpenseReportService(BaseExpenseService):
             request_data={"reason": data.reason},
         )
         
-        # Cancel wallet reservations if linked to trip
-        if report.trip_id:
-            for item in report.items:
-                try:
-                    await self._wallet_service.cancel_expense(report.trip_id, item.id)
-                except Exception as e:
-                    logger.error(f"Failed to cancel wallet reservation for item {item.id}: {e}")
+        # Wallet reservation cancellation removed (Legacy)
         
         return await self.get_report(id)
 

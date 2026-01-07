@@ -381,6 +381,26 @@ export function AdminToolsPage() {
                         </div>
 
                         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-cyan-500 text-white shadow-sm mb-4">
+                                <RefreshCcw size={20} />
+                            </div>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">Reconciliation Ledger</h3>
+                            <p className="text-sm text-gray-500 mb-4">Verifica la coerenza tra il wallet legacy e il nuovo ledger enterprise.</p>
+                            <Button
+                                onClick={() => runMaintenance('reconciliation', async () => {
+                                    const msg = await leavesService.runReconciliation();
+                                    toast.info(msg);
+                                })}
+                                disabled={!!isProcessing || !!previewMode}
+                                variant="secondary"
+                                icon={isProcessing === 'reconciliation' ? <Loader size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
+                                className="w-full justify-center"
+                            >
+                                Esegui Verifica
+                            </Button>
+                        </div>
+
+                        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
                             <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-emerald-500 text-white shadow-sm mb-4">
                                 <FileJson size={20} />
                             </div>

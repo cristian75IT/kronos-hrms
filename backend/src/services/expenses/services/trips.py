@@ -223,12 +223,7 @@ class ExpenseTripService(BaseExpenseService):
         if generate_allowances_callback:
             await generate_allowances_callback(id)
         
-        # Initialize Trip Wallet
-        budget = trip.estimated_budget or Decimal(0)
-        try:
-            await self._wallet_service.create_wallet(id, trip.user_id, budget)
-        except Exception as e:
-            logger.error(f"Failed to initialize local wallet for trip {id}: {e}")
+        # Wallet initialization removed (Legacy)
         
         # Send notification to employee
         await self._send_notification(
