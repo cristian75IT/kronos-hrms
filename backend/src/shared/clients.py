@@ -736,7 +736,7 @@ class ExpenseClient:
             
             async with httpx.AsyncClient() as client:
                 response = await client.get(
-                    f"{self.base_url}/api/v1/expenses/trips",
+                    f"{self.base_url}/api/v1/trips",
                     params=params,
                     timeout=5.0
                 )
@@ -751,7 +751,7 @@ class ExpenseClient:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
-                    f"{self.base_url}/api/v1/expenses/reports/my",
+                    f"{self.base_url}/api/v1/expenses",
                     timeout=5.0
                 )
                 if response.status_code == 200:

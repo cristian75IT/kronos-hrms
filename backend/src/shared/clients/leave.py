@@ -114,6 +114,35 @@ class LeaveClient(BaseClient):
             params=params,
         )
 
+    async def get_all_leaves_datatable(
+        self,
+        draw: int,
+        start: int,
+        length: int,
+        filters: dict,
+        token: Optional[str] = None,
+    ) -> dict:
+        """Get all leaves datatable (admin/hr view)."""
+        payload = {
+            "draw": draw,
+            "start": start,
+            "length": length,
+            "search": {"value": filters.get("search"), "regex": False},
+            "status": filters.get("status"),
+            "year": None,
+        }
+        
+        headers = {}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+            
+        return await self.post_safe(
+            "/api/v1/leaves/admin/datatable",
+            json=payload,
+            headers=headers,
+            default={"draw": draw, "recordsTotal": 0, "recordsFiltered": 0, "data": []}
+        )
+
 
 # Backward compatibility alias
 LeavesClient = LeaveClient

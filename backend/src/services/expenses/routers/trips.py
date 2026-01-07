@@ -36,7 +36,15 @@ async def get_my_trips(
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Get current user's trips."""
-    return await service.get_user_trips(token.user_id, year, status)
+    status_list = None
+    if status:
+        status_list = [TripStatus(s.strip()) for s in status.split(",")]
+        
+    return await service.get_user_trips(
+        user_id=token.user_id, 
+        year=year, 
+        status=status_list
+    )
 
 
 @router.post("/trips/datatable", response_model=DataTableResponse[BusinessTripListItem])
@@ -47,7 +55,15 @@ async def trips_datatable(
     service: ExpenseService = Depends(get_expense_service),
 ):
     """Get trips for DataTable."""
-    items, total, filtered = await service.get_trips_datatable(token.user_id, request, status)
+    status_list = None
+    if status:
+        status_list = [TripStatus(s.strip()) for s in status.split(",")]
+
+    items, total, filtered = await service.get_trips_datatable(
+        request=request,
+        user_id=token.user_id, 
+        status=status_list
+    )
     
     return DataTableResponse(
         draw=request.draw,

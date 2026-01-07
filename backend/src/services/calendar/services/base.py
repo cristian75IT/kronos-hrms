@@ -66,13 +66,7 @@ class BaseCalendarService:
             if loc_cal:
                 return loc_cal
         
-        # Try default (where location_id IS NULL and is_default=True)
-        default_cal = await self._loc_repo.get_default()
-        
-        if default_cal:
-            return default_cal
-        
-        # Return a synthetic default with Mon-Fri working days
+        # Fallback to synthetic default if no location specific config found
         return self._create_synthetic_default()
     
     def _create_synthetic_default(self) -> LocationCalendar:
@@ -80,9 +74,8 @@ class BaseCalendarService:
         return LocationCalendar(
             id=None,
             location_id=None,
-            is_default=True,
+            # is_default field does not exist on LocationCalendar
             work_week_profile=None,  # Will use Mon-Fri default
-            holiday_profiles=[],
         )
     
     # ═══════════════════════════════════════════════════════════════════════
@@ -98,9 +91,14 @@ class BaseCalendarService:
         """Flatten holidays from all subscribed profiles for the given years."""
         holidays_set: set[date] = set()
         
-        profiles = config.holiday_profiles if config.holiday_profiles else []
+        # Flatten holidays from subscriptions
+        subscriptions = config.subscriptions if hasattr(config, "subscriptions") and config.subscriptions else []
         
-        for profile in profiles:
+        for sub in subscriptions:
+            if not sub.calendar or not sub.calendar.holiday_profile:
+                continue
+                
+            profile = sub.calendar.holiday_profile
             for holiday in (profile.holidays or []):
                 if holiday.is_recurring and holiday.recurrence_rule:
                     # Calculate for each year in range
@@ -161,15 +159,16 @@ class BaseCalendarService:
     def _get_working_days_mask(self, config: LocationCalendar) -> list[bool]:
         """Get working days mask (Mon=0, Sun=6)."""
         if config.work_week_profile:
-            profile = config.work_week_profile
-            return [
-                profile.monday,
-                profile.tuesday,
-                profile.wednesday,
-                profile.thursday,
-                profile.friday,
-                profile.saturday,
-                profile.sunday,
-            ]
+            # Parse JSONB config: {"monday": {"is_working": true}, ...}
+            profile_config = config.work_week_profile.weekly_config or {}
+            
+            days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+            mask = []
+            for day in days:
+                day_cfg = profile_config.get(day, {})
+                # Default to False if not specified, safely get boolean
+                is_working = day_cfg.get("is_working", False)
+                mask.append(is_working)
+            return mask
         # Default: Mon-Fri
         return [True, True, True, True, True, False, False]

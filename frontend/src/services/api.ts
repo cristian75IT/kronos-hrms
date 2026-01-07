@@ -56,6 +56,7 @@ const setupInterceptors = (instance: AxiosInstance) => {
         async (error: AxiosError) => {
             const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
+            // 1. Handle Token Expiration (401)
             if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
                 originalRequest._retry = true;
 
@@ -74,6 +75,55 @@ const setupInterceptors = (instance: AxiosInstance) => {
                     return Promise.reject(refreshError);
                 }
             }
+
+            // 2. Global Error Handling
+            if (error.response) {
+                const status = error.response.status;
+                const data = error.response.data as any;
+
+                // Extract meaningful message
+                let message = 'Si è verificato un errore imprevisto'; // Default fallback
+
+                // Priority 1: KRONOS Standard Error format { error: { message: ... } }
+                if (data?.error?.message) {
+                    message = data.error.message;
+                }
+                // Priority 2: FastAPI HTTP Exception format { detail: ... }
+                else if (data?.detail) {
+                    if (typeof data.detail === 'string') {
+                        message = data.detail;
+                    } else if (Array.isArray(data.detail)) {
+                        // Pydantic validation errors
+                        message = data.detail.map((e: any) => e.msg).join(', ');
+                    }
+                }
+                // Priority 3: Generic message field
+                else if (data?.message) {
+                    message = data.message;
+                }
+
+                // Dispatch Global Toast Event
+                // We skip 401 because it's handled by refresh or logout flow above
+                if (status !== 401) {
+                    window.dispatchEvent(new CustomEvent('toast:show', {
+                        detail: {
+                            message: `[${status}] ${message}`,
+                            type: 'error',
+                            duration: 6000
+                        }
+                    }));
+                }
+            } else if (error.request) {
+                // Network Error (no response)
+                window.dispatchEvent(new CustomEvent('toast:show', {
+                    detail: {
+                        message: 'Impossibile contattare il server. Verifica la connessione.',
+                        type: 'error',
+                        duration: 6000
+                    }
+                }));
+            }
+
             return Promise.reject(error);
         }
     );

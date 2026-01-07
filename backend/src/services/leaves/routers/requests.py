@@ -105,9 +105,12 @@ async def leaves_admin_datatable(
     for r in requests:
         item = LeaveRequestListItem.model_validate(r)
         # Fetch user info for display
-        user_info = await service._get_user_info(r.user_id)
-        if user_info:
-            item.user_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip()
+        try:
+            user_info = await service._get_user_info(r.user_id)
+            if user_info:
+                item.user_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip()
+        except Exception:
+            pass
         data.append(item)
     
     return LeaveRequestDataTableResponse(
@@ -131,9 +134,12 @@ async def get_pending_approval(
     for r in requests:
         item = LeaveRequestListItem.model_validate(r)
         # Fetch user name from auth service
-        user_info = await service._get_user_info(r.user_id)
-        if user_info:
-            item.user_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip()
+        try:
+            user_info = await service._get_user_info(r.user_id)
+            if user_info:
+                item.user_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip()
+        except Exception:
+            pass
         result.append(item)
     
     return result
@@ -477,9 +483,12 @@ async def get_requests_internal(
     data = []
     for r in requests:
         item = LeaveRequestListItem.model_validate(r)
-        user_info = await service._get_user_info(r.user_id)
-        if user_info:
-            item.user_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip()
+        try:
+            user_info = await service._get_user_info(r.user_id)
+            if user_info:
+                item.user_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip()
+        except Exception:
+            pass
         data.append(item)
     
     return data

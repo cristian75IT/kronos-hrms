@@ -17,7 +17,7 @@ Usage:
 """
 from datetime import date, timedelta
 from typing import Optional, List, Dict, Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -333,74 +333,151 @@ class CalendarService(BaseCalendarService):
         start_date: date, 
         end_date: date,
         location_id: Optional[UUID] = None
-    ) -> schemas.CalendarRangeResponse:
-        """Produce an aggregated range view including holidays, closures, and user events."""
+    ) -> schemas.CalendarRangeView:
+        """Produce an aggregated range view by day."""
         
-        # Get holidays
-        holidays = []
+        # 1. Fetch all raw data first
+        
+        # Holidays
+        raw_holidays = []
         for year in range(start_date.year, end_date.year + 1):
-            year_holidays = await self.get_system_holidays(year)
-            for h in year_holidays:
-                hdate = date.fromisoformat(h["date"])
-                if start_date <= hdate <= end_date:
-                    holidays.append(schemas.CalendarDayItem(
-                        date=hdate,
-                        type="holiday",
-                        title=h["name"],
-                    ))
-        
-        # Get closures
-        closures = []
+            raw_holidays.extend(await self.get_system_holidays(year))
+            
+        # Closures
+        raw_closures = []
         for year in range(start_date.year, end_date.year + 1):
-            year_closures = await self.get_location_closures(year, location_id)
-            for c in year_closures:
-                cstart = date.fromisoformat(c["start_date"])
-                cend = date.fromisoformat(c["end_date"])
-                if cstart <= end_date and cend >= start_date:
-                    closures.append(schemas.CalendarDayItem(
-                        date=cstart,
-                        end_date=cend,
-                        type="closure",
-                        title=c["name"],
-                    ))
-        
-        # Get user events
+            raw_closures.extend(await self.get_location_closures(year, location_id))
+            
+        # Events (User Visible)
         events = await self.get_visible_events(user_id, start_date, end_date)
-        event_items = [
-            schemas.CalendarDayItem(
-                date=e.start_date,
-                end_date=e.end_date,
-                type=e.event_type or "event",
-                title=e.title,
-                event_id=e.id,
-            )
-            for e in events
-        ]
         
-        # Get leaves (from leave service)
+        # Leaves
         leaves = []
         try:
             leaves_client = LeavesClient()
-            leaves_data = await leaves_client.get_user_leaves(user_id, start_date, end_date)
+            leaves_data = await leaves_client.get_leaves_in_period(
+                start_date=start_date, 
+                end_date=end_date, 
+                user_id=user_id
+            )
+            # Normalize leaves data
             for lv in leaves_data:
-                leaves.append(schemas.CalendarDayItem(
-                    date=date.fromisoformat(lv["start_date"]) if isinstance(lv["start_date"], str) else lv["start_date"],
-                    end_date=date.fromisoformat(lv["end_date"]) if isinstance(lv["end_date"], str) else lv["end_date"],
-                    type="leave",
-                    title=lv.get("leave_type_code", "Ferie"),
-                    leave_type_code=lv.get("leave_type_code"),
-                    status=lv.get("status"),
-                ))
+                l_start = date.fromisoformat(lv["start_date"]) if isinstance(lv["start_date"], str) else lv["start_date"]
+                l_end = date.fromisoformat(lv["end_date"]) if isinstance(lv["end_date"], str) else lv["end_date"]
+                leaves.append({
+                    **lv,
+                    "start_date": l_start,
+                    "end_date": l_end
+                })
         except Exception as e:
             logger.warning(f"Failed to fetch leaves: {e}")
+
+        # 2. Prepare Working Day Utils
+        config = await self._get_location_config(location_id)
+        work_days_mask = self._get_working_days_mask(config)
         
-        return schemas.CalendarRangeResponse(
+        # We need a set of holiday dates for rapid lookup during the loop
+        holiday_dates = {date.fromisoformat(h["date"]) for h in raw_holidays}
+
+        # 3. Iterate Day by Day
+        days_views = []
+        working_days_count = 0
+        
+        current = start_date
+        while current <= end_date:
+            day_items = []
+            
+            # -- Check Holiday --
+            is_holiday_today = current in holiday_dates
+            holiday_today = next((h for h in raw_holidays if date.fromisoformat(h["date"]) == current), None)
+            
+            if holiday_today:
+                day_items.append(schemas.CalendarDayItem(
+                    id=UUID(holiday_today["id"]) if holiday_today.get("id") else None,
+                    title=holiday_today["name"],
+                    item_type="holiday",
+                    date=current,
+                    is_all_day=True,
+                    metadata={"scope": "national"} 
+                ))
+
+            # -- Check Work Day --
+            weekday_idx = current.weekday()
+            is_working_schedule = work_days_mask[weekday_idx]
+            is_working_day = is_working_schedule and not is_holiday_today
+            
+            if is_working_day:
+                working_days_count += 1
+                
+            # -- Check Closures --
+            for c in raw_closures:
+                c_start = date.fromisoformat(c["start_date"])
+                c_end = date.fromisoformat(c["end_date"])
+                if c_start <= current <= c_end:
+                    day_items.append(schemas.CalendarDayItem(
+                        id=UUID(c["id"]) if c.get("id") else None,
+                        title=c["name"],
+                        item_type="closure",
+                        date=current,
+                        is_all_day=True,
+                        metadata={
+                            "closure_id": c["id"],
+                            "location_id": c.get("location_id")
+                        }
+                    ))
+            
+            # -- Check Events --
+            for e in events:
+                if e.start_date <= current <= e.end_date:
+                    day_items.append(schemas.CalendarDayItem(
+                        id=e.id,
+                        title=e.title,
+                        item_type=e.event_type or "event",
+                        date=current,
+                        start_time=e.start_time,
+                        end_time=e.end_time,
+                        is_all_day=e.is_all_day,
+                        color=e.color, 
+                        metadata={
+                            "calendar_id": str(e.calendar_id) if e.calendar_id else None,
+                            "location": e.location,
+                            "visibility": e.visibility,
+                            "status": e.status,
+                            "is_virtual": e.is_virtual,
+                            "meeting_url": e.meeting_url
+                        }
+                    ))
+                    
+            # -- Check Leaves --
+            for lv in leaves:
+                if lv["start_date"] <= current <= lv["end_date"]:
+                     day_items.append(schemas.CalendarDayItem(
+                        id=UUID(lv["id"]) if "id" in lv else None,
+                        title=lv.get("leave_type_code", "Ferie"),
+                        item_type="leave",
+                        date=current,
+                        is_all_day=True,
+                        metadata={
+                            "leave_type_code": lv.get("leave_type_code"),
+                            "status": lv.get("status")
+                        }
+                    ))
+
+            days_views.append(schemas.CalendarDayView(
+                date=current,
+                is_working_day=is_working_day,
+                is_holiday=is_holiday_today,
+                holiday_name=holiday_today["name"] if holiday_today else None,
+                items=day_items
+            ))
+            
+            current += timedelta(days=1)
+            
+        return schemas.CalendarRangeView(
             start_date=start_date,
             end_date=end_date,
-            holidays=holidays,
-            closures=closures,
-            events=event_items,
-            leaves=leaves,
+            days=days_views,
+            working_days_count=working_days_count
         )
 
     # ═══════════════════════════════════════════════════════════════════════

@@ -36,6 +36,18 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     }, [removeToast]);
 
+    // Listen for global events (dispatched by non-React code like axios interceptors)
+    React.useEffect(() => {
+        const handleGlobalToast = (event: CustomEvent<{ message: string; type: ToastType; duration?: number }>) => {
+            showToast(event.detail.message, event.detail.type, event.detail.duration);
+        };
+
+        window.addEventListener('toast:show', handleGlobalToast as EventListener);
+        return () => {
+            window.removeEventListener('toast:show', handleGlobalToast as EventListener);
+        };
+    }, [showToast]);
+
     const value = useMemo(() => ({
         success: (message: string, duration?: number) => showToast(message, 'success', duration),
         error: (message: string, duration?: number) => showToast(message, 'error', duration),

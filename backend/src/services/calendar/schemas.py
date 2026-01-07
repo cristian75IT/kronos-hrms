@@ -276,7 +276,7 @@ class CalendarDayItem(BaseModel):
     """Single item in a calendar day view."""
     id: Optional[UUID] = None  # Made optional for generated items
     title: str
-    type: str # Simplified from ENUM to allow flexibility
+    item_type: str # Simplified from ENUM to allow flexibility
     date: date
     end_date: Optional[date] = None # Optional, defaults to date
     color: Optional[str] = None
