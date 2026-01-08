@@ -13,7 +13,8 @@ import {
     GitBranch,
     ShieldCheck,
     Database,
-    Shield
+    Shield,
+    Mail
 } from 'lucide-react';
 import { setupService } from '../../services/setup.service';
 import { useToast } from '../../context/ToastContext';
@@ -90,6 +91,14 @@ export function SystemInitializationPage() {
             icon: Calendar,
             importFn: setupService.importLeaveTypes,
             order: 7
+        },
+        {
+            id: 'email_templates',
+            title: 'Template Email',
+            description: 'Importa i template base per le notifiche email del sistema.',
+            icon: Mail,
+            importFn: setupService.importEmailTemplates,
+            order: 8
         }
     ];
 

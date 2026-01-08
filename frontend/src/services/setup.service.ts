@@ -55,5 +55,13 @@ export const setupService = {
     importLeaveTypes: async (data: any) => {
         const response = await api.post('/config/setup/leave-types', data);
         return response.data;
+    },
+
+    /**
+     * Import Email Templates
+     */
+    importEmailTemplates: async (data: any) => {
+        const response = await api.post('/notifications/templates/import', data);
+        return response.data;
     }
 };

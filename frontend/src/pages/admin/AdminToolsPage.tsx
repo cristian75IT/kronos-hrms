@@ -1,10 +1,9 @@
 /**
  * KRONOS - Admin Tools Page
- * System maintenance and notification settings
+ * Enterprise System Configuration Hub
  */
 import { useState, useEffect } from 'react';
 import {
-    Zap,
     Bell,
     RefreshCcw,
     Database,
@@ -12,11 +11,13 @@ import {
     Loader,
     Shield,
     Users,
-    ArrowRight,
     X,
-    Check,
     Mail,
-    FileJson
+    FileJson,
+    Settings,
+    AlertTriangle,
+    GitBranch,
+    Briefcase
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { leavesService } from '../../services/leaves.service';
@@ -25,7 +26,6 @@ import { configService } from '../../services/config.service';
 import { EmailSettingsPanel } from '../../components/admin/EmailSettingsPanel';
 import { EmailTemplatesPanel } from '../../components/admin/EmailTemplatesPanel';
 import { Link } from 'react-router-dom';
-import { GitBranch } from 'lucide-react';
 import { BalanceImportTool } from './BalanceImportTool';
 
 interface NotificationSetting {
@@ -46,9 +46,11 @@ interface EmployeePreview {
     selected: boolean;
 }
 
+type TabType = 'general' | 'notifications' | 'workflow' | 'maintenance';
+
 export function AdminToolsPage() {
     const toast = useToast();
-    const [activeTab, setActiveTab] = useState<'maintenance' | 'notifications' | 'email' | 'approvals'>('notifications');
+    const [activeTab, setActiveTab] = useState<TabType>('general');
     const [isProcessing, setIsProcessing] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [previewMode, setPreviewMode] = useState<'recalc' | 'rollover' | null>(null);
@@ -93,12 +95,10 @@ export function AdminToolsPage() {
     const handleSaveSettings = async () => {
         setIsSaving(true);
         try {
-            // Save each setting to backend
             await Promise.all(settings.map(async (setting) => {
                 try {
                     await configService.updateConfig(setting.key, setting.value);
                 } catch (e: any) {
-                    // If config doesn't exist (404), create it
                     if (e.response && e.response.status === 404) {
                         await configService.createConfig({
                             key: setting.key,
@@ -114,8 +114,6 @@ export function AdminToolsPage() {
             }));
 
             toast.success('Impostazioni salvate con successo');
-
-            // Clear backend cache to ensure immediate effect
             try {
                 await configService.clearCache();
             } catch (err) {
@@ -146,7 +144,6 @@ export function AdminToolsPage() {
         setPreviewMode(type);
         try {
             const year = type === 'rollover' ? previewYear - 1 : previewYear;
-
             if (type === 'recalc') {
                 const response = await leavesService.previewRecalculate(year);
                 setPreviewData(response.employees.map(e => ({ ...e, selected: true })));
@@ -193,438 +190,311 @@ export function AdminToolsPage() {
         }
     };
 
+    const SettingRow = ({ item }: { item: NotificationSetting }) => (
+        <div className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-200">
+            <div className="flex-1 mr-4">
+                <h4 className="font-medium text-slate-900 mb-1">{item.label}</h4>
+                <p className="text-sm text-slate-500 leading-relaxed">{item.description}</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input
+                    type="checkbox"
+                    checked={item.value}
+                    onChange={() => handleToggleSetting(item.key)}
+                    className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+            </label>
+        </div>
+    );
+
     const selectedCount = previewData.filter(e => e.selected).length;
 
+    const sections = {
+        general: { label: 'Generali & Business', icon: Settings, color: 'text-slate-600' },
+        notifications: { label: 'Notifiche & Email', icon: Bell, color: 'text-amber-600' },
+        workflow: { label: 'Workflow & Compliance', icon: Shield, color: 'text-indigo-600' },
+        maintenance: { label: 'Manutenzione Dati', icon: Database, color: 'text-rose-600' },
+    };
+
     return (
-        <div className="space-y-6 animate-fadeIn pb-8">
+        <div className="space-y-8 animate-fadeIn pb-12">
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start border-b border-gray-200 pb-6 gap-4">
+            <div className="flex flex-col md:flex-row justify-between items-start border-b border-slate-200 pb-6 gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 mb-1">
-                        <Shield className="text-indigo-600" size={24} />
-                        Strumenti Admin
+                    <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                        <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
+                            <Settings size={28} />
+                        </div>
+                        Configurazione Sistema
                     </h1>
-                    <p className="text-sm text-gray-500">Gestisci le notifiche di sistema e la manutenzione dei dati</p>
-                </div>
-                <div className="flex bg-gray-100 p-1 rounded-lg">
-                    <button
-                        onClick={() => setActiveTab('notifications')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'notifications' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        <Bell size={16} /> Notifiche
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('maintenance')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'maintenance' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        <RefreshCcw size={16} /> Manutenzione
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('email')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'email' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        <Mail size={16} /> Email
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('approvals')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'approvals' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        <GitBranch size={16} /> Approvazioni
-                    </button>
+                    <p className="text-sm text-slate-500 mt-2 max-w-2xl">
+                        Gestisci le impostazioni globali, i flussi di lavoro, le notifiche e la manutenzione dei dati del sistema KRONOS.
+                    </p>
                 </div>
             </div>
 
-            {activeTab === 'notifications' && (
-                <div className="space-y-6">
-                    {/* Email Notifications */}
-                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex items-center justify-between">
-                            <div>
-                                <h3 className="font-semibold text-gray-900">Notifiche Email</h3>
-                                <p className="text-xs text-gray-500 mt-0.5">Configura le comunicazioni automatiche via email</p>
-                            </div>
-                        </div>
-                        <div className="divide-y divide-gray-100">
-                            {settings.filter(s => s.category === 'email' && !s.key.startsWith('approval.')).map(setting => (
-                                <div key={setting.key} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                                    <div className="flex-1 min-w-0 mr-4">
-                                        <p className="font-medium text-gray-900">{setting.label}</p>
-                                        <p className="text-sm text-gray-500">{setting.description}</p>
-                                    </div>
-                                    <button
-                                        onClick={() => handleToggleSetting(setting.key)}
-                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${setting.value ? 'bg-indigo-600' : 'bg-gray-200'}`}
-                                    >
-                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${setting.value ? 'translate-x-6' : 'translate-x-1'}`} />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* App Notifications */}
-                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/50">
-                            <h3 className="font-semibold text-gray-900">Notifiche App</h3>
-                            <p className="text-xs text-gray-500 mt-0.5">Impostazioni per le notifiche in-app e push</p>
-                        </div>
-                        <div className="divide-y divide-gray-100">
-                            {settings.filter(s => s.category === 'app' && !s.key.startsWith('approval.')).map(setting => (
-                                <div key={setting.key} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                                    <div className="flex-1 min-w-0 mr-4">
-                                        <p className="font-medium text-gray-900">{setting.label}</p>
-                                        <p className="text-sm text-gray-500">{setting.description}</p>
-                                    </div>
-                                    <button
-                                        onClick={() => handleToggleSetting(setting.key)}
-                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${setting.value ? 'bg-indigo-600' : 'bg-gray-200'}`}
-                                    >
-                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${setting.value ? 'translate-x-6' : 'translate-x-1'}`} />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Business Rules */}
-                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex items-center justify-between">
-                            <div>
-                                <h3 className="font-semibold text-gray-900">Logica di Business</h3>
-                                <p className="text-xs text-gray-500 mt-0.5">Parametri globali per il calcolo delle assenze</p>
-                            </div>
-                        </div>
-                        <div className="divide-y divide-gray-100">
-                            {settings.filter(s => s.category === 'business' && !s.key.startsWith('approval.')).map(setting => (
-                                <div key={setting.key} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                                    <div className="flex-1 min-w-0 mr-4">
-                                        <p className="font-medium text-gray-900">{setting.label}</p>
-                                        <p className="text-sm text-gray-500">{setting.description}</p>
-                                    </div>
-                                    <button
-                                        onClick={() => handleToggleSetting(setting.key)}
-                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${setting.value ? 'bg-indigo-600' : 'bg-gray-200'}`}
-                                    >
-                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${setting.value ? 'translate-x-6' : 'translate-x-1'}`} />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Save Button */}
-                    <div className="flex justify-end">
-                        <Button
-                            onClick={handleSaveSettings}
-                            disabled={isSaving}
-                            variant="primary"
-                            icon={isSaving ? <Loader size={18} className="animate-spin" /> : <Save size={18} />}
-                        >
-                            {isSaving ? 'Salvataggio...' : 'Salva Impostazioni'}
-                        </Button>
-                    </div>
+            {/* Main Layout Tabs */}
+            <div className="flex flex-col lg:flex-row gap-8">
+                {/* Sidebar Navigation */}
+                <div className="w-full lg:w-64 shrink-0 space-y-2">
+                    {(Object.keys(sections) as TabType[]).map((key) => {
+                        const section = sections[key];
+                        const isActive = activeTab === key;
+                        const Icon = section.icon;
+                        return (
+                            <button
+                                key={key}
+                                onClick={() => setActiveTab(key)}
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-left ${isActive
+                                    ? 'bg-white shadow-md ring-1 ring-slate-200 text-slate-900 font-medium'
+                                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                                    }`}
+                            >
+                                <Icon size={18} className={isActive ? section.color : 'text-slate-400'} />
+                                {section.label}
+                            </button>
+                        );
+                    })}
                 </div>
-            )}
 
-            {activeTab === 'maintenance' && (
-                <div className="space-y-6">
-                    {/* Action Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                            <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-amber-500 text-white shadow-sm mb-4">
-                                <Database size={20} />
+                {/* Content Area */}
+                <div className="flex-1 min-w-0 space-y-8">
+
+                    {/* 1. General & Business Tab */}
+                    {activeTab === 'general' && (
+                        <div className="space-y-6">
+                            <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
+                                <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                    <Briefcase size={20} className="text-slate-500" />
+                                    Regole di Business
+                                </h3>
+                                <div className="grid grid-cols-1 gap-4">
+                                    {settings.filter(s => s.category === 'business' && !s.key.startsWith('approval.')).map(s => (
+                                        <SettingRow key={s.key} item={s} />
+                                    ))}
+                                </div>
                             </div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">Pulisci Cache Sistema</h3>
-                            <p className="text-sm text-gray-500 mb-4">Svuota le tabelle temporanee e rinfresca le viste materializzate del database.</p>
-                            <Button
-                                onClick={() => runMaintenance('cache', async () => { /* cache logic */ })}
-                                disabled={!!isProcessing || !!previewMode}
-                                variant="secondary"
-                                icon={isProcessing === 'cache' ? <Loader size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
-                                className="w-full justify-center"
-                            >
-                                Esegui Pulizia
-                            </Button>
                         </div>
+                    )}
 
-                        <div className={`bg-white border rounded-xl p-6 shadow-sm transition-all ${previewMode === 'recalc' ? 'border-indigo-300 ring-2 ring-indigo-100' : 'border-gray-200 hover:shadow-md'}`}>
-                            <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-indigo-500 text-white shadow-sm mb-4">
-                                <Zap size={20} />
+                    {/* 2. Notifications Tab */}
+                    {activeTab === 'notifications' && (
+                        <div className="space-y-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-4">
+                                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Canali Attivi</h3>
+                                    {settings.filter(s => ['email', 'app'].includes(s.category) && !s.key.startsWith('approval.')).map(s => (
+                                        <SettingRow key={s.key} item={s} />
+                                    ))}
+                                </div>
+                                <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+                                    <h3 className="font-bold text-slate-800 mb-2">Configurazione SMTP</h3>
+                                    <p className="text-sm text-slate-500 mb-6">Gestisci i provider di posta e le credenziali di invio.</p>
+                                    <EmailSettingsPanel />
+                                </div>
                             </div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">Ricalcola Saldi Globali</h3>
-                            <p className="text-sm text-gray-500 mb-4">Ricalcola tutti i wallet dipendenti partendo dalle transazioni storiche.</p>
-                            <Button
-                                onClick={() => loadPreview('recalc')}
-                                disabled={!!isProcessing || !!previewMode}
-                                variant="primary"
-                                icon={isLoadingPreview && previewMode === 'recalc' ? <Loader size={16} className="animate-spin" /> : <Users size={16} />}
-                                className="w-full justify-center"
-                            >
-                                Anteprima Modifiche
-                            </Button>
-                        </div>
 
-                        <div className={`bg-white border rounded-xl p-6 shadow-sm transition-all ${previewMode === 'rollover' ? 'border-purple-300 ring-2 ring-purple-100' : 'border-gray-200 hover:shadow-md'}`}>
-                            <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-purple-500 text-white shadow-sm mb-4">
-                                <RefreshCcw size={20} />
+                            <div className="border-t border-slate-200 pt-8">
+                                <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+                                    <Mail size={20} className="text-indigo-500" />
+                                    Template Email
+                                </h3>
+                                <EmailTemplatesPanel />
                             </div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">Rollover ROL Annuale</h3>
-                            <p className="text-sm text-gray-500 mb-4">Trasferisce le ore ROL residue nel pacchetto AP per tutti i dipendenti.</p>
-                            <Button
-                                onClick={() => loadPreview('rollover')}
-                                disabled={!!isProcessing || !!previewMode}
-                                variant="secondary"
-                                icon={isLoadingPreview && previewMode === 'rollover' ? <Loader size={16} className="animate-spin" /> : <Users size={16} />}
-                                className="w-full justify-center"
-                            >
-                                Anteprima Modifiche
-                            </Button>
                         </div>
+                    )}
 
-                        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                            <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-cyan-500 text-white shadow-sm mb-4">
-                                <RefreshCcw size={20} />
+                    {/* 3. Workflow Tab */}
+                    {activeTab === 'workflow' && (
+                        <div className="space-y-6">
+                            <div className="bg-gradient-to-br from-indigo-50 to-white p-6 rounded-xl border border-indigo-100 shadow-sm flex items-center justify-between">
+                                <div>
+                                    <h3 className="font-bold text-indigo-900 text-lg">Editor Grafico Workflow</h3>
+                                    <p className="text-indigo-700/80 text-sm mt-1">Configura visivamente i passaggi di approvazione per ferie e note spese.</p>
+                                </div>
+                                <Link to="/admin/workflows">
+                                    <Button variant="primary" icon={<GitBranch size={16} />}>
+                                        Apri Editor
+                                    </Button>
+                                </Link>
                             </div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">Reconciliation Ledger</h3>
-                            <p className="text-sm text-gray-500 mb-4">Verifica la coerenza tra il wallet legacy e il nuovo ledger enterprise.</p>
-                            <Button
-                                onClick={() => runMaintenance('reconciliation', async () => {
-                                    const msg = await leavesService.runReconciliation();
-                                    toast.info(msg);
-                                })}
-                                disabled={!!isProcessing || !!previewMode}
-                                variant="secondary"
-                                icon={isProcessing === 'reconciliation' ? <Loader size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
-                                className="w-full justify-center"
-                            >
-                                Esegui Verifica
-                            </Button>
-                        </div>
 
-                        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                            <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-emerald-500 text-white shadow-sm mb-4">
-                                <FileJson size={20} />
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Policy di Approvazione</h3>
+                                {settings.filter(s => s.key.startsWith('approval.')).map(s => (
+                                    <SettingRow key={s.key} item={s} />
+                                ))}
                             </div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">Inizializzazione Sistema</h3>
-                            <p className="text-sm text-gray-500 mb-4">Importa configurazioni core, utenti e flussi da file JSON per il primo setup.</p>
-                            <Link
-                                to="/admin/setup"
-                                className="inline-flex items-center justify-center gap-2 w-full py-2 px-4 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm text-sm font-medium"
-                            >
-                                <ArrowRight size={16} />
-                                Vai al Setup
-                            </Link>
                         </div>
-                    </div>
+                    )}
 
-                    {/* Import Tools Section */}
-                    <div className="grid grid-cols-1 gap-6">
-                        <BalanceImportTool />
-                    </div>
-
-                    {/* Preview Report Section */}
-                    {previewMode && (
-                        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm animate-fadeIn">
-                            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-lg ${previewMode === 'recalc' ? 'bg-indigo-100 text-indigo-600' : 'bg-purple-100 text-purple-600'}`}>
-                                        {previewMode === 'recalc' ? <Zap size={18} /> : <RefreshCcw size={18} />}
+                    {/* 4. Maintenance Tab */}
+                    {activeTab === 'maintenance' && (
+                        <div className="space-y-8">
+                            {/* Operational Tools */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div className="bg-white border boundary-slate-200 rounded-xl p-6 shadow-sm">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg"><Users size={20} /></div>
+                                        <h3 className="font-bold text-slate-800">Ricalcolo Saldi</h3>
                                     </div>
-                                    <div>
-                                        <h3 className="font-semibold text-gray-900">
-                                            {previewMode === 'recalc' ? `Anteprima Ricalcolo Saldi ${previewYear}` : `Anteprima Rollover ${previewYear - 1} → ${previewYear}`}
-                                        </h3>
-                                        <p className="text-xs text-gray-500">Seleziona i dipendenti a cui applicare le modifiche</p>
-                                    </div>
+                                    <p className="text-sm text-slate-500 mb-4 h-10">Rigenera i wallet di tutti i dipendenti basandosi sullo storico transazioni.</p>
+                                    <Button
+                                        onClick={() => loadPreview('recalc')}
+                                        className="w-full justify-center"
+                                        variant="outline"
+                                        disabled={!!isProcessing || !!previewMode}
+                                    >
+                                        Anteprima Ricalcolo
+                                    </Button>
                                 </div>
-                                <button
-                                    onClick={() => { setPreviewMode(null); setPreviewData([]); }}
-                                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
-                                >
-                                    <X size={18} />
-                                </button>
+
+                                <div className="bg-white border boundary-slate-200 rounded-xl p-6 shadow-sm">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="p-2 bg-purple-100 text-purple-600 rounded-lg"><RefreshCcw size={20} /></div>
+                                        <h3 className="font-bold text-slate-800">Rollover Annuale</h3>
+                                    </div>
+                                    <p className="text-sm text-slate-500 mb-4 h-10">Trasferisci i residui ROL/Banca Ore all'anno successivo.</p>
+                                    <Button
+                                        onClick={() => loadPreview('rollover')}
+                                        className="w-full justify-center"
+                                        variant="outline"
+                                        disabled={!!isProcessing || !!previewMode}
+                                    >
+                                        Anteprima Rollover
+                                    </Button>
+                                </div>
+
+                                <div className="bg-white border boundary-slate-200 rounded-xl p-6 shadow-sm">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="p-2 bg-cyan-100 text-cyan-600 rounded-lg"><Briefcase size={20} /></div>
+                                        <h3 className="font-bold text-slate-800">Importazione Dati</h3>
+                                    </div>
+                                    <p className="text-sm text-slate-500 mb-4">Importa saldi iniziali o storico presenze da CSV/Excel.</p>
+                                    <BalanceImportTool />
+                                </div>
+
+                                <div className="bg-white border boundary-slate-200 rounded-xl p-6 shadow-sm">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg"><FileJson size={20} /></div>
+                                        <h3 className="font-bold text-slate-800">Setup Guidato</h3>
+                                    </div>
+                                    <p className="text-sm text-slate-500 mb-4">Wizard per l'inizializzazione massiva del sistema.</p>
+                                    <Link to="/admin/setup" className="block w-full">
+                                        <Button className="w-full justify-center" variant="outline">Avvia Wizard</Button>
+                                    </Link>
+                                </div>
                             </div>
 
-                            {isLoadingPreview ? (
-                                <div className="flex items-center justify-center p-12 gap-3">
-                                    <Loader className="animate-spin text-indigo-600" size={24} />
-                                    <span className="text-sm text-gray-500">Caricamento anteprima dal server...</span>
+                            {/* Danger Zone */}
+                            <div className="border border-red-200 bg-red-50 rounded-xl p-6">
+                                <h3 className="text-red-800 font-bold mb-4 flex items-center gap-2">
+                                    <AlertTriangle size={20} />
+                                    Area Critica
+                                </h3>
+                                <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
+                                    <div className="text-sm text-red-700/80">
+                                        <strong className="block text-red-900">Pulizia Cache e Riconciliazione</strong>
+                                        Operazioni che impattano le performance o la consistenza dei dati. Eseguire solo se necessario.
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <Button
+                                            variant="danger"
+                                            size="sm"
+                                            onClick={() => runMaintenance('cache', async () => {/* cache logic */ })}
+                                            disabled={!!isProcessing}
+                                        >
+                                            Svuota Cache
+                                        </Button>
+                                        <Button
+                                            variant="danger"
+                                            size="sm"
+                                            onClick={() => runMaintenance('reconciliation', async () => {
+                                                const msg = await leavesService.runReconciliation();
+                                                toast.info(msg);
+                                            })}
+                                            disabled={!!isProcessing}
+                                        >
+                                            Verifica Integrità
+                                        </Button>
+                                    </div>
                                 </div>
-                            ) : previewData.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center p-12 text-center">
-                                    <Users className="text-gray-300 mb-4" size={48} />
-                                    <p className="text-lg font-medium text-gray-600">Nessun dipendente trovato</p>
-                                    <p className="text-sm text-gray-400">Non ci sono dati da elaborare per l'anno selezionato</p>
-                                </div>
-                            ) : (
-                                <>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full">
-                                            <thead>
-                                                <tr className="bg-gray-50 border-b border-gray-200">
-                                                    <th className="px-6 py-3 text-left">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={previewData.every(e => e.selected)}
-                                                            onChange={(e) => toggleAllSelection(e.target.checked)}
-                                                            className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                                        />
-                                                    </th>
-                                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Dipendente</th>
-                                                    <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Ferie Attuali</th>
-                                                    <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider"></th>
-                                                    <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Ferie Nuove</th>
-                                                    <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">ROL Attuali</th>
-                                                    <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider"></th>
-                                                    <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">ROL Nuovi</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-gray-100">
-                                                {previewData.map(employee => {
-                                                    const vacationDiff = employee.new_vacation - employee.current_vacation;
-                                                    const rolDiff = employee.new_rol - employee.current_rol;
-                                                    return (
-                                                        <tr key={employee.user_id} className={`transition-colors ${employee.selected ? 'bg-indigo-50/30' : 'hover:bg-gray-50'}`}>
-                                                            <td className="px-6 py-4">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={employee.selected}
-                                                                    onChange={() => toggleEmployeeSelection(employee.user_id)}
-                                                                    className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                                                />
-                                                            </td>
-                                                            <td className="px-6 py-4">
-                                                                <span className="font-medium text-gray-900">{employee.name}</span>
-                                                            </td>
-                                                            <td className="px-6 py-4 text-center">
-                                                                <span className="text-gray-600">{employee.current_vacation.toFixed(2)} gg</span>
-                                                            </td>
-                                                            <td className="px-6 py-4 text-center">
-                                                                <ArrowRight size={14} className="text-gray-300 mx-auto" />
-                                                            </td>
-                                                            <td className="px-6 py-4 text-center">
-                                                                <span className="font-semibold text-gray-900">{employee.new_vacation.toFixed(2)} gg</span>
-                                                                {vacationDiff !== 0 && (
-                                                                    <span className={`ml-2 text-xs font-medium ${vacationDiff > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                                                        {vacationDiff > 0 ? '+' : ''}{vacationDiff.toFixed(2)}
-                                                                    </span>
-                                                                )}
-                                                            </td>
-                                                            <td className="px-6 py-4 text-center">
-                                                                <span className="text-gray-600">{employee.current_rol.toFixed(2)} h</span>
-                                                            </td>
-                                                            <td className="px-6 py-4 text-center">
-                                                                <ArrowRight size={14} className="text-gray-300 mx-auto" />
-                                                            </td>
-                                                            <td className="px-6 py-4 text-center">
-                                                                <span className="font-semibold text-gray-900">{employee.new_rol.toFixed(2)} h</span>
-                                                                {rolDiff !== 0 && (
-                                                                    <span className={`ml-2 text-xs font-medium ${rolDiff > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                                                        {rolDiff > 0 ? '+' : ''}{rolDiff.toFixed(2)}
-                                                                    </span>
-                                                                )}
-                                                            </td>
+                            </div>
+
+                            {/* Preview Modal Area (Kept logic from original) */}
+                            {previewMode && (
+                                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+                                        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                                            <h3 className="font-bold text-slate-900 text-lg">
+                                                {previewMode === 'recalc' ? `Anteprima Ricalcolo ${previewYear}` : `Anteprima Rollover ${previewYear}`}
+                                            </h3>
+                                            <button onClick={() => setPreviewMode(null)} className="p-2 hover:bg-slate-100 rounded-lg"><X size={20} /></button>
+                                        </div>
+
+                                        <div className="flex-1 overflow-y-auto p-0">
+                                            {isLoadingPreview ? (
+                                                <div className="p-12 text-center text-slate-500">Caricamento in corso...</div>
+                                            ) : (
+                                                <table className="w-full text-left text-sm">
+                                                    <thead className="bg-slate-50 text-slate-500 font-semibold uppercase sticky top-0">
+                                                        <tr>
+                                                            <th className="px-6 py-3 w-10">
+                                                                <input type="checkbox" onChange={(e) => toggleAllSelection(e.target.checked)} />
+                                                            </th>
+                                                            <th className="px-6 py-3">Dipendente</th>
+                                                            <th className="px-6 py-3 text-center">Ferie Attuali</th>
+                                                            <th className="px-6 py-3 text-center">Ferie Nuove</th>
+                                                            <th className="px-6 py-3 text-center">ROL Attuali</th>
+                                                            <th className="px-6 py-3 text-center">ROL Nuovi</th>
                                                         </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100">
+                                                        {previewData.map(e => (
+                                                            <tr key={e.user_id} className="hover:bg-slate-50">
+                                                                <td className="px-6 py-4">
+                                                                    <input type="checkbox" checked={e.selected} onChange={() => toggleEmployeeSelection(e.user_id)} />
+                                                                </td>
+                                                                <td className="px-6 py-4 font-medium">{e.name}</td>
+                                                                <td className="px-6 py-4 text-center text-slate-500">{e.current_vacation.toFixed(2)}</td>
+                                                                <td className="px-6 py-4 text-center font-bold">{e.new_vacation.toFixed(2)}</td>
+                                                                <td className="px-6 py-4 text-center text-slate-500">{e.current_rol.toFixed(2)}</td>
+                                                                <td className="px-6 py-4 text-center font-bold">{e.new_rol.toFixed(2)}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            )}
+                                        </div>
 
-                                    {/* Action Bar */}
-                                    <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-                                        <span className="text-sm text-gray-600">
-                                            <strong>{selectedCount}</strong> di {previewData.length} dipendenti selezionati
-                                        </span>
-                                        <div className="flex gap-3">
-                                            <Button
-                                                variant="secondary"
-                                                onClick={() => { setPreviewMode(null); setPreviewData([]); }}
-                                            >
-                                                Annulla
-                                            </Button>
-                                            <Button
-                                                variant="primary"
-                                                onClick={applySelectedChanges}
-                                                disabled={selectedCount === 0 || !!isProcessing}
-                                                icon={isProcessing ? <Loader size={16} className="animate-spin" /> : <Check size={16} />}
-                                            >
-                                                {isProcessing ? 'Applicazione...' : `Applica a ${selectedCount} Dipendenti`}
+                                        <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3 rounded-b-2xl">
+                                            <Button variant="secondary" onClick={() => setPreviewMode(null)}>Annulla</Button>
+                                            <Button variant="primary" onClick={applySelectedChanges} disabled={selectedCount === 0 || !!isProcessing}>
+                                                {isProcessing ? 'Applicazione...' : `Applica a ${selectedCount} Selezionati`}
                                             </Button>
                                         </div>
                                     </div>
-                                </>
+                                </div>
                             )}
                         </div>
                     )}
-                </div>
-            )}
 
-            {activeTab === 'email' && (
-                <div className="space-y-6">
-                    <EmailSettingsPanel />
-                    <EmailTemplatesPanel />
-                </div>
-            )}
-
-            {activeTab === 'approvals' && (
-                <div className="space-y-6">
-                    {/* Workflow Configuration Link */}
-                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/50">
-                            <h3 className="font-semibold text-gray-900">Configurazione Workflow</h3>
-                            <p className="text-xs text-gray-500 mt-0.5">Gestisci i flussi di approvazione per ferie, trasferte e note spese</p>
-                        </div>
-                        <div className="p-6">
-                            <Link
-                                to="/admin/workflows"
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                    {/* Global Save Button (visible for settings tabs) */}
+                    {activeTab !== 'maintenance' && (
+                        <div className="fixed bottom-8 right-8 z-40">
+                            <Button
+                                onClick={handleSaveSettings}
+                                disabled={isSaving}
+                                className="shadow-xl rounded-full px-6 py-3 h-auto"
+                                icon={isSaving ? <Loader size={20} className="animate-spin" /> : <Save size={20} />}
                             >
-                                <GitBranch size={18} />
-                                Gestisci Workflow
-                            </Link>
+                                {isSaving ? 'Salvataggio...' : 'Salva Modifiche'}
+                            </Button>
                         </div>
-                    </div>
-
-                    {/* Approval Settings */}
-                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/50 flex items-center justify-between">
-                            <div>
-                                <h3 className="font-semibold text-gray-900">Impostazioni Approvazioni</h3>
-                                <p className="text-xs text-gray-500 mt-0.5">Configura il comportamento del sistema di approvazione</p>
-                            </div>
-                        </div>
-                        <div className="divide-y divide-gray-100">
-                            {settings.filter(s => s.key.startsWith('approval.')).map(setting => (
-                                <div key={setting.key} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                                    <div className="flex-1 min-w-0 mr-4">
-                                        <p className="font-medium text-gray-900">{setting.label}</p>
-                                        <p className="text-sm text-gray-500">{setting.description}</p>
-                                    </div>
-                                    <button
-                                        onClick={() => handleToggleSetting(setting.key)}
-                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${setting.value ? 'bg-indigo-600' : 'bg-gray-200'}`}
-                                    >
-                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${setting.value ? 'translate-x-6' : 'translate-x-1'}`} />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Save Button */}
-                    <div className="flex justify-end">
-                        <Button
-                            onClick={handleSaveSettings}
-                            disabled={isSaving}
-                            className="flex items-center gap-2"
-                        >
-                            {isSaving ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
-                            {isSaving ? 'Salvataggio...' : 'Salva Impostazioni'}
-                        </Button>
-                    </div>
+                    )}
                 </div>
-            )}
+            </div>
         </div>
     );
 }

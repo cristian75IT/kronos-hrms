@@ -1,0 +1,305 @@
+[
+    {
+        "code": "leave_request_submitted",
+        "name": "Nuova Richiesta Ferie",
+        "description": "Notifica inviata al responsabile quando viene sottomessa una nuova richiesta di ferie.",
+        "notification_type": "leave_request_submitted",
+        "subject": "Nuova richiesta ferie da {{employee_name}}",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #4F46E5;'>Nuova Richiesta di Ferie</h2><p>Il dipendente <strong>{{employee_name}}</strong> ha inviato una richiesta di ferie:</p><table style='width: 100%; border-collapse: collapse; margin: 20px 0;'><tr><td style='padding: 10px; border: 1px solid #E5E7EB;'><strong>Tipo</strong></td><td style='padding: 10px; border: 1px solid #E5E7EB;'>{{leave_type}}</td></tr><tr><td style='padding: 10px; border: 1px solid #E5E7EB;'><strong>Dal</strong></td><td style='padding: 10px; border: 1px solid #E5E7EB;'>{{start_date}}</td></tr><tr><td style='padding: 10px; border: 1px solid #E5E7EB;'><strong>Al</strong></td><td style='padding: 10px; border: 1px solid #E5E7EB;'>{{end_date}}</td></tr><tr><td style='padding: 10px; border: 1px solid #E5E7EB;'><strong>Giorni</strong></td><td style='padding: 10px; border: 1px solid #E5E7EB;'>{{total_days}}</td></tr></table><p><a href='{{action_url}}' style='display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;'>Gestisci Richiesta</a></p><p style='color: #6B7280; font-size: 12px; margin-top: 30px;'>Questa è una notifica automatica del sistema KRONOS.</p></div>",
+        "available_variables": [
+            "employee_name",
+            "leave_type",
+            "start_date",
+            "end_date",
+            "total_days",
+            "action_url"
+        ]
+    },
+    {
+        "code": "leave_request_approved",
+        "name": "Richiesta Ferie Approvata",
+        "description": "Notifica inviata al dipendente quando la sua richiesta viene approvata.",
+        "notification_type": "leave_request_approved",
+        "subject": "La tua richiesta di ferie è stata approvata",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #059669;'>✓ Richiesta Approvata</h2><p>Ciao <strong>{{employee_name}}</strong>,</p><p>La tua richiesta di ferie è stata <strong style='color: #059669;'>approvata</strong>.</p><table style='width: 100%; border-collapse: collapse; margin: 20px 0;'><tr><td style='padding: 10px; border: 1px solid #E5E7EB;'><strong>Tipo</strong></td><td style='padding: 10px; border: 1px solid #E5E7EB;'>{{leave_type}}</td></tr><tr><td style='padding: 10px; border: 1px solid #E5E7EB;'><strong>Periodo</strong></td><td style='padding: 10px; border: 1px solid #E5E7EB;'>{{start_date}} - {{end_date}}</td></tr><tr><td style='padding: 10px; border: 1px solid #E5E7EB;'><strong>Approvato da</strong></td><td style='padding: 10px; border: 1px solid #E5E7EB;'>{{approver_name}}</td></tr></table><p style='color: #6B7280; font-size: 12px; margin-top: 30px;'>Buone vacanze! - Team KRONOS</p></div>",
+        "available_variables": [
+            "employee_name",
+            "leave_type",
+            "start_date",
+            "end_date",
+            "approver_name"
+        ]
+    },
+    {
+        "code": "leave_request_rejected",
+        "name": "Richiesta Ferie Rifiutata",
+        "description": "Notifica inviata al dipendente quando la sua richiesta viene rifiutata.",
+        "notification_type": "leave_request_rejected",
+        "subject": "La tua richiesta di ferie è stata rifiutata",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #DC2626;'>✗ Richiesta Rifiutata</h2><p>Ciao <strong>{{employee_name}}</strong>,</p><p>Siamo spiacenti, la tua richiesta di ferie è stata <strong style='color: #DC2626;'>rifiutata</strong>.</p><table style='width: 100%; border-collapse: collapse; margin: 20px 0;'><tr><td style='padding: 10px; border: 1px solid #E5E7EB;'><strong>Periodo richiesto</strong></td><td style='padding: 10px; border: 1px solid #E5E7EB;'>{{start_date}} - {{end_date}}</td></tr><tr><td style='padding: 10px; border: 1px solid #E5E7EB;'><strong>Motivo</strong></td><td style='padding: 10px; border: 1px solid #E5E7EB;'>{{rejection_reason}}</td></tr></table><p>Per ulteriori informazioni, contatta il tuo responsabile.</p></div>",
+        "available_variables": [
+            "employee_name",
+            "start_date",
+            "end_date",
+            "rejection_reason"
+        ]
+    },
+    {
+        "code": "leave_request_cancelled",
+        "name": "Richiesta Ferie Annullata",
+        "description": "Notifica inviata quando una richiesta viene annullata.",
+        "notification_type": "leave_request_cancelled",
+        "subject": "Richiesta ferie annullata",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #6B7280;'>Richiesta Annullata</h2><p>La richiesta di ferie di <strong>{{employee_name}}</strong> per il periodo {{start_date}} - {{end_date}} è stata annullata.</p></div>",
+        "available_variables": [
+            "employee_name",
+            "start_date",
+            "end_date"
+        ]
+    },
+    {
+        "code": "leave_conditional_approval",
+        "name": "Approvazione Condizionata",
+        "description": "Notifica inviata quando la richiesta richiede accettazione di condizioni.",
+        "notification_type": "leave_conditional_approval",
+        "subject": "Richiesta approvata con condizioni - Azione richiesta",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #F59E0B;'>⚠ Approvazione Condizionata</h2><p>Ciao <strong>{{employee_name}}</strong>,</p><p>La tua richiesta è stata approvata, ma richiede la tua accettazione delle seguenti condizioni:</p><div style='background: #FEF3C7; padding: 15px; border-radius: 8px; margin: 20px 0;'>{{conditions}}</div><p><a href='{{action_url}}' style='display: inline-block; padding: 12px 24px; background-color: #F59E0B; color: white; text-decoration: none; border-radius: 6px;'>Accetta Condizioni</a></p></div>",
+        "available_variables": [
+            "employee_name",
+            "conditions",
+            "action_url"
+        ]
+    },
+    {
+        "code": "leave_balance_low",
+        "name": "Saldo Ferie Basso",
+        "description": "Alert automatico quando il saldo ferie scende sotto la soglia.",
+        "notification_type": "leave_balance_low",
+        "subject": "Attenzione: Saldo ferie in esaurimento",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #F59E0B;'>⚠ Saldo Ferie Basso</h2><p>Ciao <strong>{{employee_name}}</strong>,</p><p>Il tuo saldo {{balance_type}} è sceso a <strong>{{remaining_days}} giorni</strong>.</p><p>Pianifica con attenzione le tue prossime assenze.</p></div>",
+        "available_variables": [
+            "employee_name",
+            "balance_type",
+            "remaining_days"
+        ]
+    },
+    {
+        "code": "leave_upcoming_reminder",
+        "name": "Promemoria Ferie Imminenti",
+        "description": "Reminder inviato prima dell'inizio del periodo di ferie.",
+        "notification_type": "leave_upcoming_reminder",
+        "subject": "Promemoria: Le tue ferie iniziano tra {{days_until}} giorni",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #4F46E5;'>📅 Promemoria Ferie</h2><p>Ciao <strong>{{employee_name}}</strong>,</p><p>Ti ricordiamo che il tuo periodo di ferie inizia il <strong>{{start_date}}</strong>.</p><p>Assicurati di completare eventuali handover prima della partenza.</p></div>",
+        "available_variables": [
+            "employee_name",
+            "start_date",
+            "days_until"
+        ]
+    },
+    {
+        "code": "trip_submitted",
+        "name": "Nuova Richiesta Trasferta",
+        "description": "Notifica inviata al responsabile per una nuova richiesta di trasferta.",
+        "notification_type": "trip_submitted",
+        "subject": "Nuova richiesta trasferta da {{employee_name}}",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #4F46E5;'>Nuova Richiesta Trasferta</h2><p><strong>{{employee_name}}</strong> ha richiesto una trasferta:</p><table style='width: 100%; border-collapse: collapse; margin: 20px 0;'><tr><td style='padding: 10px; border: 1px solid #E5E7EB;'><strong>Destinazione</strong></td><td style='padding: 10px; border: 1px solid #E5E7EB;'>{{destination}}</td></tr><tr><td style='padding: 10px; border: 1px solid #E5E7EB;'><strong>Periodo</strong></td><td style='padding: 10px; border: 1px solid #E5E7EB;'>{{start_date}} - {{end_date}}</td></tr><tr><td style='padding: 10px; border: 1px solid #E5E7EB;'><strong>Motivo</strong></td><td style='padding: 10px; border: 1px solid #E5E7EB;'>{{purpose}}</td></tr></table><p><a href='{{action_url}}' style='display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;'>Gestisci Richiesta</a></p></div>",
+        "available_variables": [
+            "employee_name",
+            "destination",
+            "start_date",
+            "end_date",
+            "purpose",
+            "action_url"
+        ]
+    },
+    {
+        "code": "trip_approved",
+        "name": "Trasferta Approvata",
+        "description": "Notifica inviata al dipendente quando la trasferta viene approvata.",
+        "notification_type": "trip_approved",
+        "subject": "La tua trasferta è stata approvata",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #059669;'>✓ Trasferta Approvata</h2><p>Ciao <strong>{{employee_name}}</strong>,</p><p>La tua richiesta di trasferta a <strong>{{destination}}</strong> è stata approvata.</p><p>Periodo: {{start_date}} - {{end_date}}</p></div>",
+        "available_variables": [
+            "employee_name",
+            "destination",
+            "start_date",
+            "end_date"
+        ]
+    },
+    {
+        "code": "trip_rejected",
+        "name": "Trasferta Rifiutata",
+        "description": "Notifica inviata al dipendente quando la trasferta viene rifiutata.",
+        "notification_type": "trip_rejected",
+        "subject": "La tua richiesta di trasferta è stata rifiutata",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #DC2626;'>✗ Trasferta Rifiutata</h2><p>Ciao <strong>{{employee_name}}</strong>,</p><p>La tua richiesta di trasferta a {{destination}} è stata rifiutata.</p><p><strong>Motivo:</strong> {{rejection_reason}}</p></div>",
+        "available_variables": [
+            "employee_name",
+            "destination",
+            "rejection_reason"
+        ]
+    },
+    {
+        "code": "expense_submitted",
+        "name": "Nuova Nota Spese",
+        "description": "Notifica inviata al responsabile per una nuova nota spese.",
+        "notification_type": "expense_submitted",
+        "subject": "Nuova nota spese da {{employee_name}}",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #4F46E5;'>Nuova Nota Spese</h2><p><strong>{{employee_name}}</strong> ha sottomesso una nota spese:</p><table style='width: 100%; border-collapse: collapse; margin: 20px 0;'><tr><td style='padding: 10px; border: 1px solid #E5E7EB;'><strong>Importo Totale</strong></td><td style='padding: 10px; border: 1px solid #E5E7EB;'>€ {{total_amount}}</td></tr><tr><td style='padding: 10px; border: 1px solid #E5E7EB;'><strong>Descrizione</strong></td><td style='padding: 10px; border: 1px solid #E5E7EB;'>{{description}}</td></tr></table><p><a href='{{action_url}}' style='display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px;'>Rivedi Nota Spese</a></p></div>",
+        "available_variables": [
+            "employee_name",
+            "total_amount",
+            "description",
+            "action_url"
+        ]
+    },
+    {
+        "code": "expense_approved",
+        "name": "Nota Spese Approvata",
+        "description": "Notifica inviata al dipendente quando la nota spese viene approvata.",
+        "notification_type": "expense_approved",
+        "subject": "La tua nota spese è stata approvata",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #059669;'>✓ Nota Spese Approvata</h2><p>Ciao <strong>{{employee_name}}</strong>,</p><p>La tua nota spese di <strong>€ {{total_amount}}</strong> è stata approvata e verrà processata per il rimborso.</p></div>",
+        "available_variables": [
+            "employee_name",
+            "total_amount"
+        ]
+    },
+    {
+        "code": "expense_rejected",
+        "name": "Nota Spese Rifiutata",
+        "description": "Notifica inviata al dipendente quando la nota spese viene rifiutata.",
+        "notification_type": "expense_rejected",
+        "subject": "La tua nota spese è stata rifiutata",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #DC2626;'>✗ Nota Spese Rifiutata</h2><p>Ciao <strong>{{employee_name}}</strong>,</p><p>La tua nota spese è stata rifiutata.</p><p><strong>Motivo:</strong> {{rejection_reason}}</p><p>Puoi modificare e risottomettere la nota spese.</p></div>",
+        "available_variables": [
+            "employee_name",
+            "rejection_reason"
+        ]
+    },
+    {
+        "code": "expense_paid",
+        "name": "Rimborso Effettuato",
+        "description": "Notifica inviata al dipendente quando il rimborso è stato effettuato.",
+        "notification_type": "expense_paid",
+        "subject": "Il tuo rimborso spese è stato effettuato",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #059669;'>💰 Rimborso Effettuato</h2><p>Ciao <strong>{{employee_name}}</strong>,</p><p>Il rimborso di <strong>€ {{total_amount}}</strong> è stato effettuato.</p><p>Data pagamento: {{payment_date}}</p></div>",
+        "available_variables": [
+            "employee_name",
+            "total_amount",
+            "payment_date"
+        ]
+    },
+    {
+        "code": "calendar_system_deadline",
+        "name": "Scadenza di Sistema",
+        "description": "Notifica per scadenze aziendali/di sistema.",
+        "notification_type": "calendar_system_deadline",
+        "subject": "Promemoria: {{event_title}}",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #DC2626;'>🔔 Scadenza di Sistema</h2><p><strong>{{event_title}}</strong></p><p>Data: {{event_date}}</p><p>{{event_description}}</p></div>",
+        "available_variables": [
+            "event_title",
+            "event_date",
+            "event_description"
+        ]
+    },
+    {
+        "code": "calendar_personal_deadline",
+        "name": "Scadenza Personale",
+        "description": "Promemoria per scadenze personali.",
+        "notification_type": "calendar_personal_deadline",
+        "subject": "Promemoria: {{event_title}}",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #4F46E5;'>📅 Promemoria Personale</h2><p><strong>{{event_title}}</strong></p><p>Data: {{event_date}}</p></div>",
+        "available_variables": [
+            "event_title",
+            "event_date"
+        ]
+    },
+    {
+        "code": "calendar_shared_deadline",
+        "name": "Scadenza Condivisa",
+        "description": "Promemoria per scadenze di team/condivise.",
+        "notification_type": "calendar_shared_deadline",
+        "subject": "Promemoria Team: {{event_title}}",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #8B5CF6;'>👥 Scadenza Team</h2><p><strong>{{event_title}}</strong></p><p>Data: {{event_date}}</p><p>{{event_description}}</p></div>",
+        "available_variables": [
+            "event_title",
+            "event_date",
+            "event_description"
+        ]
+    },
+    {
+        "code": "system_announcement",
+        "name": "Comunicazione di Sistema",
+        "description": "Annunci e comunicazioni aziendali.",
+        "notification_type": "system_announcement",
+        "subject": "{{announcement_title}}",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #4F46E5;'>📢 Comunicazione Aziendale</h2><h3>{{announcement_title}}</h3><div style='margin: 20px 0;'>{{announcement_content}}</div><p style='color: #6B7280; font-size: 12px;'>- La Direzione</p></div>",
+        "available_variables": [
+            "announcement_title",
+            "announcement_content"
+        ]
+    },
+    {
+        "code": "compliance_alert",
+        "name": "Alert Compliance",
+        "description": "Notifiche per adempimenti normativi (D.Lgs. 81/08, etc.).",
+        "notification_type": "compliance_alert",
+        "subject": "⚠ Alert Compliance: {{alert_title}}",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #DC2626;'>⚠ Alert Compliance</h2><h3>{{alert_title}}</h3><p>{{alert_description}}</p><p><strong>Scadenza:</strong> {{deadline}}</p><p><a href='{{action_url}}' style='display: inline-block; padding: 12px 24px; background-color: #DC2626; color: white; text-decoration: none; border-radius: 6px;'>Gestisci Adempimento</a></p></div>",
+        "available_variables": [
+            "alert_title",
+            "alert_description",
+            "deadline",
+            "action_url"
+        ]
+    },
+    {
+        "code": "generic_info",
+        "name": "Notifica Informativa",
+        "description": "Template generico per notifiche informative.",
+        "notification_type": "info",
+        "subject": "{{subject}}",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #3B82F6;'>ℹ️ Informazione</h2><p>{{message}}</p></div>",
+        "available_variables": [
+            "subject",
+            "message"
+        ]
+    },
+    {
+        "code": "generic_warning",
+        "name": "Notifica di Avviso",
+        "description": "Template generico per avvisi.",
+        "notification_type": "warning",
+        "subject": "⚠ {{subject}}",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #F59E0B;'>⚠ Avviso</h2><p>{{message}}</p></div>",
+        "available_variables": [
+            "subject",
+            "message"
+        ]
+    },
+    {
+        "code": "generic_error",
+        "name": "Notifica di Errore",
+        "description": "Template generico per errori di sistema.",
+        "notification_type": "error",
+        "subject": "❌ Errore: {{subject}}",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #DC2626;'>❌ Errore</h2><p>{{message}}</p></div>",
+        "available_variables": [
+            "subject",
+            "message"
+        ]
+    },
+    {
+        "code": "generic_success",
+        "name": "Notifica di Successo",
+        "description": "Template generico per conferme di operazioni.",
+        "notification_type": "success",
+        "subject": "✓ {{subject}}",
+        "html_content": "<div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'><h2 style='color: #059669;'>✓ Operazione Completata</h2><p>{{message}}</p></div>",
+        "available_variables": [
+            "subject",
+            "message"
+        ]
+    }
+]

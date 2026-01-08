@@ -120,6 +120,35 @@ async def create_template(
     return await service.create_template(data)
 
 
+@router.post("/notifications/templates/import", response_model=dict)
+async def import_templates(
+    data: List[EmailTemplateCreate],
+    current_user: TokenPayload = Depends(require_permission("notifications:templates")),
+    service: NotificationService = Depends(get_notification_service),
+):
+    """Bulk import email templates. Skips existing codes. Admin only."""
+    created = 0
+    skipped = 0
+    errors = []
+    
+    for template_data in data:
+        try:
+            await service.create_template(template_data)
+            created += 1
+        except BusinessRuleError as e:
+            # Template already exists
+            skipped += 1
+        except Exception as e:
+            errors.append(f"{template_data.code}: {str(e)}")
+    
+    return {
+        "created": created,
+        "skipped": skipped,
+        "errors": errors,
+        "total": len(data)
+    }
+
+
 @router.put("/notifications/templates/{id}", response_model=EmailTemplateResponse)
 async def update_template(
     id: UUID,
