@@ -1,7 +1,7 @@
 from typing import Optional, List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 
 from src.core.security import get_current_user, require_permission, TokenPayload
 from src.core.exceptions import BusinessRuleError
@@ -241,7 +241,7 @@ async def get_email_provider_settings(
     """Get active email provider settings. Admin only."""
     settings = await service.get_email_provider_settings()
     if not settings:
-        raise HTTPException(status_code=404, detail="Email provider not configured")
+        return Response(status_code=204)
     
     return EmailProviderSettingsResponse.model_validate(settings)
 

@@ -36,6 +36,13 @@ export function EmailSettingsPanel({ className }: EmailSettingsPanelProps) {
         setLoading(true);
         try {
             const data = await notificationService.getProviderSettings();
+
+            // Handle 204 No Content (empty data)
+            if (!data) {
+                setIsNewSettings(true);
+                return;
+            }
+
             setSettings(data);
             setFormData({
                 api_key: '', // Never show actual key
@@ -49,11 +56,8 @@ export function EmailSettingsPanel({ className }: EmailSettingsPanelProps) {
             });
             setIsNewSettings(false);
         } catch (err: any) {
-            if (err.response?.status === 404) {
-                setIsNewSettings(true);
-            } else {
-                toast.error('Errore caricamento impostazioni');
-            }
+            console.error('Error loading settings:', err);
+            toast.error('Errore caricamento impostazioni');
         } finally {
             setLoading(false);
         }
