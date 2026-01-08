@@ -12,12 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.shared.audit_client import get_audit_logger
 from src.shared.clients import AuthClient, ConfigClient
 
-from src.services.notifications.repository import (
+from src.services.notifications.repositories import (
     NotificationRepository,
     EmailTemplateRepository,
     EmailLogRepository,
     EmailProviderSettingsRepository,
     PushSubscriptionRepository,
+    UserPreferenceRepository,
+    CalendarExternalRepository,
 )
 
 logger = logging.getLogger(__name__)
@@ -33,6 +35,8 @@ class BaseNotificationService:
         self._email_log_repo = EmailLogRepository(session)
         self._provider_repo = EmailProviderSettingsRepository(session)
         self._push_repo = PushSubscriptionRepository(session)
+        self._prefs_repo = UserPreferenceRepository(session)
+        self._calendar_repo = CalendarExternalRepository(session)
         
         self._audit = get_audit_logger("notification-service")
         

@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { X, Save, Loader } from 'lucide-react';
-import { useExpenseTypes, useAddExpenseItem } from '../../hooks/useApi';
+import { useAddExpenseItem } from '../../hooks/domain/useExpenses';
+import { useExpenseTypes } from '../../hooks/domain/useConfigs';
 import { useToast } from '../../context/ToastContext';
 
 interface ExpenseItemModalProps {

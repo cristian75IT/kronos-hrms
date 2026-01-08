@@ -4,7 +4,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.core.security import get_current_user, require_permission, TokenPayload
-from src.core.exceptions import NotFoundError, BusinessRuleError
+from src.core.exceptions import BusinessRuleError
+from src.services.notifications.exceptions import (
+    TemplateNotFound,
+    ProviderConfigurationError,
+    NotificationNotFound,
+)
 from src.shared.schemas import MessageResponse, DataTableRequest, DataTableResponse
 from src.services.notifications.services import NotificationService
 from src.services.notifications.deps import get_notification_service
@@ -137,9 +142,9 @@ async def sync_template_to_brevo(
         if await service.sync_template_to_brevo(id, user_id=current_user.user_id):
             return {"status": "ok"}
         raise HTTPException(status_code=500, detail="Sync failed")
-    except NotFoundError as e:
+    except TemplateNotFound as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except (ValueError, BusinessRuleError) as e:
+    except (ValueError, BusinessRuleError, ProviderConfigurationError) as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

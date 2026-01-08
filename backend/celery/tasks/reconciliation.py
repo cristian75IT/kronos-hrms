@@ -228,13 +228,142 @@ def auto_fix_missing_ledger_entries():
     Auto-fix task to create missing ledger entries.
     
     Only runs if AUTO_FIX_RECONCILIATION is enabled.
+    Queries for approved leave requests without corresponding ledger entries
+    and creates them based on the leave type and days requested.
     """
     if not getattr(settings, 'auto_fix_reconciliation', False):
         logger.info("Auto-fix disabled, skipping")
         return {"status": "skipped", "reason": "auto_fix_disabled"}
     
-    # TODO: Implement auto-fix logic
-    # Should create ledger entries for approved requests that don't have them
+    import asyncio
     
-    logger.info("Auto-fix not yet implemented")
-    return {"status": "not_implemented"}
+    async def _run():
+        engine = create_async_engine(settings.database_url)
+        async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        
+        fixed_count = 0
+        error_count = 0
+        
+        async with async_session() as session:
+            # Query approved leave requests without ledger entries
+            query = text("""
+                SELECT 
+                    lr.id,
+                    lr.user_id,
+                    lr.leave_type_code,
+                    lr.days_requested,
+                    lr.approved_by,
+                    lr.approved_at
+                FROM leaves.leave_requests lr
+                WHERE lr.status IN ('APPROVED', 'APPROVED_CONDITIONAL')
+                AND lr.balance_deducted = true
+                AND NOT EXISTS (
+                    SELECT 1 FROM leaves.time_ledger tl
+                    WHERE tl.reference_type = 'LEAVE_REQUEST'
+                    AND tl.reference_id = lr.id
+                    AND tl.entry_type = 'USAGE'
+                )
+                ORDER BY lr.approved_at ASC
+                LIMIT 100
+            """)
+            
+            result = await session.execute(query)
+            rows = result.fetchall()
+            
+            if not rows:
+                logger.info("No missing ledger entries to fix")
+                return {
+                    "status": "completed",
+                    "fixed": 0,
+                    "errors": 0,
+                    "message": "No missing entries found"
+                }
+            
+            logger.info(f"Found {len(rows)} approved requests without ledger entries")
+            
+            # Map leave type codes to balance types
+            leave_type_to_balance = {
+                "FER": "VACATION_AC",  # Ferie -> Vacation Anno Corrente
+                "ROL": "ROL",           # ROL -> ROL
+                "PER": "PERMITS",       # Permessi Ex Festività -> Permits
+                "L104": "PERMITS",      # Legge 104 -> Permits
+                "DON": "PERMITS",       # Donazione Sangue -> Permits
+                # Other types that might not consume balance
+                "MAL": None,            # Malattia - doesn't consume balance
+                "LUT": None,            # Lutto - doesn't consume balance
+                "MAT": None,            # Matrimonio - doesn't consume balance
+            }
+            
+            for row in rows:
+                try:
+                    leave_type_code = row.leave_type_code
+                    balance_type = leave_type_to_balance.get(leave_type_code)
+                    
+                    if not balance_type:
+                        logger.debug(
+                            f"Leave type {leave_type_code} does not consume balance, skipping"
+                        )
+                        continue
+                    
+                    # Create the ledger entry directly via SQL for simplicity
+                    # (Using the service would require full async context)
+                    insert_query = text("""
+                        INSERT INTO leaves.time_ledger (
+                            id, user_id, year, entry_type, balance_type,
+                            amount, reference_type, reference_id, 
+                            reference_status, notes, created_by, created_at
+                        ) VALUES (
+                            gen_random_uuid(),
+                            :user_id,
+                            EXTRACT(YEAR FROM :approved_at)::int,
+                            'USAGE',
+                            :balance_type,
+                            :amount,
+                            'LEAVE_REQUEST',
+                            :leave_request_id,
+                            'APPROVED',
+                            'Auto-fixed by reconciliation task',
+                            :approved_by,
+                            NOW()
+                        )
+                    """)
+                    
+                    await session.execute(insert_query, {
+                        "user_id": row.user_id,
+                        "approved_at": row.approved_at,
+                        "balance_type": balance_type,
+                        "amount": row.days_requested,
+                        "leave_request_id": row.id,
+                        "approved_by": row.approved_by,
+                    })
+                    
+                    fixed_count += 1
+                    logger.info(
+                        f"Fixed ledger entry for leave request {row.id} "
+                        f"(user={row.user_id}, type={balance_type}, amount={row.days_requested})"
+                    )
+                    
+                except Exception as e:
+                    error_count += 1
+                    logger.error(f"Failed to fix leave request {row.id}: {e}")
+            
+            await session.commit()
+        
+        await engine.dispose()
+        
+        result = {
+            "status": "completed",
+            "fixed": fixed_count,
+            "errors": error_count,
+            "checked_at": datetime.utcnow().isoformat(),
+        }
+        
+        if fixed_count > 0:
+            logger.warning(f"RECONCILIATION AUTO-FIX: Created {fixed_count} missing ledger entries")
+        if error_count > 0:
+            logger.error(f"RECONCILIATION AUTO-FIX: {error_count} errors during fix")
+        
+        return result
+    
+    return asyncio.run(_run())
+

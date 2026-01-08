@@ -4,14 +4,20 @@ Accrual Calculation Strategies.
 from abc import ABC, abstractmethod
 from decimal import Decimal
 from datetime import date
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Protocol
+
+
+class ContractLike(Protocol):
+    """Protocol for contract-like objects used in accrual calculations."""
+    start_date: date
+    end_date: Optional[date]
 
 class CalculationStrategy(ABC):
     @abstractmethod
     def calculate(
         self, 
         annual_amount: Decimal, 
-        contract: Any, 
+        contract: ContractLike, 
         period_start: date, 
         period_end: date,
         params: Optional[Dict[str, Any]] = None
@@ -25,7 +31,7 @@ class MonthlyStandardStrategy(CalculationStrategy):
     def calculate(
         self, 
         annual_amount: Decimal, 
-        contract: Any, 
+        contract: ContractLike, 
         period_start: date, 
         period_end: date, 
         params: Optional[Dict[str, Any]] = None
@@ -64,7 +70,7 @@ class Daily365Strategy(CalculationStrategy):
     def calculate(
         self, 
         annual_amount: Decimal, 
-        contract: Any, 
+        contract: ContractLike, 
         period_start: date, 
         period_end: date, 
         params: Optional[Dict[str, Any]] = None

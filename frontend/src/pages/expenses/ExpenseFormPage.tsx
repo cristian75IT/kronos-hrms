@@ -1,7 +1,7 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { Calendar as CalendarIcon, Save, X, AlertCircle, FileText, Briefcase, Receipt } from 'lucide-react';
-import { useCreateExpenseReport, useUploadReportAttachment, useTrips } from '../../hooks/useApi';
+import { useCreateExpenseReport, useUploadReportAttachment, useTrips } from '../../hooks/domain/useExpenses';
 import { useState, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { formatApiError } from '../../utils/errorUtils';
@@ -108,8 +108,8 @@ export function ExpenseFormPage() {
                                 type="button"
                                 onClick={() => setValue('is_standalone', false)}
                                 className={`p-4 rounded-lg border-2 flex flex-col items-center gap-2 transition-all ${!isStandalone
-                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                                        : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                    : 'border-gray-200 hover:border-gray-300 text-gray-600'
                                     }`}
                             >
                                 <Briefcase size={24} />
@@ -123,8 +123,8 @@ export function ExpenseFormPage() {
                                     setValue('trip_id', '');
                                 }}
                                 className={`p-4 rounded-lg border-2 flex flex-col items-center gap-2 transition-all ${isStandalone
-                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                                        : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                    : 'border-gray-200 hover:border-gray-300 text-gray-600'
                                     }`}
                             >
                                 <Receipt size={24} />

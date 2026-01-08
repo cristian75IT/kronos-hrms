@@ -14,7 +14,7 @@ import {
   History,
   X
 } from 'lucide-react';
-import { useLeaveRequests, useBalanceSummary } from '../../hooks/useApi';
+import { useLeaveRequests, useBalanceSummary } from '../../hooks/domain/useLeaves';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../../components/common';
 import { format } from 'date-fns';

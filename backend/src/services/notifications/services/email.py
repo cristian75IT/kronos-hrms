@@ -10,7 +10,12 @@ from uuid import UUID
 from datetime import datetime
 from typing import Optional, Any
 
-from src.core.exceptions import NotFoundError, BusinessRuleError
+from src.services.notifications.exceptions import (
+    NotificationNotFound,
+    TemplateNotFound,
+    ProviderConfigurationError,
+    DailyEmailLimitExceeded
+)
 from src.services.notifications.models import Notification
 from src.services.notifications.schemas import SendEmailRequest, SendEmailResponse
 from src.services.notifications.services.base import BaseNotificationService
@@ -29,6 +34,8 @@ class NotificationEmailService(BaseNotificationService):
         template = None
         if data.template_code:
             template = await self._template_repo.get_by_code(data.template_code)
+            if not template:
+                raise TemplateNotFound(f"Template {data.template_code} not found")
             
         success = await self._send_email_with_log(
             to_email=data.to_email,
@@ -64,7 +71,7 @@ class NotificationEmailService(BaseNotificationService):
         """Manually retry a specific email log."""
         log = await self._email_log_repo.get(log_id)
         if not log:
-            raise NotFoundError("Email log not found")
+            raise NotificationNotFound("Email log not found")
             
         # Re-send
         # We need to reconstruct template object or just pass None/Raw check
@@ -88,7 +95,7 @@ class NotificationEmailService(BaseNotificationService):
         log = await self._email_log_repo.get(log_id)
         if not log:
             if permissive: return []
-            raise NotFoundError("Email log not found")
+            raise NotificationNotFound("Email log not found")
         
         if not log.message_id:
              return []
@@ -183,7 +190,7 @@ class NotificationEmailService(BaseNotificationService):
         log = await self._email_log_repo.create_pending(
             user_id=user_id,
             notification_id=notification_id,
-            recipient=to_email,
+            to_email=to_email,
             subject=subject,
             template_code=template.code if template else None,
             variables=variables
@@ -217,7 +224,7 @@ class NotificationEmailService(BaseNotificationService):
         """Send email via Brevo API."""
         settings = await self._provider_repo.get_active()
         if not settings:
-            raise BusinessRuleError("No active email provider configured")
+            raise ProviderConfigurationError("No active email provider configured")
             
         config = settings.get_config_dict()
         api_key = config.get("api_key")
@@ -225,7 +232,7 @@ class NotificationEmailService(BaseNotificationService):
         sender_name = config.get("sender_name")
         
         if not api_key or not sender_email:
-            raise BusinessRuleError("Invalid provider configuration")
+            raise ProviderConfigurationError("Invalid provider configuration")
             
         # Prepare payload
         payload = {

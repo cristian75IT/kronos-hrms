@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { useExpenseReport } from '../../hooks/useApi';
+import { useExpenseReport } from '../../hooks/domain/useExpenses';
 import { useAuth, useIsApprover, useIsAdmin, useIsHR } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { reportsService } from '../../services/expenses.service';

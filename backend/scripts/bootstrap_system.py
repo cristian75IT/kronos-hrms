@@ -185,7 +185,8 @@ async def bootstrap():
                 is_active=True
             )
             session.add(admin)
-            print("   + User: christian@example.com")
+            await session.flush()  # Persist user before FK-dependent inserts
+            print("   + User: cristian@example.com")
         
         # 5. Link Admin Role
         print("\n🔗 Step 5: Assigning 'admin' role to Superadmin...")

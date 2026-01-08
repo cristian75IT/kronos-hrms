@@ -562,13 +562,14 @@ export interface Notification {
     notification_type: string;
     title: string;
     message: string;
-    channel: 'in_app' | 'email';
-    is_read: boolean;
+    channel: 'in_app' | 'email' | 'push' | 'sms';
+    status: 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
+    sent_at?: string;
     read_at?: string;
+    recipient_name?: string;
     entity_type?: string;
     entity_id?: string;
     action_url?: string;
-    priority: 'low' | 'normal' | 'high' | 'urgent';
     created_at: string;
 }
 

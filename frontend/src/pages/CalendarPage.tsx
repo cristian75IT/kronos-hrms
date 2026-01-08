@@ -27,10 +27,10 @@ import {
     useCreateUserCalendar,
     useDeleteUserCalendar,
     useUpdateUserCalendar,
-    useUsers,
     useShareUserCalendar,
     useUnshareUserCalendar
-} from '../hooks/useApi';
+} from '../hooks/domain/useCalendar';
+import { useUsers } from '../hooks/domain/useUsers';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/common';
 import { NewEventModal, EventDetailModal } from '../components/calendar';

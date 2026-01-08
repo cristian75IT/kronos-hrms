@@ -141,9 +141,14 @@ export interface CalendarDayItem {
     id: string;
     title: string;
     item_type: 'holiday' | 'closure' | 'event' | 'leave' | 'trip';
+    date: string;
     start_date: string;
     end_date: string;
     color: string;
+    is_all_day: boolean;
+    start_time?: string;
+    end_time?: string;
+    status?: string;
     metadata?: Record<string, unknown>;
 }
 
@@ -151,6 +156,7 @@ export interface CalendarDayView {
     date: string;
     is_working_day: boolean;
     is_holiday: boolean;
+    holiday_name?: string;
     items: CalendarDayItem[];
 }
 

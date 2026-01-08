@@ -7,7 +7,8 @@ import logging
 from uuid import UUID
 from typing import Optional
 
-from src.core.exceptions import NotFoundError, BusinessRuleError
+from src.core.exceptions import BusinessRuleError
+from src.services.notifications.exceptions import TemplateNotFound, ProviderConfigurationError
 from src.services.notifications.schemas import (
     EmailTemplateCreate,
     EmailTemplateUpdate,
@@ -33,7 +34,7 @@ class NotificationTemplateService(BaseNotificationService):
         """Get template by ID."""
         template = await self._template_repo.get(id)
         if not template:
-            raise NotFoundError("Email template not found")
+            raise TemplateNotFound("Email template not found")
         return template
 
     async def create_template(self, data: EmailTemplateCreate):
@@ -71,7 +72,7 @@ class NotificationTemplateService(BaseNotificationService):
         
         provider_settings = await self._provider_repo.get_active()
         if not provider_settings:
-             raise BusinessRuleError("No active email provider configured")
+             raise ProviderConfigurationError("No active email provider configured")
              
         config = provider_settings.get_config_dict()
         api_key = config.get("api_key")
@@ -79,7 +80,7 @@ class NotificationTemplateService(BaseNotificationService):
         sender_name = config.get("sender_name")
         
         if not api_key:
-             raise BusinessRuleError("Missing API key")
+             raise ProviderConfigurationError("Missing API key")
              
         # Determine if create or update
         is_update = bool(template.brevo_template_id)

@@ -12,7 +12,7 @@ from src.services.notifications.models import (
     NotificationType,
     NotificationChannel,
 )
-from src.services.notifications.repository import CalendarExternalRepository
+from src.services.notifications.repositories import CalendarExternalRepository
 from src.services.notifications.schemas import NotificationCreate
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -74,7 +74,7 @@ async def _check_system_deadlines_async():
     session = await _get_async_session()
     
     try:
-        from src.services.notifications.repository import CalendarExternalRepository
+        from src.services.notifications.repositories import CalendarExternalRepository
         cal_repo = CalendarExternalRepository(session)
         
         # Get deadlines in the next 24 hours
@@ -177,7 +177,7 @@ async def _check_personal_deadlines_async():
     session = await _get_async_session()
     
     try:
-        from src.services.notifications.repository import CalendarExternalRepository
+        from src.services.notifications.repositories import CalendarExternalRepository
         cal_repo = CalendarExternalRepository(session)
         
         now = datetime.utcnow()
@@ -241,7 +241,7 @@ async def _check_shared_deadlines_async():
     session = await _get_async_session()
     
     try:
-        from src.services.notifications.repository import CalendarExternalRepository
+        from src.services.notifications.repositories import CalendarExternalRepository
         cal_repo = CalendarExternalRepository(session)
         
         now = datetime.utcnow()
@@ -269,7 +269,7 @@ async def _notify_shared_calendar_users(session: AsyncSession, event) -> None:
     import httpx
     
     # Get calendar shares
-    from src.services.notifications.repository import CalendarExternalRepository
+    from src.services.notifications.repositories import CalendarExternalRepository
     cal_repo = CalendarExternalRepository(session)
     
     shares = await cal_repo.get_calendar_shares(event.calendar_id)
@@ -311,7 +311,7 @@ def process_email_retries():
 async def _process_email_retries_async():
     """Async implementation of email retry processor."""
     from src.services.notifications.models import EmailLogStatus
-    from src.services.notifications.repository import EmailLogRepository, EmailTemplateRepository
+    from src.services.notifications.repositories import EmailLogRepository, EmailTemplateRepository
     from src.services.notifications.services import NotificationService
     
     session = await _get_async_session()

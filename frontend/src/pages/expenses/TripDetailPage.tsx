@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { format, differenceInDays, isValid } from 'date-fns';
 import { it } from 'date-fns/locale';
-import { useTrip } from '../../hooks/useApi';
+import { useTrip } from '../../hooks/domain/useExpenses';
 import { useAuth, useIsApprover, useIsAdmin, useIsHR } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { tripsService } from '../../services/expenses.service';

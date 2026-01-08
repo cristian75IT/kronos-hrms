@@ -20,6 +20,24 @@ import {
     Save
 } from 'lucide-react';
 
+interface EventFormData {
+    title: string;
+    description: string;
+    start_date: string;
+    end_date: string;
+    start_time: string;
+    end_time: string;
+    is_all_day: boolean;
+    event_type: string;
+    visibility: string;
+    calendar_id: string;
+    color: string;
+    alert_before_minutes: number;
+    location: string;
+    is_virtual: boolean;
+    meeting_url: string;
+}
+
 interface EventDetailModalProps {
     isOpen: boolean;
     onClose: () => void;

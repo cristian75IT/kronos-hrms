@@ -17,7 +17,7 @@ import {
   ListChecks
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useBalanceSummary, usePendingApprovals, useLeaveRequests } from '../hooks/useApi';
+import { useBalanceSummary, useLeaveRequests, usePendingApprovals } from '../hooks/domain/useLeaves';
 import { useAuth } from '../context/AuthContext';
 import type { LeaveRequest } from '../types';
 import { format } from 'date-fns';

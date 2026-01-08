@@ -54,6 +54,9 @@ export interface Notification {
     status: NotificationStatus;
     sent_at?: string;
     read_at?: string;
+    recipient_name?: string;
+    entity_type?: string;
+    entity_id?: string;
     action_url?: string;
     created_at: string;
 }

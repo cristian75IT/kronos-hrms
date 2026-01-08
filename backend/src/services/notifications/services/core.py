@@ -1,14 +1,11 @@
-"""
-KRONOS - Notification Service - Core Module
-
-Handles Notification lifecycle, CRUD, and processing queue.
-"""
 import logging
+import asyncio
 from datetime import datetime, timedelta
 from uuid import UUID
 from typing import Optional, Callable, Awaitable
 
-from src.core.exceptions import NotFoundError, BusinessRuleError
+from src.services.notifications.exceptions import NotificationNotFound
+from src.core.exceptions import BusinessRuleError
 from src.services.notifications.models import (
     NotificationStatus,
     NotificationChannel,
@@ -42,7 +39,7 @@ class NotificationCoreService(BaseNotificationService):
         """Get notification by ID."""
         notification = await self._notification_repo.get(id)
         if not notification:
-            raise NotFoundError("Notification not found")
+            raise NotificationNotFound()
         return notification
 
     async def get_user_notifications(
@@ -179,29 +176,43 @@ class NotificationCoreService(BaseNotificationService):
         )
 
     async def process_queue(self, batch_size: int = 100):
-        """Process pending notifications."""
+        """Process pending notifications concurrently."""
         notifications = await self._notification_repo.get_queued(batch_size)
         
+        if not notifications:
+            return {"processed": 0, "sent": 0, "failed": 0}
+
         results = {"processed": 0, "sent": 0, "failed": 0}
         
-        for n in notifications:
-            results["processed"] += 1
-            try:
-                sent = False
-                if n.channel == NotificationChannel.EMAIL and self.email_sender:
-                    sent = await self.email_sender(n)
-                elif n.channel == NotificationChannel.PUSH and self.push_sender:
-                    sent = await self.push_sender(n)
-                
-                if sent:
-                    await self._notification_repo.mark_sent(n.id)
-                    results["sent"] += 1
-                else:
-                    results["failed"] += 1
-            except Exception as e:
-                logger.error(f"Failed to process notification {n.id}: {e}")
-                await self._notification_repo.mark_failed(n.id, str(e))
-                results["failed"] += 1
+        # Limit concurrency to avoid overwhelming providers
+        sem = asyncio.Semaphore(10)  # Max 10 concurrent sends
+
+        async def _send_wrapper(n):
+            async with sem:
+                try:
+                    sent = False
+                    if n.channel == NotificationChannel.EMAIL and self.email_sender:
+                        sent = await self.email_sender(n)
+                    elif n.channel == NotificationChannel.PUSH and self.push_sender:
+                        sent = await self.push_sender(n)
+                    
+                    if sent:
+                        await self._notification_repo.mark_sent(n.id)
+                        return True
+                    else:
+                        return False
+                except Exception as e:
+                    logger.error(f"Failed to process notification {n.id}: {e}")
+                    await self._notification_repo.mark_failed(n.id, str(e))
+                    return False
+
+        # Execute in parallel
+        tasks = [_send_wrapper(n) for n in notifications]
+        outcomes = await asyncio.gather(*tasks)
+        
+        results["processed"] = len(notifications)
+        results["sent"] = outcomes.count(True)
+        results["failed"] = outcomes.count(False)
                 
         return results
 

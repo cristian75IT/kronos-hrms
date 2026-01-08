@@ -25,6 +25,19 @@ class Settings(BaseSettings):
     environment: Literal["development", "staging", "production"] = Field(
         default="development", alias="ENVIRONMENT"
     )
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
+        default="INFO", alias="LOG_LEVEL"
+    )
+    cors_origins: str = Field(
+        default="*",
+        alias="CORS_ORIGINS",
+        description="Comma-separated list of allowed CORS origins, or '*' for all"
+    )
+    auto_fix_reconciliation: bool = Field(
+        default=False,
+        alias="AUTO_FIX_RECONCILIATION",
+        description="Enable auto-fix for missing ledger entries during reconciliation"
+    )
 
     # ─────────────────────────────────────────────────────────────
     # Database
@@ -156,8 +169,10 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def all_cors_origins(self) -> list[str]:
-        """Get CORS origins."""
-        return ["*"]
+        """Get CORS origins as list."""
+        if self.cors_origins == "*":
+            return ["*"]
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
 
 @lru_cache

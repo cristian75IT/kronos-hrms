@@ -79,3 +79,12 @@ class EventAccessDenied(ForbiddenError):
             resource_id=event_id,
             required_permission=required_permission
         )
+
+
+class ClosureNotFound(NotFoundError):
+    """Raised when a company closure is not found."""
+    def __init__(self, closure_id: Optional[UUID] = None):
+        super().__init__(
+            resource_type="CalendarClosure",
+            resource_id=closure_id
+        )

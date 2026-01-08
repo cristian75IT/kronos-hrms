@@ -4,7 +4,7 @@
  */
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useStandaloneReports } from '../../hooks/useApi';
+import { useStandaloneReports } from '../../hooks/domain/useExpenses';
 import {
     Plus,
     AlertCircle,
@@ -212,8 +212,8 @@ export function ExpensesPage() {
                                                 report.status !== 'draft' &&
                                                 report.status !== 'submitted' ? (
                                                 <div className={`font-bold ${Number(report.approved_amount) < Number(report.total_amount)
-                                                        ? 'text-amber-600'
-                                                        : 'text-emerald-600'
+                                                    ? 'text-amber-600'
+                                                    : 'text-emerald-600'
                                                     }`}>
                                                     €{Number(report.approved_amount).toLocaleString('it-IT', { minimumFractionDigits: 2 })}
                                                 </div>

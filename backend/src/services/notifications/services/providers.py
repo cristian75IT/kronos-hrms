@@ -8,7 +8,8 @@ import httpx
 from uuid import UUID
 from typing import Optional
 
-from src.core.exceptions import NotFoundError, BusinessRuleError
+from src.core.exceptions import BusinessRuleError
+from src.services.notifications.exceptions import ProviderConfigurationError
 from src.services.notifications.schemas import (
     EmailProviderSettingsCreate,
     EmailProviderSettingsUpdate,
@@ -46,7 +47,7 @@ class NotificationProviderService(BaseNotificationService):
         """Update provider settings."""
         settings = await self._provider_repo.get(id)
         if not settings:
-             raise NotFoundError("Settings not found")
+             raise ProviderConfigurationError("Settings not found")
              
         if data.is_active:
              active = await self._provider_repo.get_active()
@@ -67,14 +68,14 @@ class NotificationProviderService(BaseNotificationService):
         # Let's assume we test the ACTIVE settings.
         settings = await self.get_active_settings()
         if not settings:
-             raise BusinessRuleError("No active settings to test")
+             raise ProviderConfigurationError("No active settings to test")
              
         config = settings.get_config_dict()
         api_key = config.get("api_key")
         sender_email = config.get("sender_email")
         
         if not api_key:
-             raise BusinessRuleError("Missing API key in settings")
+             raise ProviderConfigurationError("Missing API key in settings")
              
         # Simple send via httpx (duplicating `_send_brevo_email` logic but isolated)
         payload = {

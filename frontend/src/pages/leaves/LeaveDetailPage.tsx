@@ -29,7 +29,7 @@ import {
     useApproveLeaveRequest,
     useRejectLeaveRequest,
     queryKeys
-} from '../../hooks/useApi';
+} from '../../hooks/domain/useLeaves';
 import { useAuth, useIsApprover, useIsAdmin, useIsHR } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { ConfirmModal } from '../../components/common';

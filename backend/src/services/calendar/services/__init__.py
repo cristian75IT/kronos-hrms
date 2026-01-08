@@ -289,11 +289,12 @@ class CalendarService(BaseCalendarService):
     
     async def update_closure(self, id: UUID, data: schemas.ClosureUpdate) -> CalendarClosure:
         """Update a closure."""
+        from src.services.calendar.exceptions import ClosureNotFound
+        
         closure = await self._closure_repo.get(id)
         
         if not closure:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=404, detail="Closure not found")
+            raise ClosureNotFound(id)
         
         update_data = data.model_dump(exclude_unset=True)
         for key, value in update_data.items():

@@ -4,7 +4,6 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.core.security import get_current_user, TokenPayload
-from src.core.exceptions import NotFoundError, BusinessRuleError
 from src.services.notifications.services import NotificationService
 from src.services.notifications.deps import get_notification_service
 

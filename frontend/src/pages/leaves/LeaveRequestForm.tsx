@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { Calendar as CalendarIcon, Save, X, AlertCircle, ChevronDown, Loader } from 'lucide-react';
-import { useCreateLeaveRequest, useUpdateLeaveRequest, useLeaveRequest } from '../../hooks/useApi';
+import { useCreateLeaveRequest, useUpdateLeaveRequest, useLeaveRequest } from '../../hooks/domain/useLeaves';
 import { configApi } from '../../services/api'; // Direct call for leave types since it's rarely updated
 import type { LeaveType, LeaveRequestCreate } from '../../types';
 import { formatApiError } from '../../utils/errorUtils';

@@ -7,7 +7,8 @@ import logging
 import json
 from uuid import UUID
 
-from src.core.exceptions import NotFoundError, BusinessRuleError
+from src.core.exceptions import BusinessRuleError
+from src.services.notifications.exceptions import PushSubscriptionNotFound
 from src.services.notifications.models import Notification
 from src.services.notifications.schemas import PushSubscriptionCreate
 from src.services.notifications.services.base import BaseNotificationService
@@ -35,7 +36,7 @@ class NotificationPushService(BaseNotificationService):
         """Unsubscribe."""
         sub = await self._push_repo.get(id)
         if not sub:
-             raise NotFoundError("Subscription not found")
+             raise PushSubscriptionNotFound("Subscription not found")
         
         if sub.user_id != user_id:
              raise BusinessRuleError("Cannot delete another user's subscription")

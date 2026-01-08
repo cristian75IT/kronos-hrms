@@ -4,7 +4,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { Calendar as CalendarIcon, Save, X, AlertCircle, MapPin, DollarSign, Globe } from 'lucide-react';
-import { useCreateTrip, useUploadTripAttachment } from '../../hooks/useApi';
+import { useCreateTrip, useUploadTripAttachment } from '../../hooks/domain/useExpenses';
 import { useState } from 'react';
 import { useToast } from '../../context/ToastContext';
 import type { DestinationType } from '../../types';

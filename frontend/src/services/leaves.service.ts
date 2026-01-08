@@ -103,7 +103,7 @@ export const leavesService = {
     },
 
     // ═══════════════════════════════════════════════════════════════════
-    // Approver Read-Only Methods (kept for legacy compatibility)
+    // Approver Read-Only Methods (Domain Specific Enriched Data)
     // ═══════════════════════════════════════════════════════════════════
 
     getPendingApprovals: async (): Promise<LeaveRequest[]> => {
@@ -116,15 +116,6 @@ export const leavesService = {
         return response.data;
     },
 
-    // ═══════════════════════════════════════════════════════════════════
-    // Approval Actions - MIGRATED TO CENTRAL APPROVALS SERVICE
-    // ═══════════════════════════════════════════════════════════════════
-    // NOTE: approveRequest, rejectRequest, and approveConditional have been removed.
-    // All approval actions must now go through approvalsService:
-    //   - approvalsService.approveRequest(approvalRequestId, notes)
-    //   - approvalsService.rejectRequest(approvalRequestId, reason)
-    //   - approvalsService.approveRequestConditional(approvalRequestId, conditionType, conditionDetails)
-    // ═══════════════════════════════════════════════════════════════════
 
 
 

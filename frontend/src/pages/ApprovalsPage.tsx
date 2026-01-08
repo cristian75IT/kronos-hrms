@@ -19,7 +19,8 @@ import {
     XCircle,
     AlertCircle
 } from 'lucide-react';
-import { usePendingApprovals, usePendingTrips, usePendingReports, useApprovalHistory } from '../hooks/useApi';
+import { usePendingApprovals, useApprovalHistory } from '../hooks/domain/useLeaves';
+import { usePendingTrips, usePendingReports } from '../hooks/domain/useExpenses';
 import type { LeaveRequest, BusinessTrip, ExpenseReport } from '../types';
 
 type TabType = 'leaves' | 'trips' | 'expenses' | 'history';
@@ -376,8 +377,8 @@ function HistoryList({
                         key={sf.key}
                         onClick={() => onFilterChange(sf.key)}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-colors ${filter === sf.key
-                                ? 'bg-indigo-600 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                             }`}
                     >
                         <sf.icon size={16} className={filter === sf.key ? 'text-white' : sf.color || 'text-gray-500'} />

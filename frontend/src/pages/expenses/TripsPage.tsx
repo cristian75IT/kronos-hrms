@@ -4,7 +4,7 @@
  */
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useTrips } from '../../hooks/useApi';
+import { useTrips } from '../../hooks/domain/useExpenses';
 import {
     Plus,
     MapPin,
