@@ -39,6 +39,7 @@ export interface User {
     is_hr?: boolean;
     is_employee?: boolean;
     permissions?: string[];
+    mfa_enabled?: boolean;
     last_login?: string;
     created_at: string;
 

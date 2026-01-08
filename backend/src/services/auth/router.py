@@ -36,7 +36,10 @@ from src.services.auth.schemas import (
     KeycloakSyncResponse,
     PermissionRead,
     RoleRead,
+    RoleRead,
     RolePermissionUpdate,
+    MfaSetupResponse,
+    MfaVerifyRequest,
 )
 
 
@@ -86,6 +89,9 @@ async def read_current_user(
     )
     
     # Get permissions
+    )
+    
+    # Get permissions
     permissions = await rbac_service.get_permissions_for_roles(token.roles)
     
     return CurrentUserResponse(
@@ -105,6 +111,30 @@ async def read_current_user(
         location=user.location.name if user.location else None,
         manager=user.manager.full_name if user.manager else None,
     )
+
+
+@router.post("/auth/mfa/setup", response_model=MfaSetupResponse)
+async def setup_mfa(
+    token: TokenPayload = Depends(get_current_token),
+    service: UserService = Depends(get_user_service),
+):
+    """Initialize MFA setup to get secret and QR code URL."""
+    return await service.setup_mfa(token.user_id, token.email)
+
+
+@router.post("/auth/mfa/enable", response_model=MessageResponse)
+async def enable_mfa(
+    data: MfaVerifyRequest,
+    token: TokenPayload = Depends(get_current_token),
+    service: UserService = Depends(get_user_service),
+):
+    """Verify code and enable MFA on Keycloak."""
+    try:
+        await service.enable_mfa(token.user_id, request=data, actor_id=token.user_id)
+        return MessageResponse(message="MFA enabled successfully")
+    except ConflictError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 
 # ═══════════════════════════════════════════════════════════

@@ -95,6 +95,7 @@ class UserResponse(UserBase, IDMixin, BaseSchema):
     is_hr: bool
     is_employee: bool
     is_active: bool
+    mfa_enabled: bool = False
     full_name: str
     contract_type_id: Optional[UUID] = None
     work_schedule_id: Optional[UUID] = None
@@ -123,6 +124,7 @@ class UserListItem(BaseModel):
     full_name: str
     badge_number: Optional[str] = None
     is_active: bool
+    mfa_enabled: bool = False
     is_admin: bool
     is_manager: bool
     is_approver: bool = False
@@ -597,3 +599,19 @@ class SetupUsersPayload(BaseModel):
     users: list[SetupUser]
 
 
+
+# ═══════════════════════════════════════════════════════════
+# MFA Schemas
+# ═══════════════════════════════════════════════════════════
+
+class MfaSetupResponse(BaseModel):
+    """Response for MFA setup initialization."""
+    secret: str
+    otp_url: str
+
+
+class MfaVerifyRequest(BaseModel):
+    """Request to verify and enable MFA."""
+    secret: str
+    code: str
+    label: str = "KRONOS Mobile"

@@ -25,6 +25,7 @@
     "date-fns": "^4.1.0",
     "keycloak-js": "^26.2.2",
     "lucide-react": "^0.562.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.69.0",

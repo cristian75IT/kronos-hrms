@@ -278,6 +278,7 @@ export function UsersPage() {
                                 <tr className="bg-gray-50 border-b border-gray-200">
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Dipendente</th>
                                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Ruolo / Dipartimento</th>
+                                    <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">MFA (2FA)</th>
                                     <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Ferie Disp.</th>
                                     <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">ROL Disp.</th>
                                     <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
@@ -310,6 +311,17 @@ export function UsersPage() {
                                             </div>
                                             <div className="text-sm font-medium text-gray-900">{user.profile?.position || '-'}</div>
                                             <div className="text-xs text-gray-500">{typeof user.profile?.department === 'object' ? user.profile?.department?.name : (user.profile?.department || '-')}</div>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            {user.mfa_enabled ? (
+                                                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700">
+                                                    <ShieldCheck size={12} className="mr-1" /> Attivo
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-500">
+                                                    Non Configurato
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 text-center">
                                             {isLoadingBalances ? (

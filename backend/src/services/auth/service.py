@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
+import pyotp
 from keycloak import KeycloakAdmin, KeycloakOpenIDConnection
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -46,6 +47,8 @@ from src.services.auth.schemas import (
     OrganizationalServiceUpdate,
     ExecutiveLevelCreate,
     ExecutiveLevelUpdate,
+    MfaSetupResponse,
+    MfaVerifyRequest,
 )
 from src.services.auth.models import Role, Permission, RolePermission
 from src.shared.schemas import DataTableRequest
@@ -340,6 +343,17 @@ class UserService:
                     kc_roles = keycloak_admin.get_realm_roles_of_user(kc_id)
                     role_names = [r.get("name") for r in kc_roles]
                     
+                    # Check credentials for MFA/OTP
+                    has_otp = False
+                    try:
+                        # get_user_credentials returns a list of credentials
+                        creds = keycloak_admin.get_user_credentials(kc_id)
+                        # Look for type 'otp'
+                        has_otp = any(c.get("type") == "otp" for c in creds)
+                    except Exception as cred_err:
+                        # Log/Warn but continue
+                        pass
+                    
                     # Check if user exists locally
                     local_user = await self._user_repo.get_by_keycloak_id(kc_id)
                     
@@ -358,6 +372,7 @@ class UserService:
                             is_hr="hr" in role_names,
                             is_employee="employee" in role_names,
                             is_active=kc_user.get("enabled", True),
+                            mfa_enabled=has_otp,
                             last_sync_at=datetime.utcnow(),
                         )
                         updated += 1
@@ -375,6 +390,7 @@ class UserService:
                             is_hr="hr" in role_names,
                             is_employee="employee" in role_names,
                             is_active=kc_user.get("enabled", True),
+                            mfa_enabled=has_otp,
                             last_sync_at=datetime.utcnow(),
                         )
                         created += 1
@@ -418,6 +434,78 @@ class UserService:
                 deactivated=0,
                 errors=[f"Keycloak connection error: {str(e)}"],
             )
+
+    # ═══════════════════════════════════════════════════════════
+    # MFA Operations
+    # ═══════════════════════════════════════════════════════════
+
+    async def setup_mfa(self, user_id: UUID, email: str) -> MfaSetupResponse:
+        """Initialize MFA setup by generating a secret."""
+        secret = pyotp.random_base32()
+        otp_url = pyotp.totp.TOTP(secret).provisioning_uri(name=email, issuer_name="KRONOS")
+        return MfaSetupResponse(secret=secret, otp_url=otp_url)
+
+    async def enable_mfa(self, user_id: UUID, request: MfaVerifyRequest, actor_id: Optional[UUID] = None) -> bool:
+        """Verify code and enable MFA in Keycloak."""
+        user = await self.get_user(user_id)
+        
+        # 1. Verify Code with pyotp
+        totp = pyotp.TOTP(request.secret)
+        if not totp.verify(request.code):
+             raise ConflictError("Codice OTP non valido o scaduto")
+             
+        # 2. Add Credential to Keycloak
+        if user.keycloak_id:
+            try:
+                # Direct credential creation payload
+                payload = {
+                    "type": "otp",
+                    "userLabel": request.label,
+                    "secretData": request.secret,
+                    "credentialData": '{"algorithm":"TOTP","digits":6,"counter":0,"period":30}'
+                }
+                
+                kc_admin = self._get_keycloak_admin()
+                token = kc_admin.token.get("access_token")
+                
+                import requests
+                headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+                
+                # Try standard path first
+                base_url = settings.keycloak_url.rstrip('/')
+                realm = settings.keycloak_realm
+                uid = user.keycloak_id
+                
+                api_url = f"{base_url}/admin/realms/{realm}/users/{uid}/credentials"
+                
+                res = requests.post(api_url, json=payload, headers=headers)
+                
+                if res.status_code == 404:
+                     # Retry with legacy /auth path
+                     api_url = f"{base_url}/auth/admin/realms/{realm}/users/{uid}/credentials"
+                     res = requests.post(api_url, json=payload, headers=headers)
+                
+                if not res.ok:
+                    raise Exception(f"Keycloak returned {res.status_code}: {res.text}")
+                
+            except Exception as e:
+                 await self._audit.log_action(user_id=actor_id, action="ERROR", resource_type="MFA", description=f"Keycloak MFA Error: {e}")
+                 raise ConflictError(f"Errore attivazione 2FA su Keycloak: {str(e)}")
+                 
+        # 3. Audit
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="ENABLE_MFA",
+            resource_type="USER",
+            resource_id=str(user_id),
+            description="Enabled 2FA (TOTP)"
+        )
+        
+        # 4. Update local user status
+        await self._user_repo.update(user_id, mfa_enabled=True)
+        
+        return True
+
 
     # ═══════════════════════════════════════════════════════════
     # Area Operations

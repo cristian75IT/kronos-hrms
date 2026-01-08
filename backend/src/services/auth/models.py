@@ -109,6 +109,7 @@ class User(Base):
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_synced: Mapped[bool] = mapped_column(Boolean, default=False)
+    mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     last_sync_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     

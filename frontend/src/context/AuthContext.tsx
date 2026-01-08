@@ -19,7 +19,7 @@ interface AuthContextType {
     isApprover: boolean;
     isHR: boolean;
     isEmployee: boolean;
-    login: (u: string, p: string) => Promise<void>;
+    login: (u: string, p: string, otp?: string) => Promise<void>;
     logout: () => void;
     refreshUser: () => Promise<void>;
 }
@@ -132,10 +132,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return () => window.removeEventListener('auth:logout', handleAuthLogout);
     }, []);
 
-    const login = async (u: string, p: string) => {
+    const login = async (u: string, p: string, otp?: string) => {
         setIsLoading(true);
         try {
-            const tokens = await authService.login(u, p);
+            const tokens = await authService.login(u, p, otp);
             tokenStorage.setTokens(tokens.access_token, tokens.refresh_token);
             await fetchUserProfile();
         } catch (e) {

@@ -30,12 +30,15 @@ const CLIENT_ID = import.meta.env.VITE_KEYCLOAK_CLIENT_ID || 'kronos-frontend';
 const TOKEN_ENDPOINT = `${KEYCLOAK_URL}/realms/${REALM}/protocol/openid-connect/token`;
 
 export const authService = {
-    async login(username: string, password: string): Promise<TokenResponse> {
+    async login(username: string, password: string, totp?: string): Promise<TokenResponse> {
         const params = new URLSearchParams();
         params.append('client_id', CLIENT_ID);
         params.append('grant_type', 'password');
         params.append('username', username);
         params.append('password', password);
+        if (totp) {
+            params.append('totp', totp);
+        }
         // public client, no client_secret
 
         const response = await fetch(TOKEN_ENDPOINT, {
@@ -93,6 +96,33 @@ export const authService = {
         } catch (e) {
             console.error('Failed to decode token', e);
             return null;
+        }
+    },
+
+    async setupMfa(token: string): Promise<{ secret: string; otp_url: string }> {
+        // Needs token because this happens when user IS logged in but wants to enable MFA
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}/auth/mfa/setup`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        if (!response.ok) throw new Error("Failed to setup MFA");
+        return response.json();
+    },
+
+    async enableMfa(token: string, secret: string, code: string): Promise<void> {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}/auth/mfa/enable`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ secret, code })
+        });
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || "Failed to verify MFA");
         }
     }
 };

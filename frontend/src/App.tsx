@@ -49,8 +49,9 @@ import WorkflowConfigPage from './pages/admin/WorkflowConfigPage';
 import PendingApprovalsPage from './pages/approvals/PendingApprovalsPage';
 import RolesPage from './pages/admin/RolesPage';
 import OrganizationPage from './pages/admin/OrganizationPage';
-import SystemInitializationPage from './pages/admin/SystemInitializationPage';
-import AdminLeaveTypesPage from './pages/admin/AdminLeaveTypesPage';
+import { SystemInitializationPage } from './pages/admin/SystemInitializationPage';
+import { AdminLeaveTypesPage } from './pages/admin/AdminLeaveTypesPage';
+import { ProfilePage } from './pages/settings/ProfilePage';
 
 function App() {
   return (
@@ -69,6 +70,7 @@ function App() {
                 </ProtectedRoute>
               }>
                 <Route path="/" element={<DashboardPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
 
                 {/* Leaves */}
                 <Route path="/leaves" element={<LeavesPage />} />
