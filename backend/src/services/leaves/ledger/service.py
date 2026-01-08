@@ -196,6 +196,14 @@ class TimeLedgerService:
         entries = []
         year = datetime.utcnow().year
         
+        # VISIBILITY: Log if breakdown is empty (potential sync issue)
+        if not breakdown:
+            logger.warning(
+                f"LEDGER_NO_BREAKDOWN: Empty breakdown for leave_request={leave_request_id}, user={user_id}. "
+                f"No ledger entries will be created. This may indicate a policy or sync issue."
+            )
+            return entries
+        
         for balance_type, amount in breakdown.items():
             if amount <= 0:
                 continue
@@ -220,13 +228,20 @@ class TimeLedgerService:
                 f"amount={amount}, ref={leave_request_id}"
             )
         
+        # VISIBILITY: Warn if all amounts were zero/negative
+        if not entries and breakdown:
+            logger.warning(
+                f"LEDGER_ZERO_AMOUNTS: Breakdown had {len(breakdown)} items but no entries created "
+                f"for leave_request={leave_request_id}. All amounts were <= 0: {breakdown}"
+            )
+        
         # Audit
         await self._audit.log_action(
             user_id=actor_id,
             action="BALANCE_DEDUCTION",
             resource_type="LEAVE_REQUEST",
             resource_id=str(leave_request_id),
-            new_values={"entries": [str(e.id) for e in entries]},
+            request_data={"entries": [str(e.id) for e in entries]},
         )
         
         return entries
@@ -260,7 +275,10 @@ class TimeLedgerService:
         )
         
         if not original_entries:
-            logger.info(f"No usage entries found to reverse for {leave_request_id}")
+            logger.warning(
+                f"LEDGER_NO_ENTRIES_TO_REVERSE: No usage entries found to reverse for leave_request={leave_request_id}. "
+                f"This may indicate the leave was never properly approved or balance wasn't deducted."
+            )
             return []
         
         # Check for existing reversals (idempotency)
@@ -302,7 +320,7 @@ class TimeLedgerService:
             action="BALANCE_REVERSAL",
             resource_type="LEAVE_REQUEST",
             resource_id=str(leave_request_id),
-            new_values={"entries": [str(e.id) for e in reversal_entries]},
+            request_data={"entries": [str(e.id) for e in reversal_entries]},
         )
         
         return reversal_entries

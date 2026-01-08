@@ -133,7 +133,12 @@ class ExpenseService(BaseExpenseService):
                     RejectTripRequest(reason=data.resolution_notes or "Rejected via workflow")
                 )
             elif data.status == "CANCELLED":
-                pass # Already handled or no action
+                logger.info(f"Trip {data.entity_id} cancelled via workflow - no additional action required")
+            else:
+                logger.warning(
+                    f"CALLBACK_UNHANDLED_STATUS: Unknown status '{data.status}' for TRIP {data.entity_id}. "
+                    f"No action taken. This may indicate a sync issue."
+                )
                 
         elif data.entity_type == "EXPENSE":
             if data.status == "APPROVED":
@@ -148,6 +153,16 @@ class ExpenseService(BaseExpenseService):
                     approver_id,
                     RejectReportRequest(reason=data.resolution_notes or "Rejected via workflow")
                 )
+            else:
+                logger.warning(
+                    f"CALLBACK_UNHANDLED_STATUS: Unknown status '{data.status}' for EXPENSE {data.entity_id}. "
+                    f"No action taken. This may indicate a sync issue."
+                )
+        else:
+            logger.warning(
+                f"CALLBACK_UNKNOWN_ENTITY: Unknown entity_type '{data.entity_type}' for {data.entity_id}. "
+                f"Callback ignored. This may indicate a misconfiguration."
+            )
 
     # ═══════════════════════════════════════════════════════════════════════
     # Daily Allowances (delegated to ExpenseAllowanceService)

@@ -25,6 +25,7 @@ from src.services.audit.models import Base as AuditBase
 from src.services.approvals.models import Base as ApprovalsBase
 from src.services.calendar.models import Base as CalendarBase
 from src.services.hr_reporting.models import Base as HRReportingBase
+from src.services.smart_working.models import Base as SmartWorkingBase
 
 # Wallet models removed
 
@@ -45,7 +46,7 @@ target_metadata = Base.metadata
 config.set_main_option("sqlalchemy.url", settings.database_url.replace("+asyncpg", ""))
 
 # List of schemas to include
-SCHEMAS = ["auth", "leaves", "expenses", "config", "notifications", "audit", "calendar", "hr_reporting", "approvals", "time_wallet", "wallet"]
+SCHEMAS = ["auth", "leaves", "expenses", "config", "notifications", "audit", "calendar", "hr_reporting", "approvals", "time_wallet", "wallet", "smart_working"]
 
 
 

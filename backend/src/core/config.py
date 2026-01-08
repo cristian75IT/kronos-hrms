@@ -119,6 +119,14 @@ class Settings(BaseSettings):
     approval_service_url: str = Field(
         default="http://localhost:8012", alias="APPROVAL_SERVICE_URL"
     )
+    smart_working_service_url: str = Field(
+        default="http://localhost:8013", alias="SMART_WORKING_SERVICE_URL"
+    )
+    
+    # Internal service-to-service token for callback endpoints
+    internal_service_token: str = Field(
+        default="change-me-internal-token", alias="INTERNAL_SERVICE_TOKEN"
+    )
 
     # ─────────────────────────────────────────────────────────────
     # VAPID (Web Push Notifications)

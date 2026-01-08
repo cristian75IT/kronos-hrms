@@ -29,10 +29,10 @@ class ApprovalConfigService(BaseApprovalService):
              pass
         
         # Convert schema to model
+        # Convert schema to model
+        config_data = data.model_dump()
         config = WorkflowConfig(
-            entity_type=data.entity_type,
-            steps=data.steps, # Assuming JSON/Dict compatibility or model handling
-            is_active=True,
+            **config_data,
             created_by=created_by
         )
         await self._config_repo.create(config)

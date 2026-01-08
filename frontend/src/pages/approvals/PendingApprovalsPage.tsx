@@ -777,10 +777,11 @@ const PendingApprovalsPage: React.FC = () => {
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50 border-b border-slate-200">
-                                <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider w-[60px]">Stato</th>
-                                <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider w-[300px]">Richiesta</th>
                                 <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">Richiedente</th>
-                                <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">Info & Scadenza</th>
+                                <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider w-[100px]">Tipo</th>
+                                <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">Richiesta</th>
+                                <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider">Data</th>
+                                <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider w-[60px]">Stato</th>
                                 <th className="py-4 px-6 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Azioni</th>
                             </tr>
                         </thead>
@@ -795,40 +796,7 @@ const PendingApprovalsPage: React.FC = () => {
                                             onClick={() => openDecisionModal(item)}
                                             className="group hover:bg-slate-50/80 transition-colors cursor-pointer"
                                         >
-                                            <td className="py-4 px-6 align-middle">
-                                                {item.is_urgent ? (
-                                                    <div className="h-8 w-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center animate-pulse" title="Urgente">
-                                                        <AlertTriangle size={16} />
-                                                    </div>
-                                                ) : (
-                                                    <div className="h-8 w-8 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
-                                                        <Clock size={16} />
-                                                    </div>
-                                                )}
-                                            </td>
-
-                                            <td className="py-4 px-6 align-top">
-                                                <div className="flex items-start gap-3">
-                                                    <div className={`mt-1 p-1.5 rounded-lg shrink-0 ${item.entity_type === 'LEAVE' ? 'bg-blue-50 text-blue-600' :
-                                                        item.entity_type === 'TRIP' ? 'bg-purple-50 text-purple-600' :
-                                                            'bg-emerald-50 text-emerald-600'
-                                                        }`}>
-                                                        <EntityIcon type={item.entity_type} className="h-4 w-4" />
-                                                    </div>
-                                                    <div>
-                                                        <span className="font-bold text-slate-900 block group-hover:text-indigo-700 transition-colors line-clamp-1">
-                                                            {item.title}
-                                                        </span>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <span className="text-xs text-slate-500 font-mono bg-slate-100 px-1.5 py-0.5 rounded">
-                                                                #{item.entity_ref || item.request_id.slice(0, 8)}
-                                                            </span>
-                                                            <EntityTypeBadge type={item.entity_type} />
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </td>
-
+                                            {/* Richiedente */}
                                             <td className="py-4 px-6 align-middle">
                                                 <div className="flex items-center gap-3">
                                                     <div className="h-9 w-9 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm border border-indigo-100">
@@ -836,11 +804,28 @@ const PendingApprovalsPage: React.FC = () => {
                                                     </div>
                                                     <div>
                                                         <div className="text-sm font-bold text-slate-700">{item.requester_name || 'Utente Sconosciuto'}</div>
-                                                        <div className="text-xs text-slate-400">Richiedente</div>
                                                     </div>
                                                 </div>
                                             </td>
 
+                                            {/* Tipo */}
+                                            <td className="py-4 px-6 align-middle">
+                                                <EntityTypeBadge type={item.entity_type} />
+                                            </td>
+
+                                            {/* Richiesta */}
+                                            <td className="py-4 px-6 align-top">
+                                                <div>
+                                                    <span className="font-bold text-slate-900 block group-hover:text-indigo-700 transition-colors line-clamp-1">
+                                                        {item.title}
+                                                    </span>
+                                                    <span className="text-xs text-slate-500 font-mono bg-slate-100 px-1.5 py-0.5 rounded mt-1 inline-block">
+                                                        #{item.entity_ref || item.request_id.slice(0, 8)}
+                                                    </span>
+                                                </div>
+                                            </td>
+
+                                            {/* Data */}
                                             <td className="py-4 px-6 align-middle">
                                                 <div className="space-y-1">
                                                     <div className="flex items-center gap-2 text-sm text-slate-600">
@@ -857,6 +842,20 @@ const PendingApprovalsPage: React.FC = () => {
                                                 </div>
                                             </td>
 
+                                            {/* Stato */}
+                                            <td className="py-4 px-6 align-middle">
+                                                {item.is_urgent ? (
+                                                    <div className="h-8 w-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center animate-pulse" title="Urgente">
+                                                        <AlertTriangle size={16} />
+                                                    </div>
+                                                ) : (
+                                                    <div className="h-8 w-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center" title="In Attesa">
+                                                        <Clock size={16} />
+                                                    </div>
+                                                )}
+                                            </td>
+
+                                            {/* Azioni */}
                                             <td className="py-4 px-6 align-middle text-right">
                                                 <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <Button size="sm" variant="secondary" className="bg-white hover:bg-emerald-50 hover:text-emerald-700 border-slate-200" onClick={(e) => {
@@ -886,6 +885,36 @@ const PendingApprovalsPage: React.FC = () => {
                                             }}
                                             className="group hover:bg-slate-50/80 transition-colors cursor-pointer"
                                         >
+                                            {/* Richiedente */}
+                                            <td className="py-4 px-6 align-middle">
+                                                <div className="text-sm font-medium text-slate-700">{item.requester_name}</div>
+                                            </td>
+
+                                            {/* Tipo */}
+                                            <td className="py-4 px-6 align-middle">
+                                                <EntityTypeBadge type={item.entity_type} />
+                                            </td>
+
+                                            {/* Richiesta */}
+                                            <td className="py-4 px-6 align-top">
+                                                <div>
+                                                    <span className="font-bold text-slate-900 block group-hover:text-indigo-700 transition-colors line-clamp-1">
+                                                        {item.title}
+                                                    </span>
+                                                    <div className="text-xs text-slate-500 mt-1 italic line-clamp-1">
+                                                        {item.decision_notes || 'Nessuna nota'}
+                                                    </div>
+                                                </div>
+                                            </td>
+
+                                            {/* Data */}
+                                            <td className="py-4 px-6 align-middle">
+                                                <span className="text-sm text-slate-500">
+                                                    {format(new Date(item.decided_at), 'dd MMM yyyy', { locale: it })}
+                                                </span>
+                                            </td>
+
+                                            {/* Stato */}
                                             <td className="py-4 px-6 align-middle">
                                                 <div className={`h-8 w-8 rounded-full flex items-center justify-center ${item.decision === 'APPROVED' ? 'bg-emerald-100 text-emerald-600' :
                                                     item.decision === 'REJECTED' ? 'bg-red-100 text-red-600' :
@@ -896,29 +925,8 @@ const PendingApprovalsPage: React.FC = () => {
                                                             <ArrowRight size={16} />}
                                                 </div>
                                             </td>
-                                            <td className="py-4 px-6 align-top">
-                                                <div className="flex items-start gap-3">
-                                                    <div>
-                                                        <span className="font-bold text-slate-900 block group-hover:text-indigo-700 transition-colors line-clamp-1">
-                                                            {item.title}
-                                                        </span>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <EntityTypeBadge type={item.entity_type} />
-                                                            <span className="text-xs text-slate-400">
-                                                                {format(new Date(item.decided_at), 'dd MMM yyyy', { locale: it })}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="py-4 px-6 align-middle">
-                                                <div className="text-sm font-medium text-slate-700">{item.requester_name}</div>
-                                            </td>
-                                            <td className="py-4 px-6 align-middle">
-                                                <div className="text-sm text-slate-500 line-clamp-1 italic">
-                                                    {item.decision_notes || 'Nessuna nota'}
-                                                </div>
-                                            </td>
+
+                                            {/* Azioni */}
                                             <td className="py-4 px-6 align-middle text-right">
                                                 <button className="btn btn-ghost btn-sm btn-square text-slate-400 group-hover:text-indigo-600">
                                                     <ExternalLink size={16} />

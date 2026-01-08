@@ -149,7 +149,7 @@ async def setup_organization(
             
         # 2. Handle Services
         for svc_data in dept_data.services:
-            existing_svc = await org_service._svc_repo.get_by_code(svc_data.code)
+            existing_svc = await org_service._service_repo.get_by_code(svc_data.code)
             
             coord_id = None
             if svc_data.coordinator_email:

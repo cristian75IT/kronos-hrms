@@ -8,6 +8,7 @@ from datetime import datetime
 
 import httpx
 
+from src.core.config import settings
 from src.core.exceptions import NotFoundError, BusinessRuleError
 from src.services.approvals.models import ApprovalStatus
 from src.services.approvals.services.base import BaseApprovalService
@@ -63,6 +64,7 @@ class ApprovalActionService(BaseApprovalService):
                 response = await client.post(
                     request.callback_url,
                     json=payload,
+                    headers={"X-Internal-Token": settings.internal_service_token},
                     timeout=10.0
                 )
                 if response.status_code in (200, 201, 204):
@@ -93,7 +95,18 @@ class ApprovalActionService(BaseApprovalService):
         await self._request_repo.update(request)
         
         # Invoke callback to source service
-        await self._invoke_callback(request, "approved", notes)
+        callback_ok = await self._invoke_callback(request, "approved", notes)
+        
+        # Track callback failure for visibility
+        if not callback_ok and request.callback_url:
+            logger.warning(
+                f"CALLBACK_SYNC_FAILURE: Approval {request_id} approved but target service not notified. "
+                f"Entity: {request.entity_type}/{request.entity_id}. Manual sync may be required."
+            )
+            # Store failure indicator in request (if field exists)
+            if hasattr(request, 'callback_failed'):
+                request.callback_failed = True
+                await self._request_repo.update(request)
         
         return request
 
@@ -113,7 +126,14 @@ class ApprovalActionService(BaseApprovalService):
         await self._request_repo.update(request)
         
         # Invoke callback to source service
-        await self._invoke_callback(request, "rejected", notes)
+        callback_ok = await self._invoke_callback(request, "rejected", notes)
+        
+        # Track callback failure for visibility
+        if not callback_ok and request.callback_url:
+            logger.warning(
+                f"CALLBACK_SYNC_FAILURE: Rejection {request_id} processed but target service not notified. "
+                f"Entity: {request.entity_type}/{request.entity_id}. Manual sync may be required."
+            )
         
         return request
 
@@ -132,7 +152,14 @@ class ApprovalActionService(BaseApprovalService):
         await self._request_repo.update(request)
         
         # Invoke callback to source service
-        await self._invoke_callback(request, "cancelled", reason)
+        callback_ok = await self._invoke_callback(request, "cancelled", reason)
+        
+        # Track callback failure for visibility
+        if not callback_ok and request.callback_url:
+            logger.warning(
+                f"CALLBACK_SYNC_FAILURE: Cancellation {request_id} processed but target service not notified. "
+                f"Entity: {request.entity_type}/{request.entity_id}. Manual sync may be required."
+            )
         
         return request
 

@@ -52,6 +52,7 @@ import OrganizationPage from './pages/admin/OrganizationPage';
 import { SystemInitializationPage } from './pages/admin/SystemInitializationPage';
 import AdminLeaveTypesPage from './pages/admin/AdminLeaveTypesPage';
 import { ProfilePage } from './pages/settings/ProfilePage';
+import { SmartWorkingPage } from './pages/smart-working/SmartWorkingPage';
 
 function App() {
   return (
@@ -142,7 +143,8 @@ function App() {
                 <Route path="/approvals/pending" element={<ProtectedRoute permissions={['approvals:process']}><PendingApprovalsPage /></ProtectedRoute>} />
                 <Route path="/approvals" element={<Navigate to="/approvals/pending" replace />} />
 
-
+                {/* Smart Working */}
+                <Route path="/smart-working" element={<SmartWorkingPage />} />
               </Route>
 
               {/* Catch all */}

@@ -437,16 +437,35 @@ class UserService:
 
     # ═══════════════════════════════════════════════════════════
     # MFA Operations
-    # ═══════════════════════════════════════════════════════════
+    # TOTP Credential Configuration (Keycloak format)
+    TOTP_CREDENTIAL_CONFIG = {
+        "algorithm": "TOTP",
+        "digits": 6,
+        "counter": 0,
+        "period": 30
+    }
 
-    async def setup_mfa(self, user_id: UUID, email: str) -> MfaSetupResponse:
+    async def setup_mfa(self, user_id: UUID, email: str, actor_id: Optional[UUID] = None) -> MfaSetupResponse:
         """Initialize MFA setup by generating a secret."""
         secret = pyotp.random_base32()
         otp_url = pyotp.totp.TOTP(secret).provisioning_uri(name=email, issuer_name="KRONOS")
+        
+        # Audit Trail for setup initiation
+        await self._audit.log_action(
+            user_id=actor_id or user_id,
+            action="SETUP_MFA",
+            resource_type="USER",
+            resource_id=str(user_id),
+            description="Initiated 2FA setup"
+        )
+        
         return MfaSetupResponse(secret=secret, otp_url=otp_url)
 
     async def enable_mfa(self, user_id: UUID, request: MfaVerifyRequest, actor_id: Optional[UUID] = None) -> bool:
         """Verify code and enable MFA in Keycloak."""
+        import json
+        import httpx
+        
         user = await self.get_user(user_id)
         
         # 1. Verify Code with pyotp
@@ -457,36 +476,35 @@ class UserService:
         # 2. Add Credential to Keycloak
         if user.keycloak_id:
             try:
-                # Direct credential creation payload
+                # Build credential payload
                 payload = {
                     "type": "otp",
                     "userLabel": request.label,
                     "secretData": request.secret,
-                    "credentialData": '{"algorithm":"TOTP","digits":6,"counter":0,"period":30}'
+                    "credentialData": json.dumps(self.TOTP_CREDENTIAL_CONFIG)
                 }
                 
                 kc_admin = self._get_keycloak_admin()
                 token = kc_admin.token.get("access_token")
-                
-                import requests
                 headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
                 
-                # Try standard path first
+                # Build API URL
                 base_url = settings.keycloak_url.rstrip('/')
                 realm = settings.keycloak_realm
                 uid = user.keycloak_id
-                
                 api_url = f"{base_url}/admin/realms/{realm}/users/{uid}/credentials"
                 
-                res = requests.post(api_url, json=payload, headers=headers)
-                
-                if res.status_code == 404:
-                     # Retry with legacy /auth path
-                     api_url = f"{base_url}/auth/admin/realms/{realm}/users/{uid}/credentials"
-                     res = requests.post(api_url, json=payload, headers=headers)
-                
-                if not res.ok:
-                    raise Exception(f"Keycloak returned {res.status_code}: {res.text}")
+                # Async HTTP call
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    res = await client.post(api_url, json=payload, headers=headers)
+                    
+                    if res.status_code == 404:
+                         # Retry with legacy /auth path
+                         api_url = f"{base_url}/auth/admin/realms/{realm}/users/{uid}/credentials"
+                         res = await client.post(api_url, json=payload, headers=headers)
+                    
+                    if not res.is_success:
+                        raise Exception(f"Keycloak returned {res.status_code}: {res.text}")
                 
             except Exception as e:
                  await self._audit.log_action(user_id=actor_id, action="ERROR", resource_type="MFA", description=f"Keycloak MFA Error: {e}")

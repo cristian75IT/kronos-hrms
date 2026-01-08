@@ -77,12 +77,6 @@ export function LeaveRequestForm() {
                     !t.name.toLowerCase().includes('rol')
                 );
                 setLeaveTypes(filteredTypes);
-
-                // Set default if not set and not editing
-                const currentType = watch('leave_type_id');
-                if (types.length > 0 && !currentType && !isEditing) {
-                    setValue('leave_type_id', types[0].id);
-                }
             } catch (error) {
                 console.error('Failed to load leave types', error);
             } finally {
@@ -95,7 +89,8 @@ export function LeaveRequestForm() {
     // Calculate days effect
     useEffect(() => {
         const calculate = async () => {
-            if (!startDate || !endDate) {
+            // Skip if missing required fields
+            if (!startDate || !endDate || !leaveTypeId) {
                 setCalculatedDays(null);
                 return;
             }
@@ -186,6 +181,7 @@ export function LeaveRequestForm() {
                                     {...register('leave_type_id', { required: 'Seleziona un tipo' })}
                                     className={`block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm appearance-none pr-10 ${errors.leave_type_id ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}`}
                                 >
+                                    <option value="">-- Seleziona --</option>
                                     {leaveTypes.map((type) => (
                                         <option key={type.id} value={type.id}>
                                             {type.name}

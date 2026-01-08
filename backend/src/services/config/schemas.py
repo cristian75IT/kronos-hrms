@@ -60,7 +60,7 @@ class LeaveTypeBase(BaseModel):
     
     # Balance behavior
     scales_balance: bool = True
-    balance_type: Optional[str] = Field(None, pattern="^(vacation|rol|permits)$")
+    balance_type: Optional[str] = None  # vacation, rol, permits, ex_festivita, vacation_ac, rol_hours, etc.
     
     # Approval workflow
     requires_approval: bool = True

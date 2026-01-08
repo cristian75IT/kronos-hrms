@@ -59,7 +59,8 @@ services:
       - SERVICE_NAME=auth-service
       - DATABASE_URL=postgresql+asyncpg://kronos:kronos_dev@postgres:5432/kronos
       - DATABASE_SCHEMA=auth
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=redis://kronos-redis:6379/0
+      - ALGORITHM=HS256
       - KEYCLOAK_URL=http://keycloak:8080/
       - KEYCLOAK_REALM=kronos
       - KEYCLOAK_CLIENT_ID=kronos-backend
@@ -94,6 +95,7 @@ services:
 
       - CALENDAR_SERVICE_URL=http://calendar-service:8009
       - APPROVAL_SERVICE_URL=http://approval-service:8012
+      - LEAVE_SERVICE_URL=http://leave-service:8002
       - KEYCLOAK_URL=http://keycloak:8080/
       - KEYCLOAK_REALM=kronos
       - KEYCLOAK_CLIENT_ID=kronos-backend
@@ -325,6 +327,7 @@ services:
       - KEYCLOAK_REALM=kronos
       - KEYCLOAK_CLIENT_ID=kronos-backend
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-change-me-internal-token}
     ports:
       - "8012:8012"
     command: uvicorn src.services.approvals.main:app --host 0.0.0.0 --port 8012 --reload
@@ -340,6 +343,44 @@ services:
       auth-service:
         condition: service_started
       notification-service:
+        condition: service_started
+    restart: unless-stopped
+
+  smart-working-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kronos-smart-working
+    environment:
+      - SERVICE_NAME=smart-working-service
+      - DATABASE_URL=postgresql+asyncpg://kronos:kronos_dev@postgres:5432/kronos
+      - DATABASE_SCHEMA=smart_working
+      - REDIS_URL=redis://redis:6379/13
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - APPROVAL_SERVICE_URL=http://approval-service:8012
+      - AUDIT_SERVICE_URL=http://audit-service:8007
+      - CONFIG_SERVICE_URL=http://config-service:8004
+      - SMART_WORKING_SERVICE_URL=http://smart-working-service:8013
+      - KEYCLOAK_URL=http://keycloak:8080/
+      - KEYCLOAK_REALM=kronos
+      - KEYCLOAK_CLIENT_ID=kronos-backend
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN:-change-me-internal-token}
+    ports:
+      - "8013:8013"
+    command: uvicorn src.services.smart_working.main:app --host 0.0.0.0 --port 8013 --reload
+    volumes:
+      - ./backend:/app
+    networks:
+      - kronos-internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      approval-service:
         condition: service_started
     restart: unless-stopped
 

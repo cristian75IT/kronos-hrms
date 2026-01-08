@@ -129,7 +129,7 @@ class ExpenseLedgerService:
             action="BUDGET_ALLOCATION",
             resource_type="TRIP",
             resource_id=str(trip_id),
-            new_values={"amount": float(amount)},
+            request_data={"amount": float(amount)},
         )
         
         return entry
@@ -254,6 +254,14 @@ class ExpenseLedgerService:
         """
         entries = []
         
+        # VISIBILITY: Warn if no items to process
+        if not items:
+            logger.warning(
+                f"LEDGER_NO_ITEMS: Empty items list for expense_report={expense_report_id}. "
+                f"No ledger entries will be created. This may indicate a sync issue."
+            )
+            return entries
+        
         for item in items:
             entry = await self.record_expense_approval(
                 trip_id=trip_id,
@@ -276,7 +284,7 @@ class ExpenseLedgerService:
             action="EXPENSE_REPORT_APPROVED",
             resource_type="EXPENSE_REPORT",
             resource_id=str(expense_report_id),
-            new_values={"entries": [str(e.id) for e in entries]},
+            request_data={"entries": [str(e.id) for e in entries]},
         )
         
         return entries
@@ -341,7 +349,10 @@ class ExpenseLedgerService:
         )
         
         if not original:
-            logger.info(f"No expense entry found to reverse for {expense_item_id}")
+            logger.warning(
+                f"LEDGER_NO_ENTRY_TO_REVERSE: No expense entry found to reverse for expense_item={expense_item_id}. "
+                f"This may indicate the expense was never properly approved."
+            )
             return None
         
         orig = original[0]

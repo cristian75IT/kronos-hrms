@@ -112,11 +112,11 @@ async def read_current_user(
 
 @router.post("/auth/mfa/setup", response_model=MfaSetupResponse)
 async def setup_mfa(
-    token: TokenPayload = Depends(get_current_token),
+    token: TokenPayload = Depends(get_current_user),
     service: UserService = Depends(get_user_service),
 ):
     """Initialize MFA setup to get secret and QR code URL."""
-    return await service.setup_mfa(token.user_id, token.email)
+    return await service.setup_mfa(token.user_id, token.email, actor_id=token.user_id)
 
 
 @router.post("/auth/mfa/enable", response_model=MessageResponse)

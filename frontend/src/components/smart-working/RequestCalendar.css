@@ -1,0 +1,48 @@
+/* Smart Working - Request Calendar Styles */
+
+/* Override FullCalendar default styles */
+.sw-calendar .fc-toolbar-title {
+    font-size: 1.25rem !important;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.sw-calendar .fc-button-primary {
+    background-color: #ffffff !important;
+    color: #4b5563 !important;
+    border-color: #e5e7eb !important;
+}
+
+.sw-calendar .fc-button-primary:hover {
+    background-color: #f9fafb !important;
+}
+
+.sw-calendar .fc-button-active {
+    background-color: #f3f4f6 !important;
+    color: #111827 !important;
+}
+
+.sw-calendar .fc-day-today {
+    background-color: #eff6ff !important;
+}
+
+/* Status badge colors */
+.sw-status-pending {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.sw-status-approved {
+    background-color: #d1fae5;
+    color: #065f46;
+}
+
+.sw-status-rejected {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.sw-status-cancelled {
+    background-color: #f3f4f6;
+    color: #4b5563;
+}
