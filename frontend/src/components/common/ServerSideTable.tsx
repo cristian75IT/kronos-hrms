@@ -143,42 +143,50 @@ export function ServerSideTable<T extends object>({
           </div>
         )}
 
-        <table className="table table-zebra w-full text-left bg-base-100">
-          <thead className="bg-base-200/50 text-base-content/70 uppercase text-xs font-semibold tracking-wider">
+        <table className="table table-fixed w-full text-left bg-base-100">
+          <thead className="bg-slate-50 text-slate-500 uppercase text-xs font-bold tracking-wider border-b border-slate-200">
             {table.getHeaderGroups().map(headerGroup => (
               <tr key={headerGroup.id}>
-                {headerGroup.headers.map(header => (
-                  <th key={header.id} className="px-4 py-3 whitespace-nowrap">
-                    {header.isPlaceholder ? null : (
-                      <div
-                        className={`flex items-center gap-2 cursor-pointer select-none ${header.column.getCanSort() ? 'hover:text-primary transition-colors' : ''
-                          }`}
-                        onClick={header.column.getToggleSortingHandler()}
-                      >
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {{
-                          asc: <ArrowUp size={14} />,
-                          desc: <ArrowDown size={14} />,
-                        }[header.column.getIsSorted() as string] ?? (
-                            header.column.getCanSort() ? <ArrowUpDown size={14} className="opacity-30" /> : null
-                          )}
-                      </div>
-                    )}
-                  </th>
-                ))}
+                {headerGroup.headers.map(header => {
+                  // Allow column definitions to pass styling via meta or simpler logic if needed
+                  // For now, relies on column defs size/width handling by TanStack or custom classes in header
+                  return (
+                    <th
+                      key={header.id}
+                      className="px-4 py-3 whitespace-nowrap overflow-hidden text-ellipsis relative"
+                      style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }} // Use TanStack size if set explicity
+                    >
+                      {header.isPlaceholder ? null : (
+                        <div
+                          className={`flex items-center gap-2 cursor-pointer select-none ${header.column.getCanSort() ? 'hover:text-primary transition-colors' : ''
+                            }`}
+                          onClick={header.column.getToggleSortingHandler()}
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          {{
+                            asc: <ArrowUp size={14} className="text-primary" />,
+                            desc: <ArrowDown size={14} className="text-primary" />,
+                          }[header.column.getIsSorted() as string] ?? (
+                              header.column.getCanSort() ? <ArrowUpDown size={14} className="opacity-30 hover:opacity-100" /> : null
+                            )}
+                        </div>
+                      )}
+                    </th>
+                  );
+                })}
               </tr>
             ))}
           </thead>
-          <tbody className="divide-y divide-base-200">
+          <tbody className="divide-y divide-slate-100">
             {table.getRowModel().rows.length > 0 ? (
               table.getRowModel().rows.map(row => (
                 <tr
                   key={row.id}
-                  className={`hover:bg-base-200/50 transition-colors ${onRowClick ? 'cursor-pointer active:bg-base-200' : ''}`}
+                  className={`hover:bg-slate-50 transition-colors ${onRowClick ? 'cursor-pointer active:bg-slate-100' : ''}`}
                   onClick={() => onRowClick && onRowClick(row.original)}
                 >
                   {row.getVisibleCells().map(cell => (
-                    <td key={cell.id} className="px-4 py-3 text-sm">
+                    <td key={cell.id} className="px-4 py-3 text-sm text-slate-600 truncate">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -187,8 +195,11 @@ export function ServerSideTable<T extends object>({
             ) : (
               !isLoading && (
                 <tr>
-                  <td colSpan={columns.length} className="text-center py-12 text-base-content/50">
-                    Nessun dato trovato
+                  <td colSpan={columns.length} className="text-center py-16 text-slate-400 bg-slate-50/30">
+                    <div className="flex flex-col items-center gap-2">
+                      <AlertCircle size={24} className="opacity-20" />
+                      <span>Nessun dato trovato</span>
+                    </div>
                   </td>
                 </tr>
               )

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Loader2 } from 'lucide-react';
 
 interface ButtonProps<T extends React.ElementType = 'button'> {
   as?: T;
@@ -23,114 +24,48 @@ export const Button = <T extends React.ElementType = 'button'>({
   ...props
 }: ButtonProps<T> & React.ComponentPropsWithoutRef<T>) => {
   const Component = as || 'button';
-  const baseClass = 'btn-shared';
-  const variantClass = `btn-${variant}`;
-  const sizeClass = `btn-${size}`;
+
+  // Base styles for all buttons
+  const baseStyles = 'inline-flex items-center justify-center gap-2 font-medium rounded-md transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:ring-2 focus:ring-offset-1';
+
+  // Variant styles
+  const variants = {
+    primary: 'bg-primary text-white hover:bg-primary-focus shadow-sm hover:shadow focus:ring-primary/30 border border-transparent',
+    secondary: 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:border-slate-300 shadow-sm focus:ring-slate-200',
+    outline: 'bg-transparent text-primary border border-primary hover:bg-primary/5 focus:ring-primary/30',
+    ghost: 'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-transparent focus:ring-slate-200',
+    danger: 'bg-error text-white hover:bg-red-600 shadow-sm focus:ring-error/30 border border-transparent',
+    success: 'bg-success text-white hover:bg-green-600 shadow-sm focus:ring-success/30 border border-transparent',
+  };
+
+  // Size styles
+  const sizes = {
+    sm: 'text-xs px-3 py-1.5 h-8',
+    md: 'text-sm px-4 py-2 h-10',
+    lg: 'text-base px-6 py-3 h-12',
+  };
+
+  const combinedClassName = `
+    ${baseStyles}
+    ${variants[variant]}
+    ${sizes[size]}
+    ${className}
+  `.trim();
 
   return (
     <Component
-      className={`${baseClass} ${variantClass} ${sizeClass} ${className}`}
+      className={combinedClassName}
       disabled={disabled || isLoading}
       {...props}
     >
       {isLoading ? (
-        <span className="btn-spinner"></span>
+        <Loader2 className="w-4 h-4 animate-spin" />
       ) : (
         <>
-          {icon && <span className="btn-icon">{icon}</span>}
+          {icon && <span className="shrink-0">{icon}</span>}
           {children}
         </>
       )}
-
-      <style>{`
-        .btn-shared {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          font-weight: 500;
-          border-radius: 8px;
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-          cursor: pointer;
-          border: 1px solid transparent;
-          font-family: inherit;
-        }
-
-        .btn-shared:active {
-          transform: scale(0.98);
-        }
-
-        .btn-shared:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-          pointer-events: none;
-        }
-
-        /* Sizes */
-        .btn-sm { padding: 6px 12px; font-size: 13px; }
-        .btn-md { padding: 10px 18px; font-size: 14px; }
-        .btn-lg { padding: 12px 24px; font-size: 16px; }
-
-        /* Variants */
-        .btn-primary {
-          background: var(--color-primary);
-          color: white;
-          box-shadow: 0 4px 12px rgba(var(--color-primary-rgb), 0.3);
-        }
-        .btn-primary:hover {
-          filter: brightness(1.1);
-          transform: translateY(-1px);
-        }
-
-        .btn-secondary {
-          background: var(--color-surface);
-          border: 1px solid var(--color-border);
-          color: var(--color-text-primary);
-        }
-        .btn-secondary:hover {
-          background: var(--color-bg);
-        }
-
-        .btn-outline {
-          background: transparent;
-          border: 1.5px solid var(--color-primary);
-          color: var(--color-primary);
-        }
-        .btn-outline:hover {
-          background: var(--color-primary-light);
-        }
-
-        .btn-ghost {
-          background: transparent;
-          color: var(--color-text-secondary);
-        }
-        .btn-ghost:hover {
-          background: rgba(0,0,0,0.05);
-          color: var(--color-text-primary);
-        }
-
-        .btn-danger {
-          background: var(--color-danger);
-          color: white;
-        }
-        .btn-success {
-          background: var(--color-success);
-          color: white;
-        }
-
-        .btn-spinner {
-          width: 18px;
-          height: 18px;
-          border: 2px solid rgba(255,255,255,0.3);
-          border-top-color: white;
-          border-radius: 50%;
-          animation: btn-spin 0.8s linear infinite;
-        }
-
-        @keyframes btn-spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </Component>
   );
 };

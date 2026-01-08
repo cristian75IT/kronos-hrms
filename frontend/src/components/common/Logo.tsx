@@ -11,7 +11,7 @@ interface LogoProps {
 export function Logo({ className, size = 40 }: LogoProps) {
     return (
         <div
-            className={`relative flex items-center justify-center ${className}`}
+            className={`flex items-center justify-center rounded-lg bg-primary text-white shrink-0 ${className || ''}`}
             style={{ width: size, height: size }}
         >
             <svg
