@@ -7,3 +7,4 @@ export * from './FileUpload';
 export * from './ProtectedRoute';
 export * from './Modal';
 export * from './ConfirmModal';
+export * from './PageHeader';

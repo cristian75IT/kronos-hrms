@@ -89,9 +89,6 @@ async def read_current_user(
     )
     
     # Get permissions
-    )
-    
-    # Get permissions
     permissions = await rbac_service.get_permissions_for_roles(token.roles)
     
     return CurrentUserResponse(

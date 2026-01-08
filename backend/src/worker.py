@@ -24,7 +24,7 @@ celery_app.conf.update(
         "src.services.notifications.tasks",
         "src.services.audit.tasks",
         "src.services.hr_reporting.tasks",
-        "celery.tasks.reconciliation",
+        "background_jobs.tasks.reconciliation",
         # Add other service tasks here as needed
     ],
     # Cron tasks (Beat)

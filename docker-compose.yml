@@ -65,7 +65,7 @@ services:
       - KEYCLOAK_CLIENT_ID=kronos-backend
       - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-}
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
-    command: uvicorn src.services.auth.main:app --host 0.0.0.0 --port 8001 --reload
+    command: uvicorn src.services.auth.main:app --host 0.0.0.0 --port 8001
     volumes:
       - ./backend:/app
     networks:
