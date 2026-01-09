@@ -62,11 +62,19 @@ export const RequestCalendar: React.FC<RequestCalendarProps> = ({ requests, acti
     };
 
     const handleConfirmConvert = async () => {
-        // For now, just close the modal - in real implementation this would create
-        // an "office day" entry or cancel the automatic SW for that day
-        // This could be implemented by creating a special request type
-        handleCloseConvertModal();
-        // TODO: Implement backend API for converting SW day to office day
+        if (!selectedDate) return;
+
+        try {
+            const dateStr = format(selectedDate, 'yyyy-MM-dd');
+            await import('../../services/smartWorking.service').then(m =>
+                m.smartWorkingService.convertToPresence(dateStr)
+            );
+            onRefresh();
+        } catch (error) {
+            console.error('Falied to convert to presence:', error);
+        } finally {
+            handleCloseConvertModal();
+        }
     };
 
     // Generate background events for all SW days in current view
@@ -98,6 +106,7 @@ export const RequestCalendar: React.FC<RequestCalendarProps> = ({ requests, acti
                 const dateStr = format(d, 'yyyy-MM-dd');
 
                 // Don't show automatic SW if there's already a request for this date
+                // Note: CANCELLED requests (Presence) will also block this, which is what we want
                 if (!getRequestForDate(dateStr)) {
                     events.push({
                         id: `sw-auto-${dateStr}`,
@@ -117,20 +126,42 @@ export const RequestCalendar: React.FC<RequestCalendarProps> = ({ requests, acti
     }, [activeAgreement, requests]);
 
     // Regular request events
-    const requestEvents = requests.map(req => ({
-        id: req.id,
-        title: req.status === 'APPROVED' ? '✅ Smart Working' :
-            req.status === 'PENDING' ? '⏳ In attesa' :
-                req.status === 'REJECTED' ? '❌ Rifiutato' : 'Richiesta',
-        start: req.date,
-        backgroundColor: getStatusColor(req.status),
-        borderColor: getStatusColor(req.status),
-        textColor: '#333',
-        extendedProps: {
-            status: req.status,
-            notes: req.notes
+    const requestEvents = requests.map(req => {
+        // Special handling for Presence (CANCELLED with specific note)
+        const isPresence = req.status === 'CANCELLED' && req.notes === 'Lavoro in presenza';
+
+        if (isPresence) {
+            return {
+                id: req.id,
+                title: '🏢 In Ufficio',
+                start: req.date,
+                backgroundColor: '#f1f5f9', // slate-100
+                borderColor: '#cbd5e1', // slate-300
+                textColor: '#475569', // slate-600
+                extendedProps: {
+                    status: req.status,
+                    notes: req.notes,
+                    isPresence: true
+                }
+            };
         }
-    }));
+
+        return {
+            id: req.id,
+            title: req.status === 'APPROVED' ? '✅ Smart Working' :
+                req.status === 'PENDING' ? '⏳ In attesa' :
+                    req.status === 'REJECTED' ? '❌ Rifiutato' :
+                        req.status === 'CANCELLED' ? '🚫 Annullato' : 'Richiesta',
+            start: req.date,
+            backgroundColor: getStatusColor(req.status),
+            borderColor: getStatusColor(req.status),
+            textColor: '#333',
+            extendedProps: {
+                status: req.status,
+                notes: req.notes
+            }
+        };
+    });
 
     // Combine all events
     const allEvents = [...generateSwDayEvents, ...requestEvents];

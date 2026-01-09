@@ -18,7 +18,7 @@ from src.services.smart_working.schemas import (
     SWAgreementCreate, SWAgreementUpdate,
     SWRequestCreate,
     SWAttendanceCheckIn, SWAttendanceCheckOut,
-    ApprovalCallback
+    ApprovalCallback, SWPresenceCreate
 )
 from src.services.smart_working.repository import SmartWorkingRepository
 from src.shared.clients.approval import ApprovalClient
@@ -263,7 +263,61 @@ class SmartWorkingService:
             resource_id=str(request.id),
             description="Cancelled SW request"
         )
+        # Avoid lazy load error during serialization
+        request.attendance = None
         return request
+
+    async def submit_presence(self, data: SWPresenceCreate, user_id: UUID) -> SWRequest:
+        """
+        Submit a 'Presence' declaration (cancels any automatic SW for that day).
+        Effectively creates a CANCELLED request with specific notes.
+        """
+        # 1. Check if dates are valid
+        if data.date < date.today():
+             raise BusinessRuleError("Cannot declare presence for past dates")
+             
+        # 2. Check if request already exists (using specific query to find even cancelled ones to avoid duplicates)
+        # However, repo.get_request_by_date excludes Cancelled. 
+        # For now we accept duplicates or better: we should check recent requests.
+        
+        # Check active first (Priority: if I have a PENDING request, this cancels it)
+        existing = await self._repo.get_request_by_date(user_id, data.date)
+        if existing:
+            # If it's pending/approved, we are effectively cancelling it
+            if existing.status in [SWRequestStatus.PENDING, SWRequestStatus.APPROVED]:
+                 return await self.cancel_request(existing.id, user_id)
+        
+        # 3. Create new request as CANCELLED directly
+        # We need an agreement ID to link to, find active one
+        agreements = await self._repo.get_active_agreements_for_user(user_id)
+        if not agreements:
+            raise BusinessRuleError("No active Smart Working agreement found")
+            
+        agreement = agreements[0] # Take first active
+        
+        request = SWRequest(
+            user_id=user_id,
+            agreement_id=agreement.id,
+            date=data.date,
+            status=SWRequestStatus.CANCELLED,
+            notes="Lavoro in presenza"
+        )
+        
+        await self._repo.create_request(request)
+        
+        await self._audit.log_action(
+            user_id=user_id,
+            action="DECLARE_PRESENCE",
+            resource_type="SW_REQUEST",
+            resource_id=str(request.id),
+            description=f"Declared presence on SW day {data.date}"
+        )
+        
+        # Avoid lazy load error
+        request.attendance = None
+        
+        return request
+
 
     # -----------------------------------------------------------------------
     # Approval Callbacks

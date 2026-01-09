@@ -89,6 +89,11 @@ export const smartWorkingService = {
         return response.data;
     },
 
+    convertToPresence: async (date: string): Promise<SWRequest> => {
+        const response = await api.post('/smart-working/requests/presence', { date });
+        return response.data;
+    },
+
     // Attendance
     checkIn: async (data: SWAttendanceCheckIn): Promise<SWAttendance> => {
         const response = await api.post('/smart-working/attendance/check-in', data);

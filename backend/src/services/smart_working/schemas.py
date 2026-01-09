@@ -147,3 +147,7 @@ class SWAttendanceResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class SWPresenceCreate(BaseModel):
+    date: date
+    notes: Optional[str] = "Lavoro in presenza"

@@ -16,7 +16,7 @@ from src.services.smart_working.schemas import (
     SWAgreementCreate, SWAgreementResponse,
     SWRequestCreate, SWRequestResponse,
     SWAttendanceCheckIn, SWAttendanceCheckOut, SWAttendanceResponse,
-    ApprovalCallback
+    ApprovalCallback, SWPresenceCreate
 )
 
 logger = logging.getLogger(__name__)
@@ -157,6 +157,21 @@ async def cancel_request(
     token: TokenPayload = Depends(get_current_user)
 ):
     return await service.cancel_request(id, token.user_id)
+
+@router.post(
+    "/requests/presence",
+    response_model=SWRequestResponse,
+    summary="Declare Presence",
+    description="Declares presence for a specific date, effectively cancelling any automatic Smart Working day."
+)
+async def declare_presence(
+    data: SWPresenceCreate,
+    service: SmartWorkingService = Depends(get_service),
+    token: TokenPayload = Depends(get_current_user)
+):
+    # Convert SWPresenceCreate to SWRequestCreate internal format (needs agreement ID which is fetched in service)
+    # We pass data directly as it has date and notes
+    return await service.submit_presence(data, token.user_id)
 
 
 # -----------------------------------------------------------------------
