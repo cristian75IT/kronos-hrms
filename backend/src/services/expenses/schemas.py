@@ -214,6 +214,9 @@ class ExpenseReportListItem(BaseModel):
     status: ExpenseReportStatus
     created_at: datetime
     
+    trip_id: Optional[UUID] = None
+    is_standalone: bool = False
+    
     model_config = {"from_attributes": True}
 
 

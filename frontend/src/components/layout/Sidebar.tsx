@@ -2,7 +2,7 @@
  * KRONOS - Main Sidebar Layout Component
  * Enterprise Styled with Tailwind CSS
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Calendar,
@@ -28,6 +28,9 @@ import {
   Receipt,
   GitBranch,
   Shield,
+  ChevronDown,
+  Layers,
+  PieChart
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { clsx } from 'clsx';
@@ -38,17 +41,21 @@ interface NavItem {
   path: string;
   icon: React.ReactNode;
   permission?: string;
+  end?: boolean; // Exact match for active state
 }
 
-// Base items
-const navItems: NavItem[] = [
-  { label: 'Dashboard', path: '/', icon: <LayoutDashboard size={20} /> },
+// Base items (Always visible at top)
+const baseItems: NavItem[] = [
+  { label: 'Dashboard', path: '/', icon: <LayoutDashboard size={20} />, end: true },
   { label: 'Lavoro Agile', path: '/smart-working', icon: <Briefcase size={20} /> },
+];
+
+const myItems: NavItem[] = [
   { label: 'Assenze e Permessi', path: '/leaves', icon: <TreePalm size={20} />, permission: 'leaves:view' },
   { label: 'Trasferte', path: '/trips', icon: <Briefcase size={20} />, permission: 'trips:view' },
   { label: 'Note Spese', path: '/expenses', icon: <FileText size={20} />, permission: 'expenses:view' },
   { label: 'Calendario', path: '/calendar', icon: <Calendar size={20} />, permission: 'calendar:view' },
-  { label: 'Documenti & Wiki', path: '/wiki', icon: <Book size={20} />, permission: 'wiki:view' },
+  { label: 'Wiki & Documenti', path: '/wiki', icon: <Book size={20} />, permission: 'wiki:view' },
 ];
 
 // Approver section
@@ -57,31 +64,31 @@ const approverItems: NavItem[] = [
 ];
 
 // Admin Sections
-const adminAccessItems: NavItem[] = [
-  { label: 'Gestione Utenti', path: '/admin/users', icon: <Users size={20} />, permission: 'users:view' },
-  { label: 'Gestione Ruoli', path: '/admin/roles', icon: <Shield size={20} />, permission: 'roles:view' },
-  { label: 'Organizzazione', path: '/admin/organization', icon: <Briefcase size={20} />, permission: 'settings:edit' },
+const organizationItems: NavItem[] = [
+  { label: 'Utenti', path: '/admin/users', icon: <Users size={20} />, permission: 'users:view' },
+  { label: 'Ruoli & Permessi', path: '/admin/roles', icon: <Shield size={20} />, permission: 'roles:view' },
+  { label: 'Organigramma', path: '/admin/organization', icon: <Layers size={20} />, permission: 'settings:edit' },
 ];
 
-const adminConfigItems: NavItem[] = [
-  { label: 'Workflow Approvazioni', path: '/admin/workflows', icon: <GitBranch size={20} />, permission: 'approvals:config' },
-  { label: 'Calendari di Sistema', path: '/admin/system-calendars', icon: <Calendar size={20} />, permission: 'calendar:manage' },
+const configItems: NavItem[] = [
+  { label: 'Workflow', path: '/admin/workflows', icon: <GitBranch size={20} />, permission: 'approvals:config' },
+  { label: 'Calendari', path: '/admin/system-calendars', icon: <Calendar size={20} />, permission: 'calendar:manage' },
   { label: 'Contratti CCNL', path: '/admin/national-contracts', icon: <FileText size={20} />, permission: 'contracts:view' },
   { label: 'Tipi Assenza', path: '/admin/leave-types', icon: <TreePalm size={20} />, permission: 'settings:edit' },
-  { label: 'Strumenti Admin', path: '/admin/tools', icon: <Settings size={20} />, permission: 'settings:edit' },
+  { label: 'Impostazioni Sistema', path: '/admin/tools', icon: <Settings size={20} />, permission: 'settings:edit' },
 ];
 
-const adminLogItems: NavItem[] = [
+const monitorItems: NavItem[] = [
   { label: 'Centro Notifiche', path: '/admin/notifications', icon: <Bell size={20} />, permission: 'notifications:send' },
-  { label: 'Log Email', path: '/admin/email-logs', icon: <Mail size={20} />, permission: 'notifications:view' },
-  { label: 'Audit Log', path: '/admin/audit-logs', icon: <Terminal size={20} />, permission: 'audit:view' },
-  { label: 'Audit Trail', path: '/admin/audit-trail', icon: <HistoryIcon size={20} />, permission: 'audit:view' },
+  { label: 'Log Email', path: '/admin/audit/emails', icon: <Mail size={20} />, permission: 'notifications:view' },
+  { label: 'Audit Log', path: '/admin/audit/logs', icon: <Terminal size={20} />, permission: 'audit:view' },
+  { label: 'Audit Trail', path: '/admin/audit/trail', icon: <HistoryIcon size={20} />, permission: 'audit:view' },
 ];
 
 // HR Section
 const hrItems: NavItem[] = [
-  { label: 'HR Console', path: '/hr/console', icon: <LayoutDashboard size={20} />, permission: 'reports:view' },
-  { label: 'Report Presenze', path: '/hr/reports', icon: <Activity size={20} />, permission: 'reports:view' },
+  { label: 'HR Console', path: '/hr/console', icon: <PieChart size={20} />, permission: 'reports:view' },
+  { label: 'Reportistica', path: '/hr/reports', icon: <Activity size={20} />, permission: 'reports:view' },
   { label: 'Formazione', path: '/hr/training', icon: <GraduationCap size={20} />, permission: 'training:view' },
   { label: 'Gestione Assenze', path: '/hr/leaves', icon: <TreePalm size={20} />, permission: 'leaves:manage' },
   { label: 'Gestione Trasferte', path: '/hr/trips', icon: <Plane size={20} />, permission: 'trips:manage' },
@@ -93,6 +100,13 @@ export function Sidebar() {
   const [darkMode, setDarkMode] = useState(() => {
     return document.documentElement.getAttribute('data-theme') === 'dark';
   });
+
+  // Accordion state
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
+    'my-items': true, // Default open
+    'approver': true,
+  });
+
   const location = useLocation();
   const { user, logout, isAdmin, hasPermission } = useAuth();
 
@@ -103,8 +117,41 @@ export function Sidebar() {
     localStorage.setItem('theme', newMode ? 'dark' : 'light');
   };
 
-  const isActive = (path: string) => {
-    if (path === '/') return location.pathname === '/';
+  // Auto-expand groups based on active route
+  useEffect(() => {
+    if (collapsed) return;
+
+    const sections = {
+      'my-items': myItems,
+      'approver': approverItems,
+      'hr': hrItems,
+      'config': configItems,
+      'organization': organizationItems,
+      'monitor': monitorItems
+    };
+
+    const newExpanded = { ...expandedGroups };
+    let changed = false;
+
+    Object.entries(sections).forEach(([key, items]) => {
+      const hasActive = items.some(item => {
+        if (item.path === '/' || item.end) return location.pathname === item.path;
+        return location.pathname.startsWith(item.path);
+      });
+
+      if (hasActive && !newExpanded[key]) {
+        newExpanded[key] = true;
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      setExpandedGroups(newExpanded);
+    }
+  }, [location.pathname, collapsed]);
+
+  const isActive = (path: string, end?: boolean) => {
+    if (path === '/' || end) return location.pathname === path;
     return location.pathname.startsWith(path);
   };
 
@@ -114,20 +161,24 @@ export function Sidebar() {
     return hasPermission(item.permission);
   };
 
+  const toggleGroup = (groupKey: string) => {
+    setExpandedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
+  };
+
   const renderNavItem = (item: NavItem) => {
     if (!canSeeItem(item)) return null;
 
     const employeeOnlyPaths = ['/leaves', '/trips', '/expenses', '/calendar'];
-    if (user?.is_employee === false && employeeOnlyPaths.includes(item.path)) return null;
+    if (user?.is_employee === false && employeeOnlyPaths.includes(item.path) && !item.path.startsWith('/hr')) return null;
 
-    const active = isActive(item.path);
+    const active = isActive(item.path, item.end);
 
     return (
       <Link
         key={item.path}
         to={item.path}
         className={clsx(
-          'flex items-center gap-3 px-3 py-2.5 mx-2 rounded-lg text-sm font-medium transition-all duration-200 mb-0.5',
+          'flex items-center gap-3 px-3 py-2 mx-2 rounded-lg text-sm font-medium transition-all duration-200 mb-0.5',
           active
             ? 'bg-primary/10 text-primary'
             : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
@@ -135,7 +186,7 @@ export function Sidebar() {
         )}
         title={collapsed ? item.label : undefined}
       >
-        <span className={clsx('shrink-0', active ? 'text-primary' : 'text-slate-500 group-hover:text-slate-700')}>
+        <span className={clsx('shrink-0', active ? 'text-primary' : 'text-slate-400 group-hover:text-slate-600')}>
           {item.icon}
         </span>
         {!collapsed && <span className="truncate">{item.label}</span>}
@@ -143,13 +194,63 @@ export function Sidebar() {
     );
   };
 
-  const hasVisibleItems = (items: NavItem[]) => items.some(item => canSeeItem(item));
+  const SidebarGroup = ({
+    title,
+    items,
+    groupKey,
+    icon: GroupIcon
+  }: {
+    title: string;
+    items: NavItem[];
+    groupKey: string;
+    icon?: React.ElementType;
+  }) => {
+    // Check if user has access to at least one item in group
+    const visibleItems = items.filter(canSeeItem);
+    if (visibleItems.length === 0) return null;
 
-  const renderSectionHeader = (title: string) => {
-    if (collapsed) return <div className="h-px bg-slate-200 mx-4 my-4" />;
+    const isExpanded = expandedGroups[groupKey];
+    // Check if any child is active to auto-expand or highlight parent
+    const hasActiveChild = visibleItems.some(item => isActive(item.path, item.end));
+
+    if (collapsed) {
+      // In collapsed mode, maybe show a specialized icon or simpler view?
+      // For now, simpler: show items if we want, or just a separator?
+      // Enterprise UX: Collapsed sidebar usually shows just Icons.
+      // If we have groups, maybe a divider?
+      return (
+        <div className="mb-2">
+          <div className="h-px bg-slate-100 mx-4 my-2" />
+          {visibleItems.map(renderNavItem)}
+        </div>
+      );
+    }
+
     return (
-      <div className="px-5 py-2 mt-4 mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-        {title}
+      <div className="mb-1">
+        <button
+          onClick={() => toggleGroup(groupKey)}
+          className={clsx(
+            "w-full flex items-center justify-between px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors mb-1",
+            hasActiveChild && !isExpanded && "text-primary bg-primary/5"
+          )}
+        >
+          <div className="flex items-center gap-2">
+            {GroupIcon && <GroupIcon size={14} />}
+            <span>{title}</span>
+          </div>
+          <ChevronDown
+            size={14}
+            className={clsx("transition-transform duration-200", isExpanded ? "rotate-180" : "")}
+          />
+        </button>
+
+        <div className={clsx(
+          "overflow-hidden transition-all duration-300 ease-in-out pl-2 border-l border-slate-100 ml-4 space-y-0.5",
+          isExpanded ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+        )}>
+          {visibleItems.map(renderNavItem)}
+        </div>
       </div>
     );
   };
@@ -157,19 +258,19 @@ export function Sidebar() {
   return (
     <aside
       className={clsx(
-        'fixed left-0 top-0 bottom-0 z-50 flex flex-col bg-white border-r border-slate-200 transition-all duration-300 ease-in-out',
+        'fixed left-0 top-0 bottom-0 z-50 flex flex-col bg-white border-r border-slate-200 transition-all duration-300 ease-in-out shadow-sm',
         collapsed ? 'w-20' : 'w-72'
       )}
     >
       {/* Header / Logo */}
-      <div className="flex items-center justify-between h-16 px-4 border-b border-slate-100">
+      <div className="flex items-center justify-between h-16 px-4 border-b border-slate-100 bg-white z-10">
         <Link to="/" className={clsx('flex items-center gap-3 overflow-hidden', collapsed && 'justify-center w-full')}>
-          <div className="bg-primary/10 p-1.5 rounded-lg shrink-0">
+          <div className="bg-primary/10 p-1.5 rounded-lg shrink-0 text-primary">
             <Logo size={24} />
           </div>
           {!collapsed && (
-            <span className="font-bold text-lg tracking-tight text-slate-900">
-              KRONOS
+            <span className="font-bold text-lg tracking-tight text-slate-900 leading-none">
+              KRONOS<span className="text-primary">.hr</span>
             </span>
           )}
         </Link>
@@ -184,7 +285,7 @@ export function Sidebar() {
       </div>
 
       {collapsed && (
-        <div className="flex justify-center py-4 border-b border-slate-100">
+        <div className="flex justify-center py-2 border-b border-slate-100">
           <button
             onClick={() => setCollapsed(false)}
             className="p-1.5 rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
@@ -196,48 +297,68 @@ export function Sidebar() {
 
       {/* Navigation Scroll Area */}
       <nav className="flex-1 overflow-y-auto py-4 scrollbar-thin scrollbar-thumb-slate-200 hover:scrollbar-thumb-slate-300">
-        <div className="space-y-0.5">
-          {navItems.map(renderNavItem)}
+        <div className="space-y-1 mb-6">
+          {baseItems.map(renderNavItem)}
         </div>
 
-        {hasVisibleItems(approverItems) && (
-          <>
-            {renderSectionHeader('Approvazioni')}
-            <div className="space-y-0.5">{approverItems.map(renderNavItem)}</div>
-          </>
-        )}
+        <div className="space-y-2">
+          <SidebarGroup
+            title="Le Mie Attività"
+            groupKey="my-items"
+            items={myItems}
+          />
 
-        {hasVisibleItems(hrItems) && (
-          <>
-            {renderSectionHeader('Risorse Umane')}
-            <div className="space-y-0.5">{hrItems.map(renderNavItem)}</div>
-          </>
-        )}
+          <SidebarGroup
+            title="Approvazioni"
+            groupKey="approver"
+            items={approverItems}
+          />
 
-        {hasVisibleItems(adminAccessItems) && (
-          <>
-            {renderSectionHeader('Organizzazione')}
-            <div className="space-y-0.5">{adminAccessItems.map(renderNavItem)}</div>
-          </>
-        )}
+          <SidebarGroup
+            title="Risorse Umane"
+            groupKey="hr"
+            items={hrItems}
+          />
 
-        {hasVisibleItems(adminConfigItems) && (
-          <>
-            {renderSectionHeader('Configurazione')}
-            <div className="space-y-0.5">{adminConfigItems.map(renderNavItem)}</div>
-          </>
-        )}
+          <SidebarGroup
+            title="Configurazione"
+            groupKey="config"
+            items={configItems}
+          />
 
-        {hasVisibleItems(adminLogItems) && (
-          <>
-            {renderSectionHeader('Monitoraggio')}
-            <div className="space-y-0.5">{adminLogItems.map(renderNavItem)}</div>
-          </>
-        )}
+          <SidebarGroup
+            title="Organizzazione"
+            groupKey="org"
+            items={organizationItems}
+          />
+
+          <SidebarGroup
+            title="Monitoraggio"
+            groupKey="monitor"
+            items={monitorItems}
+          />
+        </div>
       </nav>
 
       {/* Footer Actions */}
       <div className="p-4 border-t border-slate-200 bg-slate-50/50">
+        {!collapsed && user && (
+          <div className="mb-4 flex items-center gap-3 px-1 p-2 rounded-xl hover:bg-white hover:shadow-sm transition-all cursor-pointer border border-transparent hover:border-slate-200 group">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-md">
+              {user.first_name?.[0]}{user.last_name?.[0]}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-bold text-slate-900 truncate group-hover:text-primary transition-colors">
+                {user.first_name} {user.last_name}
+              </div>
+              <div className="text-xs text-slate-500 truncate">{user.email}</div>
+            </div>
+            <Link to="/settings" className="p-1.5 text-slate-400 hover:text-primary rounded-lg hover:bg-slate-100">
+              <Settings size={16} />
+            </Link>
+          </div>
+        )}
+
         <div className={clsx('flex gap-2', collapsed ? 'flex-col' : 'flex-row')}>
           <button
             onClick={toggleDarkMode}
@@ -245,7 +366,6 @@ export function Sidebar() {
             title={darkMode ? 'Modalità chiara' : 'Modalità scura'}
           >
             {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-            {!collapsed && <span className="text-xs font-medium">Tema</span>}
           </button>
 
           <button
@@ -257,24 +377,10 @@ export function Sidebar() {
             {!collapsed && <span className="text-xs font-medium">Esci</span>}
           </button>
         </div>
-
-        {/* User User Profile Tiny */}
-        {!collapsed && user && (
-          <div className="mt-4 flex items-center gap-3 px-1">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
-              {user.first_name?.[0]}{user.last_name?.[0]}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-slate-900 truncate">
-                {user.first_name} {user.last_name}
-              </div>
-              <div className="text-xs text-slate-500 truncate">{user.email}</div>
-            </div>
-          </div>
-        )}
       </div>
     </aside>
   );
 }
 
 export default Sidebar;
+

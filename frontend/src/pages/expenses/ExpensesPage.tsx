@@ -4,7 +4,7 @@
  */
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useStandaloneReports } from '../../hooks/domain/useExpenses';
+import { useExpenseReports } from '../../hooks/domain/useExpenses';
 import {
     Plus,
     AlertCircle,
@@ -32,9 +32,20 @@ const safeFormat = (dateStr: string | undefined | null, formatStr: string) => {
 export function ExpensesPage() {
     const navigate = useNavigate();
     const [statusFilter, setStatusFilter] = useState<string>('');
-    const { data: reports, isLoading, error, refetch } = useStandaloneReports(statusFilter || undefined);
+    const [viewMode, setViewMode] = useState<'standalone' | 'trip'>('standalone');
 
-    // Stats calculation
+    // Fetch all reports (Schema now includes is_standalone and trip_id)
+    const { data: allReports, isLoading, error, refetch } = useExpenseReports(statusFilter || undefined);
+
+    // Filter based on view mode
+    const reports = allReports?.filter(report => {
+        if (viewMode === 'standalone') return report.is_standalone;
+        if (viewMode === 'trip') return !report.is_standalone; // Or report.trip_id !== null
+        return true;
+    });
+
+    // Stats calculation (Global or filtered? Let's show Global stats or stats for the view)
+    // Providing stats for the CURRENT view seems more relevant to "Distinguish"
     const stats = {
         total: reports?.length || 0,
         pending: reports?.filter(r => r.status === 'submitted').length || 0,
@@ -108,30 +119,55 @@ export function ExpensesPage() {
                 </div>
             </div>
 
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-2">
-                {[
-                    { id: '', label: 'Tutte', icon: FileText },
-                    { id: 'submitted', label: 'In Approvazione', icon: Clock },
-                    { id: 'approved', label: 'Approvate', icon: CheckCircle2 },
-                    { id: 'rejected', label: 'Rifiutate', icon: XCircle },
-                    { id: 'paid', label: 'Saldate', icon: Receipt },
-                    { id: 'draft', label: 'Bozze', icon: FileText },
-                ].map(filter => (
+            {/* View Mode & Filter Tabs */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                {/* View Mode Toggle */}
+                <div className="bg-slate-100 p-1 rounded-xl flex items-center">
                     <button
-                        key={filter.id}
-                        onClick={() => setStatusFilter(filter.id)}
-                        className={`
-                            flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap
-                            ${statusFilter === filter.id
-                                ? 'bg-slate-900 text-white shadow-md'
-                                : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 hover:border-slate-300'}
-                        `}
+                        onClick={() => setViewMode('standalone')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'standalone'
+                            ? 'bg-white text-slate-900 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700'
+                            }`}
                     >
-                        <filter.icon size={16} className={statusFilter === filter.id ? 'text-emerald-400' : 'text-slate-400'} />
-                        {filter.label}
+                        Spese Singole
                     </button>
-                ))}
+                    <button
+                        onClick={() => setViewMode('trip')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewMode === 'trip'
+                            ? 'bg-white text-slate-900 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                    >
+                        Trasferte
+                    </button>
+                </div>
+
+                {/* Status Filters */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0">
+                    {[
+                        { id: '', label: 'Tutte', icon: FileText },
+                        { id: 'submitted', label: 'In Approvazione', icon: Clock },
+                        { id: 'approved', label: 'Approvate', icon: CheckCircle2 },
+                        { id: 'rejected', label: 'Rifiutate', icon: XCircle },
+                        { id: 'paid', label: 'Saldate', icon: Receipt },
+                        { id: 'draft', label: 'Bozze', icon: FileText },
+                    ].map(filter => (
+                        <button
+                            key={filter.id}
+                            onClick={() => setStatusFilter(filter.id)}
+                            className={`
+                                flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap
+                                ${statusFilter === filter.id
+                                    ? 'bg-slate-900 text-white shadow-md'
+                                    : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 hover:border-slate-300'}
+                            `}
+                        >
+                            <filter.icon size={16} className={statusFilter === filter.id ? 'text-emerald-400' : 'text-slate-400'} />
+                            <span className="hidden leading-none md:inline">{filter.label}</span>
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {/* Data Table */}
@@ -173,6 +209,11 @@ export function ExpensesPage() {
                                             <div className="text-xs text-slate-400">
                                                 {safeFormat(report.created_at, 'dd MMM yyyy')}
                                             </div>
+                                            {!report.is_standalone && (
+                                                <div className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700">
+                                                    Trip: {report.trip_id ? 'Linked' : '...'}
+                                                </div>
+                                            )}
                                         </td>
 
                                         <td className="py-4 px-6 align-top">
