@@ -4,6 +4,7 @@ from .reports import router as reports_router
 from .admin import router as admin_router
 from .training import router as training_router
 from .hr_management import router as hr_management_router
+from .timesheets import router as timesheets_router
 
 __all__ = [
     "dashboard_router",
@@ -11,4 +12,5 @@ __all__ = [
     "admin_router",
     "training_router",
     "hr_management_router",
+    "timesheets_router",
 ]

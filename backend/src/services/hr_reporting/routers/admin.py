@@ -14,7 +14,8 @@ from src.core.database import get_db
 from src.core.security import require_permission, TokenPayload
 
 from ..service import HRReportingService
-from ..schemas import AlertCreate, AlertResponse
+from ..services.settings import HRSettingsService
+from ..schemas import AlertCreate, AlertResponse, HRReportingSettingsUpdate, HRReportingSettingsResponse
 
 router = APIRouter(prefix="/admin", tags=["HR Admin"])
 
@@ -230,6 +231,31 @@ async def calculate_monthly_stats(
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═══════════════════════════════════════════════════════════
+# Settings Management
+# ═══════════════════════════════════════════════════════════
+
+@router.get("/settings", response_model=HRReportingSettingsResponse)
+async def get_settings(
+    current_user: TokenPayload = Depends(require_permission("reports:advanced")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get HR Reporting settings."""
+    service = HRSettingsService(db)
+    return await service.get_settings()
+
+
+@router.put("/settings", response_model=HRReportingSettingsResponse)
+async def update_settings(
+    data: HRReportingSettingsUpdate,
+    current_user: TokenPayload = Depends(require_permission("reports:advanced")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update HR Reporting settings."""
+    service = HRSettingsService(db)
+    return await service.update_settings(data, current_user.user_id)
 
 
 # ═══════════════════════════════════════════════════════════

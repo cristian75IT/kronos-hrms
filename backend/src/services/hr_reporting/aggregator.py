@@ -721,5 +721,120 @@ class HRDataAggregator:
             return {"status": "PASS", "message": "In regola"}
             
         except Exception as e:
-            logger.error(f"Error checking safety training for {user_id}: {e}")
             return {"status": "INFO", "message": "Errore durante la verifica formazione"}
+    
+    async def get_employee_daily_attendance_range(
+        self,
+        employee_id: UUID,
+        start_date: date,
+        end_date: date,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get daily attendance breakdown for an employee in a date range.
+        Optimized for Timesheet generation.
+        """
+        results = []
+        try:
+            # 1. Get Calendar info (Holidays)
+            holidays = await self._calendar_client.get_holidays(start_date, end_date)
+            holiday_dates = {date.fromisoformat(h["date"]) for h in holidays}
+            
+            # 2. Get Leaves
+            leaves = await self._leaves_client.get_leaves_in_period(
+                start_date=start_date,
+                end_date=end_date,
+                user_id=employee_id,
+                status="approved,approved_conditional,pending" # Include pending? Usually timesheet should reflect approved state. But user might want to see pending.
+                # If we are CONFIRMING, we generally want Approved stuff. 
+                # Pending requests usually block confirmation or appear as "Pending".
+                # Let's include them.
+            )
+            
+            # 3. Get Trips
+            # Assuming expense client has this method or we iterate (mocked for now as in get_employee_expense_data)
+            # trips = await self._expense_client.get_trips_in_period...
+            # For now we skip trips optimization or implement if critical.
+            # We'll assume trips are effectively "Work" but in different location.
+            
+            # Build daily map from leaves
+            leave_map = {}
+            for l in leaves:
+                try:
+                    l_start = date.fromisoformat(l["start_date"])
+                    l_end = date.fromisoformat(l["end_date"])
+                    l_type = l.get("leave_type_code", "")
+                    
+                    # Iterate days in leave
+                    curr = max(start_date, l_start)
+                    limit = min(end_date, l_end)
+                    
+                    while curr <= limit:
+                        leave_map[curr] = {
+                            "type": l_type,
+                            "status": l.get("status"),
+                            "request_id": l.get("id")
+                        }
+                        curr += timedelta(days=1)
+                except Exception as e:
+                    logger.warning(f"Error processing leave {l.get('id')}: {e}")
+
+            # Iterate all days
+            current_date = start_date
+            while current_date <= end_date:
+                is_weekend = current_date.weekday() >= 5
+                is_holiday = current_date in holiday_dates
+                
+                status = "Presente"
+                hours_expected = 0.0 if (is_weekend or is_holiday) else 8.0
+                hours_worked = hours_expected
+                leave_type = None
+                notes = None
+                
+                if current_date in leave_map:
+                    l_info = leave_map[current_date]
+                    leave_type = l_info["type"]
+                    req_status = l_info["status"]
+                    
+                    # Status logic
+                    if leave_type.startswith("MAL"):
+                        status = "Malattia"
+                    elif "FER" in leave_type or "VAC" in leave_type:
+                        status = "Ferie"
+                    elif "ROL" in leave_type:
+                        status = "ROL"
+                    elif "PER" in leave_type:
+                        status = "Permesso" # Permesso might be partial hours, but here we assume full day for simplicity unless we check hours
+                    else:
+                        status = f"Assente ({leave_type})"
+                    
+                    if req_status == "pending":
+                        status += " (In attesa)"
+                    
+                    hours_worked = 0.0 # Assuming full day leave
+                    # Ensure hours_expected remains 8 unless holiday
+                
+                elif is_holiday:
+                    status = "Festivo"
+                    hours_worked = 0.0
+                elif is_weekend:
+                    status = "Weekend"
+                    hours_worked = 0.0
+                
+                # Check Trip (Mock/TODO)
+                # if inside trip: status="Trasferta", hours_worked=8
+                
+                results.append({
+                    "date": current_date,
+                    "status": status,
+                    "leave_type": leave_type,
+                    "hours_worked": hours_worked,
+                    "hours_expected": hours_expected,
+                    "notes": notes
+                })
+                
+                current_date += timedelta(days=1)
+                
+        except Exception as e:
+            logger.error(f"Error fetching daily attendance range: {e}")
+        
+        return results

@@ -13,6 +13,7 @@ from .routers import (
     admin_router,
     training_router,
     hr_management_router,
+    timesheets_router,
 )
 
 app = FastAPI(
@@ -39,6 +40,7 @@ app.include_router(reports_router, prefix="/api/v1/hr")
 app.include_router(admin_router, prefix="/api/v1/hr")
 app.include_router(training_router, prefix="/api/v1/hr")
 app.include_router(hr_management_router, prefix="/api/v1/hr")
+app.include_router(timesheets_router, prefix="/api/v1/hr")
 
 
 

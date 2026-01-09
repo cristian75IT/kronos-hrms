@@ -469,3 +469,103 @@ class SafetyCompliance(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+
+# ============================================================================
+# Monthly Timesheet Models
+# ============================================================================
+
+class TimesheetStatus(str, enum.Enum):
+    """
+    Status of the monthly timesheet.
+    """
+    DRAFT = "draft"
+    PENDING_CONFIRMATION = "pending_confirmation"
+    CONFIRMED = "confirmed"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class MonthlyTimesheet(Base):
+    """
+    Monthly attendance sheet (Giornaliero Presenze).
+    
+    Lists daily attendance/absence status for employee confirmation.
+    """
+    __tablename__ = "monthly_timesheets"
+    __table_args__ = {"schema": "hr_reporting"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    
+    employee_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), 
+        nullable=False, 
+        index=True
+    )
+    
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    month: Mapped[int] = mapped_column(Integer, nullable=False)
+    
+    # Status flow
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    
+    # Detailed data (Daily list)
+    days: Mapped[Optional[list[dict]]] = mapped_column(JSONB)
+    
+    # Summary data (Totals)
+    summary: Mapped[Optional[dict]] = mapped_column(JSONB)
+    
+    # Confirmation info
+    confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    confirmed_by: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))
+    
+    # Approval info
+    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    approved_by: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))
+    
+    # User comments
+    employee_notes: Mapped[Optional[str]] = mapped_column(Text)
+    hr_notes: Mapped[Optional[str]] = mapped_column(Text)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class HRReportingSettings(Base):
+    """
+    Global settings for HR Reporting service.
+    """
+    __tablename__ = "hr_reporting_settings"
+    __table_args__ = {"schema": "hr_reporting"}
+    
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+    
+    # Timesheet Configuration
+    # Day of month for confirmation deadline
+    timesheet_confirmation_day: Mapped[int] = mapped_column(Integer, default=27)
+    
+    # 0 = same month (e.g., 27th Jan for Jan timesheet)
+    # 1 = next month (e.g., 5th Feb for Jan timesheet)
+    timesheet_confirmation_month_offset: Mapped[int] = mapped_column(Integer, default=0)
+    
+    updated_by: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )

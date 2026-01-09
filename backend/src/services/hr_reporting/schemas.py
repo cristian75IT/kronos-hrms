@@ -583,3 +583,73 @@ class AggregateAttendanceResponse(BaseModel):
     end_date: date
     working_days: int
     items: List[AggregateAttendanceItem]
+
+
+# ============================================================================
+# Monthly Timesheet Schemas
+# ============================================================================
+
+class TimesheetDay(BaseModel):
+    """Daily entry in monthly timesheet."""
+    date: date
+    status: str  # Present, Absent, Holiday, Weekend
+    leave_type: Optional[str] = None
+    hours_worked: float
+    hours_expected: float
+    notes: Optional[str] = None
+
+
+class TimesheetSummary(BaseModel):
+    """Summary of monthly timesheet."""
+    total_days: int
+    days_worked: float
+    days_absent: float
+    hours_worked: float
+    hours_absence: float
+    sickness_days: float
+    vacation_days: float
+    other_days: float
+
+
+class MonthlyTimesheetResponse(BaseModel):
+    """Monthly timesheet response."""
+    id: UUID
+    employee_id: UUID
+    year: int
+    month: int
+    status: str
+    days: List[TimesheetDay] = []
+    summary: Optional[TimesheetSummary] = None
+    confirmed_at: Optional[datetime] = None
+    employee_notes: Optional[str] = None
+    hr_notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    
+    # Confirmation window info
+    can_confirm: bool = False
+    confirmation_deadline: Optional[date] = None
+
+    class Config:
+        from_attributes = True
+
+
+class TimesheetConfirmation(BaseModel):
+    """Request to confirm timesheet."""
+    notes: Optional[str] = None
+
+
+class HRReportingSettingsUpdate(BaseModel):
+    """Update HR settings."""
+    timesheet_confirmation_day: int = Field(..., ge=1, le=31)
+    timesheet_confirmation_month_offset: int = Field(..., ge=0, le=1)
+
+
+class HRReportingSettingsResponse(BaseModel):
+    """HR settings response."""
+    timesheet_confirmation_day: int
+    timesheet_confirmation_month_offset: int
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
