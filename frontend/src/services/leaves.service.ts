@@ -14,6 +14,12 @@ import type {
     DailyAttendanceResponse,
     AggregateReportRequest,
     AggregateReportResponse,
+    LeaveBalanceTransaction,
+    LeaveCalculationResponse,
+    ExcludedDaysResponse,
+    BalancePreviewResponse,
+    BalanceAdjustmentDto,
+    BalanceImportItem,
 } from '../types';
 
 const ENDPOINT = '/leaves';
@@ -72,7 +78,7 @@ export const leavesService = {
         startHalfDay = false,
         endHalfDay = false,
         leaveTypeId?: string
-    ): Promise<{ days: number; hours: number; message?: string }> => {
+    ): Promise<LeaveCalculationResponse> => {
         const response = await leavesApi.post(`${ENDPOINT}/calculate-days`, {
             start_date: startDate,
             end_date: endDate,
@@ -86,16 +92,7 @@ export const leavesService = {
     getExcludedDays: async (
         startDate: string,
         endDate: string
-    ): Promise<{
-        start_date: string;
-        end_date: string;
-        working_days: number;
-        excluded_days: Array<{
-            date: string;
-            reason: 'weekend' | 'holiday' | 'closure';
-            name: string;
-        }>;
-    }> => {
+    ): Promise<ExcludedDaysResponse> => {
         const response = await leavesApi.get(`${ENDPOINT}/excluded-days`, {
             params: { start_date: startDate, end_date: endDate }
         });
@@ -203,12 +200,12 @@ export const leavesService = {
         return response.data;
     },
 
-    adjustBalance: async (userId: string, year: number, data: { balance_type: string, amount: number, reason: string, expiry_date?: string }): Promise<LeaveBalance> => {
+    adjustBalance: async (userId: string, year: number, data: BalanceAdjustmentDto): Promise<LeaveBalance> => {
         const response = await leavesApi.post(`/balances/${userId}/adjust`, data, { params: { year } });
         return response.data;
     },
 
-    getTransactions: async (balanceId: string): Promise<any[]> => {
+    getTransactions: async (balanceId: string): Promise<LeaveBalanceTransaction[]> => {
         const response = await leavesApi.get(`/balances/transactions/${balanceId}`);
         return response.data;
     },
@@ -237,20 +234,7 @@ export const leavesService = {
     // Preview & Selective Apply (Admin Tools)
     // ═══════════════════════════════════════════════════════════════════
 
-    previewRecalculate: async (year?: number): Promise<{
-        year: number;
-        employees: Array<{
-            user_id: string;
-            name: string;
-            current_vacation: number;
-            new_vacation: number;
-            current_rol: number;
-            new_rol: number;
-            current_permits: number;
-            new_permits: number;
-        }>;
-        total_count: number;
-    }> => {
+    previewRecalculate: async (year?: number): Promise<BalancePreviewResponse> => {
         const params = year ? { year } : {};
         const response = await leavesApi.get('/balances/accrual/preview', { params });
         return response.data;
@@ -262,21 +246,7 @@ export const leavesService = {
         return response.data.message;
     },
 
-    previewRollover: async (year: number): Promise<{
-        from_year: number;
-        to_year: number;
-        employees: Array<{
-            user_id: string;
-            name: string;
-            current_vacation: number;
-            new_vacation: number;
-            current_rol: number;
-            new_rol: number;
-            current_permits: number;
-            new_permits: number;
-        }>;
-        total_count: number;
-    }> => {
+    previewRollover: async (year: number): Promise<BalancePreviewResponse> => {
         const response = await leavesApi.get('/balances/rollover/preview', { params: { year } });
         return response.data;
     },
@@ -300,7 +270,7 @@ export const leavesService = {
         return response.data;
     },
 
-    importBalances: async (items: any[], mode: 'APPEND' | 'REPLACE' = 'APPEND'): Promise<string> => {
+    importBalances: async (items: BalanceImportItem[], mode: 'APPEND' | 'REPLACE' = 'APPEND'): Promise<string> => {
         const response = await leavesApi.post('/balances/import', { items, mode });
         return response.data.message;
     },

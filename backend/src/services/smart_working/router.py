@@ -70,6 +70,35 @@ async def get_my_agreements(
     return await service.get_user_agreements(token.user_id)
 
 
+@router.get(
+    "/agreements/user/{user_id}",
+    response_model=List[SWAgreementResponse],
+    summary="Get User Agreements (HR)",
+    description="Returns all Smart Working agreements for a specific user. Requires HR role."
+)
+async def get_user_agreements_by_id(
+    user_id: UUID,
+    service: SmartWorkingService = Depends(get_service),
+    token: TokenPayload = Depends(require_hr)
+):
+    return await service.get_user_agreements(user_id)
+
+
+@router.put(
+    "/agreements/{id}",
+    response_model=SWAgreementResponse,
+    summary="Update Agreement (HR)",
+    description="Updates a Smart Working agreement. Requires HR or Admin role."
+)
+async def update_agreement(
+    id: UUID,
+    data: SWAgreementCreate,
+    service: SmartWorkingService = Depends(get_service),
+    token: TokenPayload = Depends(require_hr)
+):
+    return await service.update_agreement(id, data, token.user_id)
+
+
 @router.put(
     "/agreements/{id}/terminate",
     response_model=SWAgreementResponse,

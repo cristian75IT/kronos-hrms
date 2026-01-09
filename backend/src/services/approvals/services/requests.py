@@ -5,7 +5,7 @@ from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
 
-from src.core.exceptions import NotFoundError, BusinessRuleError
+from src.core.exceptions import NotFoundError, BusinessRuleError, MissingConfigurationError
 from src.services.approvals.schemas import ApprovalRequestCreate
 from src.services.approvals.services.base import BaseApprovalService
 # Dependency on Resolution Service is handled via Facade or argument
@@ -43,7 +43,11 @@ class ApprovalRequestService(BaseApprovalService):
              config = None
              
         if not config:
-             raise BusinessRuleError(f"No matching workflow configuration for {data.entity_type}")
+             raise MissingConfigurationError(
+                 config_type=f"WORKFLOW_{data.entity_type}",
+                 message=f"Nessun workflow di approvazione configurato per '{data.entity_type}'",
+                 guidance="Configura un workflow in Admin → Workflow Approvazioni prima di poter effettuare richieste."
+             )
              
         # 3. Create Request
         request = ApprovalRequest(

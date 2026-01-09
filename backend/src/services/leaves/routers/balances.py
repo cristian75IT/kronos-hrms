@@ -78,7 +78,7 @@ async def get_user_balance_summary(
     return await service.get_balance_summary(user_id, year)
 
 
-@router.post("/balances/{user_id}/adjust", response_model=LeaveBalanceResponse)
+@router.post("/balances/{user_id}/adjust", response_model=BalanceSummary)
 async def adjust_balance(
     user_id: UUID,
     data: BalanceAdjustment,

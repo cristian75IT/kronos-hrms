@@ -124,5 +124,39 @@ export const authService = {
             const text = await response.text();
             throw new Error(text || "Failed to verify MFA");
         }
+    },
+
+    async disableMfa(token: string, code: string): Promise<void> {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}/auth/mfa/disable`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ code })
+        });
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({ detail: 'Failed to disable MFA' }));
+            throw new Error(data.detail || 'Failed to disable MFA');
+        }
+    },
+
+    async changePassword(token: string, currentPassword: string, newPassword: string, confirmPassword: string): Promise<void> {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'}/auth/password/change`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                current_password: currentPassword,
+                new_password: newPassword,
+                confirm_password: confirmPassword
+            })
+        });
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({ detail: 'Failed to change password' }));
+            throw new Error(data.detail || 'Failed to change password');
+        }
     }
 };

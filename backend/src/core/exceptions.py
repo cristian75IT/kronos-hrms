@@ -122,3 +122,34 @@ class ExternalServiceError(KronosException):
         if service:
             error_details["service"] = service
         super().__init__(message=message, code="EXTERNAL_SERVICE_ERROR", details=error_details)
+
+
+class MissingConfigurationError(KronosException):
+    """
+    Missing configuration error exception.
+    
+    Raised when a required system configuration is missing.
+    Maps to HTTP 503 Service Unavailable with actionable guidance.
+    
+    Enterprise Pattern: Fail Fast & Loud - operations must not proceed
+    silently when required configuration is absent.
+    """
+
+    def __init__(
+        self,
+        config_type: str,
+        message: str | None = None,
+        guidance: str | None = None,
+    ) -> None:
+        default_guidance = "Contatta l'amministratore di sistema per configurare questa funzionalità."
+        details = {
+            "config_type": config_type,
+            "guidance": guidance or default_guidance,
+        }
+        
+        default_message = f"Configurazione mancante: {config_type}. Funzionalità non disponibile."
+        super().__init__(
+            message=message or default_message,
+            code="CONFIG_MISSING",
+            details=details
+        )

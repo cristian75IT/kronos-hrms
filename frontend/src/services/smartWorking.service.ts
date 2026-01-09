@@ -96,5 +96,21 @@ export const smartWorkingService = {
     checkOut: async (data: SWAttendanceCheckOut): Promise<SWAttendance> => {
         const response = await api.post('/smart-working/attendance/check-out', data);
         return response.data;
+    },
+
+    // HR/Admin methods
+    getUserAgreements: async (userId: string): Promise<SWAgreement[]> => {
+        const response = await api.get(`/smart-working/agreements/user/${userId}`);
+        return response.data;
+    },
+
+    getAllAgreements: async (): Promise<SWAgreement[]> => {
+        const response = await api.get('/smart-working/agreements');
+        return response.data;
+    },
+
+    updateAgreement: async (id: string, data: Partial<SWAgreement>): Promise<SWAgreement> => {
+        const response = await api.put(`/smart-working/agreements/${id}`, data);
+        return response.data;
     }
 };

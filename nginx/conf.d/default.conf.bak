@@ -69,6 +69,12 @@ server {
         include /etc/nginx/proxy_params;
     }
 
+    # Smart Working Service
+    location ~ ^/api/v1/smart-working {
+        proxy_pass http://smart-working-service:8013;
+        include /etc/nginx/proxy_params;
+    }
+
     location / {
 
         proxy_pass http://frontend:3000;
@@ -159,6 +165,12 @@ server {
     # Approval Service
     location ~ ^/api/v1/approvals {
         proxy_pass http://approval-service:8012;
+        include /etc/nginx/proxy_params;
+    }
+
+    # Smart Working Service
+    location ~ ^/api/v1/smart-working {
+        proxy_pass http://smart-working-service:8013;
         include /etc/nginx/proxy_params;
     }
 

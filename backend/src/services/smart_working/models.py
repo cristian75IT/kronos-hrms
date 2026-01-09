@@ -33,7 +33,8 @@ class SWAgreement(Base):
     __table_args__ = {"schema": "smart_working"}
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(ForeignKey("auth.users.id"), index=True)
+    # Note: No FK constraint to auth.users - cross-schema FKs are not supported in microservice architecture
+    user_id: Mapped[UUID] = mapped_column(index=True)
     
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
@@ -50,7 +51,8 @@ class SWAgreement(Base):
     
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    created_by: Mapped[UUID] = mapped_column(ForeignKey("auth.users.id"))
+    # Note: No FK constraint to auth.users - cross-schema FKs are not supported in microservice architecture
+    created_by: Mapped[UUID] = mapped_column()
 
     # Relationships
     requests: Mapped[list["SWRequest"]] = relationship(back_populates="agreement")
@@ -65,7 +67,8 @@ class SWRequest(Base):
     __table_args__ = {"schema": "smart_working"}
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(ForeignKey("auth.users.id"), index=True)
+    # Note: No FK constraint to auth.users - cross-schema FKs are not supported in microservice architecture
+    user_id: Mapped[UUID] = mapped_column(index=True)
     agreement_id: Mapped[UUID] = mapped_column(ForeignKey("smart_working.sw_agreements.id"), index=True)
     
     date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
@@ -77,9 +80,9 @@ class SWRequest(Base):
     
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
-    # Approval fields
-    approval_request_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("approvals.approval_requests.id"), nullable=True)
-    approver_id: Mapped[Optional[UUID]] = mapped_column(ForeignKey("auth.users.id"), nullable=True)
+    # Approval fields - No FK constraints for cross-schema references
+    approval_request_id: Mapped[Optional[UUID]] = mapped_column(nullable=True)
+    approver_id: Mapped[Optional[UUID]] = mapped_column(nullable=True)
     approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     rejection_reason: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     

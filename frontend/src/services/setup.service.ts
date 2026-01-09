@@ -4,7 +4,8 @@ export const setupService = {
     /**
      * Import National Contracts (CCNL)
      */
-    importContracts: async (data: any) => {
+
+    importContracts: async (data: unknown): Promise<Record<string, unknown>> => {
         const response = await api.post('/config/setup/contracts', data);
         return response.data;
     },
@@ -12,7 +13,7 @@ export const setupService = {
     /**
      * Import Executive Levels
      */
-    importExecutiveLevels: async (data: any) => {
+    importExecutiveLevels: async (data: unknown): Promise<Record<string, unknown>> => {
         const response = await api.post('/auth/setup/executive-levels', data);
         return response.data;
     },
@@ -20,7 +21,7 @@ export const setupService = {
     /**
      * Import Organization Structure
      */
-    importOrganization: async (data: any) => {
+    importOrganization: async (data: unknown): Promise<Record<string, unknown>> => {
         const response = await api.post('/auth/setup/organization', data);
         return response.data;
     },
@@ -28,7 +29,7 @@ export const setupService = {
     /**
      * Import Users and Profiles
      */
-    importUsers: async (data: any) => {
+    importUsers: async (data: unknown): Promise<Record<string, unknown>> => {
         const response = await api.post('/auth/setup/users', data);
         return response.data;
     },
@@ -36,7 +37,7 @@ export const setupService = {
     /**
      * Import Holiday Profiles
      */
-    importHolidays: async (data: any) => {
+    importHolidays: async (data: unknown): Promise<Record<string, unknown>> => {
         const response = await api.post('/calendar/setup/holidays', data);
         return response.data;
     },
@@ -44,7 +45,7 @@ export const setupService = {
     /**
      * Import Approval Workflows
      */
-    importWorkflows: async (data: any) => {
+    importWorkflows: async (data: unknown): Promise<Record<string, unknown>> => {
         const response = await api.post('/approvals/setup/workflows', data);
         return response.data;
     },
@@ -52,7 +53,7 @@ export const setupService = {
     /**
      * Import Leave Types
      */
-    importLeaveTypes: async (data: any) => {
+    importLeaveTypes: async (data: unknown): Promise<Record<string, unknown>> => {
         const response = await api.post('/config/setup/leave-types', data);
         return response.data;
     },
@@ -60,7 +61,7 @@ export const setupService = {
     /**
      * Import Email Templates
      */
-    importEmailTemplates: async (data: any) => {
+    importEmailTemplates: async (data: unknown): Promise<Record<string, unknown>> => {
         const response = await api.post('/notifications/templates/import', data);
         return response.data;
     }

@@ -17,12 +17,15 @@ import {
     Settings,
     AlertTriangle,
     GitBranch,
-    Briefcase
+    Briefcase,
+    CheckCircle,
+    XCircle,
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { leavesService } from '../../services/leaves.service';
 import { Button } from '../../components/common';
 import { configService } from '../../services/config.service';
+import { configHealthService, type ConfigHealthResponse } from '../../services/configHealth.service';
 import { EmailSettingsPanel } from '../../components/admin/EmailSettingsPanel';
 import { EmailTemplatesPanel } from '../../components/admin/EmailTemplatesPanel';
 import { Link } from 'react-router-dom';
@@ -57,6 +60,7 @@ export function AdminToolsPage() {
     const [previewData, setPreviewData] = useState<EmployeePreview[]>([]);
     const [isLoadingPreview, setIsLoadingPreview] = useState(false);
     const [previewYear] = useState<number>(new Date().getFullYear());
+    const [configHealth, setConfigHealth] = useState<ConfigHealthResponse | null>(null);
 
     const [settings, setSettings] = useState<NotificationSetting[]>([
         { key: 'notify_leave_request', value: true, label: 'Nuove Richieste Ferie', description: 'Invia email ai responsabili quando un dipendente richiede ferie.', category: 'email' },
@@ -86,6 +90,17 @@ export function AdminToolsPage() {
             }
         };
         loadConfigs();
+
+        // Load config health
+        const loadHealthCheck = async () => {
+            try {
+                const health = await configHealthService.getConfigHealth();
+                setConfigHealth(health);
+            } catch (e) {
+                console.warn('Failed to load config health');
+            }
+        };
+        loadHealthCheck();
     }, []);
 
     const handleToggleSetting = (key: string) => {
@@ -233,6 +248,58 @@ export function AdminToolsPage() {
                     </p>
                 </div>
             </div>
+
+            {/* Config Health Alert - Enterprise Configuration Validation */}
+            {configHealth && configHealth.missing_count > 0 && (
+                <div className={`p-4 rounded-xl border flex items-start gap-4 ${configHealth.overall_status === 'critical'
+                        ? 'bg-red-50 border-red-200'
+                        : 'bg-amber-50 border-amber-200'
+                    }`}>
+                    <div className={`p-2 rounded-lg ${configHealth.overall_status === 'critical'
+                            ? 'bg-red-100 text-red-600'
+                            : 'bg-amber-100 text-amber-600'
+                        }`}>
+                        <AlertTriangle size={20} />
+                    </div>
+                    <div className="flex-1">
+                        <h3 className={`font-bold ${configHealth.overall_status === 'critical'
+                                ? 'text-red-900'
+                                : 'text-amber-900'
+                            }`}>
+                            {configHealth.overall_status === 'critical'
+                                ? 'Configurazione Sistema Incompleta'
+                                : 'Attenzione: Configurazioni Mancanti'}
+                        </h3>
+                        <p className={`text-sm mt-1 ${configHealth.overall_status === 'critical'
+                                ? 'text-red-700'
+                                : 'text-amber-700'
+                            }`}>
+                            {configHealth.missing_count} configurazion{configHealth.missing_count === 1 ? 'e' : 'i'} richiest{configHealth.missing_count === 1 ? 'a' : 'e'} non configurata:
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            {configHealth.items.filter(i => i.status === 'missing').map(item => (
+                                <span key={item.config_type} className="inline-flex items-center gap-1 px-2 py-1 bg-white rounded-lg text-xs font-medium border">
+                                    <XCircle size={12} className="text-red-500" />
+                                    {item.name}
+                                </span>
+                            ))}
+                        </div>
+                        <p className="text-xs mt-3 text-slate-500">
+                            Vai in <Link to="/admin/workflows" className="font-medium text-indigo-600 hover:underline">Workflow Approvazioni</Link> per configurare.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* Config Health OK Badge */}
+            {configHealth && configHealth.overall_status === 'ok' && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3">
+                    <div className="p-1.5 bg-emerald-100 rounded-lg text-emerald-600">
+                        <CheckCircle size={16} />
+                    </div>
+                    <span className="text-sm text-emerald-800 font-medium">Tutte le configurazioni di sistema sono attive</span>
+                </div>
+            )}
 
             {/* Main Layout Tabs */}
             <div className="flex flex-col lg:flex-row gap-8">

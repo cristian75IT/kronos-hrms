@@ -65,9 +65,14 @@ export function AddTrainingModal({ isOpen, onClose, onValuesSaved }: AddTraining
         setLoading(true);
         try {
             const payload = {
-                ...data,
+                user_id: data.employee_id,
+                title: data.training_name,
+                description: data.description,
+                provider: data.provider_name,
                 hours: data.hours ? Number(data.hours) : undefined,
-                expiry_date: data.expiry_date || null
+                start_date: data.training_date,
+                expiry_date: data.expiry_date || undefined,
+                status: 'completed' as const,
             };
 
             await hrReportingService.createTrainingRecord(payload);

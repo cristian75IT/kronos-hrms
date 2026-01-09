@@ -206,3 +206,83 @@ async def reject_internal(
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ═══════════════════════════════════════════════════════════
+# Health Check - Configuration Status
+# ═══════════════════════════════════════════════════════════
+
+class ConfigHealthItem(BaseModel):
+    """Single configuration health check result."""
+    config_type: str
+    name: str
+    status: str  # "ok" | "missing"
+    message: Optional[str] = None
+
+
+class ConfigHealthResponse(BaseModel):
+    """Configuration health check response."""
+    overall_status: str  # "ok" | "warning" | "critical"
+    items: list[ConfigHealthItem]
+    missing_count: int
+
+
+REQUIRED_WORKFLOWS = ["LEAVE", "EXPENSE", "TRIP", "SMART_WORKING"]
+WORKFLOW_NAMES = {
+    "LEAVE": "Workflow Ferie/Permessi",
+    "EXPENSE": "Workflow Note Spese",
+    "TRIP": "Workflow Trasferte",
+    "SMART_WORKING": "Workflow Smart Working",
+}
+
+
+@router.get("/health/config", response_model=ConfigHealthResponse)
+async def check_config_health(
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Check system configuration health.
+    
+    Returns status of all required configurations (workflows, etc.).
+    Used by admin dashboard to show configuration status.
+    """
+    from sqlalchemy import select
+    from ..models import WorkflowConfig
+    
+    # Fetch existing workflow configs
+    result = await db.execute(
+        select(WorkflowConfig.entity_type).where(WorkflowConfig.is_active == True)
+    )
+    existing_workflows = {row[0] for row in result.fetchall()}
+    
+    items = []
+    missing_count = 0
+    
+    for workflow_type in REQUIRED_WORKFLOWS:
+        if workflow_type in existing_workflows:
+            items.append(ConfigHealthItem(
+                config_type=f"WORKFLOW_{workflow_type}",
+                name=WORKFLOW_NAMES.get(workflow_type, workflow_type),
+                status="ok",
+            ))
+        else:
+            missing_count += 1
+            items.append(ConfigHealthItem(
+                config_type=f"WORKFLOW_{workflow_type}",
+                name=WORKFLOW_NAMES.get(workflow_type, workflow_type),
+                status="missing",
+                message="Configura in Admin → Workflow Approvazioni",
+            ))
+    
+    # Determine overall status
+    if missing_count == 0:
+        overall_status = "ok"
+    elif missing_count < len(REQUIRED_WORKFLOWS):
+        overall_status = "warning"
+    else:
+        overall_status = "critical"
+    
+    return ConfigHealthResponse(
+        overall_status=overall_status,
+        items=items,
+        missing_count=missing_count,
+    )

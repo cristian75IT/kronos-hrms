@@ -73,6 +73,30 @@ class SmartWorkingService:
     async def get_user_agreements(self, user_id: UUID) -> List[SWAgreement]:
         return await self._repo.get_user_agreements(user_id)
 
+    async def update_agreement(self, agreement_id: UUID, data: SWAgreementCreate, updated_by: UUID) -> SWAgreement:
+        agreement = await self._repo.get_agreement(agreement_id)
+        if not agreement:
+            raise NotFoundError("Agreement not found")
+        
+        agreement.start_date = data.start_date
+        agreement.end_date = data.end_date
+        agreement.allowed_days_per_week = data.allowed_days_per_week
+        agreement.notes = data.notes
+        if data.metadata_fields:
+            agreement.metadata_fields = data.metadata_fields
+        
+        await self._repo.update_agreement(agreement)
+        
+        await self._audit.log_action(
+            user_id=updated_by,
+            action="UPDATE_AGREEMENT",
+            resource_type="SW_AGREEMENT",
+            resource_id=str(agreement.id),
+            description=f"Updated Smart Working Agreement for user {agreement.user_id}"
+        )
+        
+        return agreement
+
     async def terminate_agreement(self, agreement_id: UUID, user_id: UUID) -> SWAgreement:
         agreement = await self._repo.get_agreement(agreement_id)
         if not agreement:

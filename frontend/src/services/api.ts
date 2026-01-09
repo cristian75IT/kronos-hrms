@@ -3,6 +3,7 @@
  */
 import axios, { type AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import { tokenStorage } from '../utils/tokenStorage';
+import { jwtDecode } from 'jwt-decode';
 import { authService } from './authService';
 
 // Create axios instance
@@ -17,6 +18,20 @@ const api: AxiosInstance = axios.create({
 // Error deduplication: prevents the same error from triggering multiple toasts
 const recentErrors = new Set<string>();
 
+
+
+interface ApiErrorResponse {
+    error?: {
+        message: string;
+        code?: string;
+        request_id?: string;
+    };
+    detail?: string | Array<{ loc: string[]; msg: string }>;
+    message?: string;
+}
+
+// ... imports remain the same
+
 // Helper to add auth token and handle refresh
 const setupInterceptors = (instance: AxiosInstance) => {
     // Request interceptor
@@ -27,30 +42,27 @@ const setupInterceptors = (instance: AxiosInstance) => {
             // Check expiration proactively
             if (token) {
                 try {
-                    const parts = token.split('.');
-                    if (parts.length === 3) {
-                        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-                        const exp = payload.exp * 1000;
-                        if (Date.now() > exp - 10000) { // Refresh if exp < 10s away
-                            const refresh = tokenStorage.getRefreshToken();
-                            if (refresh) {
-                                try {
-                                    const newTokens = await authService.refreshToken(refresh);
-                                    tokenStorage.setTokens(newTokens.access_token, newTokens.refresh_token);
-                                    token = newTokens.access_token;
-                                } catch (refreshError) {
-                                    // Refresh failed - session expired, trigger logout
-                                    console.warn('Proactive token refresh failed, logging out');
-                                    tokenStorage.clear();
-                                    window.dispatchEvent(new Event('auth:logout'));
-                                    return Promise.reject(refreshError);
-                                }
-                            } else {
-                                // No refresh token available - logout
+                    const decoded = jwtDecode<{ exp: number }>(token);
+                    const exp = decoded.exp * 1000;
+                    if (Date.now() > exp - 10000) { // Refresh if exp < 10s away
+                        const refresh = tokenStorage.getRefreshToken();
+                        if (refresh) {
+                            try {
+                                const newTokens = await authService.refreshToken(refresh);
+                                tokenStorage.setTokens(newTokens.access_token, newTokens.refresh_token);
+                                token = newTokens.access_token;
+                            } catch (refreshError) {
+                                // Refresh failed - session expired, trigger logout
+                                console.warn('Proactive token refresh failed, logging out');
                                 tokenStorage.clear();
                                 window.dispatchEvent(new Event('auth:logout'));
-                                return Promise.reject(new Error('Session expired'));
+                                return Promise.reject(refreshError);
                             }
+                        } else {
+                            // No refresh token available - logout
+                            tokenStorage.clear();
+                            window.dispatchEvent(new Event('auth:logout'));
+                            return Promise.reject(new Error('Session expired'));
                         }
                     }
                 } catch (e) {
@@ -97,7 +109,7 @@ const setupInterceptors = (instance: AxiosInstance) => {
             // 2. Enterprise Error Handling with Smart Parsing
             if (error.response) {
                 const status = error.response.status;
-                const data = error.response.data as any;
+                const data = error.response.data as ApiErrorResponse;
 
                 // Extract meaningful message with priority parsing
                 let message = 'Si è verificato un errore imprevisto';
@@ -116,7 +128,7 @@ const setupInterceptors = (instance: AxiosInstance) => {
                         message = data.detail;
                     } else if (Array.isArray(data.detail)) {
                         // Pydantic validation errors
-                        message = data.detail.map((e: any) => `${e.loc?.slice(-1)?.[0] || 'campo'}: ${e.msg}`).join('; ');
+                        message = data.detail.map((e) => `${e.loc?.slice(-1)?.[0] || 'campo'}: ${e.msg}`).join('; ');
                     }
                 }
                 // Priority 3: Generic message field
@@ -143,13 +155,35 @@ const setupInterceptors = (instance: AxiosInstance) => {
 
                     // Dispatch Global Toast Event (skip 401 - handled by refresh/logout)
                     if (status !== 401) {
-                        window.dispatchEvent(new CustomEvent('toast:show', {
-                            detail: {
-                                message: displayMessage,
-                                type: severity === 'critical' ? 'error' : severity,
-                                duration: severity === 'critical' ? 8000 : 6000
-                            }
-                        }));
+                        // Special handling for CONFIG_MISSING errors (HTTP 503)
+                        // Enterprise Pattern: Fail Fast with actionable guidance
+                        if (status === 503 && errorCode === 'CONFIG_MISSING') {
+                            const configType = (data?.error as any)?.details?.config_type || 'sconosciuta';
+                            const guidance = (data?.error as any)?.details?.guidance ||
+                                'Contatta l\'amministratore di sistema per configurare questa funzionalità.';
+
+                            displayMessage = `⚠️ Funzionalità non disponibile: ${message}`;
+
+                            // Show extended toast with guidance
+                            window.dispatchEvent(new CustomEvent('toast:show', {
+                                detail: {
+                                    message: displayMessage,
+                                    type: 'warning',
+                                    duration: 10000 // Longer duration for config errors
+                                }
+                            }));
+
+                            // Log for debugging
+                            console.warn(`[CONFIG_MISSING] ${configType}: ${guidance}`);
+                        } else {
+                            window.dispatchEvent(new CustomEvent('toast:show', {
+                                detail: {
+                                    message: displayMessage,
+                                    type: severity === 'critical' ? 'error' : severity,
+                                    duration: severity === 'critical' ? 8000 : 6000
+                                }
+                            }));
+                        }
                     }
                 }
             } else if (error.request) {

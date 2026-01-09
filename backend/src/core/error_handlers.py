@@ -24,6 +24,7 @@ from src.core.exceptions import (
     AuthorizationError,
     ConflictError,
     BusinessRuleError,
+    MissingConfigurationError,
 )
 from src.core.config import settings
 
@@ -100,6 +101,8 @@ async def kronos_exception_handler(request: Request, exc: KronosException) -> JS
         status_code = status.HTTP_403_FORBIDDEN
     elif isinstance(exc, ConflictError):
         status_code = status.HTTP_409_CONFLICT
+    elif isinstance(exc, MissingConfigurationError):
+        status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     elif isinstance(exc, BusinessRuleError):
         status_code = status.HTTP_400_BAD_REQUEST
     

@@ -184,7 +184,7 @@ export interface CalculationMode {
     code: string;
     description?: string;
     function_name: string;
-    default_parameters?: Record<string, any>;
+    default_parameters?: Record<string, unknown>;
     is_active: boolean;
     created_at?: string;
     updated_at?: string;
@@ -221,8 +221,8 @@ export interface NationalContractVersion {
     // Dynamic Calculation Modes
     vacation_calc_mode_id?: string;
     rol_calc_mode_id?: string;
-    vacation_calc_params?: Record<string, any>;
-    rol_calc_params?: Record<string, any>;
+    vacation_calc_params?: Record<string, unknown>;
+    rol_calc_params?: Record<string, unknown>;
 
     vacation_calc_mode?: CalculationMode;
     rol_calc_mode?: CalculationMode;
@@ -416,6 +416,57 @@ export interface LeaveRequestUpdate {
     end_half_day?: boolean;
     employee_notes?: string;
     protocol_number?: string;
+}
+
+export interface LeaveBalanceTransaction {
+    id: string;
+    leave_balance_id: string;
+    date: string;
+    transaction_type: 'accrual' | 'usage' | 'adjustment' | 'rollover';
+    amount: number;
+    balance_type: 'vacation' | 'rol' | 'permits';
+    description: string;
+    created_at: string;
+    user_id?: string; // Sometimes flattened
+    user_name?: string; // Sometimes flattened
+}
+
+export interface LeaveCalculationResponse {
+    days: number;
+    hours: number;
+    message?: string;
+}
+
+export interface ExcludedDay {
+    date: string;
+    reason: 'weekend' | 'holiday' | 'closure';
+    name: string;
+}
+
+export interface ExcludedDaysResponse {
+    start_date: string;
+    end_date: string;
+    working_days: number;
+    excluded_days: ExcludedDay[];
+}
+
+export interface BalancePreviewEmployee {
+    user_id: string;
+    name: string;
+    current_vacation: number;
+    new_vacation: number;
+    current_rol: number;
+    new_rol: number;
+    current_permits: number;
+    new_permits: number;
+}
+
+export interface BalancePreviewResponse {
+    year?: number;
+    from_year?: number;
+    to_year?: number;
+    employees: BalancePreviewEmployee[];
+    total_count: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -618,8 +669,8 @@ export interface AuditLogDetails extends AuditLogListItem {
     endpoint?: string;
     http_method?: string;
     error_message?: string;
-    request_data?: any;
-    response_data?: any;
+    request_data?: unknown;
+    response_data?: unknown;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -744,7 +795,7 @@ export interface HrDailySnapshot {
     sick_leave: number;
     remote_working: number;
     absence_rate: number;
-    metrics: Record<string, any>;
+    metrics: Record<string, unknown>;
 }
 
 export interface MonthlyReportResponse {
@@ -755,8 +806,8 @@ export interface MonthlyReportResponse {
     generated_by: string;
     status: string;
     employee_count: number;
-    employees: any[]; // Detailed employee monthly data
-    summary: Record<string, any>;
+    employees: Record<string, unknown>[]; // Detailed employee monthly data
+    summary: Record<string, unknown>;
 }
 
 export interface ComplianceIssue {
@@ -768,6 +819,78 @@ export interface ComplianceIssue {
     days_missing?: number;
     severity: 'info' | 'warning' | 'critical' | string;
     resolved: boolean;
+}
+
+// ═════════════════════════════════════════════════════════════════
+// HR Admin Operation Results (match backend response structures)
+// ═════════════════════════════════════════════════════════════════
+
+/**
+ * Response from /hr/dashboard/stats/today endpoint.
+ */
+export interface HrTodayStatsResponse {
+    date: string;
+    workforce: WorkforceStatus;
+    pending: HrPendingApprovals;
+    alerts_count: number;
+}
+
+/**
+ * Response from /hr/admin/compliance/run-check endpoint.
+ */
+export interface ComplianceCheckRunResult {
+    status: 'completed';
+    issues_found: number;
+    alerts_created: number;
+    compliance_rate: number;
+}
+
+/**
+ * Response from /hr/admin/stats/calculate-monthly endpoint.
+ */
+export interface MonthlyStatsCalculationResult {
+    status: 'completed';
+    year: number;
+    month: number;
+    employees_processed: number;
+}
+
+/**
+ * Response from /hr/admin/snapshots/create-daily endpoint.
+ */
+export interface DailySnapshotCreateResult {
+    status: 'created';
+    snapshot_id: string;
+    date: string;
+    metrics: {
+        total_employees: number;
+        on_leave: number;
+        on_trip: number;
+        absence_rate: number;
+    };
+}
+
+/**
+ * DTO for adjusting leave balance.
+ */
+export interface BalanceAdjustmentDto {
+    balance_type: string; // 'vacation_ac' | 'vacation_ap' | 'rol' | 'permits'
+    amount: number;
+    reason: string;
+    expiry_date?: string;
+}
+
+/**
+ * DTO for importing leave balances.
+ */
+export interface BalanceImportItem {
+    user_id: string;
+    year: number;
+    vacation_current_year?: number;
+    vacation_previous_year?: number;
+    rol_current_year?: number;
+    rol_previous_year?: number;
+    permits_total?: number;
 }
 
 export interface ComplianceCheck {
@@ -916,3 +1039,38 @@ export interface OrganizationalServiceUpdate {
     deputy_coordinator_id?: string;
     is_active?: boolean;
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// Training Types
+// ═══════════════════════════════════════════════════════════════════
+
+export interface Training {
+    id: string;
+    user_id: string;
+    title: string;
+    description?: string;
+    provider?: string;
+    hours?: number;
+    start_date?: string;
+    end_date?: string;
+    status: 'planned' | 'in_progress' | 'completed' | 'expired' | 'cancelled';
+    certificate_url?: string;
+    expiry_date?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface TrainingCreate {
+    user_id: string;
+    title: string;
+    description?: string;
+    provider?: string;
+    hours?: number;
+    start_date?: string;
+    end_date?: string;
+    status?: string;
+    certificate_url?: string;
+    expiry_date?: string;
+}
+
+

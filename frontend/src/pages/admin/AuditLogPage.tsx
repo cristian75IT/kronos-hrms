@@ -313,14 +313,14 @@ export function AuditLogPage() {
                                         </div>
                                     </div>
 
-                                    {(selectedLog.request_data || selectedLog.response_data) && (
+                                    {Boolean(selectedLog.request_data || selectedLog.response_data) && (
                                         <div className="space-y-4 border-t border-gray-100 pt-6">
                                             <p className="text-xs font-bold text-gray-900 uppercase tracking-wide">Dati Tecnici (JSON)</p>
-                                            {selectedLog.request_data && (
+                                            {Boolean(selectedLog.request_data) && (
                                                 <div className="space-y-1">
                                                     <p className="text-[10px] text-gray-400 font-bold uppercase ml-1">Dati Richiesta</p>
                                                     <pre className="bg-gray-900 text-gray-300 p-4 rounded-xl text-[10px] overflow-x-auto max-h-40 font-mono">
-                                                        {JSON.stringify(selectedLog.request_data, null, 2)}
+                                                        {typeof selectedLog.request_data === 'string' ? selectedLog.request_data : JSON.stringify(selectedLog.request_data, null, 2)}
                                                     </pre>
                                                 </div>
                                             )}

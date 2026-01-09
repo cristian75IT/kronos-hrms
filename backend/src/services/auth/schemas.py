@@ -104,6 +104,7 @@ class UserResponse(UserBase, IDMixin, BaseSchema):
     last_sync_at: Optional[datetime] = None
     profile: Optional[UserProfileResponse] = None
     permissions: list[str] = []
+    roles: list[str] = []
     created_at: datetime
     updated_at: datetime
     
@@ -615,3 +616,18 @@ class MfaVerifyRequest(BaseModel):
     secret: str
     code: str
     label: str = "KRONOS Mobile"
+
+
+class MfaDisableRequest(BaseModel):
+    """Request to disable MFA."""
+    code: str = Field(..., min_length=6, max_length=6, description="Current TOTP code for verification")
+
+
+class PasswordChangeRequest(BaseModel):
+    """Request to change user password."""
+    current_password: str = Field(..., min_length=1, description="Current password")
+    new_password: str = Field(..., min_length=8, description="New password (min 8 characters)")
+    confirm_password: str = Field(..., min_length=8, description="Confirm new password")
+    
+    def validate_passwords_match(self) -> bool:
+        return self.new_password == self.confirm_password

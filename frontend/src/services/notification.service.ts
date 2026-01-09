@@ -76,7 +76,7 @@ export interface BulkNotificationRequest {
     user_ids: string[];
     channels: NotificationChannel[];
     action_url?: string;
-    payload?: Record<string, any>;
+    payload?: Record<string, unknown>;
 }
 
 export interface HistoryFilters {
@@ -166,7 +166,7 @@ const notificationService = {
     },
 
     getEmailStats: async (days: number = 7) => {
-        const response = await api.get<any>(`/notifications/email-logs/stats?days=${days}`);
+        const response = await api.get<EmailStats>(`/notifications/email-logs/stats?days=${days}`);
         return response.data;
     },
 
@@ -230,13 +230,20 @@ const notificationService = {
     },
 };
 
+export interface EmailStats {
+    total: number;
+    sent: number;
+    failed: number;
+    pending: number;
+}
+
 export interface EmailLog {
     id: string;
     to_email: string;
     to_name?: string;
     template_code: string;
     subject?: string;
-    variables?: Record<string, any>;
+    variables?: Record<string, unknown>;
     status: string;
     message_id?: string;
     notification_id?: string;

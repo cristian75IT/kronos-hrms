@@ -628,7 +628,7 @@ export function UserFormPage() {
                                             <FileText size={18} className="text-purple-400 group-hover:text-purple-600" />
                                         </div>
                                         <p className="text-sm text-purple-700 mt-2 mb-3">Visualizza storico contratti, livelli e ore settimanali.</p>
-                                        <Link to={`/admin/hr/contracts/${id}`} className="inline-flex items-center gap-1 text-sm font-bold text-purple-600 hover:text-purple-800">
+                                        <Link to={`/admin/users/${id}?tab=contracts`} className="inline-flex items-center gap-1 text-sm font-bold text-purple-600 hover:text-purple-800">
                                             Gestisci Contratti <ArrowLeft className="rotate-180" size={14} />
                                         </Link>
                                     </div>
@@ -639,7 +639,7 @@ export function UserFormPage() {
                                             <Clock size={18} className="text-blue-400 group-hover:text-blue-600" />
                                         </div>
                                         <p className="text-sm text-blue-700 mt-2 mb-3">Bilancio ore, ratei maturati e residui anni precedenti.</p>
-                                        <Link to={`/admin/hr/leaves/${id}`} className="inline-flex items-center gap-1 text-sm font-bold text-blue-600 hover:text-blue-800">
+                                        <Link to={`/admin/users/${id}?tab=wallet`} className="inline-flex items-center gap-1 text-sm font-bold text-blue-600 hover:text-blue-800">
                                             Vedi Wallet <ArrowLeft className="rotate-180" size={14} />
                                         </Link>
                                     </div>
@@ -650,7 +650,7 @@ export function UserFormPage() {
                                             <CheckCircle size={18} className="text-emerald-400 group-hover:text-emerald-600" />
                                         </div>
                                         <p className="text-sm text-emerald-700 mt-2 mb-3">Storico corsi sicurezza e certificazioni obbligatorie.</p>
-                                        <Link to={`/admin/hr/training/${id}`} className="inline-flex items-center gap-1 text-sm font-bold text-emerald-600 hover:text-emerald-800">
+                                        <Link to={`/admin/users/${id}?tab=training`} className="inline-flex items-center gap-1 text-sm font-bold text-emerald-600 hover:text-emerald-800">
                                             Piano Formativo <ArrowLeft className="rotate-180" size={14} />
                                         </Link>
                                     </div>

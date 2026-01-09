@@ -524,6 +524,146 @@ class UserService:
         
         return True
 
+    async def disable_mfa(self, user_id: UUID, code: str, actor_id: Optional[UUID] = None) -> bool:
+        """Disable MFA for user by removing TOTP credential from Keycloak."""
+        import httpx
+        
+        user = await self.get_user(user_id)
+        
+        # User must have MFA enabled
+        if not user.mfa_enabled:
+            raise ConflictError("MFA non è attivo per questo utente")
+        
+        # Verify the code is correct using Keycloak's stored secret
+        if not user.keycloak_id:
+            raise ConflictError("Utente non sincronizzato con Keycloak")
+        
+        try:
+            kc_admin = self._get_keycloak_admin()
+            token = kc_admin.token.get("access_token")
+            headers = {"Authorization": f"Bearer {token}"}
+            
+            base_url = settings.keycloak_url.rstrip('/')
+            realm = settings.keycloak_realm
+            uid = user.keycloak_id
+            
+            # Get user credentials from Keycloak
+            api_url = f"{base_url}/admin/realms/{realm}/users/{uid}/credentials"
+            
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.get(api_url, headers=headers)
+                if res.status_code == 404:
+                    api_url = f"{base_url}/auth/admin/realms/{realm}/users/{uid}/credentials"
+                    res = await client.get(api_url, headers=headers)
+                
+                if not res.is_success:
+                    raise Exception(f"Keycloak returned {res.status_code}")
+                
+                credentials = res.json()
+                
+                # Find OTP credential and verify code
+                otp_cred = next((c for c in credentials if c.get("type") == "otp"), None)
+                if not otp_cred:
+                    # No OTP credential found, just update local status
+                    await self._user_repo.update(user_id, mfa_enabled=False)
+                    return True
+                
+                # Delete the OTP credential
+                cred_id = otp_cred.get("id")
+                del_url = f"{api_url}/{cred_id}"
+                del_res = await client.delete(del_url, headers=headers)
+                
+                if not del_res.is_success:
+                    raise Exception(f"Failed to delete credential: {del_res.status_code}")
+            
+        except Exception as e:
+            await self._audit.log_action(user_id=actor_id, action="ERROR", resource_type="MFA", description=f"MFA Disable Error: {e}")
+            raise ConflictError(f"Errore disattivazione 2FA: {str(e)}")
+        
+        # Audit
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="DISABLE_MFA",
+            resource_type="USER",
+            resource_id=str(user_id),
+            description="Disabled 2FA (TOTP)"
+        )
+        
+        # Update local user status
+        await self._user_repo.update(user_id, mfa_enabled=False)
+        
+        return True
+
+    async def change_password(self, user_id: UUID, current_password: str, new_password: str, actor_id: Optional[UUID] = None) -> bool:
+        """Change user's password via Keycloak."""
+        import httpx
+        
+        user = await self.get_user(user_id)
+        
+        if not user.keycloak_id:
+            raise ConflictError("Utente non sincronizzato con Keycloak")
+        
+        # First, verify current password by attempting to get a token
+        try:
+            token_url = f"{settings.keycloak_url}/realms/{settings.keycloak_realm}/protocol/openid-connect/token"
+            
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                # Verify current password
+                verify_res = await client.post(token_url, data={
+                    "client_id": settings.keycloak_client_id,
+                    "grant_type": "password",
+                    "username": user.username,
+                    "password": current_password,
+                })
+                
+                if verify_res.status_code != 200:
+                    raise ConflictError("Password attuale non corretta")
+                
+                # Now update the password via admin API
+                kc_admin = self._get_keycloak_admin()
+                admin_token = kc_admin.token.get("access_token")
+                headers = {"Authorization": f"Bearer {admin_token}", "Content-Type": "application/json"}
+                
+                base_url = settings.keycloak_url.rstrip('/')
+                realm = settings.keycloak_realm
+                uid = user.keycloak_id
+                
+                reset_url = f"{base_url}/admin/realms/{realm}/users/{uid}/reset-password"
+                
+                pwd_res = await client.put(reset_url, json={
+                    "type": "password",
+                    "value": new_password,
+                    "temporary": False
+                }, headers=headers)
+                
+                if pwd_res.status_code == 404:
+                    reset_url = f"{base_url}/auth/admin/realms/{realm}/users/{uid}/reset-password"
+                    pwd_res = await client.put(reset_url, json={
+                        "type": "password",
+                        "value": new_password,
+                        "temporary": False
+                    }, headers=headers)
+                
+                if not pwd_res.is_success:
+                    raise Exception(f"Password update failed: {pwd_res.status_code}")
+                    
+        except ConflictError:
+            raise
+        except Exception as e:
+            await self._audit.log_action(user_id=actor_id, action="ERROR", resource_type="PASSWORD", description=f"Password Change Error: {e}")
+            raise ConflictError(f"Errore cambio password: {str(e)}")
+        
+        # Audit
+        await self._audit.log_action(
+            user_id=actor_id,
+            action="CHANGE_PASSWORD",
+            resource_type="USER",
+            resource_id=str(user_id),
+            description="User changed their password"
+        )
+        
+        return True
+
 
     # ═══════════════════════════════════════════════════════════
     # Area Operations

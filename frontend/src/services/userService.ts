@@ -8,21 +8,24 @@ import type {
     DataTableResponse,
     EmployeeContract,
     EmployeeContractCreate,
-    ContractType
+    ContractType,
+    Department,
+    EmployeeTraining,
+    EmployeeTrainingCreate
 } from '../types';
 
 export const userService = {
-    getUsers: async (params?: any): Promise<UserWithProfile[]> => {
+    getUsers: async (params?: Record<string, unknown>): Promise<UserWithProfile[]> => {
         const response = await authApi.get('/users', { params });
         return response.data;
     },
 
-    getAreas: async (activeOnly = true): Promise<any[]> => {
+    getAreas: async (activeOnly = true): Promise<Department[]> => {
         const response = await authApi.get('/areas', { params: { active_only: activeOnly } });
         return response.data;
     },
 
-    getArea: async (id: string): Promise<any> => {
+    getArea: async (id: string): Promise<Department> => {
         const response = await authApi.get(`/areas/${id}`);
         return response.data;
     },
@@ -88,17 +91,17 @@ export const userService = {
     },
 
     // Training
-    getTrainings: async (userId: string): Promise<any[]> => {
+    getTrainings: async (userId: string): Promise<EmployeeTraining[]> => {
         const response = await authApi.get(`/users/${userId}/trainings`);
         return response.data;
     },
 
-    createTraining: async (data: any): Promise<any> => {
+    createTraining: async (data: EmployeeTrainingCreate): Promise<EmployeeTraining> => {
         const response = await authApi.post('/trainings', data);
         return response.data;
     },
 
-    updateTraining: async (id: string, data: any): Promise<any> => {
+    updateTraining: async (id: string, data: Partial<EmployeeTrainingCreate>): Promise<EmployeeTraining> => {
         const response = await authApi.put(`/trainings/${id}`, data);
         return response.data;
     },

@@ -40,6 +40,8 @@ from src.services.auth.schemas import (
     RolePermissionUpdate,
     MfaSetupResponse,
     MfaVerifyRequest,
+    MfaDisableRequest,
+    PasswordChangeRequest,
 )
 
 
@@ -129,6 +131,42 @@ async def enable_mfa(
     try:
         await service.enable_mfa(token.user_id, request=data, actor_id=token.user_id)
         return MessageResponse(message="MFA enabled successfully")
+    except ConflictError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/auth/mfa/disable", response_model=MessageResponse)
+async def disable_mfa(
+    data: MfaDisableRequest,
+    token: TokenPayload = Depends(get_current_user),
+    service: UserService = Depends(get_user_service),
+):
+    """Disable MFA for the current user."""
+    try:
+        await service.disable_mfa(token.user_id, code=data.code, actor_id=token.user_id)
+        return MessageResponse(message="MFA disabled successfully")
+    except ConflictError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/auth/password/change", response_model=MessageResponse)
+async def change_password(
+    data: PasswordChangeRequest,
+    token: TokenPayload = Depends(get_current_user),
+    service: UserService = Depends(get_user_service),
+):
+    """Change the current user's password."""
+    if data.new_password != data.confirm_password:
+        raise HTTPException(status_code=400, detail="Le password non coincidono")
+    
+    try:
+        await service.change_password(
+            token.user_id, 
+            current_password=data.current_password,
+            new_password=data.new_password,
+            actor_id=token.user_id
+        )
+        return MessageResponse(message="Password changed successfully")
     except ConflictError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -255,7 +293,55 @@ async def get_user(
 ):
     """Get user by ID. Manager or Admin only."""
     try:
-        return await service.get_user(id)
+        user = await service.get_user(id)
+        # Compute roles from boolean flags
+        roles = []
+        if user.is_admin:
+            roles.append("admin")
+        if user.is_manager:
+            roles.append("manager")
+        if user.is_approver:
+            roles.append("approver")
+        if user.is_hr:
+            roles.append("hr")
+        if user.is_employee:
+            roles.append("employee")
+        
+        # Convert to dict and add roles
+        user_dict = {
+            "id": user.id,
+            "keycloak_id": user.keycloak_id,
+            "email": user.email,
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "full_name": f"{user.first_name} {user.last_name}",
+            "badge_number": user.badge_number,
+            "fiscal_code": user.fiscal_code,
+            "hire_date": user.hire_date,
+            "termination_date": user.termination_date,
+            "is_admin": user.is_admin,
+            "is_manager": user.is_manager,
+            "is_approver": user.is_approver,
+            "is_hr": user.is_hr,
+            "is_employee": user.is_employee,
+            "is_active": user.is_active,
+            "mfa_enabled": user.mfa_enabled,
+            "contract_type_id": user.contract_type_id,
+            "work_schedule_id": user.work_schedule_id,
+            "location_id": user.location_id,
+            "manager_id": user.manager_id,
+            "last_sync_at": user.last_sync_at,
+            "profile": user.profile,
+            "permissions": [],
+            "roles": roles,
+            "created_at": user.created_at,
+            "updated_at": user.updated_at,
+            "department_id": user.department_id,
+            "service_id": user.service_id,
+            "executive_level_id": user.executive_level_id,
+        }
+        return user_dict
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

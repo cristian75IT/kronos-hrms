@@ -11,7 +11,7 @@ import './index.css';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 0, // Always fetch fresh data on mount
+      staleTime: 60 * 1000, // Cache for 1 minute
       retry: 1,
       refetchOnWindowFocus: false,
     },
