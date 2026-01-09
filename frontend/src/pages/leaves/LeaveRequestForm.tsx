@@ -1,16 +1,26 @@
 /**
  * KRONOS - Leave Request Form Component
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { Calendar as CalendarIcon, Save, X, AlertCircle, ChevronDown, Loader } from 'lucide-react';
+import { Calendar as CalendarIcon, Save, X, AlertCircle, ChevronDown, Loader, Laptop } from 'lucide-react';
 import { useCreateLeaveRequest, useUpdateLeaveRequest, useLeaveRequest } from '../../hooks/domain/useLeaves';
 import { configApi } from '../../services/api'; // Direct call for leave types since it's rarely updated
 import type { LeaveType, LeaveRequestCreate } from '../../types';
 import { formatApiError } from '../../utils/errorUtils';
 
 import { leavesService } from '../../services/leaves.service';
+import { smartWorkingService, type SWAgreement } from '../../services/smartWorking.service';
+
+// Weekday names for display
+const WEEKDAY_NAMES: Record<number, string> = {
+    0: 'Lunedì',
+    1: 'Martedì',
+    2: 'Mercoledì',
+    3: 'Giovedì',
+    4: 'Venerdì',
+};
 
 export function LeaveRequestForm() {
     const navigate = useNavigate();
@@ -26,6 +36,9 @@ export function LeaveRequestForm() {
 
     const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
     const [loadingTypes, setLoadingTypes] = useState(true);
+
+    // Smart Working agreement state
+    const [swAgreement, setSwAgreement] = useState<SWAgreement | null>(null);
 
     // Calculation state
     const [calculatedDays, setCalculatedDays] = useState<number | null>(null);
@@ -85,6 +98,49 @@ export function LeaveRequestForm() {
         }
         fetchLeaveTypes();
     }, [setValue, watch, isEditing]);
+
+    // Fetch Smart Working agreement for conflict detection
+    useEffect(() => {
+        async function fetchSwAgreement() {
+            try {
+                const agreements = await smartWorkingService.getMyAgreements();
+                const active = agreements.find(a => a.status === 'ACTIVE');
+                setSwAgreement(active || null);
+            } catch (error) {
+                console.error('Failed to load SW agreement', error);
+            }
+        }
+        fetchSwAgreement();
+    }, []);
+
+    // Detect SW conflicts: check if selected date range overlaps with allowed SW weekdays
+    const swConflictDays = useMemo(() => {
+        if (!startDate || !endDate || !swAgreement?.allowed_weekdays?.length) {
+            return [];
+        }
+
+        const conflicts: { date: Date; weekdayName: string }[] = [];
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+
+        // Iterate through each day in the range
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            const jsWeekday = d.getDay(); // 0=Sun, 1=Mon, ...
+            // Convert to our format: 0=Mon, 1=Tue, ... (jsWeekday - 1, but handle Sunday)
+            if (jsWeekday === 0 || jsWeekday === 6) continue; // Skip weekends
+
+            const agreementWeekday = jsWeekday - 1; // Convert: 1(Mon)->0, 2(Tue)->1, etc.
+
+            if (swAgreement.allowed_weekdays.includes(agreementWeekday)) {
+                conflicts.push({
+                    date: new Date(d),
+                    weekdayName: WEEKDAY_NAMES[agreementWeekday]
+                });
+            }
+        }
+
+        return conflicts;
+    }, [startDate, endDate, swAgreement]);
 
     // Calculate days effect
     useEffect(() => {
@@ -237,6 +293,30 @@ export function LeaveRequestForm() {
                             {errors.end_date && <span className="text-red-600 text-xs mt-1 flex items-center gap-1"><AlertCircle size={12} /> {errors.end_date?.message}</span>}
                         </div>
                     </div>
+
+                    {/* Smart Working Conflict Alert */}
+                    {swConflictDays.length > 0 && (
+                        <div className="p-4 bg-teal-50 border border-teal-200 rounded-lg flex items-start gap-3 animate-fadeIn">
+                            <Laptop size={20} className="text-teal-600 mt-0.5 shrink-0" />
+                            <div className="text-sm">
+                                <p className="font-semibold text-teal-800">Attenzione: Giorni Smart Working</p>
+                                <p className="text-teal-700 mt-1">
+                                    La tua richiesta include {swConflictDays.length === 1 ? 'un giorno' : `${swConflictDays.length} giorni`} normalmente
+                                    destinat{swConflictDays.length === 1 ? 'o' : 'i'} al <strong>lavoro agile</strong>:
+                                </p>
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                    {swConflictDays.map((c, idx) => (
+                                        <span key={idx} className="px-2 py-1 bg-white border border-teal-300 rounded text-xs font-medium text-teal-700">
+                                            {c.weekdayName} {c.date.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}
+                                        </span>
+                                    ))}
+                                </div>
+                                <p className="text-teal-600 text-xs mt-2">
+                                    Puoi comunque procedere con la richiesta.
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Duration Preview */}
                     <div className="bg-indigo-50 rounded-lg p-4 flex items-center gap-4 border border-indigo-100">

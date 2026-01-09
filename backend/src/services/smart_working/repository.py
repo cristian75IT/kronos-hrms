@@ -48,7 +48,17 @@ class SmartWorkingRepository:
 
     async def update_agreement(self, agreement: SWAgreement) -> SWAgreement:
         await self._session.flush()
+        await self._session.refresh(agreement)
         return agreement
+
+    async def get_active_agreements_for_user(self, user_id: UUID) -> List[SWAgreement]:
+        """Get all active agreements for a user (for auto-expire logic)."""
+        stmt = select(SWAgreement).where(
+            SWAgreement.user_id == user_id,
+            SWAgreement.status == SWAgreementStatus.ACTIVE
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
 
     # -----------------------------------------------------------------------
     # Requests

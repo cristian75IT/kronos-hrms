@@ -44,7 +44,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Dashboard', path: '/', icon: <LayoutDashboard size={20} /> },
   { label: 'Lavoro Agile', path: '/smart-working', icon: <Briefcase size={20} /> },
-  { label: 'Le Mie Ferie', path: '/leaves', icon: <TreePalm size={20} />, permission: 'leaves:view' },
+  { label: 'Assenze e Permessi', path: '/leaves', icon: <TreePalm size={20} />, permission: 'leaves:view' },
   { label: 'Trasferte', path: '/trips', icon: <Briefcase size={20} />, permission: 'trips:view' },
   { label: 'Note Spese', path: '/expenses', icon: <FileText size={20} />, permission: 'expenses:view' },
   { label: 'Calendario', path: '/calendar', icon: <Calendar size={20} />, permission: 'calendar:view' },
@@ -83,7 +83,7 @@ const hrItems: NavItem[] = [
   { label: 'HR Console', path: '/hr/console', icon: <LayoutDashboard size={20} />, permission: 'reports:view' },
   { label: 'Report Presenze', path: '/hr/reports', icon: <Activity size={20} />, permission: 'reports:view' },
   { label: 'Formazione', path: '/hr/training', icon: <GraduationCap size={20} />, permission: 'training:view' },
-  { label: 'Gestione Ferie', path: '/hr/leaves', icon: <TreePalm size={20} />, permission: 'leaves:manage' },
+  { label: 'Gestione Assenze', path: '/hr/leaves', icon: <TreePalm size={20} />, permission: 'leaves:manage' },
   { label: 'Gestione Trasferte', path: '/hr/trips', icon: <Plane size={20} />, permission: 'trips:manage' },
   { label: 'Gestione Spese', path: '/hr/expenses', icon: <Receipt size={20} />, permission: 'expenses:manage' },
 ];

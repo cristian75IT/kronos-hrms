@@ -9,6 +9,8 @@ export interface SWAgreement {
     start_date: string;
     end_date: string | null;
     allowed_days_per_week: number;
+    allowed_weekdays: number[] | null;
+    allowed_weekdays_names: string[] | null;
     status: 'ACTIVE' | 'EXPIRED' | 'TERMINATED' | 'DRAFT';
     notes: string | null;
     created_at: string;

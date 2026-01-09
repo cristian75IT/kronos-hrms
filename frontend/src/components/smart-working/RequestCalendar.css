@@ -46,3 +46,38 @@
     background-color: #f3f4f6;
     color: #4b5563;
 }
+
+/* Allowed weekday highlighting */
+.sw-calendar .sw-allowed-day {
+    background-color: #f0fdfa !important; /* teal-50 */
+    border-left: 3px solid #14b8a6 !important; /* teal-500 */
+}
+
+.sw-calendar .sw-allowed-day:hover {
+    background-color: #ccfbf1 !important; /* teal-100 */
+    cursor: pointer;
+}
+
+/* Not allowed weekday */
+.sw-calendar .sw-not-allowed-day {
+    background-color: #f8fafc !important; /* slate-50 */
+    color: #94a3b8 !important; /* slate-400 */
+}
+
+.sw-calendar .sw-not-allowed-day:hover {
+    cursor: not-allowed;
+    background-color: #f1f5f9 !important; /* slate-100 */
+}
+
+.sw-calendar .sw-not-allowed-day .fc-daygrid-day-number {
+    color: #94a3b8 !important;
+}
+
+/* Weekend */
+.sw-calendar .sw-weekend {
+    background-color: #f1f5f9 !important;
+}
+
+.sw-calendar .sw-weekend .fc-daygrid-day-number {
+    color: #9ca3af !important;
+}

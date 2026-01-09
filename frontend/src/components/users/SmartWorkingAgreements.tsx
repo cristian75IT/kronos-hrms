@@ -3,7 +3,7 @@
  * HR component to manage Smart Working agreements for a specific user
  */
 import { useState, useEffect } from 'react';
-import { Laptop, Plus, Calendar, X, Save, AlertCircle, Check, Trash2, Edit } from 'lucide-react';
+import { Laptop, Plus, Calendar, X, Save, AlertCircle, Check, Trash2, Edit, AlertTriangle } from 'lucide-react';
 import { smartWorkingService, type SWAgreement } from '../../services/smartWorking.service';
 import { useToast } from '../../context/ToastContext';
 
@@ -16,13 +16,23 @@ type AgreementFormData = {
     start_date: string;
     end_date: string | null;
     allowed_days_per_week: number;
+    allowed_weekdays: number[];
     notes: string;
+};
+
+const WEEKDAY_NAMES: Record<number, string> = {
+    0: 'Lunedì',
+    1: 'Martedì',
+    2: 'Mercoledì',
+    3: 'Giovedì',
+    4: 'Venerdì',
 };
 
 const defaultFormData: AgreementFormData = {
     start_date: new Date().toISOString().split('T')[0],
     end_date: null,
     allowed_days_per_week: 2,
+    allowed_weekdays: [],
     notes: '',
 };
 
@@ -34,6 +44,9 @@ export function SmartWorkingAgreements({ userId, userName }: SmartWorkingAgreeme
     const [editingId, setEditingId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [formData, setFormData] = useState<AgreementFormData>(defaultFormData);
+
+    // Check if there's an active agreement (for warning)
+    const hasActiveAgreement = agreements.some(a => a.status === 'ACTIVE');
 
     useEffect(() => {
         loadData();
@@ -59,9 +72,33 @@ export function SmartWorkingAgreements({ userId, userName }: SmartWorkingAgreeme
         setIsAdding(false);
     };
 
+    // Handle weekday toggle
+    const toggleWeekday = (day: number) => {
+        const newWeekdays = formData.allowed_weekdays.includes(day)
+            ? formData.allowed_weekdays.filter(d => d !== day)
+            : [...formData.allowed_weekdays, day].slice(0, formData.allowed_days_per_week);
+        setFormData({ ...formData, allowed_weekdays: newWeekdays.sort((a, b) => a - b) });
+    };
+
+    // When days_per_week changes, trim weekdays if needed
+    const handleDaysPerWeekChange = (days: number) => {
+        const trimmedWeekdays = formData.allowed_weekdays.slice(0, days);
+        setFormData({
+            ...formData,
+            allowed_days_per_week: days,
+            allowed_weekdays: trimmedWeekdays
+        });
+    };
+
     const handleSave = async () => {
+        // Validation
         if (!formData.start_date || formData.allowed_days_per_week < 1) {
             setError('Data inizio e giorni settimana obbligatori');
+            return;
+        }
+
+        if (formData.allowed_weekdays.length !== formData.allowed_days_per_week) {
+            setError(`Seleziona esattamente ${formData.allowed_days_per_week} giorni della settimana`);
             return;
         }
 
@@ -71,8 +108,8 @@ export function SmartWorkingAgreements({ userId, userName }: SmartWorkingAgreeme
                 start_date: formData.start_date,
                 end_date: formData.end_date || null,
                 allowed_days_per_week: formData.allowed_days_per_week,
+                allowed_weekdays: formData.allowed_weekdays,
                 notes: formData.notes || null,
-                status: 'ACTIVE' as const,
             };
 
             if (editingId) {
@@ -80,7 +117,10 @@ export function SmartWorkingAgreements({ userId, userName }: SmartWorkingAgreeme
                 toast.success('Accordo aggiornato');
             } else {
                 await smartWorkingService.createAgreement(payload);
-                toast.success('Accordo creato');
+                toast.success(hasActiveAgreement
+                    ? 'Accordo creato. L\'accordo precedente è stato archiviato.'
+                    : 'Accordo creato'
+                );
             }
             resetForm();
             loadData();
@@ -97,6 +137,7 @@ export function SmartWorkingAgreements({ userId, userName }: SmartWorkingAgreeme
             start_date: agreement.start_date.split('T')[0],
             end_date: agreement.end_date?.split('T')[0] || null,
             allowed_days_per_week: agreement.allowed_days_per_week,
+            allowed_weekdays: agreement.allowed_weekdays || [],
             notes: agreement.notes || '',
         });
         setIsAdding(true);
@@ -192,6 +233,20 @@ export function SmartWorkingAgreements({ userId, userName }: SmartWorkingAgreeme
                         </button>
                     </div>
 
+                    {/* Warning when active agreement exists */}
+                    {!editingId && hasActiveAgreement && (
+                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+                            <AlertTriangle size={18} className="text-amber-600 mt-0.5 shrink-0" />
+                            <div className="text-sm">
+                                <p className="font-bold text-amber-800">Attenzione: Accordo Attivo Esistente</p>
+                                <p className="text-amber-700 mt-1">
+                                    Creando un nuovo accordo, quello attualmente in vigore verrà automaticamente
+                                    <strong> archiviato</strong> (stato: Scaduto) con data fine = giorno precedente alla nuova data inizio.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                             <label className="text-xs font-bold text-gray-500 uppercase">Data Inizio *</label>
@@ -213,18 +268,50 @@ export function SmartWorkingAgreements({ userId, userName }: SmartWorkingAgreeme
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 uppercase">Giorni Max / Settimana *</label>
-                            <input
-                                type="number"
-                                min="1"
-                                max="5"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm"
-                                value={formData.allowed_days_per_week}
-                                onChange={e => setFormData({ ...formData, allowed_days_per_week: parseInt(e.target.value) || 1 })}
-                            />
+                    <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-gray-500 uppercase">Giorni Max / Settimana *</label>
+                        <input
+                            type="number"
+                            min="1"
+                            max="5"
+                            className="w-24 px-3 py-2 border border-gray-300 rounded-lg shadow-sm"
+                            value={formData.allowed_days_per_week}
+                            onChange={e => handleDaysPerWeekChange(parseInt(e.target.value) || 1)}
+                        />
+                    </div>
+
+                    {/* Weekday Selection */}
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold text-gray-500 uppercase">
+                            Giorni Permessi * <span className="font-normal text-gray-400">(seleziona {formData.allowed_days_per_week})</span>
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                            {[0, 1, 2, 3, 4].map(day => {
+                                const isSelected = formData.allowed_weekdays.includes(day);
+                                const isDisabled = !isSelected && formData.allowed_weekdays.length >= formData.allowed_days_per_week;
+                                return (
+                                    <button
+                                        key={day}
+                                        type="button"
+                                        onClick={() => toggleWeekday(day)}
+                                        disabled={isDisabled}
+                                        className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${isSelected
+                                            ? 'bg-teal-600 text-white shadow-md'
+                                            : isDisabled
+                                                ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
+                                                : 'bg-white border border-gray-300 text-gray-700 hover:border-teal-500'
+                                            }`}
+                                    >
+                                        {WEEKDAY_NAMES[day]}
+                                    </button>
+                                );
+                            })}
                         </div>
+                        {formData.allowed_weekdays.length > 0 && formData.allowed_weekdays.length < formData.allowed_days_per_week && (
+                            <p className="text-xs text-amber-600">
+                                Seleziona altri {formData.allowed_days_per_week - formData.allowed_weekdays.length} giorn{formData.allowed_days_per_week - formData.allowed_weekdays.length === 1 ? 'o' : 'i'}
+                            </p>
+                        )}
                     </div>
 
                     <div className="space-y-1.5">
@@ -283,10 +370,15 @@ export function SmartWorkingAgreements({ userId, userName }: SmartWorkingAgreeme
                                             {formatDate(agreement.start_date)}
                                             {agreement.end_date ? ` → ${formatDate(agreement.end_date)}` : ' → In corso'}
                                         </div>
-                                        <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                                        <div className="flex flex-wrap gap-2 mt-2 text-xs">
                                             <span className="px-2 py-1 bg-teal-50 text-teal-700 rounded-full font-medium">
                                                 {agreement.allowed_days_per_week} giorni/settimana
                                             </span>
+                                            {agreement.allowed_weekdays_names && agreement.allowed_weekdays_names.length > 0 && (
+                                                <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-full">
+                                                    {agreement.allowed_weekdays_names.join(', ')}
+                                                </span>
+                                            )}
                                         </div>
                                         {agreement.notes && (
                                             <div className="text-xs text-gray-400 mt-2 italic">{agreement.notes}</div>

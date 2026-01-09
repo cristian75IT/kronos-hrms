@@ -144,7 +144,7 @@ export function HRLeavesManagement() {
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                         <TreePalm className="text-indigo-600" />
-                        Gestione Ferie e Permessi
+                        Gestione Assenze
                     </h1>
                     <p className="text-sm text-gray-500">Supervisione globale delle richieste di assenza</p>
                 </div>

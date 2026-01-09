@@ -2,10 +2,11 @@
 KRONOS - Smart Working Models
 """
 from datetime import date, datetime
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID, uuid4
 
 from sqlalchemy import String, Date, Integer, Boolean, ForeignKey, JSON, DateTime, Text, Enum
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -27,7 +28,10 @@ class SWRequestStatus(str, enum.Enum):
 class SWAgreement(Base):
     """
     Long-term Smart Working Agreement between company and employee.
-    Defines general rules like allowed days per week.
+    Defines general rules like allowed days per week and which weekdays.
+    
+    Historization: When a new agreement is created, previous active agreements
+    are automatically expired to maintain a clear audit trail.
     """
     __tablename__ = "sw_agreements"
     __table_args__ = {"schema": "smart_working"}
@@ -41,13 +45,21 @@ class SWAgreement(Base):
     
     allowed_days_per_week: Mapped[int] = mapped_column(Integer, default=2)
     
+    # Weekdays allowed for smart working: 0=Monday, 1=Tuesday, ..., 4=Friday
+    # If NULL, any weekday is allowed (up to allowed_days_per_week limit)
+    allowed_weekdays: Mapped[Optional[List[int]]] = mapped_column(
+        ARRAY(Integer), 
+        nullable=True,
+        comment="0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday"
+    )
+    
     status: Mapped[SWAgreementStatus] = mapped_column(
         Enum(SWAgreementStatus, name="sw_agreement_status", schema="smart_working"),
         default=SWAgreementStatus.DRAFT
     )
     
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    metadata_fields: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # Renamed from metadata to avoid collision
+    metadata_fields: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

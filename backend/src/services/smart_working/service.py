@@ -42,17 +42,38 @@ class SmartWorkingService:
     # -----------------------------------------------------------------------
 
     async def create_agreement(self, data: SWAgreementCreate, created_by: UUID) -> SWAgreement:
-        # Check active agreements overlap
-        existing = await self._repo.get_active_agreement(data.user_id, data.start_date)
-        if existing:
-            raise ConflictError("User already has an active agreement covering this start date")
+        """
+        Create a new Smart Working Agreement.
+        
+        Historization: Any existing active agreements for this user are automatically
+        expired (end_date = day before new start_date, status = EXPIRED).
+        """
+        # 1. Auto-expire existing active agreements (Historization)
+        existing_active = await self._repo.get_active_agreements_for_user(data.user_id)
+        expired_count = 0
+        
+        for existing in existing_active:
+            existing.status = SWAgreementStatus.EXPIRED
+            existing.end_date = data.start_date - timedelta(days=1)
+            await self._repo.update_agreement(existing)
+            expired_count += 1
+            
+            await self._audit.log_action(
+                user_id=created_by,
+                action="AUTO_EXPIRE_AGREEMENT",
+                resource_type="SW_AGREEMENT",
+                resource_id=str(existing.id),
+                description=f"Auto-expired due to new agreement creation"
+            )
 
+        # 2. Create new agreement
         agreement = SWAgreement(
             user_id=data.user_id,
             start_date=data.start_date,
             end_date=data.end_date,
             allowed_days_per_week=data.allowed_days_per_week,
-            status=SWAgreementStatus.ACTIVE, # Auto-activate for now, usually HR flow
+            allowed_weekdays=data.allowed_weekdays,
+            status=SWAgreementStatus.ACTIVE,
             notes=data.notes,
             metadata_fields=data.metadata_fields,
             created_by=created_by
@@ -65,7 +86,8 @@ class SmartWorkingService:
             action="CREATE_AGREEMENT",
             resource_type="SW_AGREEMENT",
             resource_id=str(agreement.id),
-            description=f"Created Smart Working Agreement for user {data.user_id}"
+            description=f"Created Smart Working Agreement for user {data.user_id}" + 
+                        (f" (expired {expired_count} previous)" if expired_count else "")
         )
         
         return agreement
@@ -81,6 +103,7 @@ class SmartWorkingService:
         agreement.start_date = data.start_date
         agreement.end_date = data.end_date
         agreement.allowed_days_per_week = data.allowed_days_per_week
+        agreement.allowed_weekdays = data.allowed_weekdays
         agreement.notes = data.notes
         if data.metadata_fields:
             agreement.metadata_fields = data.metadata_fields
@@ -136,8 +159,20 @@ class SmartWorkingService:
             raise BusinessRuleError("Date is outside agreement validity period")
 
         # 2. Check Valid Day (Not weekend)
-        if data.date.weekday() >= 5: # 5=Sat, 6=Sun
-            raise BusinessRuleError("Smart Working not allowed on weekends")
+        request_weekday = data.date.weekday()
+        if request_weekday >= 5:  # 5=Sat, 6=Sun
+            raise BusinessRuleError("Smart Working non è consentito nel weekend")
+
+        # 3. Check Allowed Weekdays (if restrictions exist)
+        if agreement.allowed_weekdays:
+            if request_weekday not in agreement.allowed_weekdays:
+                weekday_names = {0: "Lunedì", 1: "Martedì", 2: "Mercoledì", 3: "Giovedì", 4: "Venerdì"}
+                allowed_names = [weekday_names.get(d, str(d)) for d in agreement.allowed_weekdays]
+                requested_name = weekday_names.get(request_weekday, str(request_weekday))
+                raise BusinessRuleError(
+                    f"Smart Working non consentito di {requested_name}. "
+                    f"Giorni permessi: {', '.join(allowed_names)}"
+                )
 
         # 3. Check Duplicates
         existing = await self._repo.get_request_by_date(user_id, data.date)
