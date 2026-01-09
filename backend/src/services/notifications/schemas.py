@@ -26,6 +26,7 @@ class NotificationCreate(BaseModel):
     title: str = Field(..., max_length=200)
     message: str
     channel: NotificationChannel = NotificationChannel.IN_APP
+    priority: NotificationPriority = NotificationPriority.NORMAL
     entity_type: Optional[str] = None
     entity_id: Optional[str] = None
     action_url: Optional[str] = None

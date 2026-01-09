@@ -1,89 +1,57 @@
 import React from 'react';
+import { clsx } from 'clsx';
 
 interface CardProps {
-    children: React.ReactNode;
-    title?: string;
-    subtitle?: string;
-    className?: string;
-    footer?: React.ReactNode;
-    headerAction?: React.ReactNode;
+  children: React.ReactNode;
+  title?: string;
+  subtitle?: string;
+  className?: string;
+  footer?: React.ReactNode;
+  headerAction?: React.ReactNode;
+  /** Make the card non-hoverable */
+  static?: boolean;
 }
 
 export const Card: React.FC<CardProps> = ({
-    children,
-    title,
-    subtitle,
-    className = '',
-    footer,
-    headerAction,
+  children,
+  title,
+  subtitle,
+  className = '',
+  footer,
+  headerAction,
+  static: isStatic = false,
 }) => {
-    return (
-        <div className={`premium-card ${className}`}>
-            {(title || subtitle || headerAction) && (
-                <div className="card-header">
-                    <div className="header-text">
-                        {title && <h3 className="card-title">{title}</h3>}
-                        {subtitle && <p className="card-subtitle">{subtitle}</p>}
-                    </div>
-                    {headerAction && <div className="header-action">{headerAction}</div>}
-                </div>
+  return (
+    <div
+      className={clsx(
+        'bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-shadow duration-200',
+        !isStatic && 'hover:shadow-md',
+        className
+      )}
+    >
+      {(title || subtitle || headerAction) && (
+        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-start">
+          <div>
+            {title && (
+              <h3 className="text-lg font-semibold text-slate-900 m-0">{title}</h3>
             )}
-
-            <div className="card-body">
-                {children}
-            </div>
-
-            {footer && (
-                <div className="card-footer">
-                    {footer}
-                </div>
+            {subtitle && (
+              <p className="text-sm text-slate-500 mt-1 m-0">{subtitle}</p>
             )}
-
-            <style>{`
-        .premium-card {
-          background: white;
-          border-radius: 16px;
-          border: 1px solid var(--color-border-light);
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-          overflow: hidden;
-          transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .premium-card:hover {
-          box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
-        }
-
-        .card-header {
-          padding: 20px 24px;
-          border-bottom: 1px solid var(--color-border-light);
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-        }
-
-        .card-title {
-          font-size: 18px;
-          font-weight: 600;
-          color: var(--color-text-primary);
-          margin: 0;
-        }
-
-        .card-subtitle {
-          font-size: 14px;
-          color: var(--color-text-secondary);
-          margin: 4px 0 0 0;
-        }
-
-        .card-body {
-          padding: 24px;
-        }
-
-        .card-footer {
-          padding: 16px 24px;
-          background: var(--color-bg-light);
-          border-top: 1px solid var(--color-border-light);
-        }
-      `}</style>
+          </div>
+          {headerAction && <div>{headerAction}</div>}
         </div>
-    );
+      )}
+
+      <div className="p-6">
+        {children}
+      </div>
+
+      {footer && (
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100">
+          {footer}
+        </div>
+      )}
+    </div>
+  );
 };

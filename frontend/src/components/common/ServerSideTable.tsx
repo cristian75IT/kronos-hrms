@@ -8,8 +8,9 @@ import {
   type SortingState,
 } from '@tanstack/react-table';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, AlertCircle, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, AlertCircle, Loader2, Database } from 'lucide-react';
 import api from '../../services/api';
+import { EmptyState } from './EmptyState';
 
 // Backend Response Structure (DataTables compatible)
 interface DataTableResponse<T> {
@@ -30,6 +31,13 @@ export interface ServerSideTableProps<T extends object> {
   showExport?: boolean; // Kept for interface compatibility
   refreshTrigger?: number; // Optional prop to trigger manual refetch
   method?: 'GET' | 'POST'; // Added method prop
+  emptyState?: {
+    title?: string;
+    description?: string;
+    icon?: React.ElementType;
+    actionLabel?: string;
+    onAction?: () => void;
+  };
 }
 
 export function ServerSideTable<T extends object>({
@@ -41,6 +49,7 @@ export function ServerSideTable<T extends object>({
   className = '',
   refreshTrigger = 0,
   method = 'POST', // Default to POST
+  emptyState
 }: ServerSideTableProps<T>) {
 
   // -- State --
@@ -79,9 +88,6 @@ export function ServerSideTable<T extends object>({
       let response;
       if (method === 'GET') {
         // Serialize payload for GET
-        // Note: complex objects like 'order' and 'search' might need specific serialization 
-        // compatible with what the backend expects (e.g. PHP/Laravel style or simple JSON)
-        // For now, sending as query params, axios handles basic serialization.
         response = await api.get(apiEndpoint, { params: payload });
       } else {
         response = await api.post(apiEndpoint, payload);
@@ -115,14 +121,14 @@ export function ServerSideTable<T extends object>({
     <div className={`flex flex-col gap-4 w-full ${className}`}>
 
       {/* Table Container */}
-      <div className="overflow-x-auto rounded-lg border border-base-200 bg-base-100 shadow-sm relative min-h-[300px]">
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm relative min-h-[300px]">
 
         {/* Loading Overlay */}
         {(isLoading || isFetching) && (
           <div className="absolute inset-0 bg-white/60 z-10 flex items-center justify-center backdrop-blur-[1px]">
-            <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-lg border border-base-200">
+            <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-lg border border-slate-200">
               <Loader2 className="w-5 h-5 animate-spin text-primary" />
-              <span className="text-sm font-medium text-base-content/70">Caricamento...</span>
+              <span className="text-sm font-medium text-slate-600">Caricamento...</span>
             </div>
           </div>
         )}
@@ -130,30 +136,27 @@ export function ServerSideTable<T extends object>({
         {/* Error State */}
         {isError && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/90">
-            <div className="flex flex-col items-center text-center p-6 max-w-sm">
-              <AlertCircle className="w-10 h-10 text-error mb-2" />
-              <h3 className="font-bold text-lg text-error">Errore</h3>
-              <p className="text-sm text-base-content/70 mb-4">
-                {(error as Error)?.message || 'Impossibile caricare i dati'}
-              </p>
-              <button onClick={() => refetch()} className="btn btn-sm btn-outline btn-error">
-                Riprova
-              </button>
-            </div>
+            <EmptyState
+              variant="small"
+              title="Errore nel caricamento"
+              description={(error as Error)?.message || 'Impossibile comunicare con il server'}
+              icon={AlertCircle}
+              actionLabel="Riprova"
+              onAction={() => refetch()}
+              className="text-red-600"
+            />
           </div>
         )}
 
-        <table className="table table-fixed w-full text-left bg-base-100">
+        <table className="table-auto w-full text-left bg-white border-collapse">
           <thead className="bg-slate-50 text-slate-500 uppercase text-xs font-bold tracking-wider border-b border-slate-200">
             {table.getHeaderGroups().map(headerGroup => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map(header => {
-                  // Allow column definitions to pass styling via meta or simpler logic if needed
-                  // For now, relies on column defs size/width handling by TanStack or custom classes in header
                   return (
                     <th
                       key={header.id}
-                      className="px-4 py-3 whitespace-nowrap overflow-hidden text-ellipsis relative"
+                      className="px-4 py-3 whitespace-nowrap overflow-hidden text-ellipsis relative font-semibold"
                       style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }} // Use TanStack size if set explicity
                     >
                       {header.isPlaceholder ? null : (
@@ -182,11 +185,11 @@ export function ServerSideTable<T extends object>({
               table.getRowModel().rows.map(row => (
                 <tr
                   key={row.id}
-                  className={`hover:bg-slate-50 transition-colors ${onRowClick ? 'cursor-pointer active:bg-slate-100' : ''}`}
+                  className={`hover:bg-slate-50 transition-colors group ${onRowClick ? 'cursor-pointer active:bg-slate-100' : ''}`}
                   onClick={() => onRowClick && onRowClick(row.original)}
                 >
                   {row.getVisibleCells().map(cell => (
-                    <td key={cell.id} className="px-4 py-3 text-sm text-slate-600 truncate">
+                    <td key={cell.id} className="px-4 py-3 text-sm text-slate-600 truncate group-hover:text-slate-900">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -195,11 +198,15 @@ export function ServerSideTable<T extends object>({
             ) : (
               !isLoading && (
                 <tr>
-                  <td colSpan={columns.length} className="text-center py-16 text-slate-400 bg-slate-50/30">
-                    <div className="flex flex-col items-center gap-2">
-                      <AlertCircle size={24} className="opacity-20" />
-                      <span>Nessun dato trovato</span>
-                    </div>
+                  <td colSpan={columns.length} className="p-0">
+                    <EmptyState
+                      title={emptyState?.title || "Nessun dato trovato"}
+                      description={emptyState?.description || "Non ci sono record da mostrare in questa vista."}
+                      icon={emptyState?.icon || Database}
+                      actionLabel={emptyState?.actionLabel}
+                      onAction={emptyState?.onAction}
+                      variant="default"
+                    />
                   </td>
                 </tr>
               )
@@ -210,20 +217,20 @@ export function ServerSideTable<T extends object>({
 
       {/* Pagination Controls */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2">
-        <div className="text-sm text-base-content/60">
-          Pagina <span className="font-medium text-base-content">{table.getState().pagination.pageIndex + 1}</span> di{' '}
-          <span className="font-medium text-base-content">{table.getPageCount() > 0 ? table.getPageCount() : 1}</span>
+        <div className="text-sm text-slate-500">
+          Pagina <span className="font-medium text-slate-900">{table.getState().pagination.pageIndex + 1}</span> di{' '}
+          <span className="font-medium text-slate-900">{table.getPageCount() > 0 ? table.getPageCount() : 1}</span>
           <span className="mx-2 hidden sm:inline">•</span>
           Totale: {data?.recordsFiltered || 0}
         </div>
 
-        <div className="join">
+        <div className="flex items-center gap-2">
           <button
-            className="join-item btn btn-sm bg-base-100 hover:bg-white border-base-300"
+            className="p-1 px-2 rounded border border-slate-200 hover:bg-white hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
           >
-            <ChevronLeft size={16} />
+            <ChevronLeft size={16} className="text-slate-600" />
           </button>
 
           <select
@@ -231,7 +238,7 @@ export function ServerSideTable<T extends object>({
             onChange={e => {
               table.setPageSize(Number(e.target.value))
             }}
-            className="join-item select select-sm select-bordered w-20 bg-base-100 font-normal focus:outline-none"
+            className="h-8 rounded border border-slate-200 bg-white text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm px-2 cursor-pointer"
           >
             {[10, 20, 30, 50, 100].map(pageSize => (
               <option key={pageSize} value={pageSize}>
@@ -241,11 +248,11 @@ export function ServerSideTable<T extends object>({
           </select>
 
           <button
-            className="join-item btn btn-sm bg-base-100 hover:bg-white border-base-300"
+            className="p-1 px-2 rounded border border-slate-200 hover:bg-white hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-white shadow-sm"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
           >
-            <ChevronRight size={16} />
+            <ChevronRight size={16} className="text-slate-600" />
           </button>
         </div>
       </div>

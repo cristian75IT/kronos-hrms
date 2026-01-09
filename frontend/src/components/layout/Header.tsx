@@ -1,13 +1,20 @@
 /**
  * KRONOS - Header Component
+ * Refactored: CSS moved to index.css and Tailwind classes
  */
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, User, LogOut, Settings, ChevronDown } from 'lucide-react';
+import { Search, User, LogOut, Settings, ChevronDown, Menu } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import NotificationDropdown from '../common/NotificationDropdown';
+import { clsx } from 'clsx';
+import { Logo } from '../common/Logo';
 
-export function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void;
+}
+
+export function Header({ onMenuClick }: HeaderProps) {
   const { user, logout } = useAuth();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -24,239 +31,107 @@ export function Header() {
   }, []);
 
   return (
-    <header className="app-header">
-      <div className="header-left">
-        <div className="header-search">
-          <Search size={18} className="header-search-icon" />
+    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-6 sticky top-0 z-40">
+      {/* Left Section - Search & Mobile Menu */}
+      <div className="flex items-center gap-4">
+        {/* Mobile Menu Trigger */}
+        <button
+          onClick={onMenuClick}
+          className="md:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+          aria-label="Open menu"
+        >
+          <Menu size={24} />
+        </button>
+
+        {/* Mobile Logo (visible only on small screens) */}
+        <div className="md:hidden flex items-center gap-2">
+          <div className="bg-primary/10 p-1 rounded-md text-primary">
+            <Logo size={20} />
+          </div>
+          <span className="font-bold text-lg text-slate-900 tracking-tight">KRONOS</span>
+        </div>
+
+        {/* Desktop Search */}
+        <div className="relative w-72 hidden md:block">
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             placeholder="Cerca..."
-            className="header-search-input"
+            className="w-full py-2 pl-10 pr-3 bg-slate-50 border border-transparent rounded-lg text-sm text-slate-900 placeholder-slate-400 transition-all focus:outline-none focus:bg-white focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </div>
       </div>
 
-      <div className="header-right">
+      {/* Right Section - Notifications & User */}
+      <div className="flex items-center gap-2 md:gap-4">
+        {/* Mobile Search Trigger (optional, for now hidden) */}
+        <button className="md:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-lg">
+          <Search size={22} />
+        </button>
+
         <NotificationDropdown />
 
         {/* User Menu Dropdown */}
-        <div className="header-user-menu" ref={menuRef}>
+        <div className="relative" ref={menuRef}>
           <button
-            className="header-user-button"
+            className="flex items-center gap-2 px-2 py-1 bg-transparent border-none rounded-lg cursor-pointer transition-colors hover:bg-slate-50"
             onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
           >
-            <div className="header-user-avatar">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-slate-600 text-white flex items-center justify-center text-xs font-semibold uppercase ring-2 ring-white shadow-sm">
               {user?.first_name?.charAt(0)}{user?.last_name?.charAt(0)}
             </div>
-            <span className="header-user-name">{user?.first_name}</span>
-            <ChevronDown size={16} className={`header-chevron ${isUserMenuOpen ? 'rotated' : ''}`} />
+            <span className="text-sm font-medium text-slate-900 hidden sm:block">{user?.first_name}</span>
+            <ChevronDown
+              size={16}
+              className={clsx(
+                'text-slate-400 transition-transform duration-150 hidden sm:block',
+                isUserMenuOpen && 'rotate-180'
+              )}
+            />
           </button>
 
           {isUserMenuOpen && (
-            <div className="header-dropdown">
-              <div className="header-dropdown-header">
-                <div className="header-dropdown-name">{user?.full_name}</div>
-                <div className="header-dropdown-email">{user?.email}</div>
+            <div className="absolute top-[calc(100%+8px)] right-0 w-60 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden animate-fadeInDown z-50">
+              {/* User Info Header */}
+              <div className="px-4 py-3 bg-slate-50 border-b border-slate-100">
+                <div className="font-semibold text-sm text-slate-900">{user?.full_name}</div>
+                <div className="text-xs text-slate-500 mt-0.5 truncate">{user?.email}</div>
               </div>
-              <div className="header-dropdown-divider" />
-              <Link to="/profile" className="header-dropdown-item" onClick={() => setIsUserMenuOpen(false)}>
-                <User size={16} />
-                <span>Il Mio Profilo</span>
-              </Link>
-              <Link to="/settings" className="header-dropdown-item" onClick={() => setIsUserMenuOpen(false)}>
-                <Settings size={16} />
-                <span>Impostazioni</span>
-              </Link>
-              <div className="header-dropdown-divider" />
-              <button className="header-dropdown-item header-dropdown-logout" onClick={logout}>
-                <LogOut size={16} />
-                <span>Esci</span>
-              </button>
+
+              {/* Menu Items */}
+              <div className="py-1">
+                <Link
+                  to="/profile"
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                  onClick={() => setIsUserMenuOpen(false)}
+                >
+                  <User size={16} className="text-slate-400" />
+                  <span>Il Mio Profilo</span>
+                </Link>
+                <Link
+                  to="/settings"
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                  onClick={() => setIsUserMenuOpen(false)}
+                >
+                  <Settings size={16} className="text-slate-400" />
+                  <span>Impostazioni</span>
+                </Link>
+              </div>
+
+              {/* Logout */}
+              <div className="border-t border-slate-100 py-1">
+                <button
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                  onClick={logout}
+                >
+                  <LogOut size={16} />
+                  <span>Esci</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
       </div>
-
-      <style>{`
-        .app-header {
-          height: var(--header-height);
-          background: var(--color-bg-primary);
-          border-bottom: 1px solid var(--color-border);
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 0 var(--space-6);
-          position: sticky;
-          top: 0;
-          z-index: var(--z-sticky);
-        }
-
-        .header-left {
-          display: flex;
-          align-items: center;
-          gap: var(--space-4);
-        }
-
-        .header-search {
-          position: relative;
-          width: 300px;
-        }
-
-        .header-search-icon {
-          position: absolute;
-          left: var(--space-3);
-          top: 50%;
-          transform: translateY(-50%);
-          color: var(--color-text-muted);
-        }
-
-        .header-search-input {
-          width: 100%;
-          padding: var(--space-2) var(--space-3);
-          padding-left: var(--space-10);
-          background: var(--color-bg-tertiary);
-          border: 1px solid transparent;
-          border-radius: var(--radius-md);
-          font-size: var(--font-size-sm);
-          color: var(--color-text-primary);
-          transition: all var(--transition-fast);
-        }
-
-        .header-search-input:focus {
-          outline: none;
-          background: var(--color-bg-primary);
-          border-color: var(--color-primary);
-        }
-
-        .header-search-input::placeholder {
-          color: var(--color-text-muted);
-        }
-
-        .header-right {
-          display: flex;
-          align-items: center;
-          gap: var(--space-4);
-        }
-
-        .header-user-menu {
-          position: relative;
-        }
-
-        .header-user-button {
-          display: flex;
-          align-items: center;
-          gap: var(--space-2);
-          padding: var(--space-1) var(--space-2);
-          background: transparent;
-          border: none;
-          border-radius: var(--radius-md);
-          cursor: pointer;
-          transition: background var(--transition-fast);
-        }
-
-        .header-user-button:hover {
-          background: var(--color-bg-tertiary);
-        }
-
-        .header-user-avatar {
-          width: 32px;
-          height: 32px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
-          color: white;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: var(--font-size-xs);
-          font-weight: 600;
-          text-transform: uppercase;
-        }
-
-        .header-user-name {
-          font-size: var(--font-size-sm);
-          font-weight: 500;
-          color: var(--color-text-primary);
-        }
-
-        .header-chevron {
-          color: var(--color-text-muted);
-          transition: transform var(--transition-fast);
-        }
-
-        .header-chevron.rotated {
-          transform: rotate(180deg);
-        }
-
-        .header-dropdown {
-          position: absolute;
-          top: calc(100% + 8px);
-          right: 0;
-          width: 240px;
-          background: var(--color-bg-primary);
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-lg);
-          box-shadow: var(--shadow-lg);
-          overflow: hidden;
-          animation: slideDown 0.15s ease-out;
-        }
-
-        @keyframes slideDown {
-          from { opacity: 0; transform: translateY(-8px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        .header-dropdown-header {
-          padding: var(--space-3) var(--space-4);
-          background: var(--color-bg-secondary);
-        }
-
-        .header-dropdown-name {
-          font-weight: 600;
-          color: var(--color-text-primary);
-          font-size: var(--font-size-sm);
-        }
-
-        .header-dropdown-email {
-          font-size: var(--font-size-xs);
-          color: var(--color-text-muted);
-          margin-top: 2px;
-        }
-
-        .header-dropdown-divider {
-          height: 1px;
-          background: var(--color-border);
-        }
-
-        .header-dropdown-item {
-          display: flex;
-          align-items: center;
-          gap: var(--space-3);
-          padding: var(--space-3) var(--space-4);
-          font-size: var(--font-size-sm);
-          color: var(--color-text-secondary);
-          text-decoration: none;
-          transition: background var(--transition-fast);
-          cursor: pointer;
-          border: none;
-          background: transparent;
-          width: 100%;
-          text-align: left;
-        }
-
-        .header-dropdown-item:hover {
-          background: var(--color-bg-secondary);
-          color: var(--color-text-primary);
-        }
-
-        .header-dropdown-logout {
-          color: var(--color-error);
-        }
-
-        .header-dropdown-logout:hover {
-          background: rgba(239, 68, 68, 0.1);
-          color: var(--color-error);
-        }
-      `}</style>
     </header>
   );
 }

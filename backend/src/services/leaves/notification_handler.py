@@ -18,6 +18,7 @@ class LeaveNotificationHandler:
             notification_type="leave_request_submitted",
             title="Richiesta ferie sottomessa",
             message=f"Richiesta {request.leave_type_code} dal {request.start_date.strftime('%d/%m/%Y')} sottomessa",
+            priority="urgent",
             entity_type="LeaveRequest",
             entity_id=str(request.id),
         )
@@ -29,6 +30,7 @@ class LeaveNotificationHandler:
             notification_type="leave_request_approved",
             title="Richiesta approvata",
             message=f"La tua richiesta {request.leave_type_code} è stata approvata",
+            priority="urgent",
             entity_type="LeaveRequest",
             entity_id=str(request.id),
         )
@@ -40,6 +42,7 @@ class LeaveNotificationHandler:
             notification_type="leave_conditional_approval",
             title="Approvazione condizionale",
             message=f"La tua richiesta è stata approvata con condizioni: {condition_details}",
+            priority="urgent",
             entity_type="LeaveRequest",
             entity_id=str(request.id),
         )
@@ -51,6 +54,7 @@ class LeaveNotificationHandler:
             notification_type="leave_request_rejected",
             title="Richiesta rifiutata",
             message=f"La tua richiesta {request.leave_type_code} è stata rifiutata: {reason}",
+            priority="urgent",
             entity_type="LeaveRequest",
             entity_id=str(request.id),
         )
@@ -62,6 +66,7 @@ class LeaveNotificationHandler:
             notification_type="leave_approval_revoked",
             title="Approvazione revocata",
             message=f"L'approvazione per la tua richiesta {request.leave_type_code} è stata revocata: {reason}",
+            priority="urgent",
             entity_type="LeaveRequest",
             entity_id=str(request.id),
         )
@@ -73,6 +78,7 @@ class LeaveNotificationHandler:
             notification_type="leave_request_reopened",
             title="Richiesta riaperta",
             message=f"La tua richiesta {request.leave_type_code} è stata riaperta per revisione",
+            priority="urgent",
             entity_type="LeaveRequest",
             entity_id=str(request.id),
         )
@@ -89,6 +95,7 @@ class LeaveNotificationHandler:
                 f"Giorni goduti: {days_used}. Giorni da recuperare: {days_to_restore}. "
                 f"Hai diritto a riprogrammare i giorni non goduti e alla compensazione prevista dal CCNL."
             ),
+            priority="urgent",
             entity_type="LeaveRequest",
             entity_id=str(request.id),
         )

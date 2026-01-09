@@ -24,6 +24,7 @@ import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import approvalsService from '../services/approvals.service';
 import type { PendingCountResponse } from '../services/approvals.service';
+import { EmptyState, Skeleton } from '../components/common';
 
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -91,7 +92,7 @@ export function DashboardPage() {
   ];
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto pb-8">
+    <div className="space-y-6 max-w-[1400px] mx-auto pb-8 animate-fadeIn">
       {/* Enterprise Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200 pb-6">
         <div>
@@ -121,7 +122,7 @@ export function DashboardPage() {
           {stats.map((stat, index) => (
             <div
               key={index}
-              className="p-5 bg-white rounded-lg border border-gray-200 hover:border-primary/50 hover:shadow-sm transition-all"
+              className="p-5 bg-white rounded-lg border border-gray-200 hover:border-primary/50 hover:shadow-sm transition-all group"
             >
               <div className="flex items-center gap-3 mb-3">
                 <div className={`p-2 rounded-md ${stat.bg} ${stat.color}`}>
@@ -132,10 +133,10 @@ export function DashboardPage() {
 
               <div>
                 {balanceLoading ? (
-                  <div className="h-8 w-20 bg-gray-100 rounded animate-pulse" />
+                  <Skeleton className="h-8 w-20" />
                 ) : (
                   <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl font-bold text-gray-900">
+                    <span className="text-2xl font-bold text-gray-900 group-hover:text-primary transition-colors">
                       {typeof stat.value === 'number' || typeof stat.value === 'string' ? stat.value : '-'}
                     </span>
                     <span className="text-sm font-medium text-gray-400">{stat.suffix}</span>
@@ -149,7 +150,7 @@ export function DashboardPage() {
 
       {/* AP Expiry Warning - Employee Only */}
       {user?.is_employee !== false && balance?.days_until_ap_expiry && balance.days_until_ap_expiry <= 60 && (
-        <div className="p-4 rounded-lg bg-orange-50 border border-orange-200 flex flex-col md:flex-row items-center gap-4">
+        <div className="p-4 rounded-lg bg-orange-50 border border-orange-200 flex flex-col md:flex-row items-center gap-4 animate-slideInRight">
           <div className="p-2 bg-orange-100 rounded-full text-orange-600">
             <AlertCircle size={20} />
           </div>
@@ -167,7 +168,7 @@ export function DashboardPage() {
 
       {/* Pending Approvals Widget - for Approvers/HR/Admin */}
       {canSeeApprovals && approvalCounts && approvalCounts.total > 0 && (
-        <Link to="/approvals/pending" className="block">
+        <Link to="/approvals/pending" className="block transform transition-transform duration-200 hover:scale-[1.01]">
           <div className="p-5 rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 hover:border-indigo-300 hover:shadow-md transition-all">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-indigo-100 rounded-lg text-indigo-600">
@@ -184,7 +185,7 @@ export function DashboardPage() {
                 {Object.keys(approvalCounts.by_type).length > 0 && (
                   <div className="flex gap-3 mt-2">
                     {Object.entries(approvalCounts.by_type).map(([type, count]) => (
-                      <span key={type} className="text-xs px-2 py-0.5 bg-white rounded-full border border-gray-200">
+                      <span key={type} className="text-xs px-2 py-0.5 bg-white rounded-full border border-gray-200 shadow-sm">
                         {type === 'LEAVE' ? 'Ferie' : type === 'TRIP' ? 'Trasferte' : type === 'EXPENSE' ? 'Note Spese' : type}: {count}
                       </span>
                     ))}
@@ -231,7 +232,7 @@ export function DashboardPage() {
                 Vedi tutte
               </Link>
             </div>
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden min-h-[200px]">
               {recentRequests?.slice(0, 5).map((request, index) => (
                 <div
                   key={request.id}
@@ -271,10 +272,14 @@ export function DashboardPage() {
                 </div>
               ))}
               {(!recentRequests || recentRequests.length === 0) && (
-                <div className="flex flex-col items-center justify-center p-8 text-center text-gray-400">
-                  <Calendar size={32} className="mb-2 opacity-50" />
-                  <p className="text-sm">Nessuna richiesta recente</p>
-                </div>
+                <EmptyState
+                  variant="small"
+                  title="Nessuna richiesta recente"
+                  description="Non hai ancora effettuato richieste ferie o permessi quest'anno."
+                  icon={Calendar}
+                  actionLabel="Nuova Richiesta"
+                  onAction={() => navigate('/leaves/new')}
+                />
               )}
             </div>
           </div>

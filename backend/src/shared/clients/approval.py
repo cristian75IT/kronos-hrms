@@ -133,3 +133,10 @@ class ApprovalClient(BaseClient):
             },
             timeout=10.0,
         )
+
+    async def check_workflow_health(self) -> dict:
+        """Check system configuration health."""
+        return await self.get_safe(
+            "/api/v1/approvals/internal/health/config",
+            default={"overall_status": "unknown", "items": []}
+        )

@@ -32,7 +32,7 @@ import {
 } from '../hooks/domain/useCalendar';
 import { useUsers } from '../hooks/domain/useUsers';
 import { useAuth } from '../context/AuthContext';
-import { Button } from '../components/common';
+import { Button, PageHeader } from '../components/common';
 import { NewEventModal, EventDetailModal } from '../components/calendar';
 import { calendarService } from '../services/calendar.service';
 import { useToast } from '../context/ToastContext';
@@ -245,50 +245,46 @@ export function CalendarPage() {
              * e pulsante per la creazione di nuovi eventi.
              */}
             {/* Enterprise Page Header */}
-            <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="flex items-center gap-4">
-                    <div className="p-3 bg-indigo-50 rounded-xl">
-                        <CalendarIcon className="text-indigo-600" size={24} />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-bold text-slate-900 tracking-tight">Enterprise Calendar</h1>
-                        <div className="flex items-center gap-2 text-sm text-slate-500">
-                            <span className="font-medium text-slate-700">{format(currentDate, 'MMMM yyyy')}</span>
-                            <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                            <span>{awayToday.length} assenze oggi</span>
+            {/* Enterprise Page Header */}
+            <PageHeader
+                title="Calendario Aziendale"
+                description={`Visualizza e gestisci impegni, scadenze e assenze. ${awayToday.length} assenze oggi.`}
+                breadcrumbs={[
+                    { label: 'Dashboard', path: '/' },
+                    { label: 'Calendario' }
+                ]}
+                actions={
+                    <div className="flex flex-col md:flex-row items-center gap-4">
+                        {/* View Toggles */}
+                        <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-200">
+                            {(['dayGridMonth', 'timeGridWeek', 'timeGridDay'] as CalendarView[]).map(view => (
+                                <button
+                                    key={view}
+                                    className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${currentView === view
+                                        ? 'bg-white text-indigo-600 shadow-sm border border-slate-200'
+                                        : 'text-slate-500 hover:text-slate-900'
+                                        }`}
+                                    onClick={() => handleViewChange(view)}
+                                >
+                                    {viewLabels[view]}
+                                </button>
+                            ))}
                         </div>
-                    </div>
-                </div>
 
-                <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-200">
-                    {(['dayGridMonth', 'timeGridWeek', 'timeGridDay'] as CalendarView[]).map(view => (
-                        <button
-                            key={view}
-                            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${currentView === view
-                                ? 'bg-white text-indigo-600 shadow-sm border border-slate-200'
-                                : 'text-slate-500 hover:text-slate-900'
-                                }`}
-                            onClick={() => handleViewChange(view)}
+                        <Button
+                            variant="primary"
+                            icon={<Plus size={18} />}
+                            className="!rounded-xl shadow-md shadow-indigo-100"
+                            onClick={() => {
+                                setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
+                                setIsEventModalOpen(true);
+                            }}
                         >
-                            {viewLabels[view]}
-                        </button>
-                    ))}
-                </div>
-
-                <div className="flex items-center gap-3">
-                    <Button
-                        variant="primary"
-                        icon={<Plus size={18} />}
-                        className="!rounded-xl shadow-md shadow-indigo-100"
-                        onClick={() => {
-                            setSelectedDate(format(new Date(), 'yyyy-MM-dd'));
-                            setIsEventModalOpen(true);
-                        }}
-                    >
-                        Nuovo Evento
-                    </Button>
-                </div>
-            </div>
+                            Nuovo Evento
+                        </Button>
+                    </div>
+                }
+            />
 
             <div className="flex flex-1 gap-6 overflow-hidden">
                 {/** 

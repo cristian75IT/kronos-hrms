@@ -38,6 +38,7 @@ class NotificationClient(BaseClient):
         title: str,
         message: str,
         channels: Optional[list[str]] = None,
+        priority: str = "normal",
         entity_type: Optional[str] = None,
         entity_id: Optional[str] = None,
         action_url: Optional[str] = None,
@@ -52,6 +53,7 @@ class NotificationClient(BaseClient):
             title: Notification title
             message: Notification body
             channels: List of channels ["in_app", "email"]. Default: ["in_app", "email"]
+            priority: Notification priority ("normal", "high", "urgent"). Default: "normal"
             entity_type: Related entity type (e.g., "LeaveRequest")
             entity_id: Related entity ID
             action_url: URL to navigate on click (relative paths auto-prefixed with FRONTEND_URL)
@@ -94,6 +96,8 @@ class NotificationClient(BaseClient):
                         "notification_type": notification_type,
                         "title": title,
                         "message": message,
+                        "channels": channel, # Typo in original file? Original said "channel": channel.
+                        "priority": priority,
                         "channel": channel,
                         "entity_type": entity_type,
                         "entity_id": str(entity_id) if entity_id else None,

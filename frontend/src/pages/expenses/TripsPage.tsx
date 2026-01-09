@@ -11,7 +11,6 @@ import {
     AlertCircle,
     Plane,
     ArrowRight,
-    RefreshCw,
     Calendar,
     Briefcase,
     Search,
@@ -22,6 +21,7 @@ import {
 } from 'lucide-react';
 import { format, isValid } from 'date-fns';
 import { it } from 'date-fns/locale';
+import { PageHeader, Button, EmptyState } from '../../components/common';
 
 // Safe date formatter helper
 const safeFormat = (dateStr: string | undefined | null, formatStr: string) => {
@@ -58,55 +58,53 @@ export function TripsPage() {
     if (error) {
         return (
             <div className="flex flex-col items-center justify-center p-12 gap-6 bg-red-50/50 border border-red-100 rounded-3xl text-center max-w-2xl mx-auto mt-12">
-                <div className="p-4 bg-white rounded-2xl shadow-sm border border-red-100">
-                    <AlertCircle size={48} className="text-red-500" />
-                </div>
-                <div>
-                    <h2 className="text-xl font-bold text-slate-900">Errore di Connessione</h2>
-                    <p className="text-slate-500 mt-2">Impossibile recuperare le trasferte. Verifica la connessione.</p>
-                </div>
-                <button className="btn bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 shadow-sm rounded-xl px-6" onClick={() => refetch()}>
-                    <RefreshCw size={18} className="mr-2" /> Riprova
-                </button>
+                <EmptyState
+                    variant="small"
+                    title="Errore di Connessione"
+                    description="Impossibile recuperare le trasferte. Verifica la connessione."
+                    icon={AlertCircle}
+                    actionLabel="Riprova"
+                    onAction={() => refetch()}
+                    className="text-red-600"
+                />
             </div>
         );
     }
 
     return (
         <div className="space-y-8 animate-fadeIn max-w-[1600px] mx-auto pb-12">
-            {/* Enterprise Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-slate-200">
-                <div>
-                    <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-emerald-100 rounded-lg text-emerald-700">
-                            <Briefcase size={24} />
+            <PageHeader
+                title="Trasferte"
+                description="Pianifica e gestisci le tue missioni aziendali. Tieni traccia di budget, destinazioni e rimborsi in un unico posto."
+                breadcrumbs={[
+                    { label: 'Dashboard', path: '/' },
+                    { label: 'Trasferte' }
+                ]}
+                actions={
+                    <div className="flex flex-col sm:flex-row gap-3 items-center">
+                        <div className="flex items-center gap-4 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl h-10">
+                            <div className="text-right">
+                                <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Budget Totale</div>
+                                <div className="text-sm font-bold text-slate-900">€{stats.totalBudget.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</div>
+                            </div>
+                            <div className="h-6 w-px bg-slate-200" />
+                            <div className="text-right">
+                                <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Missioni Attive</div>
+                                <div className="text-sm font-bold text-emerald-600">{stats.pending + stats.approved}</div>
+                            </div>
                         </div>
-                        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Trasferte</h1>
-                    </div>
-                    <p className="text-slate-500 max-w-2xl">
-                        Pianifica e gestisci le tue missioni aziendali. Tieni traccia di budget, destinazioni e rimborsi in un unico posto.
-                    </p>
-                </div>
 
-                <div className="flex flex-col sm:flex-row gap-3">
-                    <div className="flex items-center gap-4 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl">
-                        <div className="text-right">
-                            <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Budget Totale</div>
-                            <div className="text-lg font-bold text-slate-900">€{stats.totalBudget.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</div>
-                        </div>
-                        <div className="h-8 w-px bg-slate-200" />
-                        <div className="text-right">
-                            <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Missioni Attive</div>
-                            <div className="text-lg font-bold text-emerald-600">{stats.pending + stats.approved}</div>
-                        </div>
+                        <Button
+                            as={Link}
+                            to="/trips/new"
+                            variant="primary"
+                            icon={<Plus size={18} />}
+                        >
+                            Nuova Missione
+                        </Button>
                     </div>
-
-                    <Link to="/trips/new" className="btn bg-slate-900 hover:bg-slate-800 text-white border-none rounded-xl px-6 shadow-lg shadow-slate-900/20">
-                        <Plus size={18} className="mr-2" />
-                        Nuova Missione
-                    </Link>
-                </div>
-            </div>
+                }
+            />
 
             {/* Filter Tabs */}
             <div className="flex items-center gap-2 overflow-x-auto pb-2">
@@ -150,12 +148,12 @@ export function TripsPage() {
                         <tbody className="divide-y divide-slate-100">
                             {trips?.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="py-16 text-center">
-                                        <div className="flex flex-col items-center justify-center">
-                                            <Search size={48} className="text-slate-200 mb-4" />
-                                            <h3 className="text-lg font-semibold text-slate-900">Nessun risultato</h3>
-                                            <p className="text-slate-400 text-sm">Non ci sono trasferte che corrispondono ai filtri.</p>
-                                        </div>
+                                    <td colSpan={5} className="p-0">
+                                        <EmptyState
+                                            title="Nessun risultato"
+                                            description="Non ci sono trasferte che corrispondono ai filtri."
+                                            icon={Search}
+                                        />
                                     </td>
                                 </tr>
                             ) : (

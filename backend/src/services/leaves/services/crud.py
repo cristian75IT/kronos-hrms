@@ -34,6 +34,21 @@ class LeaveCrudService(BaseLeaveService):
         data: LeaveRequestCreate,
     ) -> LeaveRequest:
         """Create a new leave request (as draft)."""
+        # Validate System Configuration (Workflow)
+        health = await self._approval_client.check_workflow_health()
+        leave_workflow_ok = False
+        if health and health.get("items"):
+            for item in health.get("items", []):
+                if item.get("config_type") == "WORKFLOW_LEAVE" and item.get("status") == "ok":
+                    leave_workflow_ok = True
+                    break
+        
+        if not leave_workflow_ok:
+            raise BusinessRuleError(
+                "Impossibile creare la richiesta: Il Workflow Approvazioni Ferie non è configurato nel sistema. Contatta l'amministratore.",
+                rule="WORKFLOW_CONFIG_MISSING"
+            )
+
         # Get leave type info
         leave_type = await self._config_client.get_leave_type(data.leave_type_id)
         if not leave_type:

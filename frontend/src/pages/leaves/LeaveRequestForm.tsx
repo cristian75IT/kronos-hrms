@@ -1,17 +1,20 @@
 /**
  * KRONOS - Leave Request Form Component
+ * Refactored with FormField component and improved UX
  */
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { Calendar as CalendarIcon, Save, X, AlertCircle, ChevronDown, Loader, Laptop } from 'lucide-react';
+import { Calendar as CalendarIcon, Save, AlertCircle, Laptop, ArrowLeft } from 'lucide-react';
 import { useCreateLeaveRequest, useUpdateLeaveRequest, useLeaveRequest } from '../../hooks/domain/useLeaves';
-import { configApi } from '../../services/api'; // Direct call for leave types since it's rarely updated
+import { configApi } from '../../services/api';
 import type { LeaveType, LeaveRequestCreate } from '../../types';
 import { formatApiError } from '../../utils/errorUtils';
 
 import { leavesService } from '../../services/leaves.service';
 import { smartWorkingService, type SWAgreement } from '../../services/smartWorking.service';
+
+import { FormField, PageHeader, Button, Skeleton } from '../../components/common';
 
 // Weekday names for display
 const WEEKDAY_NAMES: Record<number, string> = {
@@ -83,7 +86,6 @@ export function LeaveRequestForm() {
             try {
                 const response = await configApi.get('/leave-types');
                 const types = response.data.items || [];
-                // Filter out Permessi and Ex-Festività as requested
                 const filteredTypes = types.filter((t: LeaveType) =>
                     !t.name.toLowerCase().includes('permess') &&
                     !t.name.toLowerCase().includes('ex-fest') &&
@@ -113,7 +115,7 @@ export function LeaveRequestForm() {
         fetchSwAgreement();
     }, []);
 
-    // Detect SW conflicts: check if selected date range overlaps with allowed SW weekdays
+    // Detect SW conflicts
     const swConflictDays = useMemo(() => {
         if (!startDate || !endDate || !swAgreement?.allowed_weekdays?.length) {
             return [];
@@ -123,13 +125,11 @@ export function LeaveRequestForm() {
         const start = new Date(startDate);
         const end = new Date(endDate);
 
-        // Iterate through each day in the range
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-            const jsWeekday = d.getDay(); // 0=Sun, 1=Mon, ...
-            // Convert to our format: 0=Mon, 1=Tue, ... (jsWeekday - 1, but handle Sunday)
-            if (jsWeekday === 0 || jsWeekday === 6) continue; // Skip weekends
+            const jsWeekday = d.getDay();
+            if (jsWeekday === 0 || jsWeekday === 6) continue;
 
-            const agreementWeekday = jsWeekday - 1; // Convert: 1(Mon)->0, 2(Tue)->1, etc.
+            const agreementWeekday = jsWeekday - 1;
 
             if (swAgreement.allowed_weekdays.includes(agreementWeekday)) {
                 conflicts.push({
@@ -145,13 +145,11 @@ export function LeaveRequestForm() {
     // Calculate days effect
     useEffect(() => {
         const calculate = async () => {
-            // Skip if missing required fields
             if (!startDate || !endDate || !leaveTypeId) {
                 setCalculatedDays(null);
                 return;
             }
 
-            // Check valid range
             if (new Date(endDate) < new Date(startDate)) {
                 setCalculatedDays(null);
                 return;
@@ -175,7 +173,7 @@ export function LeaveRequestForm() {
             }
         };
 
-        const timeoutId = setTimeout(calculate, 300); // Simple debounce
+        const timeoutId = setTimeout(calculate, 300);
         return () => clearTimeout(timeoutId);
     }, [startDate, endDate, startHalfDay, endHalfDay, leaveTypeId]);
 
@@ -185,113 +183,106 @@ export function LeaveRequestForm() {
     const onSubmit = (data: LeaveRequestCreate) => {
         if (isEditing && id) {
             updateMutation.mutate({ id, data: data as any }, {
-                onSuccess: () => {
-                    navigate(`/leaves/${id}`);
-                }
+                onSuccess: () => navigate(`/leaves/${id}`)
             });
         } else {
             createMutation.mutate(data, {
-                onSuccess: () => {
-                    navigate('/leaves');
-                }
+                onSuccess: () => navigate('/leaves')
             });
         }
     };
 
-    const onInvalid = (errors: any) => {
-        console.error('Form validation failed:', errors);
-    };
+    const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
+    // Loading state
     if (isLoadingLeave && isEditing) {
         return (
-            <div className="max-w-2xl mx-auto py-32 flex flex-col items-center justify-center animate-fadeIn">
-                <Loader className="animate-spin text-indigo-600 mb-4" size={48} />
-                <p className="text-gray-500 font-medium">Caricamento richiesta...</p>
+            <div className="max-w-2xl mx-auto py-8">
+                <div className="space-y-4">
+                    <Skeleton variant="title" />
+                    <Skeleton variant="text" className="w-2/3" />
+                    <div className="mt-8 space-y-6 bg-white p-6 rounded-xl border border-slate-200">
+                        <Skeleton variant="button" className="w-full h-10" />
+                        <div className="grid grid-cols-2 gap-4">
+                            <Skeleton variant="button" className="w-full h-10" />
+                            <Skeleton variant="button" className="w-full h-10" />
+                        </div>
+                        <Skeleton variant="card" className="h-24" />
+                    </div>
+                </div>
             </div>
         );
     }
 
     return (
         <div className="max-w-2xl mx-auto animate-fadeIn py-8">
-            <div className="mb-8">
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                    {isEditing ? 'Modifica Richiesta' : 'Nuova Richiesta'}
-                </h1>
-                <p className="text-gray-500">
-                    {isEditing ? 'Aggiorna i dettagli della tua richiesta di assenza.' : 'Compila il modulo per richiedere ferie o permessi.'}
-                </p>
-            </div>
+            {/* Page Header with Breadcrumb */}
+            <PageHeader
+                title={isEditing ? 'Modifica Richiesta' : 'Nuova Richiesta Assenza'}
+                description={isEditing
+                    ? 'Aggiorna i dettagli della tua richiesta di assenza.'
+                    : 'Compila il modulo per richiedere ferie o permessi.'
+                }
+                breadcrumbs={[
+                    { label: 'Assenze', path: '/leaves' },
+                    { label: isEditing ? `Richiesta #${id?.slice(0, 8)}` : 'Nuova' }
+                ]}
+            />
 
-            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-6">
+            {/* Form Card */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
                     {/* Leave Type Selection */}
-                    <div>
-                        <label htmlFor="leave_type_id" className="block text-sm font-medium text-gray-700 mb-1">Tipo di Richiesta</label>
-                        {loadingTypes ? (
-                            <div className="animate-pulse h-10 w-full bg-gray-100 rounded-lg" />
-                        ) : (
-                            <div className="relative">
-                                <select
-                                    id="leave_type_id"
-                                    {...register('leave_type_id', { required: 'Seleziona un tipo' })}
-                                    className={`block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm appearance-none pr-10 ${errors.leave_type_id ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}`}
-                                >
-                                    <option value="">-- Seleziona --</option>
-                                    {leaveTypes.map((type) => (
-                                        <option key={type.id} value={type.id}>
-                                            {type.name}
-                                            {(type.max_single_request_days || type.max_consecutive_days) ? ` (Max ${type.max_single_request_days || type.max_consecutive_days} gg)` : ''}
-                                        </option>
-                                    ))}
-                                </select>
-                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                                    <ChevronDown size={16} />
-                                </div>
-                            </div>
-                        )}
-                        {errors.leave_type_id && <span className="text-red-600 text-xs mt-1 flex items-center gap-1"><AlertCircle size={12} /> {errors.leave_type_id?.message || 'Seleziona un tipo'}</span>}
-                    </div>
+                    {loadingTypes ? (
+                        <Skeleton variant="button" className="w-full h-10" />
+                    ) : (
+                        <FormField
+                            label="Tipo di Richiesta"
+                            
+                            as="select"
+                            required
+                            error={errors.leave_type_id?.message}
+                            options={[
+                                { value: '', label: '-- Seleziona tipo --' },
+                                ...leaveTypes.map(type => ({
+                                    value: type.id,
+                                    label: `${type.name}${(type.max_single_request_days || type.max_consecutive_days) ? ` (Max ${type.max_single_request_days || type.max_consecutive_days} gg)` : ''}`
+                                }))
+                            ]}
+                            {...register('leave_type_id', { required: 'Seleziona un tipo di assenza' })}
+                        />
+                    )}
 
-                    {/* Date Selection */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Dal giorno</label>
-                            <div className="relative">
-                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                <input
-                                    type="date"
-                                    {...register('start_date', {
-                                        required: 'Data inizio obbligatoria',
-                                        onChange: (e) => {
-                                            // Auto-update end date if it's empty or to help user
-                                            setValue('end_date', e.target.value);
-                                        }
-                                    })}
-                                    className={`block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm pl-10 ${errors.start_date ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}`}
-                                />
-                            </div>
+                    {/* Date Selection Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                            label="Dal giorno"
+                            
+                            type="date"
+                            required
+                            leftIcon={<CalendarIcon size={18} />}
+                            error={errors.start_date?.message}
+                            {...register('start_date', {
+                                required: 'Data inizio obbligatoria',
+                                onChange: (e) => setValue('end_date', e.target.value)
+                            })}
+                        />
 
-                            {errors.start_date && <span className="text-red-600 text-xs mt-1 flex items-center gap-1"><AlertCircle size={12} /> {errors.start_date?.message}</span>}
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Al giorno</label>
-                            <div className="relative">
-                                <CalendarIcon size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                <input
-                                    type="date"
-                                    {...register('end_date', {
-                                        required: 'Data fine obbligatoria',
-                                        validate: value =>
-                                            !startDate || new Date(value) >= new Date(startDate) || 'La data fine deve essere successiva alla data inizio'
-                                    })}
-                                    className={`block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm pl-10 ${errors.end_date ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}`}
-                                />
-                            </div>
-
-                            {errors.end_date && <span className="text-red-600 text-xs mt-1 flex items-center gap-1"><AlertCircle size={12} /> {errors.end_date?.message}</span>}
-                        </div>
+                        <FormField
+                            label="Al giorno"
+                            
+                            type="date"
+                            required
+                            leftIcon={<CalendarIcon size={18} />}
+                            error={errors.end_date?.message}
+                            {...register('end_date', {
+                                required: 'Data fine obbligatoria',
+                                validate: value =>
+                                    !startDate || new Date(value) >= new Date(startDate) ||
+                                    'La data fine deve essere successiva alla data inizio'
+                            })}
+                        />
                     </div>
 
                     {/* Smart Working Conflict Alert */}
@@ -318,7 +309,7 @@ export function LeaveRequestForm() {
                         </div>
                     )}
 
-                    {/* Duration Preview */}
+                    {/* Duration Preview Card */}
                     <div className="bg-indigo-50 rounded-lg p-4 flex items-center gap-4 border border-indigo-100">
                         <div className="bg-white p-2.5 rounded-lg shadow-sm border border-indigo-100">
                             {isCalculating ? (
@@ -328,16 +319,18 @@ export function LeaveRequestForm() {
                             )}
                         </div>
                         <div>
-                            <div className="text-xs font-semibold text-indigo-800 uppercase tracking-wider mb-0.5">Durata effettiva</div>
+                            <div className="text-xs font-semibold text-indigo-800 uppercase tracking-wider mb-0.5">
+                                Durata effettiva
+                            </div>
                             <div className="flex items-baseline gap-2">
-                                <span className={`text-2xl font-bold font-mono ${calculatedDays !== null ? 'text-indigo-900' : 'text-gray-400'}`}>
+                                <span className={`text-2xl font-bold font-mono ${calculatedDays !== null ? 'text-indigo-900' : 'text-slate-400'}`}>
                                     {calculatedDays !== null ? calculatedDays : '-'}
                                 </span>
                                 <span className="text-sm font-medium text-indigo-700/70">
                                     giorni lavorativi
                                 </span>
                             </div>
-                            {startDate && endDate && calculatedDays !== null && (
+                            {calculatedDays !== null && (
                                 <div className="text-xs text-indigo-600/80 mt-1">
                                     Escluse festività e weekend
                                 </div>
@@ -347,35 +340,30 @@ export function LeaveRequestForm() {
 
                     {/* Protocol Number (INPS) - Only if required */}
                     {requiresProtocol && (
-                        <div className="animate-slideIn">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Codice iNPS / Protocollo Telematico
-                            </label>
-                            <input
-                                type="text"
-                                {...register('protocol_number', {
-                                    required: requiresProtocol ? 'Il codice iNPS è obbligatorio per la malattia' : false,
-                                    minLength: { value: 5, message: 'Il codice deve essere di almeno 5 caratteri' }
-                                })}
-                                className={`block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${errors.protocol_number ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}`}
-                                placeholder="Esempio: MAL12345678"
-                            />
-                            <p className="mt-1 text-xs text-gray-500">
-                                Inserisci il protocollo telematico fornito dal medico o dall'iNPS.
-                            </p>
-                            {errors.protocol_number && <span className="text-red-600 text-xs mt-1 flex items-center gap-1"><AlertCircle size={12} /> {errors.protocol_number?.message}</span>}
-                        </div>
+                        <FormField
+                            label="Codice iNPS / Protocollo Telematico"
+                            
+                            required
+                            error={errors.protocol_number?.message}
+                            helperText="Inserisci il protocollo telematico fornito dal medico o dall'iNPS."
+                            placeholder="Esempio: MAL12345678"
+                            wrapperClassName="animate-fadeIn"
+                            {...register('protocol_number', {
+                                required: requiresProtocol ? 'Il codice iNPS è obbligatorio per la malattia' : false,
+                                minLength: { value: 5, message: 'Il codice deve essere di almeno 5 caratteri' }
+                            })}
+                        />
                     )}
 
                     {/* Notes */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Note (Opzionale)</label>
-                        <textarea
-                            {...register('employee_notes')}
-                            className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm min-h-[100px] resize-y"
-                            placeholder="Inserisci eventuali note per l'approvatore..."
-                        />
-                    </div>
+                    <FormField
+                        label="Note"
+                        
+                        as="textarea"
+                        placeholder="Inserisci eventuali note per l'approvatore..."
+                        helperText="Opzionale - aggiungi qualsiasi informazione utile per l'approvatore"
+                        {...register('employee_notes')}
+                    />
 
                     {/* Error Message */}
                     {(createMutation.isError || updateMutation.isError) && (
@@ -391,32 +379,24 @@ export function LeaveRequestForm() {
                     )}
 
                     {/* Actions */}
-                    <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-100 mt-6">
-                        <button
+                    <div className="flex items-center justify-between pt-6 border-t border-slate-100 mt-6">
+                        <Button
                             type="button"
+                            variant="ghost"
+                            icon={<ArrowLeft size={18} />}
                             onClick={() => navigate(isEditing ? `/leaves/${id}` : '/leaves')}
-                            className="btn btn-ghost text-gray-600 hover:text-gray-900"
                         >
-                            <X size={18} />
                             Annulla
-                        </button>
-                        <button
+                        </Button>
+
+                        <Button
                             type="submit"
-                            disabled={createMutation.isPending || updateMutation.isPending}
-                            className="btn btn-primary shadow-sm"
+                            variant="primary"
+                            icon={<Save size={18} />}
+                            isLoading={isSubmitting}
                         >
-                            {(createMutation.isPending || updateMutation.isPending) ? (
-                                <>
-                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
-                                    Invio in corso...
-                                </>
-                            ) : (
-                                <>
-                                    <Save size={18} />
-                                    {isEditing ? 'Salva Modifiche' : 'Invia Richiesta'}
-                                </>
-                            )}
-                        </button>
+                            {isEditing ? 'Salva Modifiche' : 'Invia Richiesta'}
+                        </Button>
                     </div>
                 </form>
             </div>

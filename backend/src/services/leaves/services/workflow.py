@@ -109,7 +109,7 @@ class LeaveWorkflowService(BaseLeaveService):
                 requester_name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip() if user_info else None
                 
                 # Create approval request
-                await self._approval_client.create_request(
+                result = await self._approval_client.create_request(
                     entity_type="LEAVE",
                     entity_id=id,
                     requester_id=user_id,
@@ -127,6 +127,10 @@ class LeaveWorkflowService(BaseLeaveService):
                     },
                     callback_url=f"{settings.leave_service_url}/api/v1/leaves/internal/approval-callback/{id}",
                 )
+                
+                if not result:
+                     raise Exception("Failed to create approval request (Service returned error)")
+
             except Exception as e:
                 # Revert status to DRAFT
                 logger.error(f"Failed to create approval request: {e}. Reverting to DRAFT.")

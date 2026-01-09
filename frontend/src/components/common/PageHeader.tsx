@@ -1,56 +1,52 @@
-
+/**
+ * KRONOS - PageHeader Component  
+ * Page title with optional breadcrumbs, description, and action buttons
+ */
 import React from 'react';
-import { ChevronRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
-
-export interface Breadcrumb {
-    label: string;
-    path?: string;
-}
+import { Breadcrumb, type BreadcrumbItem } from './Breadcrumb';
 
 export interface PageHeaderProps {
     title: string;
     description?: string;
-    breadcrumbs?: Breadcrumb[];
+    breadcrumbs?: BreadcrumbItem[];
     actions?: React.ReactNode;
+    /** Sticky header that stays at top when scrolling */
+    sticky?: boolean;
 }
 
 export const PageHeader: React.FC<PageHeaderProps> = ({
     title,
     description,
     breadcrumbs,
-    actions
+    actions,
+    sticky = false,
 }) => {
     return (
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-            <div>
+        <div
+            className={`
+                flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-6
+                ${sticky ? 'sticky top-0 z-10 bg-slate-50/95 backdrop-blur-sm py-4 -mx-6 px-6 border-b border-slate-100' : ''}
+            `}
+        >
+            <div className="min-w-0 flex-1">
                 {/* Breadcrumbs */}
                 {breadcrumbs && breadcrumbs.length > 0 && (
-                    <nav className="flex items-center text-sm text-gray-500 mb-2">
-                        {breadcrumbs.map((crumb, index) => (
-                            <React.Fragment key={index}>
-                                {index > 0 && <ChevronRight size={14} className="mx-1" />}
-                                {crumb.path ? (
-                                    <Link to={crumb.path} className="hover:text-indigo-600 transition-colors">
-                                        {crumb.label}
-                                    </Link>
-                                ) : (
-                                    <span className="font-medium text-gray-900">{crumb.label}</span>
-                                )}
-                            </React.Fragment>
-                        ))}
-                    </nav>
+                    <Breadcrumb items={breadcrumbs} className="mb-2" />
                 )}
 
-                <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-                {description && <p className="mt-1 text-sm text-gray-500">{description}</p>}
+                <h1 className="text-2xl font-bold text-slate-900 truncate">{title}</h1>
+                {description && (
+                    <p className="mt-1 text-sm text-slate-500 line-clamp-2">{description}</p>
+                )}
             </div>
 
             {actions && (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 shrink-0">
                     {actions}
                 </div>
             )}
         </div>
     );
 };
+
+export default PageHeader;

@@ -5,6 +5,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { EmptyState } from '../../components/common';
 import { useToast } from '../../context/ToastContext';
 import {
     CheckCircle,
@@ -788,7 +789,15 @@ const PendingApprovalsPage: React.FC = () => {
                         <tbody className="divide-y divide-slate-100">
                             {viewMode === 'pending' ? (
                                 (data?.items?.length ?? 0) === 0 ? (
-                                    <EmptyState />
+                                    <tr>
+                                        <td colSpan={5} className="p-0">
+                                            <EmptyState
+                                                title="Tutto in ordine!"
+                                                description="Non hai approvazioni in attesa al momento. Ottimo lavoro!"
+                                                icon={CheckCircle}
+                                            />
+                                        </td>
+                                    </tr>
                                 ) : (
                                     data?.items.map((item) => (
                                         <tr
@@ -874,7 +883,15 @@ const PendingApprovalsPage: React.FC = () => {
                                 )
                             ) : (
                                 (archivedData?.items?.length ?? 0) === 0 ? (
-                                    <EmptyState type="archive" />
+                                    <tr>
+                                        <td colSpan={5} className="p-0">
+                                            <EmptyState
+                                                title="Nessuna decisione trovata"
+                                                description="Non ci sono decisioni archiviate che corrispondono ai filtri selezionati."
+                                                icon={FileSearch}
+                                            />
+                                        </td>
+                                    </tr>
                                 ) : (
                                     archivedData?.items.map((item) => (
                                         <tr
@@ -970,24 +987,6 @@ const PendingApprovalsPage: React.FC = () => {
     );
 };
 
-const EmptyState: React.FC<{ type?: 'pending' | 'archive' }> = ({ type = 'pending' }) => (
-    <tr>
-        <td colSpan={5} className="py-16 text-center">
-            <div className="flex flex-col items-center justify-center">
-                <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mb-4 ring-1 ring-slate-100">
-                    {type === 'pending' ? <CheckCircle size={32} className="text-slate-300" /> : <FileSearch size={32} className="text-slate-300" />}
-                </div>
-                <h3 className="text-lg font-semibold text-slate-900">
-                    {type === 'pending' ? 'Tutto in ordine!' : 'Nessuna decisione trovata'}
-                </h3>
-                <p className="text-slate-400 text-sm max-w-xs mx-auto mt-1">
-                    {type === 'pending'
-                        ? 'Non hai approvazioni in attesa al momento. Ottimo lavoro!'
-                        : 'Non ci sono decisioni archiviate che corrispondono ai filtri selezionati.'}
-                </p>
-            </div>
-        </td>
-    </tr>
-);
+
 
 export default PendingApprovalsPage;

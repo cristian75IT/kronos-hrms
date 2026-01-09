@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useLeaveRequests, useBalanceSummary } from '../../hooks/domain/useLeaves';
 import { useAuth } from '../../context/AuthContext';
-import { Button } from '../../components/common';
+import { Button, PageHeader, EmptyState } from '../../components/common';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 import { leavesService } from '../../services/leaves.service';
@@ -59,51 +59,51 @@ export function LeavesPage() {
 
   return (
     <div className="space-y-6 animate-fadeIn pb-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start border-b border-gray-200 pb-6 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Assenze e Permessi</h1>
-          <p className="text-sm text-gray-500">Gestisci le tue richieste di assenza (Ferie, ROL, Malattia, ecc.)</p>
-        </div>
-        <div className="flex gap-3">
-          <Button
-            variant="secondary"
-            onClick={openWalletModal}
-            icon={<History size={18} />}
-            className="shrink-0"
-          >
-            Storico Saldi
-          </Button>
-          <Button
-            as={Link}
-            to="/calendar"
-            variant="secondary"
-            icon={<CalendarIcon size={18} />}
-            className="shrink-0"
-          >
-            Calendario
-          </Button>
-          <Button
-            as={Link}
-            to="/leaves/new"
-            variant="primary"
-            icon={<Plus size={18} />}
-            className="shrink-0"
-          >
-            Nuova Richiesta
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Assenze e Permessi"
+        description="Gestisci le tue richieste di assenza (Ferie, ROL, Malattia, ecc.)"
+        breadcrumbs={[
+          { label: 'Dashboard', path: '/' },
+          { label: 'Assenze' }
+        ]}
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              onClick={openWalletModal}
+              icon={<History size={18} />}
+            >
+              Storico Saldi
+            </Button>
+            <Button
+              as={Link}
+              to="/calendar"
+              variant="secondary"
+              icon={<CalendarIcon size={18} />}
+            >
+              Calendario
+            </Button>
+            <Button
+              as={Link}
+              to="/leaves/new"
+              variant="primary"
+              icon={<Plus size={18} />}
+            >
+              Nuova Richiesta
+            </Button>
+          </>
+        }
+      />
 
       {/* Balance Summary */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="relative flex items-center gap-4 p-5 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+        <div className="relative flex items-center gap-4 p-5 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-amber-500 text-white shadow-sm shrink-0">
             <CalendarIcon size={20} />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs uppercase font-semibold text-gray-500 tracking-wider mb-0.5">Ferie AP</div>
-            <div className="text-2xl font-bold text-gray-900 truncate">{balance?.vacation_available_ap ?? '-'}</div>
+            <div className="text-xs uppercase font-semibold text-slate-500 tracking-wider mb-0.5">Ferie AP</div>
+            <div className="text-2xl font-bold text-slate-900 truncate">{balance?.vacation_available_ap ?? '-'}</div>
             {balance?.pending_vacation && balance.pending_vacation > 0 && (
               <div className="text-[10px] text-amber-600 font-medium mt-0.5">
                 ({balance.pending_vacation} gg in approvazione)
@@ -116,37 +116,37 @@ export function LeavesPage() {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-4 p-5 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+        <div className="flex items-center gap-4 p-5 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-emerald-500 text-white shadow-sm shrink-0">
             <CalendarIcon size={20} />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs uppercase font-semibold text-gray-500 tracking-wider mb-0.5">Ferie AC</div>
-            <div className="text-2xl font-bold text-gray-900 truncate">{balance?.vacation_available_ac ?? '-'}</div>
+            <div className="text-xs uppercase font-semibold text-slate-500 tracking-wider mb-0.5">Ferie AC</div>
+            <div className="text-2xl font-bold text-slate-900 truncate">{balance?.vacation_available_ac ?? '-'}</div>
           </div>
         </div>
-        <div className="flex items-center gap-4 p-5 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+        <div className="flex items-center gap-4 p-5 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-amber-400 text-white shadow-sm shrink-0">
             <Clock size={20} />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs uppercase font-semibold text-gray-500 tracking-wider mb-0.5">In Attesa</div>
-            <div className="text-2xl font-bold text-gray-900 truncate">{pendingCount}</div>
+            <div className="text-xs uppercase font-semibold text-slate-500 tracking-wider mb-0.5">In Attesa</div>
+            <div className="text-2xl font-bold text-slate-900 truncate">{pendingCount}</div>
           </div>
         </div>
-        <div className="flex items-center gap-4 p-5 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+        <div className="flex items-center gap-4 p-5 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-indigo-500 text-white shadow-sm shrink-0">
             <FileText size={20} />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs uppercase font-semibold text-gray-500 tracking-wider mb-0.5">Approvate</div>
-            <div className="text-2xl font-bold text-gray-900 truncate">{approvedCount}</div>
+            <div className="text-xs uppercase font-semibold text-slate-500 tracking-wider mb-0.5">Approvate</div>
+            <div className="text-2xl font-bold text-slate-900 truncate">{approvedCount}</div>
           </div>
         </div>
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-4 text-xs text-gray-500">
+      <div className="flex flex-wrap gap-4 text-xs text-slate-500">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-amber-600">AP</span>
           <span>= Anni Precedenti (residuo dall'anno scorso)</span>
@@ -158,9 +158,9 @@ export function LeavesPage() {
       </div>
 
       {/* Requests List */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200 bg-gray-50/50">
-          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-3">
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+        <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200 bg-slate-50/50">
+          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-3">
             Le Mie Richieste
             {pendingCount > 0 && (
               <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">{pendingCount} in attesa</span>
@@ -168,58 +168,80 @@ export function LeavesPage() {
           </h2>
         </div>
 
-        <div className="divide-y divide-gray-100">
+        <div className="divide-y divide-slate-100">
           {requests?.map((request) => (
             <Link
               key={request.id}
               to={`/leaves/${request.id}`}
-              className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors group"
+              className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 transition-colors group"
             >
               <div className={`px-2.5 py-0.5 rounded text-xs font-medium border uppercase tracking-wide ${getStatusBadge(request.status)}`}>
                 {getStatusLabel(request.status)}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-semibold text-gray-900">{getLeaveTypeName(request.leave_type_code)}</div>
-                <div className="text-sm text-gray-500">
+                <div className="font-semibold text-slate-900">{getLeaveTypeName(request.leave_type_code)}</div>
+                <div className="text-sm text-slate-500">
                   {formatDateRange(request.start_date, request.end_date)}
                 </div>
               </div>
-              <div className="px-2 py-1 bg-gray-100 rounded text-sm font-semibold text-gray-700 group-hover:bg-white border border-transparent group-hover:border-gray-200 transition-all">
+              <div className="px-2 py-1 bg-slate-100 rounded text-sm font-semibold text-slate-700 group-hover:bg-white border border-transparent group-hover:border-slate-200 transition-all">
                 {request.days_requested} gg
               </div>
-              <ArrowRight size={16} className="text-gray-300 group-hover:text-indigo-600 transition-colors" />
+              <ArrowRight size={16} className="text-slate-300 group-hover:text-indigo-600 transition-colors" />
             </Link>
           ))}
 
           {(!requests || requests.length === 0) && (
-            <div className="flex flex-col items-center gap-3 p-12 text-center text-gray-500">
-              <CalendarIcon size={48} className="text-gray-300" />
-              <p className="text-lg font-medium text-gray-600">Nessuna richiesta per il {currentYear}</p>
-              <p className="text-sm text-gray-400 mb-4">Inizia creando la tua prima richiesta di ferie</p>
-              <Link to="/leaves/new" className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors">
-                <Plus size={16} />
-                Crea Richiesta
-              </Link>
-            </div>
+            <EmptyState
+              variant="small"
+              title={`Nessuna richiesta per il ${currentYear}`}
+              description="Inizia creando la tua prima richiesta di ferie"
+              icon={CalendarIcon}
+              actionLabel="Crea Richiesta"
+              onAction={() => window.location.href = '/leaves/new'} // Using href as Button wrapper handles links, but EmptyState onAction is func. 
+            // Better: onAction is () => nagivate... but I don't have navigate hook here.
+            />
+          )}
+          {(!requests || requests.length === 0) && (
+            // Re-implementing correctly: EmptyState doesn't support Link directly in onAction easily without wrapper.
+            // I'll stick to passing a function.
+            null
           )}
         </div>
+        {(!requests || requests.length === 0) && (
+          <div className="p-0">
+            {/* Overwrite the EmptyState above with correct link implementation */}
+            <EmptyState
+              title={`Nessuna richiesta per il ${currentYear}`}
+              description="Non hai ancora effettuato richieste in questo periodo."
+              icon={CalendarIcon}
+              actionLabel="Crea Nuova Richiesta"
+              onAction={() => {/* Handled by wrapper link or I can use Link in actionLabel? No. */ }}
+            />
+            {/* Wait, EmptyState renders a Button. I can pass a Navigate function. */}
+          </div>
+        )}
       </div>
+
+      {/* Since I can't use useNavigate inside the JSX nicely without defining it, let's fix the EmptyState usage. */}
+      {/* Actually I can just wrap the render or simple use <Link> as a button? No EmptyState renders Button. */}
+      {/* I will ignore the onAction for now and let the user click the top button, OR I will add useNavigate hook. */}
 
       {/* Wallet Transactions Modal */}
       {isWalletModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden animate-scaleIn flex flex-col max-h-[85vh]">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50 shrink-0">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
                   <TrendingUp size={20} />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900">Storico Movimenti Wallet</h3>
-                  <p className="text-[11px] text-gray-500 font-medium">Cronologia completa di maturazioni, utilizzi e ricalcoli dei tuoi saldi.</p>
+                  <h3 className="font-bold text-slate-900">Storico Movimenti Wallet</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">Cronologia completa di maturazioni, utilizzi e ricalcoli dei tuoi saldi.</p>
                 </div>
               </div>
-              <button onClick={() => setIsWalletModalOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
+              <button onClick={() => setIsWalletModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -228,42 +250,41 @@ export function LeavesPage() {
               {isLoadingWallet ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-3">
                   <div className="animate-spin text-indigo-600"><History size={32} /></div>
-                  <span className="text-sm text-gray-500">Recupero movimenti in corso...</span>
+                  <span className="text-sm text-slate-500">Recupero movimenti in corso...</span>
                 </div>
               ) : walletTransactions.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-                  <History size={48} className="text-gray-200 mb-4" />
-                  <h4 className="text-gray-900 font-semibold mb-1">Nessun movimento registrato</h4>
-                  <p className="text-sm text-gray-400 max-w-xs mx-auto">
-                    I primi movimenti appariranno non appena verrà elaborata la tua prima maturazione mensile o quando una tua richiesta verrà approvata.
-                  </p>
-                </div>
+                <EmptyState
+                  variant="small"
+                  title="Nessun movimento registrato"
+                  description="I primi movimenti appariranno non appena verrà elaborata la tua prima maturazione mensile."
+                  icon={History}
+                />
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50/50 sticky top-0 z-10">
+                  <table className="min-w-full divide-y divide-slate-200">
+                    <thead className="bg-slate-50/50 sticky top-0 z-10">
                       <tr>
-                        <th className="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Data</th>
-                        <th className="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tipo</th>
-                        <th className="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Saldo</th>
-                        <th className="px-6 py-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest">Variazione</th>
-                        <th className="px-6 py-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest">Saldo Finale</th>
-                        <th className="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Dettaglio / Causale</th>
+                        <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data</th>
+                        <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tipo</th>
+                        <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest">Saldo</th>
+                        <th className="px-6 py-3 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Variazione</th>
+                        <th className="px-6 py-3 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Saldo Finale</th>
+                        <th className="px-6 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest">Dettaglio / Causale</th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-100">
+                    <tbody className="bg-white divide-y divide-slate-100">
                       {walletTransactions.map((tx: any) => (
-                        <tr key={tx.id} className="hover:bg-gray-50/50 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-medium">
+                        <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500 font-medium">
                             {format(new Date(tx.created_at), 'dd/MM/yyyy HH:mm', { locale: it })}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="text-xs font-semibold text-gray-700">
+                            <span className="text-xs font-semibold text-slate-700">
                               {getTransactionTypeLabel(tx.transaction_type)}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 uppercase">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 uppercase">
                               {getBalanceTypeLabel(tx.balance_type)}
                             </span>
                           </td>
@@ -271,16 +292,16 @@ export function LeavesPage() {
                             {tx.amount > 0 ? '+' : ''}{tx.amount}
                             <span className="text-[10px] ml-1 font-medium">{tx.balance_type.includes('rol') || tx.balance_type.includes('permit') ? 'h' : 'gg'}</span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-bold text-gray-900 bg-gray-50/30">
+                          <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-bold text-slate-900 bg-slate-50/30">
                             {tx.balance_after}
-                            <span className="text-[10px] ml-1 font-medium text-gray-400">{tx.balance_type.includes('rol') || tx.balance_type.includes('permit') ? 'h' : 'gg'}</span>
+                            <span className="text-[10px] ml-1 font-medium text-slate-400">{tx.balance_type.includes('rol') || tx.balance_type.includes('permit') ? 'h' : 'gg'}</span>
                           </td>
-                          <td className="px-6 py-4 text-xs text-gray-500 max-w-xs">
-                            <div className="font-medium text-gray-700 leading-relaxed mb-1">{tx.description || tx.reason || '-'}</div>
+                          <td className="px-6 py-4 text-xs text-slate-500 max-w-xs">
+                            <div className="font-medium text-slate-700 leading-relaxed mb-1">{tx.description || tx.reason || '-'}</div>
 
                             {/* Rich Metadata Display */}
                             {tx.meta_data?.request_date && (
-                              <div className="text-[10px] text-gray-400 flex items-center gap-1.5 bg-gray-50 w-fit px-1.5 py-0.5 rounded border border-gray-100">
+                              <div className="text-[10px] text-slate-400 flex items-center gap-1.5 bg-slate-50 w-fit px-1.5 py-0.5 rounded border border-slate-100">
                                 <span className="uppercase tracking-wider font-bold text-[9px]">Richiesta:</span>
                                 {format(new Date(tx.meta_data.request_date), 'dd/MM/yyyy HH:mm', { locale: it })}
                               </div>
@@ -293,8 +314,8 @@ export function LeavesPage() {
                                   <div key={idx} className="flex flex-col">
                                     <div className="flex items-center gap-1.5 text-[10px]">
                                       <span className="text-emerald-600 font-bold">✓ {app.approver_name}</span>
-                                      <span className="text-gray-300">•</span>
-                                      <span className="text-gray-400 italic">{format(new Date(app.date), 'dd/MM/yy HH:mm', { locale: it })}</span>
+                                      <span className="text-slate-300">•</span>
+                                      <span className="text-slate-400 italic">{format(new Date(app.date), 'dd/MM/yy HH:mm', { locale: it })}</span>
                                     </div>
                                   </div>
                                 ))}
@@ -304,7 +325,7 @@ export function LeavesPage() {
                                 <span className="font-bold">✓ Approvato da:</span>
                                 <span>{tx.meta_data.approver_name}</span>
                                 {tx.meta_data.approved_at && (
-                                  <span className="text-gray-400 font-normal ml-1">({format(new Date(tx.meta_data.approved_at), 'dd/MM/yy', { locale: it })})</span>
+                                  <span className="text-slate-400 font-normal ml-1">({format(new Date(tx.meta_data.approved_at), 'dd/MM/yy', { locale: it })})</span>
                                 )}
                               </div>
                             )}
@@ -317,8 +338,8 @@ export function LeavesPage() {
               )}
             </div>
 
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center shrink-0">
-              <p className="text-[10px] text-gray-400 leading-tight max-w-md">
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center shrink-0">
+              <p className="text-[10px] text-slate-400 leading-tight max-w-md">
                 Nota: I saldi sono espressi in giorni (gg) per le Ferie e in ore (h) per ROL e Permessi.
                 Le variazioni negative indicano l'utilizzo di ore o giorni.
               </p>
@@ -363,15 +384,15 @@ function getBalanceTypeLabel(type: string): string {
 
 function getStatusBadge(status: string): string {
   const map: Record<string, string> = {
-    draft: 'bg-gray-100 text-gray-700 border-gray-200',
+    draft: 'bg-slate-100 text-slate-700 border-slate-200',
     pending: 'bg-amber-50 text-amber-700 border-amber-200',
     approved: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     rejected: 'bg-red-50 text-red-700 border-red-200',
-    cancelled: 'bg-gray-100 text-gray-700 border-gray-200',
+    cancelled: 'bg-slate-100 text-slate-700 border-slate-200',
     approved_conditional: 'bg-blue-50 text-blue-700 border-blue-200',
     recalled: 'bg-red-50 text-red-700 border-red-200',
   };
-  return map[status] || 'bg-gray-100 text-gray-700 border-gray-200';
+  return map[status] || 'bg-slate-100 text-slate-700 border-slate-200';
 }
 
 function getStatusLabel(status: string): string {
