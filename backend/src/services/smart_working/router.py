@@ -16,7 +16,7 @@ from src.services.smart_working.schemas import (
     SWAgreementCreate, SWAgreementResponse,
     SWRequestCreate, SWRequestResponse,
     SWAttendanceCheckIn, SWAttendanceCheckOut, SWAttendanceResponse,
-    ApprovalCallback, SWPresenceCreate
+    ApprovalCallback, SWPresenceCreate, SWSignRequest
 )
 
 logger = logging.getLogger(__name__)
@@ -172,6 +172,22 @@ async def declare_presence(
     # Convert SWPresenceCreate to SWRequestCreate internal format (needs agreement ID which is fetched in service)
     # We pass data directly as it has date and notes
     return await service.submit_presence(data, token.user_id)
+
+
+@router.post(
+    "/agreements/{agreement_id}/sign",
+    response_model=SWAgreementResponse,
+    summary="Sign Agreement",
+    description="Digitally sign a Pending agreement using MFA OTP, activating it."
+)
+async def sign_agreement(
+    agreement_id: UUID,
+    data: SWSignRequest,
+    service: SmartWorkingService = Depends(get_service),
+    token: TokenPayload = Depends(get_current_user)
+):
+    return await service.sign_agreement(agreement_id, data.otp_code, token.user_id)
+
 
 
 # -----------------------------------------------------------------------

@@ -1,11 +1,8 @@
-/**
- * KRONOS - Smart Working Agreements Management Component
- * HR component to manage Smart Working agreements for a specific user
- */
 import { useState, useEffect } from 'react';
 import { Laptop, Plus, Calendar, X, Save, AlertCircle, Check, Trash2, Edit, AlertTriangle } from 'lucide-react';
 import { smartWorkingService, type SWAgreement } from '../../services/smartWorking.service';
 import { useToast } from '../../context/ToastContext';
+import { SignatureModal } from '../shared/SignatureModal';
 
 interface SmartWorkingAgreementsProps {
     userId: string;
@@ -44,6 +41,8 @@ export function SmartWorkingAgreements({ userId, userName }: SmartWorkingAgreeme
     const [editingId, setEditingId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [formData, setFormData] = useState<AgreementFormData>(defaultFormData);
+    const [signingAgreement, setSigningAgreement] = useState<SWAgreement | null>(null);
+
 
     // Check if there's an active agreement (for warning)
     const hasActiveAgreement = agreements.some(a => a.status === 'ACTIVE');
@@ -171,12 +170,14 @@ export function SmartWorkingAgreements({ userId, userName }: SmartWorkingAgreeme
     const getStatusBadge = (status: SWAgreement['status']) => {
         const styles: Record<SWAgreement['status'], string> = {
             ACTIVE: 'bg-green-100 text-green-700',
+            PENDING: 'bg-amber-100 text-amber-700',
             EXPIRED: 'bg-gray-100 text-gray-500',
             TERMINATED: 'bg-red-100 text-red-600',
             DRAFT: 'bg-yellow-100 text-yellow-700',
         };
         const labels: Record<SWAgreement['status'], string> = {
             ACTIVE: 'Attivo',
+            PENDING: 'In Attesa di Firma',
             EXPIRED: 'Scaduto',
             TERMINATED: 'Terminato',
             DRAFT: 'Bozza',
@@ -187,6 +188,18 @@ export function SmartWorkingAgreements({ userId, userName }: SmartWorkingAgreeme
                 {labels[status]}
             </span>
         );
+    };
+
+    const handleSign = async (otp: string) => {
+        if (!signingAgreement) return;
+        try {
+            await smartWorkingService.signAgreement(signingAgreement.id, otp);
+            toast.success('Accordo firmato e attivato con successo');
+            setSigningAgreement(null);
+            loadData();
+        } catch (err: unknown) {
+            throw err;
+        }
     };
 
     return (
@@ -353,11 +366,12 @@ export function SmartWorkingAgreements({ userId, userName }: SmartWorkingAgreeme
                     {agreements.map(agreement => (
                         <div
                             key={agreement.id}
-                            className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:border-gray-300 transition-colors group"
+                            className={`bg-white p-4 rounded-xl border shadow-sm transition-all group ${agreement.status === 'PENDING' ? 'border-amber-200 bg-amber-50/30' : 'border-gray-200 hover:border-gray-300'
+                                }`}
                         >
                             <div className="flex items-start justify-between gap-4">
                                 <div className="flex items-start gap-3">
-                                    <div className={`p-2.5 rounded-lg ${agreement.status === 'ACTIVE' ? 'bg-teal-100 text-teal-700' : 'bg-gray-100 text-gray-500'}`}>
+                                    <div className={`p-2.5 rounded-lg ${agreement.status === 'ACTIVE' ? 'bg-teal-100 text-teal-700' : agreement.status === 'PENDING' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'}`}>
                                         <Laptop size={20} />
                                     </div>
                                     <div>
@@ -383,10 +397,21 @@ export function SmartWorkingAgreements({ userId, userName }: SmartWorkingAgreeme
                                         {agreement.notes && (
                                             <div className="text-xs text-gray-400 mt-2 italic">{agreement.notes}</div>
                                         )}
+
+                                        {/* SIGN BUTTON FOR PENDING */}
+                                        {agreement.status === 'PENDING' && (
+                                            <button
+                                                onClick={() => setSigningAgreement(agreement)}
+                                                className="mt-3 btn btn-sm bg-teal-600 hover:bg-teal-700 text-white shadow-md shadow-teal-200 animate-pulse"
+                                            >
+                                                <Edit size={14} className="mr-1.5" />
+                                                Firma Digitale Richiesta
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
-                                {agreement.status === 'ACTIVE' && (
-                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {agreement.status === 'ACTIVE' && (
                                         <button
                                             onClick={() => handleEdit(agreement)}
                                             className="p-2 hover:bg-gray-100 rounded-lg text-gray-500"
@@ -394,6 +419,8 @@ export function SmartWorkingAgreements({ userId, userName }: SmartWorkingAgreeme
                                         >
                                             <Edit size={16} />
                                         </button>
+                                    )}
+                                    {(agreement.status === 'ACTIVE' || agreement.status === 'PENDING') && (
                                         <button
                                             onClick={() => handleTerminate(agreement.id)}
                                             className="p-2 hover:bg-red-50 rounded-lg text-red-500"
@@ -401,13 +428,20 @@ export function SmartWorkingAgreements({ userId, userName }: SmartWorkingAgreeme
                                         >
                                             <Trash2 size={16} />
                                         </button>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ))}
                 </div>
             )}
+
+            <SignatureModal
+                isOpen={!!signingAgreement}
+                onClose={() => setSigningAgreement(null)}
+                onSign={handleSign}
+                documentTitle={`Accordo Smart Working - ${signingAgreement ? formatDate(signingAgreement.start_date) : ''}`}
+            />
         </div>
     );
 }

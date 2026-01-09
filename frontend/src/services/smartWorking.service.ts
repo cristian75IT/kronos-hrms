@@ -11,7 +11,7 @@ export interface SWAgreement {
     allowed_days_per_week: number;
     allowed_weekdays: number[] | null;
     allowed_weekdays_names: string[] | null;
-    status: 'ACTIVE' | 'EXPIRED' | 'TERMINATED' | 'DRAFT';
+    status: 'ACTIVE' | 'EXPIRED' | 'TERMINATED' | 'DRAFT' | 'PENDING';
     notes: string | null;
     created_at: string;
 }
@@ -91,6 +91,11 @@ export const smartWorkingService = {
 
     convertToPresence: async (date: string): Promise<SWRequest> => {
         const response = await api.post('/smart-working/requests/presence', { date });
+        return response.data;
+    },
+
+    signAgreement: async (id: string, otp_code: string): Promise<SWAgreement> => {
+        const response = await api.post(`/smart-working/agreements/${id}/sign`, { otp_code });
         return response.data;
     },
 

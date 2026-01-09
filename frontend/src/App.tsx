@@ -94,6 +94,7 @@ function App() {
                   }>
                     <Route path="/" element={<DashboardPage />} />
                     <Route path="/profile" element={<ProfilePage />} />
+                    <Route path="/settings" element={<ProfilePage />} />
 
                     {/* Leaves */}
                     <Route path="/leaves" element={<LeavesPage />} />

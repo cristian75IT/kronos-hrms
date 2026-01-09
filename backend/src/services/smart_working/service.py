@@ -21,6 +21,8 @@ from src.services.smart_working.schemas import (
     ApprovalCallback, SWPresenceCreate
 )
 from src.services.smart_working.repository import SmartWorkingRepository
+from src.services.signature.service import SignatureService
+from src.services.signature.schemas import SignatureCreate as SignaturePayload
 from src.shared.clients.approval import ApprovalClient
 from src.shared.clients.config import ConfigClient
 from src.shared.audit_client import get_audit_logger
@@ -73,7 +75,7 @@ class SmartWorkingService:
             end_date=data.end_date,
             allowed_days_per_week=data.allowed_days_per_week,
             allowed_weekdays=data.allowed_weekdays,
-            status=SWAgreementStatus.ACTIVE,
+            status=SWAgreementStatus.PENDING,
             notes=data.notes,
             metadata_fields=data.metadata_fields,
             created_by=created_by
@@ -135,6 +137,49 @@ class SmartWorkingService:
             resource_type="SW_AGREEMENT",
             resource_id=str(agreement.id),
             description="Terminated Smart Working Agreement"
+        )
+        
+        return agreement
+
+    async def sign_agreement(self, agreement_id: UUID, otp_code: str, user_id: UUID) -> SWAgreement:
+        """
+        Sign and activate an agreement using MFA OTP.
+        """
+        agreement = await self._repo.get_agreement(agreement_id)
+        if not agreement:
+            raise NotFoundError("Agreement not found")
+            
+        if agreement.user_id != user_id:
+             raise PermissionDeniedError("Cannot sign agreement for another user")
+             
+        if agreement.status != SWAgreementStatus.PENDING:
+             raise BusinessRuleError(f"Agreement is in status {agreement.status}, cannot sign.")
+
+        # 1. Prepare Signature Payload
+        doc_content = f"SW_AGREEMENT:{agreement.id}:{agreement.start_date}:{agreement.days_per_week}"
+        
+        sig_payload = SignaturePayload(
+            document_type="SW_AGREEMENT",
+            document_id=str(agreement.id),
+            document_content=doc_content,
+            otp_code=otp_code
+        )
+        
+        # 2. Execute Signature (Verify OTP + Immutable Log)
+        sig_service = SignatureService(self._session)
+        transaction = await sig_service.sign_document(user_id, sig_payload)
+        
+        # 3. Activate Agreement
+        agreement.status = SWAgreementStatus.ACTIVE
+        await self._repo.update_agreement(agreement)
+        
+        # 4. Audit
+        await self._audit.log_action(
+            user_id=user_id,
+            action="SIGN_AGREEMENT",
+            resource_type="SW_AGREEMENT",
+            resource_id=str(agreement.id),
+            description=f"Agreement signed via MFA. Trx: {transaction.id}"
         )
         
         return agreement

@@ -1,0 +1,209 @@
+"""Signature Service API Router.
+
+Enterprise-grade implementation with:
+- Proper route ordering (specific before parametric)
+- Pagination support
+- Rate limiting integration ready
+- Audit trail integration
+"""
+from uuid import UUID
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.core.database import get_db
+from src.core.security import get_current_user, TokenPayload
+from src.core.exceptions import ConflictError, AuthorizationError
+
+from src.services.signature.service import SignatureService
+from src.services.signature.schemas import (
+    SignatureCreate, 
+    SignatureResponse, 
+    SignatureVerificationResponse,
+    SignatureListResponse,
+    PaginationMeta
+)
+
+router = APIRouter(tags=["Signatures"])
+
+
+async def get_signature_service(session: AsyncSession = Depends(get_db)) -> SignatureService:
+    return SignatureService(session)
+
+
+# ============================================================================
+# SPECIFIC ROUTES FIRST (before parametric routes)
+# ============================================================================
+
+@router.get(
+    "/signatures/me/all",
+    response_model=SignatureListResponse,
+    summary="Get My Signatures",
+    description="Retrieve all digital signatures performed by the authenticated user with pagination."
+)
+async def get_my_signatures(
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(25, ge=1, le=100, description="Items per page"),
+    token: TokenPayload = Depends(get_current_user),
+    service: SignatureService = Depends(get_signature_service)
+):
+    """
+    Get all signatures performed by the current user.
+    
+    Supports pagination with configurable page size (max 100).
+    Returns signature verification data including document hash and validity status.
+    """
+    result = await service.get_my_signatures_paginated(
+        user_id=token.user_id,
+        page=page,
+        page_size=page_size
+    )
+    
+    return SignatureListResponse(
+        data=[
+            SignatureVerificationResponse(
+                id=s.id,
+                user_id=s.user_id,
+                document_type=s.document_type,
+                document_id=s.document_id,
+                document_hash=s.document_hash,
+                signed_at=s.signed_at,
+                signature_method=s.signature_method,
+                is_valid=s.otp_verified,
+                metadata={"ip_address": s.ip_address}
+            )
+            for s in result["items"]
+        ],
+        meta=PaginationMeta(
+            page=page,
+            page_size=page_size,
+            total=result["total"],
+            total_pages=(result["total"] + page_size - 1) // page_size
+        )
+    )
+
+
+# ============================================================================
+# PARAMETRIC ROUTES (after specific routes)
+# ============================================================================
+
+@router.get(
+    "/signatures/{signature_id}",
+    response_model=SignatureVerificationResponse,
+    summary="Get Signature Details",
+    description="Retrieve details of a specific signature transaction for verification."
+)
+async def get_signature(
+    signature_id: UUID,
+    token: TokenPayload = Depends(get_current_user),
+    service: SignatureService = Depends(get_signature_service)
+):
+    """
+    Retrieve and verify a signature transaction.
+    
+    Access Control:
+    - Owner can always view their own signatures
+    - Admins can view any signature
+    - Others are denied access (403)
+    """
+    trx = await service.get_transaction(signature_id)
+    if not trx:
+        raise HTTPException(status_code=404, detail="Signature not found")
+    
+    # Authorization: Owner or Admin only
+    if not token.is_admin and trx.user_id != token.user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    return SignatureVerificationResponse(
+        id=trx.id,
+        user_id=trx.user_id,
+        document_type=trx.document_type,
+        document_id=trx.document_id,
+        document_hash=trx.document_hash,
+        signed_at=trx.signed_at,
+        signature_method=trx.signature_method,
+        is_valid=trx.otp_verified,
+        metadata={
+            "ip_address": trx.ip_address,
+            "user_agent": trx.user_agent
+        }
+    )
+
+
+@router.post(
+    "/signatures/sign",
+    response_model=SignatureResponse,
+    summary="Digitally Sign Document",
+    description="Apply a legally binding digital signature to a document using MFA OTP verification."
+)
+async def sign_document(
+    data: SignatureCreate,
+    request: Request,
+    token: TokenPayload = Depends(get_current_user),
+    service: SignatureService = Depends(get_signature_service)
+):
+    """
+    Apply a digital signature to a document using MFA OTP.
+    
+    Process:
+    1. Verifies the OTP code (must be generated by user's MFA authenticator app)
+    2. Calculates document hash if not provided (SHA-256)
+    3. Creates an immutable audit record of the signature
+    4. Returns signature proof with transaction ID
+    
+    Security:
+    - Requires valid MFA OTP code
+    - Records IP address and User-Agent for forensics
+    - Transaction is immutable once created
+    """
+    try:
+        transaction = await service.sign_document(token.user_id, data, request)
+        return SignatureResponse(
+            id=transaction.id,
+            signed_at=transaction.signed_at,
+            document_hash=transaction.document_hash,
+            signature_method=transaction.signature_method
+        )
+    except AuthorizationError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ConflictError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get(
+    "/signatures/document/{document_type}/{document_id}",
+    response_model=list[SignatureVerificationResponse],
+    summary="Get Document Signature History",
+    description="Retrieve all signatures for a specific document."
+)
+async def get_document_signatures(
+    document_type: str,
+    document_id: str,
+    token: TokenPayload = Depends(get_current_user),
+    service: SignatureService = Depends(get_signature_service)
+):
+    """
+    Get signature history for a specific document.
+    
+    Returns all signature transactions for the given document,
+    ordered by signature date (newest first).
+    """
+    # For now, only admins can query document history
+    # In production, you'd check if user has access to the document
+    if not token.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    signatures = await service.get_history(document_type, document_id)
+    return [
+        SignatureVerificationResponse(
+            id=s.id,
+            user_id=s.user_id,
+            document_type=s.document_type,
+            document_id=s.document_id,
+            document_hash=s.document_hash,
+            signed_at=s.signed_at,
+            signature_method=s.signature_method,
+            is_valid=s.otp_verified,
+            metadata={"ip_address": s.ip_address}
+        )
+        for s in signatures
+    ]

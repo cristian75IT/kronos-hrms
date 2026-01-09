@@ -445,6 +445,62 @@ class UserService:
         "period": 30
     }
 
+    async def verify_user_otp(self, user_id: UUID, code: str) -> bool:
+        """
+        Verify OTP code for a user by retrieving their secret from Keycloak.
+        Used for internal verification (e.g. Digital Signature) without re-login.
+        """
+        import httpx
+        import json
+        
+        user = await self.get_user(user_id)
+        if not user.mfa_enabled or not user.keycloak_id:
+             raise ConflictError("MFA non è attivo per questo utente")
+
+        try:
+            # 1. Get Secret from Keycloak
+            kc_admin = self._get_keycloak_admin()
+            token = kc_admin.token.get("access_token")
+            headers = {"Authorization": f"Bearer {token}"}
+            
+            base_url = settings.keycloak_url.rstrip('/')
+            realm = settings.keycloak_realm
+            uid = user.keycloak_id
+            
+            api_url = f"{base_url}/admin/realms/{realm}/users/{uid}/credentials"
+            
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                res = await client.get(api_url, headers=headers)
+                if not res.is_success:
+                    # Retry legacy path
+                    api_url = f"{base_url}/auth/admin/realms/{realm}/users/{uid}/credentials"
+                    res = await client.get(api_url, headers=headers)
+                    
+                if not res.is_success:
+                     raise Exception(f"Failed to fetch credentials: {res.status_code}")
+                
+                credentials = res.json()
+                
+                # Find OTP credential
+                otp_cred = next((c for c in credentials if c.get("type") == "otp"), None)
+                if not otp_cred or "secretData" not in otp_cred:
+                     raise ConflictError("Segreto MFA non trovato su Keycloak")
+                
+                secret = otp_cred["secretData"]
+                
+                # 2. Verify with PyOTP
+                totp = pyotp.TOTP(secret)
+                if not totp.verify(code):
+                     return False
+                
+                return True
+                
+        except Exception as e:
+            await self._audit.log_action(user_id=user_id, action="ERROR", resource_type="MFA_VERIFY", description=f"Verification Error: {e}")
+            # If technical error, we can't verify. Fail safe.
+            raise ConflictError(f"Errore tecnico verifica MFA: {str(e)}")
+
+
     async def setup_mfa(self, user_id: UUID, email: str, actor_id: Optional[UUID] = None) -> MfaSetupResponse:
         """Initialize MFA setup by generating a secret."""
         secret = pyotp.random_base32()

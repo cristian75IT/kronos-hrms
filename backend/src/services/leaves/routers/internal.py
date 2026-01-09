@@ -19,7 +19,7 @@ from src.services.leaves.models import LeaveRequestStatus
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/internal", tags=["internal"])
+router = APIRouter(prefix="/leaves/internal", tags=["internal"])
 
 
 class ApprovalCallbackPayload(BaseModel):

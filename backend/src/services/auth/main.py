@@ -42,6 +42,10 @@ app.include_router(org_router, prefix="/api/v1")
 from src.services.auth.routers.setup import router as setup_router
 app.include_router(setup_router, prefix="/api/v1/auth")
 
+# Signature Service (for local development unified mode)
+from src.services.signature.router import router as signature_router
+app.include_router(signature_router, prefix="/api/v1")
+
 # Add Request Context Middleware (must be after CORS)
 from src.core.middleware import RequestContextMiddleware
 app.add_middleware(RequestContextMiddleware)

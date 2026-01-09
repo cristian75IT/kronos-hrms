@@ -151,3 +151,7 @@ class SWAttendanceResponse(BaseModel):
 class SWPresenceCreate(BaseModel):
     date: date
     notes: Optional[str] = "Lavoro in presenza"
+
+class SWSignRequest(BaseModel):
+    otp_code: str = Field(..., min_length=6, max_length=6, description="Codice OTP 6 cifre")
+

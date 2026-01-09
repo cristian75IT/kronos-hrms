@@ -20,8 +20,10 @@ import {
     Badge,
     Calendar,
     Briefcase,
-    ChevronRight
+    ChevronRight,
+    PenTool
 } from 'lucide-react';
+import { UserSignaturesTab } from './components/UserSignaturesTab';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { MfaSetupModal } from '../../components/auth/MfaSetupModal';
@@ -42,6 +44,9 @@ export function ProfilePage() {
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+    // Tab state
+    const [activeTab, setActiveTab] = useState<'profile' | 'signatures'>('profile');
 
     if (!user) return null;
 
@@ -154,269 +159,307 @@ export function ProfilePage() {
                 ))}
             </div>
 
-            {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+            {/* Navigation Tabs */}
+            <div className="flex gap-4 border-b border-gray-200">
+                <button
+                    onClick={() => setActiveTab('profile')}
+                    className={`pb-4 text-sm font-medium transition-colors relative ${activeTab === 'profile'
+                        ? 'text-indigo-600'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                >
+                    <div className="flex items-center gap-2">
+                        <User size={18} />
+                        Dettagli Profilo
+                    </div>
+                    {activeTab === 'profile' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 rounded-t-full" />
+                    )}
+                </button>
+                <button
+                    onClick={() => setActiveTab('signatures')}
+                    className={`pb-4 text-sm font-medium transition-colors relative ${activeTab === 'signatures'
+                        ? 'text-indigo-600'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                >
+                    <div className="flex items-center gap-2">
+                        <PenTool size={18} />
+                        Firme Digitali
+                    </div>
+                    {activeTab === 'signatures' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 rounded-t-full" />
+                    )}
+                </button>
+            </div>
 
-                {/* Security Section - Left Column */}
-                <div className="lg:col-span-2 space-y-4">
-                    <h2 className="text-lg font-bold text-gray-900">Sicurezza Account</h2>
+            {activeTab === 'signatures' ? (
+                <UserSignaturesTab />
+            ) : (
+                /* Main Content Grid */
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
 
-                    {/* 2FA Card */}
-                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                        <div className="p-4 border-b border-gray-100">
-                            <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-md ${user.mfa_enabled ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                                    <Smartphone size={20} />
-                                </div>
-                                <div className="flex-1">
-                                    <div className="font-semibold text-sm text-gray-900">Autenticazione 2FA</div>
-                                    <div className={`inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 rounded text-xs font-bold ${user.mfa_enabled
-                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                                        : 'bg-amber-50 text-amber-700 border border-amber-100'
-                                        }`}>
-                                        {user.mfa_enabled ? (
-                                            <><CheckCircle size={12} /> Attivo</>
-                                        ) : (
-                                            <><AlertTriangle size={12} /> Non attivo</>
-                                        )}
+                    {/* Security Section - Left Column */}
+                    <div className="lg:col-span-2 space-y-4">
+                        <h2 className="text-lg font-bold text-gray-900">Sicurezza Account</h2>
+
+                        {/* 2FA Card */}
+                        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                            <div className="p-4 border-b border-gray-100">
+                                <div className="flex items-center gap-3">
+                                    <div className={`p-2 rounded-md ${user.mfa_enabled ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                                        <Smartphone size={20} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="font-semibold text-sm text-gray-900">Autenticazione 2FA</div>
+                                        <div className={`inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 rounded text-xs font-bold ${user.mfa_enabled
+                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                            : 'bg-amber-50 text-amber-700 border border-amber-100'
+                                            }`}>
+                                            {user.mfa_enabled ? (
+                                                <><CheckCircle size={12} /> Attivo</>
+                                            ) : (
+                                                <><AlertTriangle size={12} /> Non attivo</>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
+
+                            <div className="p-4 bg-gray-50">
+                                <p className="text-xs text-gray-500 mb-3">
+                                    {user.mfa_enabled
+                                        ? 'Il tuo account è protetto con autenticazione a due fattori.'
+                                        : 'Proteggi il tuo account con un secondo livello di verifica.'}
+                                </p>
+
+                                {user.mfa_enabled ? (
+                                    showDisableForm ? (
+                                        <div className="space-y-3">
+                                            <input
+                                                type="text"
+                                                value={disableCode}
+                                                onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                                placeholder="Codice 6 cifre"
+                                                className="w-full px-3 py-2 text-center text-lg tracking-[0.5em] font-mono border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                            />
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => { setShowDisableForm(false); setDisableCode(''); }}
+                                                    className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                                                >
+                                                    Annulla
+                                                </button>
+                                                <button
+                                                    onClick={handleDisable2FA}
+                                                    disabled={isDisabling2FA || disableCode.length !== 6}
+                                                    className="flex-1 px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                                >
+                                                    {isDisabling2FA ? <Loader2 size={14} className="animate-spin" /> : <Key size={14} />}
+                                                    Disattiva
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => setShowDisableForm(true)}
+                                            className="w-full px-3 py-2 text-sm font-medium text-red-700 bg-white border border-red-200 rounded-md hover:bg-red-50 flex items-center justify-center gap-2"
+                                        >
+                                            <Key size={14} />
+                                            Disattiva 2FA
+                                        </button>
+                                    )
+                                ) : (
+                                    <button
+                                        onClick={() => setIsMfaModalOpen(true)}
+                                        className="w-full px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 flex items-center justify-center gap-2"
+                                    >
+                                        <Shield size={14} />
+                                        Configura 2FA
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
-                        <div className="p-4 bg-gray-50">
-                            <p className="text-xs text-gray-500 mb-3">
-                                {user.mfa_enabled
-                                    ? 'Il tuo account è protetto con autenticazione a due fattori.'
-                                    : 'Proteggi il tuo account con un secondo livello di verifica.'}
-                            </p>
+                        {/* Password Card */}
+                        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                            <div className="p-4 border-b border-gray-100">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-md bg-indigo-50 text-indigo-600">
+                                        <Lock size={20} />
+                                    </div>
+                                    <div>
+                                        <div className="font-semibold text-sm text-gray-900">Password</div>
+                                        <div className="text-xs text-gray-500">Modifica la password del tuo account</div>
+                                    </div>
+                                </div>
+                            </div>
 
-                            {user.mfa_enabled ? (
-                                showDisableForm ? (
+                            <div className="p-4 bg-gray-50">
+                                {showPasswordForm ? (
                                     <div className="space-y-3">
                                         <input
-                                            type="text"
-                                            value={disableCode}
-                                            onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                            placeholder="Codice 6 cifre"
-                                            className="w-full px-3 py-2 text-center text-lg tracking-[0.5em] font-mono border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                            type="password"
+                                            value={currentPassword}
+                                            onChange={(e) => setCurrentPassword(e.target.value)}
+                                            placeholder="Password attuale"
+                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        />
+                                        <input
+                                            type="password"
+                                            value={newPassword}
+                                            onChange={(e) => setNewPassword(e.target.value)}
+                                            placeholder="Nuova password (min 8 caratteri)"
+                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        />
+                                        <input
+                                            type="password"
+                                            value={confirmPassword}
+                                            onChange={(e) => setConfirmPassword(e.target.value)}
+                                            placeholder="Conferma nuova password"
+                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                         />
                                         <div className="flex gap-2">
                                             <button
-                                                onClick={() => { setShowDisableForm(false); setDisableCode(''); }}
+                                                onClick={() => {
+                                                    setShowPasswordForm(false);
+                                                    setCurrentPassword('');
+                                                    setNewPassword('');
+                                                    setConfirmPassword('');
+                                                }}
                                                 className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
                                             >
                                                 Annulla
                                             </button>
                                             <button
-                                                onClick={handleDisable2FA}
-                                                disabled={isDisabling2FA || disableCode.length !== 6}
-                                                className="flex-1 px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                                onClick={handleChangePassword}
+                                                disabled={isChangingPassword || !currentPassword || !newPassword || !confirmPassword}
+                                                className="flex-1 px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                             >
-                                                {isDisabling2FA ? <Loader2 size={14} className="animate-spin" /> : <Key size={14} />}
-                                                Disattiva
+                                                {isChangingPassword ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                                                Salva
                                             </button>
                                         </div>
                                     </div>
                                 ) : (
                                     <button
-                                        onClick={() => setShowDisableForm(true)}
-                                        className="w-full px-3 py-2 text-sm font-medium text-red-700 bg-white border border-red-200 rounded-md hover:bg-red-50 flex items-center justify-center gap-2"
+                                        onClick={() => setShowPasswordForm(true)}
+                                        className="w-full px-3 py-2 text-sm font-medium text-indigo-700 bg-white border border-indigo-200 rounded-md hover:bg-indigo-50 flex items-center justify-center gap-2"
                                     >
-                                        <Key size={14} />
-                                        Disattiva 2FA
+                                        <Lock size={14} />
+                                        Cambia Password
                                     </button>
-                                )
-                            ) : (
-                                <button
-                                    onClick={() => setIsMfaModalOpen(true)}
-                                    className="w-full px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 flex items-center justify-center gap-2"
-                                >
-                                    <Shield size={14} />
-                                    Configura 2FA
-                                </button>
-                            )}
+                                )}
+                            </div>
                         </div>
                     </div>
 
-                    {/* Password Card */}
-                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                        <div className="p-4 border-b border-gray-100">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-md bg-indigo-50 text-indigo-600">
-                                    <Lock size={20} />
-                                </div>
-                                <div>
-                                    <div className="font-semibold text-sm text-gray-900">Password</div>
-                                    <div className="text-xs text-gray-500">Modifica la password del tuo account</div>
-                                </div>
-                            </div>
+                    {/* Account Details - Right Column */}
+                    <div className="lg:col-span-3 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-lg font-bold text-gray-900">Dettagli Account</h2>
                         </div>
 
-                        <div className="p-4 bg-gray-50">
-                            {showPasswordForm ? (
-                                <div className="space-y-3">
-                                    <input
-                                        type="password"
-                                        value={currentPassword}
-                                        onChange={(e) => setCurrentPassword(e.target.value)}
-                                        placeholder="Password attuale"
-                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                    />
-                                    <input
-                                        type="password"
-                                        value={newPassword}
-                                        onChange={(e) => setNewPassword(e.target.value)}
-                                        placeholder="Nuova password (min 8 caratteri)"
-                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                    />
-                                    <input
-                                        type="password"
-                                        value={confirmPassword}
-                                        onChange={(e) => setConfirmPassword(e.target.value)}
-                                        placeholder="Conferma nuova password"
-                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                    />
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => {
-                                                setShowPasswordForm(false);
-                                                setCurrentPassword('');
-                                                setNewPassword('');
-                                                setConfirmPassword('');
-                                            }}
-                                            className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                                        >
-                                            Annulla
-                                        </button>
-                                        <button
-                                            onClick={handleChangePassword}
-                                            disabled={isChangingPassword || !currentPassword || !newPassword || !confirmPassword}
-                                            className="flex-1 px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                        >
-                                            {isChangingPassword ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
-                                            Salva
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <button
-                                    onClick={() => setShowPasswordForm(true)}
-                                    className="w-full px-3 py-2 text-sm font-medium text-indigo-700 bg-white border border-indigo-200 rounded-md hover:bg-indigo-50 flex items-center justify-center gap-2"
-                                >
-                                    <Lock size={14} />
-                                    Cambia Password
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Account Details - Right Column */}
-                <div className="lg:col-span-3 space-y-4">
-                    <div className="flex items-center justify-between">
-                        <h2 className="text-lg font-bold text-gray-900">Dettagli Account</h2>
-                    </div>
-
-                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                        {/* Full Name */}
-                        <div className="flex items-center gap-4 p-4 border-b border-gray-100">
-                            <div className="p-2 bg-indigo-50 rounded-md text-indigo-600">
-                                <User size={18} />
-                            </div>
-                            <div className="flex-1">
-                                <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">Nome Completo</div>
-                                <div className="text-sm font-semibold text-gray-900 mt-0.5">{user.full_name}</div>
-                            </div>
-                        </div>
-
-                        {/* Email */}
-                        <div className="flex items-center gap-4 p-4 border-b border-gray-100">
-                            <div className="p-2 bg-blue-50 rounded-md text-blue-600">
-                                <Mail size={18} />
-                            </div>
-                            <div className="flex-1">
-                                <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">Email</div>
-                                <div className="text-sm font-semibold text-gray-900 mt-0.5">{user.email}</div>
-                            </div>
-                        </div>
-
-                        {/* Hire Date */}
-                        {user.profile?.hire_date && (
+                        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                            {/* Full Name */}
                             <div className="flex items-center gap-4 p-4 border-b border-gray-100">
-                                <div className="p-2 bg-emerald-50 rounded-md text-emerald-600">
-                                    <Calendar size={18} />
+                                <div className="p-2 bg-indigo-50 rounded-md text-indigo-600">
+                                    <User size={18} />
                                 </div>
                                 <div className="flex-1">
-                                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">Data Assunzione</div>
-                                    <div className="text-sm font-semibold text-gray-900 mt-0.5">
-                                        {format(new Date(user.profile.hire_date), 'd MMMM yyyy', { locale: it })}
+                                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">Nome Completo</div>
+                                    <div className="text-sm font-semibold text-gray-900 mt-0.5">{user.full_name}</div>
+                                </div>
+                            </div>
+
+                            {/* Email */}
+                            <div className="flex items-center gap-4 p-4 border-b border-gray-100">
+                                <div className="p-2 bg-blue-50 rounded-md text-blue-600">
+                                    <Mail size={18} />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">Email</div>
+                                    <div className="text-sm font-semibold text-gray-900 mt-0.5">{user.email}</div>
+                                </div>
+                            </div>
+
+                            {/* Hire Date */}
+                            {user.profile?.hire_date && (
+                                <div className="flex items-center gap-4 p-4 border-b border-gray-100">
+                                    <div className="p-2 bg-emerald-50 rounded-md text-emerald-600">
+                                        <Calendar size={18} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">Data Assunzione</div>
+                                        <div className="text-sm font-semibold text-gray-900 mt-0.5">
+                                            {format(new Date(user.profile.hire_date), 'd MMMM yyyy', { locale: it })}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Roles */}
+                            <div className="flex items-center gap-4 p-4 border-b border-gray-100">
+                                <div className="p-2 bg-purple-50 rounded-md text-purple-600">
+                                    <Shield size={18} />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">Ruoli Assegnati</div>
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                        {user.roles?.map((role: string) => (
+                                            <span
+                                                key={role}
+                                                className="px-2 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-md"
+                                            >
+                                                {role}
+                                            </span>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
-                        )}
 
-                        {/* Roles */}
-                        <div className="flex items-center gap-4 p-4 border-b border-gray-100">
-                            <div className="p-2 bg-purple-50 rounded-md text-purple-600">
-                                <Shield size={18} />
-                            </div>
-                            <div className="flex-1">
-                                <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">Ruoli Assegnati</div>
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                    {user.roles?.map((role: string) => (
-                                        <span
-                                            key={role}
-                                            className="px-2 py-1 text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-md"
-                                        >
-                                            {role}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Account Status */}
-                        <div className="flex items-center gap-4 p-4">
-                            <div className="p-2 bg-emerald-50 rounded-md text-emerald-600">
-                                <CheckCircle size={18} />
-                            </div>
-                            <div className="flex-1">
-                                <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">Stato Account</div>
-                                <div className="flex items-center gap-2 mt-1">
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 rounded">
-                                        <CheckCircle size={10} /> Attivo
-                                    </span>
-                                    <span className="text-xs text-gray-400">• Verificato</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Quick Links */}
-                    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                        <div className="p-4 border-b border-gray-100">
-                            <div className="text-sm font-bold text-gray-900">Link Rapidi</div>
-                        </div>
-                        <div className="divide-y divide-gray-100">
-                            <Link to="/leaves" className="flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors group">
+                            {/* Account Status */}
+                            <div className="flex items-center gap-4 p-4">
                                 <div className="p-2 bg-emerald-50 rounded-md text-emerald-600">
-                                    <Calendar size={16} />
+                                    <CheckCircle size={18} />
                                 </div>
-                                <div className="flex-1 text-sm font-medium text-gray-900">Le Mie Ferie</div>
-                                <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500" />
-                            </Link>
-                            <Link to="/trips" className="flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors group">
-                                <div className="p-2 bg-cyan-50 rounded-md text-cyan-600">
-                                    <Briefcase size={16} />
+                                <div className="flex-1">
+                                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">Stato Account</div>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 rounded">
+                                            <CheckCircle size={10} /> Attivo
+                                        </span>
+                                        <span className="text-xs text-gray-400">• Verificato</span>
+                                    </div>
                                 </div>
-                                <div className="flex-1 text-sm font-medium text-gray-900">Le Mie Trasferte</div>
-                                <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500" />
-                            </Link>
+                            </div>
+                        </div>
+
+                        {/* Quick Links */}
+                        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                            <div className="p-4 border-b border-gray-100">
+                                <div className="text-sm font-bold text-gray-900">Link Rapidi</div>
+                            </div>
+                            <div className="divide-y divide-gray-100">
+                                <Link to="/leaves" className="flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors group">
+                                    <div className="p-2 bg-emerald-50 rounded-md text-emerald-600">
+                                        <Calendar size={16} />
+                                    </div>
+                                    <div className="flex-1 text-sm font-medium text-gray-900">Le Mie Ferie</div>
+                                    <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500" />
+                                </Link>
+                                <Link to="/trips" className="flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors group">
+                                    <div className="p-2 bg-cyan-50 rounded-md text-cyan-600">
+                                        <Briefcase size={16} />
+                                    </div>
+                                    <div className="flex-1 text-sm font-medium text-gray-900">Le Mie Trasferte</div>
+                                    <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-500" />
+                                </Link>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             <MfaSetupModal
                 isOpen={isMfaModalOpen}
