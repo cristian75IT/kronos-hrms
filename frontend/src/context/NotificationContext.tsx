@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import notificationService from '../services/notification.service';
 import { useAuth } from './AuthContext';
+import { useNotificationStream } from '../hooks/useNotificationStream';
 
 interface NotificationContextType {
     unreadCount: number;
@@ -25,12 +26,32 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         }
     }, [isAuthenticated]);
 
-    // Poll for unread count
+    // SSE Integration
+    const handleNotification = (notif: any) => {
+        // Increment count
+        setUnreadCount(prev => prev + 1);
+
+        // Show Toast
+        window.dispatchEvent(new CustomEvent('toast:show', {
+            detail: {
+                message: notif.title || 'Nuova notifica ricevuta',
+                type: 'info', // or generic 'info'
+                duration: 5000
+            }
+        }));
+
+        // Dispatch app-wide event for components to update lists
+        window.dispatchEvent(new CustomEvent('notification:received', { detail: notif }));
+    };
+
+    useNotificationStream(handleNotification);
+
+    // Poll for unread count (Fallback / Sync)
     useEffect(() => {
         if (!isAuthenticated) return;
 
         refreshUnreadCount();
-        const interval = setInterval(refreshUnreadCount, 30000); // 30s
+        const interval = setInterval(refreshUnreadCount, 300000); // 5 minutes fallback
         return () => clearInterval(interval);
     }, [isAuthenticated, refreshUnreadCount]);
 

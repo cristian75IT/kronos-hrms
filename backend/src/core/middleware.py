@@ -17,6 +17,8 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         set_request_context(context)
         
         # Process request
+        print(f"DEBUG_MIDDLEWARE: Incoming request: {request.method} {request.url}", flush=True)
         response = await call_next(request)
+        print(f"DEBUG_MIDDLEWARE: Response status: {response.status_code} for {request.url}", flush=True)
         
         return response

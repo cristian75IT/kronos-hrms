@@ -20,6 +20,44 @@ from src.services.notifications.schemas import (
 
 router = APIRouter()
 
+from fastapi import Request, Query
+
+@router.get("/notifications/sse-test")
+async def stream_notifications_test(request: Request):
+    """
+    Server-Sent Events (SSE) stream for real-time notifications.
+    Client must connect with ?token=<access_token>.
+    """
+    print(f"DEBUG: SSE-TEST endpoint ENTERED", flush=True)
+    
+    # helper for manual auth
+    try:
+        from src.core.security import resolve_user
+        print(f"DEBUG: Extracting token...", flush=True)
+        token = request.query_params.get("token")
+        if not token:
+            print("DEBUG: Missing token", flush=True)
+            raise HTTPException(401, "Token required")
+            
+        print(f"DEBUG: Resolving user from token with length {len(token)}...", flush=True)
+        # Use full resolution logic (DB sync, Cache)
+        payload = await resolve_user(token)
+        print(f"DEBUG: Auth Success: {payload.sub} -> Internal: {payload.internal_user_id}", flush=True)
+        user_id = payload.user_id
+        
+    except Exception as e:
+        print(f"DEBUG: Auth FAILED: {str(e)}", flush=True)
+        # Use a simpler error response for SSE
+        raise HTTPException(401, f"Auth failed: {str(e)}")
+
+    print(f"DEBUG: Connecting broadcaster...", flush=True)
+    broadcaster = NotificationBroadcaster.get_instance()
+    
+    return StreamingResponse(
+        broadcaster.connect(user_id),
+        media_type="text/event-stream"
+    )
+
 @router.get("/notifications/me", response_model=list[NotificationResponse])
 async def get_my_notifications(
     unread_only: bool = False,
@@ -124,3 +162,61 @@ async def get_notification(
 ):
     """Get notification by ID."""
     return await service.get_notification(id)
+
+from fastapi import Query
+from starlette.responses import StreamingResponse
+from src.core.security import decode_token
+from src.services.notifications.broadcaster import NotificationBroadcaster
+
+async def get_current_user_ws(token: str = Query(None)) -> TokenPayload:
+    """Resolve user from query param token (for SSE/WS)."""
+    try:
+        print(f"DEBUG: get_current_user_ws ENTERED. Token present: {bool(token)}", flush=True)
+        if not token:
+            print("DEBUG: No token provided in query params", flush=True)
+            raise HTTPException(401, "Token required")
+            
+        payload = await decode_token(token)
+        print(f"DEBUG: get_current_user_ws SUCCESS. User: {payload.sub}", flush=True)
+        return payload
+    except HTTPException as e:
+        print(f"DEBUG: get_current_user_ws HTTP Exception: {e.detail}", flush=True)
+        raise e
+    except Exception as e:
+        print(f"DEBUG: get_current_user_ws UNEXPECTED ERROR: {str(e)}", flush=True)
+        raise HTTPException(401, "Invalid authentication")
+
+from fastapi import Request
+
+@router.get("/notifications/stream")
+async def stream_notifications(request: Request):
+    """
+    Server-Sent Events (SSE) stream for real-time notifications.
+    Client must connect with ?token=<access_token>.
+    """
+    print(f"DEBUG: Manual Stream endpoint ENTERED", flush=True)
+    
+    # helper for manual auth
+    try:
+        token = request.query_params.get("token")
+        print(f"DEBUG: Manual Stream token: {str(token)[:10]}...", flush=True)
+        if not token:
+            print("DEBUG: Missing token", flush=True)
+            raise HTTPException(401, "Token required")
+            
+        payload = await decode_token(token)
+        print(f"DEBUG: Manual Stream Auth Success: {payload.sub}", flush=True)
+        user_id = payload.user_id
+        
+    except Exception as e:
+        print(f"DEBUG: Manual Stream Auth FAILED: {str(e)}", flush=True)
+        # Use a simpler error response for SSE
+        raise HTTPException(401, f"Auth failed: {str(e)}")
+
+    print(f"DEBUG: Connecting broadcaster for user {user_id}", flush=True)
+    broadcaster = NotificationBroadcaster.get_instance()
+    
+    return StreamingResponse(
+        broadcaster.connect(user_id),
+        media_type="text/event-stream"
+    )

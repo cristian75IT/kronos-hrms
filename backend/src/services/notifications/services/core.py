@@ -127,12 +127,28 @@ class NotificationCoreService(BaseNotificationService):
                     if sent:
                         await self._notification_repo.mark_sent(notification.id)
                     else:
-                        # Log error but keep queued
                         pass
                 except Exception as e:
                     logger.error(f"Failed immediate send for {notification.id}: {e}")
                     await self._notification_repo.mark_failed(notification.id, str(e))
         
+        # 3. Broadcast Real-Time (SSE)
+        try:
+            from src.services.notifications.broadcaster import NotificationBroadcaster
+            from src.services.notifications.schemas import NotificationResponse
+            
+            # Only broadcast IN_APP notifications or those relevant
+            if notification.channel == NotificationChannel.IN_APP:
+                broadcaster = NotificationBroadcaster.get_instance()
+                
+                # Convert to response schema for clean JSON
+                response_model = NotificationResponse.model_validate(notification)
+                json_msg = response_model.model_dump_json()
+                
+                await broadcaster.broadcast(notification.user_id, json_msg)
+        except Exception as e:
+            logger.error(f"Failed to broadcast notification {notification.id}: {e}")
+
         return notification
 
     async def mark_read(self, notification_ids: list[UUID], user_id: UUID):

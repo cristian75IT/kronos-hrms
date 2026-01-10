@@ -125,6 +125,9 @@ class TokenPayload(BaseModel):
         return self.has_role("hr") or self.db_is_hr or self.is_admin
 
 
+
+from jose import jwt
+
 async def decode_token(token: str) -> TokenPayload:
     """Decode and validate JWT token.
     
@@ -138,19 +141,36 @@ async def decode_token(token: str) -> TokenPayload:
         HTTPException: If token is invalid.
     """
     try:
-        # Decode token with signature verification
-        # python-keycloak 6.0 handles public key retrieval internally
-        payload = keycloak_openid.decode_token(
+        # Manual decoding to handle Split Horizon DNS (Docker vs Localhost)
+        # We need to disable issuer verification because the token is issued by
+        # 'http://localhost:8080/...' (frontend view) but verified by backend
+        # which expects 'http://keycloak:8080/...'
+        
+        # 1. Get Public Key from Keycloak
+        key_pem = f"-----BEGIN PUBLIC KEY-----\n{keycloak_openid.public_key()}\n-----END PUBLIC KEY-----"
+        
+        # 2. Decode with python-jose directly
+        # options={"verify_iss": False} disables the issuer check
+        # We still validate the signature against the Realm's public key
+        payload = jwt.decode(
             token,
-            validate=True,
+            key=key_pem,
+            algorithms=["RS256"],
+            audience=settings.keycloak_client_id,
+            options={
+                "verify_iss": False,
+                "verify_aud": False  # Often needed if aud is 'account' not client_id
+            }
         )
         
         return TokenPayload(**payload)
         
     except Exception as e:
+        import logging
+        logging.error(f"Token validation failed: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid token: {str(e)}",
+            status_code=401,
+            detail="Invalid authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -166,16 +186,11 @@ async def get_current_token(
     return await decode_token(token)
 
 
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-) -> TokenPayload:
-    """Get current user with resolved internal user ID and permissions.
+async def resolve_user(token: str) -> TokenPayload:
+    """Resolve internal user identity from JWT token string.
     
-    This is the primary dependency to use for endpoints that need user context.
-    It decodes the JWT, then calls auth-service to resolve keycloak_id → internal_user_id.
-    
-    The internal_user_id is then accessible via token.user_id property.
-    This includes Redis caching to avoid frequent service-to-service calls.
+    Decodes the JWT and calls Auth Service (or Cache) to map Keycloak ID -> Internal ID.
+    Shared by get_current_user (Header) and get_current_user_ws (Query).
     """
     import httpx
     
@@ -235,6 +250,20 @@ async def get_current_user(
         )
     
     return payload
+
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+) -> TokenPayload:
+    """Get current user with resolved internal user ID and permissions.
+    
+    This is the primary dependency to use for endpoints that need user context.
+    It decodes the JWT, then calls auth-service to resolve keycloak_id → internal_user_id.
+    
+    The internal_user_id is then accessible via token.user_id property.
+    This includes Redis caching to avoid frequent service-to-service calls.
+    """
+    return await resolve_user(token)
 
 
 def require_permission(permission_code: str, scope: str = None):

@@ -34,14 +34,33 @@ export function NotificationDropdown({ onUnreadCountChange }: NotificationDropdo
   const { unreadCount, markAsRead, markAllAsRead, refreshUnreadCount } = useNotification();
 
   // Close dropdown when clicking outside
+  // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     }
+
+    // Listen for real-time notifications to update list if loaded
+    function handleNewNotification(event: Event) {
+      const customEvent = event as CustomEvent<Notification>;
+      const newNotif = customEvent.detail;
+
+      setNotifications(prev => {
+        // Prevent duplicate if already in list (though unlikely with unique IDs)
+        if (prev.some(n => n.id === newNotif.id)) return prev;
+        return [newNotif, ...prev];
+      });
+    }
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    window.addEventListener('notification:received', handleNewNotification);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('notification:received', handleNewNotification);
+    };
   }, []);
 
   // Fetch list when opening
