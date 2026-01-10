@@ -100,7 +100,10 @@ class NotificationCoreService(BaseNotificationService):
         # But `create_notification` calls `_check_preferences`.
         
         # 1. Create record
-        notification = await self._notification_repo.create(**data.model_dump())
+        create_data = data.model_dump(exclude={"priority"})
+        # Priority is NOT in model.
+        
+        notification = await self._notification_repo.create(**create_data)
         
         # Audit
         await self._audit.log_action(
@@ -144,34 +147,77 @@ class NotificationCoreService(BaseNotificationService):
 
     async def send_bulk(self, data: BulkNotificationRequest):
         """Send bulk notifications."""
-        # Only admin usually
+        from sqlalchemy import text
+        
+        # 1. Fetch user emails
+        if not data.user_ids:
+            return BulkNotificationResponse(total=0, sent=0, failed=0, errors=[])
+            
+        try:
+             # Use raw SQL to fetch emails without importing auth models to avoid circular deps
+             # Need to cast UUIDs to string or pass list properly
+             # SQLAlchemy execute with list param handling
+             q = text("SELECT id, email FROM auth.users WHERE id = ANY(:ids)")
+             result = await self._session.execute(q, {"ids": data.user_ids})
+             user_map = {row.id: row.email for row in result.fetchall()}
+        except Exception as e:
+             logger.error(f"Failed to fetch users for bulk: {e}")
+             return BulkNotificationResponse(
+                 total=len(data.user_ids), 
+                 sent=0, 
+                 failed=len(data.user_ids), 
+                 errors=[f"Failed to fetch user emails: {str(e)}"]
+             )
+
         success_count = 0
         failed_count = 0
         errors = []
         
         for user_id in data.user_ids:
-            try:
-                # Create notification data
-                notif_data = NotificationCreate(
-                    user_id=user_id,
-                    notification_type=data.notification_type,
-                    title=data.title,
-                    message=data.message,
-                    channel=data.channel,
-                    priority=data.priority,
-                    entity_type=data.entity_type,
-                    entity_id=data.entity_id,
-                    metadata=data.metadata,
-                )
+            if user_id not in user_map:
+                errors.append(f"User {user_id} not found")
+                failed_count += 1
+                continue
                 
-                await self.create_notification(notif_data)
+            email = user_map[user_id]
+            
+            try:
+                # Handle channels (plural in Request, singular in Create)
+                # Use getattr for robustness
+                channels = getattr(data, 'channels', [NotificationChannel.IN_APP])
+                # Handle priority
+                priority = getattr(data, 'priority', NotificationPriority.NORMAL)
+                
+                for channel in channels:
+                    notif_data = NotificationCreate(
+                        user_id=user_id,
+                        user_email=email,
+                        notification_type=data.notification_type,
+                        title=data.title,
+                        message=data.message,
+                        channel=channel,
+                        priority=priority,
+                        entity_type=data.entity_type if hasattr(data, 'entity_type') else None,
+                        entity_id=data.entity_id if hasattr(data, 'entity_id') else None,
+                        payload=data.payload,
+                        action_url=data.action_url
+                    )
+                    
+                    await self.create_notification(notif_data)
+                
                 success_count += 1
             except Exception as e:
                 error_msg = f"Failed to send bulk to {user_id}: {str(e)}"
                 logger.error(error_msg)
                 errors.append(error_msg)
                 failed_count += 1
-                
+        
+        # Trigger immediate processing
+        try:
+            await self.process_queue()
+        except Exception as e:
+            logger.error(f"Failed to trigger process_queue after bulk: {e}")
+            
         return BulkNotificationResponse(
             total=success_count + failed_count,
             sent=success_count,
@@ -191,33 +237,41 @@ class NotificationCoreService(BaseNotificationService):
         # Limit concurrency to avoid overwhelming providers
         sem = asyncio.Semaphore(10)  # Max 10 concurrent sends
 
-        async def _send_wrapper(n):
+        # Execute sends concurrently (I/O)
+        async def _do_send_only(n):
             async with sem:
                 try:
                     sent = False
-                    if n.channel == NotificationChannel.EMAIL and self.email_sender:
+                    if n.channel == NotificationChannel.IN_APP:
+                        sent = True
+                    elif n.channel == NotificationChannel.EMAIL and self.email_sender:
                         sent = await self.email_sender(n)
                     elif n.channel == NotificationChannel.PUSH and self.push_sender:
                         sent = await self.push_sender(n)
-                    
-                    if sent:
-                        await self._notification_repo.mark_sent(n.id)
-                        return True
-                    else:
-                        return False
+                    return sent, None
                 except Exception as e:
                     logger.error(f"Failed to process notification {n.id}: {e}")
-                    await self._notification_repo.mark_failed(n.id, str(e))
-                    return False
+                    return False, str(e)
 
-        # Execute in parallel
-        tasks = [_send_wrapper(n) for n in notifications]
-        outcomes = await asyncio.gather(*tasks)
+        # Run I/O in parallel
+        io_tasks = [_do_send_only(n) for n in notifications]
+        io_results = await asyncio.gather(*io_tasks)
         
-        results["processed"] = len(notifications)
-        results["sent"] = outcomes.count(True)
-        results["failed"] = outcomes.count(False)
+        # Process DB updates sequentially (Session is not thread-safe)
+        files_count = 0 
+        for notification, (success, error_msg) in zip(notifications, io_results):
+            try:
+                if success:
+                    await self._notification_repo.mark_sent(notification.id)
+                    results["sent"] += 1
+                else:
+                    await self._notification_repo.mark_failed(notification.id, error_msg or "Unknown error")
+                    results["failed"] += 1
+            except Exception as e:
+                logger.error(f"Failed to update status for {notification.id}: {e}")
                 
+        results["processed"] = len(notifications)
+        
         return results
 
     async def cleanup_old(self, days: int = 90):

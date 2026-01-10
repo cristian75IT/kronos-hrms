@@ -40,6 +40,7 @@ class NotificationPriority(str, enum.Enum):
 class NotificationStatus(str, enum.Enum):
     """Notification status."""
     PENDING = "pending"
+    QUEUED = "queued"
     SENT = "sent"
     DELIVERED = "delivered"
     READ = "read"

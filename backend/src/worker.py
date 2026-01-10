@@ -45,6 +45,11 @@ celery_app.conf.update(
             "task": "notifications.process_email_retries",
             "schedule": 300.0,   # Every 5 minutes
         },
+        # Process Notification Queue - runs every minute
+        "notifications-process-queue": {
+            "task": "notifications.process_queue",
+            "schedule": 60.0,  # Every minute
+        },
         # Audit Data Retention - runs daily at 3 AM
         "audit-archive-old-logs": {
             "task": "audit.archive_old_logs",

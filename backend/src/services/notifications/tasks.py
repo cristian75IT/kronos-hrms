@@ -385,3 +385,34 @@ async def _process_email_retries_async():
         await session.rollback()
     finally:
         await session.close()
+
+@shared_task(name="notifications.process_queue")
+def process_notifications_queue():
+    """Process pending notifications queue.
+    
+    Run this task frequently via Celery beat.
+    """
+    import asyncio
+    asyncio.run(_process_notifications_queue_async())
+
+
+async def _process_notifications_queue_async():
+    """Async implementation of notification queue processor."""
+    from src.services.notifications.services import NotificationService
+    
+    session = await _get_async_session()
+    service = NotificationService(session)
+    
+    try:
+        # Process queue
+        result = await service.process_queue(batch_size=100)
+        
+        if result["processed"] > 0:
+            print(f"[Scheduler] Processed notifications: {result}")
+            await session.commit()
+        
+    except Exception as e:
+        print(f"[Scheduler] Error in notification queue processor: {e}")
+        await session.rollback()
+    finally:
+        await session.close()

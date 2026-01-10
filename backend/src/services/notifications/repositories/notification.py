@@ -125,11 +125,7 @@ class NotificationRepository:
         
         result = await self._session.execute(
             select(Notification)
-            .where(Notification.status == "queued") # Fixed from 'pending' based on common enum usage, or check model?
-            # Model uses NotificationStatus enum likely.
-            # Original code said: .where(Notification.status == "pending")
-            # But core service creates with NotificationStatus.QUEUED (which is 'queued' value usually).
-            # I will assume 'queued' is correct string value.
+            .where(Notification.status.in_(["pending", "queued"]))
             .order_by(Notification.created_at)
             .limit(limit)
         )
