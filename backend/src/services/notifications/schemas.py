@@ -10,6 +10,7 @@ from src.services.notifications.models import (
     NotificationChannel,
     NotificationStatus,
     NotificationType,
+    NotificationPriority,
 )
 
 

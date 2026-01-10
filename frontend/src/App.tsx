@@ -23,6 +23,7 @@ const LeaveRequestForm = lazy(() => import('./pages/leaves/LeaveRequestForm').th
 const LeaveDetailPage = lazy(() => import('./pages/leaves/LeaveDetailPage').then(m => ({ default: m.LeaveDetailPage })));
 const CalendarPage = lazy(() => import('./pages/CalendarPage').then(m => ({ default: m.CalendarPage })));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage').then(m => ({ default: m.NotificationsPage })));
+const TimesheetPage = lazy(() => import('./pages/TimesheetPage'));
 
 // Expenses & Trips
 const TripsPage = lazy(() => import('./pages/expenses/TripsPage').then(m => ({ default: m.TripsPage })));
@@ -102,6 +103,7 @@ function App() {
                     <Route path="/leaves/:id" element={<LeaveDetailPage />} />
                     <Route path="/leaves/:id/edit" element={<LeaveRequestForm />} />
                     <Route path="/calendar" element={<CalendarPage />} />
+                    <Route path="/timesheet" element={<TimesheetPage />} />
                     <Route path="/notifications" element={<NotificationsPage />} />
 
                     {/* Trips */}

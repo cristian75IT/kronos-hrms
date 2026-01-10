@@ -1073,4 +1073,45 @@ export interface TrainingCreate {
     expiry_date?: string;
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// Monthly Timesheet Types
+// ═══════════════════════════════════════════════════════════════════
+
+export interface TimesheetDay {
+    date: string;
+    status: string;
+    leave_type?: string;
+    hours_worked: number;
+    hours_expected: number;
+    notes?: string;
+}
+
+export interface TimesheetSummary {
+    total_days: number;
+    days_worked: number;
+    days_absent: number;
+    hours_worked: number;
+    hours_absence: number;
+    sickness_days: number;
+    vacation_days: number;
+    other_days: number;
+}
+
+export interface MonthlyTimesheet {
+    id: string;
+    employee_id: string;
+    year: number;
+    month: number;
+    status: 'DRAFT' | 'PENDING_CONFIRMATION' | 'CONFIRMED' | 'APPROVED' | 'REJECTED';
+    days: TimesheetDay[];
+    summary?: TimesheetSummary;
+    confirmed_at?: string;
+    employee_notes?: string;
+    hr_notes?: string;
+    created_at: string;
+    updated_at: string;
+    can_confirm: boolean;
+    confirmation_deadline?: string;
+}
+
 

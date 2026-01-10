@@ -9,7 +9,7 @@ import {
   ChevronLeft, ChevronRight, LogOut, Sun, Moon, Book, Terminal,
   Activity, Bell, Mail, History as HistoryIcon, GraduationCap,
   TreePalm, Plane, Receipt, GitBranch, Shield, ChevronDown, Layers,
-  PieChart, X
+  PieChart, X, CalendarCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { clsx } from 'clsx';
@@ -30,6 +30,7 @@ const baseItems: NavItem[] = [
 ];
 
 const myItems: NavItem[] = [
+  { label: 'Giornaliero', path: '/timesheet', icon: <CalendarCheck size={20} /> },
   { label: 'Assenze e Permessi', path: '/leaves', icon: <TreePalm size={20} />, permission: 'leaves:view' },
   { label: 'Trasferte', path: '/trips', icon: <Briefcase size={20} />, permission: 'trips:view' },
   { label: 'Note Spese', path: '/expenses', icon: <FileText size={20} />, permission: 'expenses:view' },

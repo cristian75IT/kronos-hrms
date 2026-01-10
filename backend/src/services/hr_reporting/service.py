@@ -196,8 +196,39 @@ class HRReportingService:
             summary=summary,
         )
     
-    # ═══════════════════════════════════════════════════════════
-    # Compliance Report Operations
+    async def generate_lul_export(
+        self,
+        year: int,
+        month: int,
+    ) -> str:
+        """
+        Generate LUL export (CSV format) for Labor Consultant.
+        
+        Format (Zucchetti-like simulation):
+        COD_AZIENDA;MATRICOLA;ANNO;MESE;COD_VOCE;ORE;GIORNI
+        """
+        employees_data = await self._aggregator.get_all_employees_monthly_data(year, month)
+        
+        lines = ["COD_AZIENDA;MATRICOLA;ANNO;MESE;COD_VOCE;ORE;GIORNI"]
+        
+        for emp in employees_data:
+            emp_id = emp.get("employee_id") # Use specific ID mapping if available
+            codes = emp.get("payroll_codes", {})
+            
+            # Base info
+            base = f"KRONOS;{str(emp_id)[:8]};{year};{month}"
+            
+            # 1. Ordinary Hours (Worked)
+            # This is not in payroll_codes, usually calculated as expected - absences
+            # For simplicity we export absences which is what consultants primarily need
+            
+            # Absences
+            for code, hours in codes.items():
+                if hours > 0:
+                    days = hours / 8.0 # Approx
+                    lines.append(f"{base};{code};{hours:.2f};{days:.2f}")
+                    
+        return "\n".join(lines)
     # ═══════════════════════════════════════════════════════════
     
     async def generate_compliance_report(

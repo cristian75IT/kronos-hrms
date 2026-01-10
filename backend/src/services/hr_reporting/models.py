@@ -561,7 +561,7 @@ class HRReportingSettings(Base):
     
     # 0 = same month (e.g., 27th Jan for Jan timesheet)
     # 1 = next month (e.g., 5th Feb for Jan timesheet)
-    timesheet_confirmation_month_offset: Mapped[int] = mapped_column(Integer, default=0)
+    timesheet_confirmation_month_offset: Mapped[int] = mapped_column(Integer, default=1)
     
     updated_by: Mapped[Optional[UUID]] = mapped_column(PG_UUID(as_uuid=True))
     updated_at: Mapped[datetime] = mapped_column(

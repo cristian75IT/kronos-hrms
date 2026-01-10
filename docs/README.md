@@ -30,6 +30,7 @@ Documentazione tecnica per agenti AI (Antigravity) per implementare il sistema i
 | [modules/expenses.md](./modules/expenses.md) | Trasferte e rimborsi spese |
 | [modules/config.md](./modules/config.md) | Configurazione dinamica (zero hardcoding) |
 | [modules/notifications.md](./modules/notifications.md) | **Email via Brevo, template, in-app** |
+| [HR_REPORTING_ARCHITECTURE.md](./HR_REPORTING_ARCHITECTURE.md) | **HR Analytics, Compliance & Reporting** |
 
 ### Business Rules
 | File | Descrizione |
@@ -64,9 +65,10 @@ Documentazione tecnica per agenti AI (Antigravity) per implementare il sistema i
 
 | Data | Versione | Descrizione |
 |------|----------|-------------|
-| 2026-01-06 | v1.3.0 | [Global Repository Pattern & Refactor](./CHANGELOG-2026-01-06.md) |
-| 2026-01-02 | v1.2.0 | [System Calendars UI & Config Fixes](./CHANGELOG-2026-01-02.md) |
-| 2026-01-01 | v1.1.0 | [Identity Resolution, Bug Fixes](./CHANGELOG-2026-01-01.md) |
+| 2026-01-10 | v1.4.0 | [HR Reporting & Timesheets](../changelog/CHANGELOG-2026-01-10.md) |
+| 2026-01-06 | v1.3.0 | [Global Repository Pattern & Refactor](../changelog/CHANGELOG-2026-01-06.md) |
+| 2026-01-02 | v1.2.0 | [System Calendars UI & Config Fixes](../changelog/CHANGELOG-2026-01-02.md) |
+| 2026-01-01 | v1.1.0 | [Identity Resolution, Bug Fixes](../changelog/CHANGELOG-2026-01-01.md) |
 
 ## ⚡ Quick Start per Agenti
 

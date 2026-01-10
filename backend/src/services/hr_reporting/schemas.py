@@ -641,8 +641,8 @@ class TimesheetConfirmation(BaseModel):
 
 class HRReportingSettingsUpdate(BaseModel):
     """Update HR settings."""
-    timesheet_confirmation_day: int = Field(..., ge=1, le=31)
-    timesheet_confirmation_month_offset: int = Field(..., ge=0, le=1)
+    timesheet_confirmation_day: Optional[int] = Field(None, ge=1, le=31)
+    timesheet_confirmation_month_offset: Optional[int] = Field(None, ge=0, le=1)
 
 
 class HRReportingSettingsResponse(BaseModel):

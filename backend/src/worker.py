@@ -77,6 +77,18 @@ celery_app.conf.update(
             "schedule": 2592000.0,  # Monthly (30 days)
             "options": {"queue": "reporting"},
         },
+        # Daily Timesheet Update - runs at 02:00 AM
+        "hr-daily-timesheet-update": {
+            "task": "hr_reporting.update_timesheets",
+            "schedule": 86400.0,  # Daily
+            "options": {"queue": "reporting"},
+        },
+        # Timesheet Deadline Check - runs daily at 09:00 AM
+        "hr-timesheet-deadline-check": {
+            "task": "hr_reporting.check_timesheet_deadlines",
+            "schedule": 86400.0,  # Daily
+            "options": {"queue": "reporting"},
+        },
         # ─────────────────────────────────────────────────────────────
         # Balance Reconciliation Tasks
         # ─────────────────────────────────────────────────────────────

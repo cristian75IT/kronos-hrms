@@ -16,6 +16,7 @@ from ..models import MonthlyTimesheet, TimesheetStatus
 from ..schemas import TimesheetConfirmation, MonthlyTimesheetResponse
 from .settings import HRSettingsService
 from ..aggregator import HRDataAggregator
+from src.shared.audit_client import get_audit_logger
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ class TimesheetService:
         self.session = session
         self.settings_service = HRSettingsService(session)
         self.aggregator = HRDataAggregator()
+        self.audit_logger = get_audit_logger("hr-reporting-service")
 
     async def get_or_create_timesheet(
         self, 
@@ -106,6 +108,59 @@ class TimesheetService:
         if data.notes:
             timesheet.employee_notes = data.notes
             
+        await self.session.commit()
+        
+        # Audit log
+        await self.audit_logger.log_action(
+            user_id=user_id,
+            action="CONFIRM_TIMESHEET",
+            resource_type="TIMESHEET",
+            resource_id=str(timesheet.id),
+            description=f"Confirmed timesheet for {year}/{month}",
+            details={"notes": data.notes}
+        )
+        
+        return timesheet
+
+    async def update_timesheet_data(
+        self,
+        employee_id: UUID,
+        year: int,
+        month: int
+    ) -> MonthlyTimesheet:
+        """Force update of timesheet data from aggregator."""
+        timesheet = await self.get_or_create_timesheet(employee_id, year, month)
+        
+        # Don't update if confirmed/approved (unless admin override needed?)
+        if timesheet.status in (TimesheetStatus.CONFIRMED, TimesheetStatus.APPROVED):
+            logger.info(f"Skipping update for confirmed/approved timesheet {timesheet.id}")
+            return timesheet
+            
+        start_date = date(year, month, 1)
+        if month == 12:
+            next_month = date(year + 1, 1, 1)
+        else:
+            next_month = date(year, month + 1, 1)
+        end_date = next_month - timedelta(days=1)
+        
+        # Get fresh daily data
+        daily_items = await self.aggregator.get_employee_daily_attendance_range(
+            employee_id, start_date, end_date
+        )
+        
+        # Serialize
+        serialized_days = []
+        for item in daily_items:
+            item_copy = item.copy()
+            if isinstance(item_copy.get("date"), date):
+                item_copy["date"] = item_copy["date"].isoformat()
+            serialized_days.append(item_copy)
+            
+        # Update model
+        timesheet.days = serialized_days
+        timesheet.summary = self._calculate_summary(daily_items)
+        timesheet.updated_at = datetime.utcnow()
+        
         await self.session.commit()
         return timesheet
 

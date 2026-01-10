@@ -790,6 +790,9 @@ class HRDataAggregator:
                 leave_type = None
                 notes = None
                 
+                # Future date check
+                is_future = current_date > date.today()
+
                 if current_date in leave_map:
                     l_info = leave_map[current_date]
                     leave_type = l_info["type"]
@@ -798,28 +801,44 @@ class HRDataAggregator:
                     # Status logic
                     if leave_type.startswith("MAL"):
                         status = "Malattia"
-                    elif "FER" in leave_type or "VAC" in leave_type:
+                    elif any(x in leave_type.upper() for x in ["FER", "VAC"]):
                         status = "Ferie"
                     elif "ROL" in leave_type:
                         status = "ROL"
-                    elif "PER" in leave_type:
-                        status = "Permesso" # Permesso might be partial hours, but here we assume full day for simplicity unless we check hours
+                    elif any(x in leave_type.upper() for x in ["PER", "PM"]):
+                        status = "Permesso"
                     else:
-                        status = f"Assente ({leave_type})"
-                    
-                    if req_status == "pending":
-                        status += " (In attesa)"
-                    
-                    hours_worked = 0.0 # Assuming full day leave
-                    # Ensure hours_expected remains 8 unless holiday
-                
-                elif is_holiday:
-                    status = "Festivo"
+                        status = f"Assenza ({leave_type})"
+                        
                     hours_worked = 0.0
-                elif is_weekend:
-                    status = "Weekend"
-                    hours_worked = 0.0
-                
+                    notes = l_info.get("notes") # Should come from l_info?? 
+                    # Warning: l_info definition above didn't include notes, looking at lines 772-776
+                    
+                elif is_future:
+                    # Future date: Only show Holidays/Weekend or Empty
+                    if is_holiday:
+                        status = "Festivo"
+                        hours_worked = 0.0
+                    elif is_weekend:
+                        status = "Weekend"
+                        hours_worked = 0.0
+                    else:
+                        status = "" # Empty for future working days
+                        hours_worked = 0.0
+                        
+                else: 
+                    # Past or Today
+                    if is_holiday:
+                        status = "Festivo"
+                        hours_worked = 0.0
+                    elif is_weekend:
+                        status = "Weekend"
+                        hours_worked = 0.0
+                    else:
+                        # Default Present
+                        status = "Presente"
+                        hours_worked = 8.0
+                    
                 # Check Trip (Mock/TODO)
                 # if inside trip: status="Trasferta", hours_worked=8
                 

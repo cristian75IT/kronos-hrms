@@ -198,33 +198,23 @@ async def export_lul(
     service: HRReportingService = Depends(get_service),
 ):
     """
-    Export LUL-compatible data.
+    Export LUL-compatible data (CSV).
     
     Generates payroll integration data in the format
-    required by Italian payroll systems.
+    required by Labor Consultants (Zucchetti-like).
     """
-    report = await service.generate_monthly_report(
+    csv_content = await service.generate_lul_export(
         year=year,
         month=month,
-        generated_by=current_user.sub,
     )
     
-    # Transform to LUL format
-    lul_data = []
-    for emp in report.employees:
-        lul_data.append({
-            "fiscal_code": emp.fiscal_code,
-            "employee_name": emp.full_name,
-            "period": f"{year}{month:02d}",
-            "codes": emp.payroll_codes.model_dump(),
-        })
+    filename = f"LUL_KRONOS_{year}_{month:02d}.csv"
     
-    return {
-        "period": f"{year}-{month:02d}",
-        "format": "LUL",
-        "employee_count": len(lul_data),
-        "data": lul_data,
-    }
+    return StreamingResponse(
+        iter([csv_content]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 
 @router.get("/export/excel/{report_type}")

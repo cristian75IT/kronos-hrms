@@ -31,8 +31,10 @@ class HRSettingsService:
         """Update settings."""
         settings = await self.get_settings()
         
-        settings.timesheet_confirmation_day = data.timesheet_confirmation_day
-        settings.timesheet_confirmation_month_offset = data.timesheet_confirmation_month_offset
+        if data.timesheet_confirmation_day is not None:
+            settings.timesheet_confirmation_day = data.timesheet_confirmation_day
+        if data.timesheet_confirmation_month_offset is not None:
+            settings.timesheet_confirmation_month_offset = data.timesheet_confirmation_month_offset
         settings.updated_by = user_id
         
         return settings

@@ -147,6 +147,7 @@ class NotificationCoreService(BaseNotificationService):
         # Only admin usually
         success_count = 0
         failed_count = 0
+        errors = []
         
         for user_id in data.user_ids:
             try:
@@ -166,13 +167,16 @@ class NotificationCoreService(BaseNotificationService):
                 await self.create_notification(notif_data)
                 success_count += 1
             except Exception as e:
-                logger.error(f"Failed to send bulk to {user_id}: {e}")
+                error_msg = f"Failed to send bulk to {user_id}: {str(e)}"
+                logger.error(error_msg)
+                errors.append(error_msg)
                 failed_count += 1
                 
         return BulkNotificationResponse(
-            success_count=success_count,
-            failed_count=failed_count,
-            total_processed=success_count + failed_count
+            total=success_count + failed_count,
+            sent=success_count,
+            failed=failed_count,
+            errors=errors
         )
 
     async def process_queue(self, batch_size: int = 100):

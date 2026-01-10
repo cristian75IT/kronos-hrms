@@ -504,6 +504,9 @@ http {
     upstream config_service {
         server config-service:8004;
     }
+    upstream hr_reporting_service {
+        server hr-reporting-service:8011;
+    }
 
     server {
         listen 80;
@@ -576,6 +579,12 @@ http {
 
         location /api/v1/holidays {
             proxy_pass http://config_service;
+            include /etc/nginx/proxy_params;
+        }
+
+        # HR Reporting
+        location /api/v1/hr {
+            proxy_pass http://hr_reporting_service;
             include /etc/nginx/proxy_params;
         }
     }
