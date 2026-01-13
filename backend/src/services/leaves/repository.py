@@ -8,6 +8,8 @@ from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from sqlalchemy import text
+
 from src.services.leaves.models import (
     LeaveRequest,
     LeaveRequestStatus,
@@ -333,6 +335,28 @@ class LeaveRequestRepository:
             await self._session.flush()
             return True
         return False
+
+    async def count_approved_without_ledger(self) -> int:
+        """
+        Count approved leave requests that have balance deducted but no ledger entry.
+        Used for reconciliation checks.
+        
+        Returns:
+            Number of requests missing ledger entries.
+        """
+        query = text("""
+            SELECT COUNT(*) FROM leaves.leave_requests lr
+            WHERE lr.status = 'APPROVED'
+            AND lr.balance_deducted = true
+            AND NOT EXISTS (
+                SELECT 1 FROM leaves.time_ledger tl
+                WHERE tl.reference_type = 'LEAVE_REQUEST'
+                AND tl.reference_id = lr.id
+                AND tl.entry_type = 'USAGE'
+            )
+        """)
+        result = await self._session.execute(query)
+        return result.scalar() or 0
 
     async def add_history(
         self,

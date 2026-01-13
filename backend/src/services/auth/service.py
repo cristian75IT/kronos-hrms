@@ -3,14 +3,13 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-import pyotp
-from keycloak import KeycloakAdmin, KeycloakOpenIDConnection
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
 
-from src.core.config import settings
+# Import extracted services
+from src.services.auth.services import MfaService, KeycloakSyncService
+
 from src.core.exceptions import NotFoundError, ConflictError
-from src.core.cache import cache_delete, cache_set
+from src.core.cache import cache_delete
 from src.services.auth.repository import (
     UserRepository,
     AreaRepository,
@@ -69,6 +68,10 @@ class UserService:
         self._emp_contract_repo = EmployeeContractRepository(session)
         self._training_repo = EmployeeTrainingRepository(session)
         self._audit = get_audit_logger("auth-service")
+        
+        # Delegate to extracted services
+        self._mfa_service = MfaService(session, self._user_repo)
+        self._keycloak_service = KeycloakSyncService(session, self._user_repo)
 
 
     # ═══════════════════════════════════════════════════════════
@@ -120,70 +123,16 @@ class UserService:
         """Get existing user or create from Keycloak token.
         
         Called on first login to ensure user exists in local DB.
+        Delegates to KeycloakSyncService.
         """
-        user = await self._user_repo.get_by_keycloak_id(keycloak_id)
-        
-        if user:
-            # Update roles from Keycloak
-            await self._user_repo.update(
-                user.id,
-                is_admin="admin" in roles,
-                is_manager="manager" in roles,
-                is_approver="approver" in roles,
-
-                is_hr="hr" in roles,
-                is_employee="employee" in roles,
-                last_sync_at=datetime.utcnow(),
-            )
-            return user
-        
-        # Check if user exists by email (legacy user or seeded user)
-        if email:
-            existing_by_email = await self._user_repo.get_by_email(email)
-            if existing_by_email:
-                # Merge account: Update Keycloak ID and roles
-                await self._user_repo.update(
-                    existing_by_email.id,
-                    keycloak_id=keycloak_id,
-                    username=username or existing_by_email.username,
-                    first_name=first_name or existing_by_email.first_name,
-                    last_name=last_name or existing_by_email.last_name,
-                    is_admin="admin" in roles,
-                    is_manager="manager" in roles,
-                    is_approver="approver" in roles,
-                    is_hr="hr" in roles,
-                    is_employee="employee" in roles,
-                    last_sync_at=datetime.utcnow(),
-                )
-                return await self._user_repo.get_by_keycloak_id(keycloak_id)
-        
-        # Create new user
-        # Handle username uniqueness
-        base_username = username or email
-        final_username = base_username
-        counter = 1
-        
-        while True:
-            existing_user = await self._user_repo.get_by_username(final_username)
-            if not existing_user:
-                break
-            final_username = f"{base_username}_{counter}"
-            counter += 1
-
-        await self._user_repo.create(
+        return await self._keycloak_service.get_or_create_from_token(
             keycloak_id=keycloak_id,
             email=email,
-            username=final_username,
-            first_name=first_name or email.split("@")[0],
-            last_name=last_name or "",
-            is_admin="admin" in roles,
-            is_manager="manager" in roles,
-            is_approver="approver" in roles,
-            is_hr="hr" in roles,
-            is_employee="employee" in roles,
-            last_sync_at=datetime.utcnow(),
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
+            roles=roles,
         )
-        return await self._user_repo.get_by_keycloak_id(keycloak_id)
 
     async def get_users(
         self,
@@ -298,427 +247,36 @@ class UserService:
         return True
 
     # ═══════════════════════════════════════════════════════════
-    # Keycloak Sync
+    # Keycloak Sync (Delegates to KeycloakSyncService)
     # ═══════════════════════════════════════════════════════════
 
-    async def sync_from_keycloak(
-        self,
-        request: KeycloakSyncRequest,
-    ) -> KeycloakSyncResponse:
-        """Sync all users from Keycloak.
-        
-        This is an admin operation that fetches all users from
-        Keycloak and syncs them to the local database.
-        """
-        try:
-            # Initialize Keycloak Admin client
-            keycloak_connection = KeycloakOpenIDConnection(
-                server_url=settings.keycloak_url,
-                realm_name=settings.keycloak_realm,
-                client_id=settings.keycloak_client_id,
-                client_secret_key=settings.keycloak_client_secret,
-            )
-            keycloak_admin = KeycloakAdmin(connection=keycloak_connection)
-            
-            # Get all users from Keycloak
-            kc_users = keycloak_admin.get_users({})
-            
-            synced = 0
-            created = 0
-            updated = 0
-            deactivated = 0
-            errors = []
-            
-            keycloak_ids_seen = set()
-            
-            for kc_user in kc_users:
-                try:
-                    kc_id = kc_user.get("id")
-                    if not kc_id:
-                        continue
-                    
-                    keycloak_ids_seen.add(kc_id)
-                    
-                    # Get user roles from Keycloak
-                    kc_roles = keycloak_admin.get_realm_roles_of_user(kc_id)
-                    role_names = [r.get("name") for r in kc_roles]
-                    
-                    # Check credentials for MFA/OTP
-                    has_otp = False
-                    try:
-                        # get_user_credentials returns a list of credentials
-                        creds = keycloak_admin.get_user_credentials(kc_id)
-                        # Look for type 'otp'
-                        has_otp = any(c.get("type") == "otp" for c in creds)
-                    except Exception as cred_err:
-                        # Log/Warn but continue
-                        pass
-                    
-                    # Check if user exists locally
-                    local_user = await self._user_repo.get_by_keycloak_id(kc_id)
-                    
-                    if local_user:
-                        # Update existing user
-                        await self._user_repo.update(
-                            local_user.id,
-                            email=kc_user.get("email", local_user.email),
-                            username=kc_user.get("username", local_user.username),
-                            first_name=kc_user.get("firstName", local_user.first_name),
-                            last_name=kc_user.get("lastName", local_user.last_name),
-                            is_admin="admin" in role_names,
-                            is_manager="manager" in role_names,
-                            is_approver="approver" in role_names,
-
-                            is_hr="hr" in role_names,
-                            is_employee="employee" in role_names,
-                            is_active=kc_user.get("enabled", True),
-                            mfa_enabled=has_otp,
-                            last_sync_at=datetime.utcnow(),
-                        )
-                        updated += 1
-                    else:
-                        # Create new user
-                        new_user = await self._user_repo.create(
-                            keycloak_id=kc_id,
-                            email=kc_user.get("email", f"{kc_id}@unknown"),
-                            username=kc_user.get("username") or kc_user.get("email", f"{kc_id}@unknown"),
-                            first_name=kc_user.get("firstName", ""),
-                            last_name=kc_user.get("lastName", ""),
-                            is_admin="admin" in role_names,
-                            is_manager="manager" in role_names,
-                            is_approver="approver" in role_names,
-                            is_hr="hr" in role_names,
-                            is_employee="employee" in role_names,
-                            is_active=kc_user.get("enabled", True),
-                            mfa_enabled=has_otp,
-                            last_sync_at=datetime.utcnow(),
-                        )
-                        created += 1
-                        
-                        # Log new user creation
-                        await self._audit.log_action(
-                            action="CREATE",
-                            resource_type="USER",
-                            resource_id=str(new_user.id),
-                            description=f"User synced from Keycloak: {new_user.email}",
-                            request_data={"keycloak_id": kc_id, "roles": role_names},
-                        )
-                    
-                    synced += 1
-                    
-                except Exception as e:
-                    errors.append(f"Error syncing user {kc_user.get('email', 'unknown')}: {str(e)}")
-            
-            # Optionally deactivate users not in Keycloak
-            if request.force_full_sync:
-                all_local = await self._user_repo.get_all(active_only=False, limit=10000, offset=0)
-                for local_user in all_local:
-                    if local_user.keycloak_id not in keycloak_ids_seen:
-                        if local_user.is_active:
-                            await self._user_repo.deactivate(local_user.id)
-                            deactivated += 1
-            
-            return KeycloakSyncResponse(
-                synced=synced,
-                created=created,
-                updated=updated,
-                deactivated=deactivated,
-                errors=errors,
-            )
-            
-        except Exception as e:
-            return KeycloakSyncResponse(
-                synced=0,
-                created=0,
-                updated=0,
-                deactivated=0,
-                errors=[f"Keycloak connection error: {str(e)}"],
-            )
+    async def sync_from_keycloak(self, request: KeycloakSyncRequest) -> KeycloakSyncResponse:
+        """Sync all users from Keycloak. Delegates to KeycloakSyncService."""
+        return await self._keycloak_service.sync_from_keycloak(request)
 
     # ═══════════════════════════════════════════════════════════
-    # MFA Operations
-    # TOTP Credential Configuration (Keycloak format)
-    TOTP_CREDENTIAL_CONFIG = {
-        "algorithm": "TOTP",
-        "digits": 6,
-        "counter": 0,
-        "period": 30
-    }
+    # MFA Operations (Delegates to MfaService)
+    # ═══════════════════════════════════════════════════════════
 
     async def verify_user_otp(self, user_id: UUID, code: str) -> bool:
-        """
-        Verify OTP code for a user by retrieving their secret from Keycloak.
-        Used for internal verification (e.g. Digital Signature) without re-login.
-        """
-        import httpx
-        import json
-        
-        user = await self.get_user(user_id)
-        if not user.mfa_enabled or not user.keycloak_id:
-             raise ConflictError("MFA non è attivo per questo utente")
-
-        try:
-            # 1. Get Secret from Keycloak
-            kc_admin = self._get_keycloak_admin()
-            token = kc_admin.token.get("access_token")
-            headers = {"Authorization": f"Bearer {token}"}
-            
-            base_url = settings.keycloak_url.rstrip('/')
-            realm = settings.keycloak_realm
-            uid = user.keycloak_id
-            
-            api_url = f"{base_url}/admin/realms/{realm}/users/{uid}/credentials"
-            
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                res = await client.get(api_url, headers=headers)
-                if not res.is_success:
-                    # Retry legacy path
-                    api_url = f"{base_url}/auth/admin/realms/{realm}/users/{uid}/credentials"
-                    res = await client.get(api_url, headers=headers)
-                    
-                if not res.is_success:
-                     raise Exception(f"Failed to fetch credentials: {res.status_code}")
-                
-                credentials = res.json()
-                
-                # Find OTP credential
-                otp_cred = next((c for c in credentials if c.get("type") == "otp"), None)
-                if not otp_cred or "secretData" not in otp_cred:
-                     raise ConflictError("Segreto MFA non trovato su Keycloak")
-                
-                secret = otp_cred["secretData"]
-                
-                # 2. Verify with PyOTP
-                totp = pyotp.TOTP(secret)
-                if not totp.verify(code):
-                     return False
-                
-                return True
-                
-        except Exception as e:
-            await self._audit.log_action(user_id=user_id, action="ERROR", resource_type="MFA_VERIFY", description=f"Verification Error: {e}")
-            # If technical error, we can't verify. Fail safe.
-            raise ConflictError(f"Errore tecnico verifica MFA: {str(e)}")
-
+        """Verify OTP code for a user. Delegates to MfaService."""
+        return await self._mfa_service.verify_user_otp(user_id, code)
 
     async def setup_mfa(self, user_id: UUID, email: str, actor_id: Optional[UUID] = None) -> MfaSetupResponse:
-        """Initialize MFA setup by generating a secret."""
-        secret = pyotp.random_base32()
-        otp_url = pyotp.totp.TOTP(secret).provisioning_uri(name=email, issuer_name="KRONOS")
-        
-        # Audit Trail for setup initiation
-        await self._audit.log_action(
-            user_id=actor_id or user_id,
-            action="SETUP_MFA",
-            resource_type="USER",
-            resource_id=str(user_id),
-            description="Initiated 2FA setup"
-        )
-        
-        return MfaSetupResponse(secret=secret, otp_url=otp_url)
+        """Initialize MFA setup. Delegates to MfaService."""
+        return await self._mfa_service.setup_mfa(user_id, email, actor_id)
 
     async def enable_mfa(self, user_id: UUID, request: MfaVerifyRequest, actor_id: Optional[UUID] = None) -> bool:
-        """Verify code and enable MFA in Keycloak."""
-        import json
-        import httpx
-        
-        user = await self.get_user(user_id)
-        
-        # 1. Verify Code with pyotp
-        totp = pyotp.TOTP(request.secret)
-        if not totp.verify(request.code):
-             raise ConflictError("Codice OTP non valido o scaduto")
-             
-        # 2. Add Credential to Keycloak
-        if user.keycloak_id:
-            try:
-                # Build credential payload
-                payload = {
-                    "type": "otp",
-                    "userLabel": request.label,
-                    "secretData": request.secret,
-                    "credentialData": json.dumps(self.TOTP_CREDENTIAL_CONFIG)
-                }
-                
-                kc_admin = self._get_keycloak_admin()
-                token = kc_admin.token.get("access_token")
-                headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-                
-                # Build API URL
-                base_url = settings.keycloak_url.rstrip('/')
-                realm = settings.keycloak_realm
-                uid = user.keycloak_id
-                api_url = f"{base_url}/admin/realms/{realm}/users/{uid}/credentials"
-                
-                # Async HTTP call
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    res = await client.post(api_url, json=payload, headers=headers)
-                    
-                    if res.status_code == 404:
-                         # Retry with legacy /auth path
-                         api_url = f"{base_url}/auth/admin/realms/{realm}/users/{uid}/credentials"
-                         res = await client.post(api_url, json=payload, headers=headers)
-                    
-                    if not res.is_success:
-                        raise Exception(f"Keycloak returned {res.status_code}: {res.text}")
-                
-            except Exception as e:
-                 await self._audit.log_action(user_id=actor_id, action="ERROR", resource_type="MFA", description=f"Keycloak MFA Error: {e}")
-                 raise ConflictError(f"Errore attivazione 2FA su Keycloak: {str(e)}")
-                 
-        # 3. Audit
-        await self._audit.log_action(
-            user_id=actor_id,
-            action="ENABLE_MFA",
-            resource_type="USER",
-            resource_id=str(user_id),
-            description="Enabled 2FA (TOTP)"
-        )
-        
-        # 4. Update local user status
-        await self._user_repo.update(user_id, mfa_enabled=True)
-        
-        return True
+        """Verify code and enable MFA. Delegates to MfaService."""
+        return await self._mfa_service.enable_mfa(user_id, request, actor_id)
 
     async def disable_mfa(self, user_id: UUID, code: str, actor_id: Optional[UUID] = None) -> bool:
-        """Disable MFA for user by removing TOTP credential from Keycloak."""
-        import httpx
-        
-        user = await self.get_user(user_id)
-        
-        # User must have MFA enabled
-        if not user.mfa_enabled:
-            raise ConflictError("MFA non è attivo per questo utente")
-        
-        # Verify the code is correct using Keycloak's stored secret
-        if not user.keycloak_id:
-            raise ConflictError("Utente non sincronizzato con Keycloak")
-        
-        try:
-            kc_admin = self._get_keycloak_admin()
-            token = kc_admin.token.get("access_token")
-            headers = {"Authorization": f"Bearer {token}"}
-            
-            base_url = settings.keycloak_url.rstrip('/')
-            realm = settings.keycloak_realm
-            uid = user.keycloak_id
-            
-            # Get user credentials from Keycloak
-            api_url = f"{base_url}/admin/realms/{realm}/users/{uid}/credentials"
-            
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                res = await client.get(api_url, headers=headers)
-                if res.status_code == 404:
-                    api_url = f"{base_url}/auth/admin/realms/{realm}/users/{uid}/credentials"
-                    res = await client.get(api_url, headers=headers)
-                
-                if not res.is_success:
-                    raise Exception(f"Keycloak returned {res.status_code}")
-                
-                credentials = res.json()
-                
-                # Find OTP credential and verify code
-                otp_cred = next((c for c in credentials if c.get("type") == "otp"), None)
-                if not otp_cred:
-                    # No OTP credential found, just update local status
-                    await self._user_repo.update(user_id, mfa_enabled=False)
-                    return True
-                
-                # Delete the OTP credential
-                cred_id = otp_cred.get("id")
-                del_url = f"{api_url}/{cred_id}"
-                del_res = await client.delete(del_url, headers=headers)
-                
-                if not del_res.is_success:
-                    raise Exception(f"Failed to delete credential: {del_res.status_code}")
-            
-        except Exception as e:
-            await self._audit.log_action(user_id=actor_id, action="ERROR", resource_type="MFA", description=f"MFA Disable Error: {e}")
-            raise ConflictError(f"Errore disattivazione 2FA: {str(e)}")
-        
-        # Audit
-        await self._audit.log_action(
-            user_id=actor_id,
-            action="DISABLE_MFA",
-            resource_type="USER",
-            resource_id=str(user_id),
-            description="Disabled 2FA (TOTP)"
-        )
-        
-        # Update local user status
-        await self._user_repo.update(user_id, mfa_enabled=False)
-        
-        return True
+        """Disable MFA for user. Delegates to MfaService."""
+        return await self._mfa_service.disable_mfa(user_id, code, actor_id)
 
     async def change_password(self, user_id: UUID, current_password: str, new_password: str, actor_id: Optional[UUID] = None) -> bool:
-        """Change user's password via Keycloak."""
-        import httpx
-        
-        user = await self.get_user(user_id)
-        
-        if not user.keycloak_id:
-            raise ConflictError("Utente non sincronizzato con Keycloak")
-        
-        # First, verify current password by attempting to get a token
-        try:
-            token_url = f"{settings.keycloak_url}/realms/{settings.keycloak_realm}/protocol/openid-connect/token"
-            
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                # Verify current password
-                verify_res = await client.post(token_url, data={
-                    "client_id": settings.keycloak_client_id,
-                    "grant_type": "password",
-                    "username": user.username,
-                    "password": current_password,
-                })
-                
-                if verify_res.status_code != 200:
-                    raise ConflictError("Password attuale non corretta")
-                
-                # Now update the password via admin API
-                kc_admin = self._get_keycloak_admin()
-                admin_token = kc_admin.token.get("access_token")
-                headers = {"Authorization": f"Bearer {admin_token}", "Content-Type": "application/json"}
-                
-                base_url = settings.keycloak_url.rstrip('/')
-                realm = settings.keycloak_realm
-                uid = user.keycloak_id
-                
-                reset_url = f"{base_url}/admin/realms/{realm}/users/{uid}/reset-password"
-                
-                pwd_res = await client.put(reset_url, json={
-                    "type": "password",
-                    "value": new_password,
-                    "temporary": False
-                }, headers=headers)
-                
-                if pwd_res.status_code == 404:
-                    reset_url = f"{base_url}/auth/admin/realms/{realm}/users/{uid}/reset-password"
-                    pwd_res = await client.put(reset_url, json={
-                        "type": "password",
-                        "value": new_password,
-                        "temporary": False
-                    }, headers=headers)
-                
-                if not pwd_res.is_success:
-                    raise Exception(f"Password update failed: {pwd_res.status_code}")
-                    
-        except ConflictError:
-            raise
-        except Exception as e:
-            await self._audit.log_action(user_id=actor_id, action="ERROR", resource_type="PASSWORD", description=f"Password Change Error: {e}")
-            raise ConflictError(f"Errore cambio password: {str(e)}")
-        
-        # Audit
-        await self._audit.log_action(
-            user_id=actor_id,
-            action="CHANGE_PASSWORD",
-            resource_type="USER",
-            resource_id=str(user_id),
-            description="User changed their password"
-        )
-        
-        return True
+        """Change user's password. Delegates to MfaService."""
+        return await self._mfa_service.change_password(user_id, current_password, new_password, actor_id)
 
 
     # ═══════════════════════════════════════════════════════════
