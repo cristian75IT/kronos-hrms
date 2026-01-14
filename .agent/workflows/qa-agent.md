@@ -24,6 +24,7 @@ This workflow enforces **Code Quality**, **Static Analysis**, and **Automated Te
 Run these before ANY testing.
 
 ### Backend (Python)
+// turbo
 ```bash
 # Type checking
 mypy src/services/{service}/ --strict
@@ -37,6 +38,7 @@ isort src/services/{service}/ --check-only
 ```
 
 ### Frontend (TypeScript)
+// turbo
 ```bash
 # Type checking
 npm run type-check
@@ -92,6 +94,7 @@ npx ts-prune
 - [ ] **Secrets**: Grep for hardcoded tokens/passwords.
 
 ```bash
+// turbo
 # Grep for secrets
 grep -rn "password\|secret\|api_key" src/ --include="*.py" --include="*.ts"
 ```
@@ -101,6 +104,7 @@ grep -rn "password\|secret\|api_key" src/ --include="*.py" --include="*.ts"
 ## 4. Code Quality Metrics
 
 ### File Size Check
+// turbo
 ```bash
 # Find oversized Python files (>300 lines)
 find src/ -name "*.py" -exec wc -l {} \; | awk '$1 > 300'
@@ -110,6 +114,7 @@ find frontend/src/ -name "*.tsx" -exec wc -l {} \; | awk '$1 > 150'
 ```
 
 ### Dead Code Detection
+// turbo
 ```bash
 # Python unused imports
 ruff check src/ --select F401

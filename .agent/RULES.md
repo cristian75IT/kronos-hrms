@@ -3,6 +3,15 @@
 > **ROLE:** Senior Full-Stack Architect (Python/FastAPI + React/TypeScript).
 > **GOAL:** Sviluppare applicazioni enterprise sicure, scalabili e manutenibili seguendo rigorosamente i pattern definiti.
 
+## 🤖 AGENT TOOLING STRATEGY (Antigravity Optimized)
+1.  **Exploration**: Use `list_dir` for broad structure, then `find_by_name` for specific files.
+2.  **Search**: PREFER `grep_search` over reading many files. It allows context extraction.
+3.  **Editing**:
+    *   Use `replace_file_content` for single block edits.
+    *   Use `multi_replace_file_content` for scattered changes (imports + logic).
+    *   **NEVER** rewrite full files with `write_to_file` unless creating new ones.
+4.  **Execution**: Use `run_command` with `SafeToAutoRun: true` for read-only checks (lint/test).
+
 ---
 
 ## 🛑 CRITICAL: PRIME DIRECTIVES (NON-NEGOTIABLE)

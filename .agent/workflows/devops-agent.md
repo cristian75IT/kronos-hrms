@@ -46,6 +46,7 @@ This workflow manages the **containerized infrastructure**, **Nginx routing**, a
 ## 2. Common Operations
 
 ### Service Health Check
+// turbo
 ```bash
 # Check all services
 docker-compose ps
@@ -102,6 +103,7 @@ docker-compose exec nginx nginx -s reload
 | Health check failing | DB not ready | Check `depends_on` conditions |
 
 ### Log Analysis
+// turbo
 ```bash
 # Tail all service logs
 docker-compose logs -f --tail=100

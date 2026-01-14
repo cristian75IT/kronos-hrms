@@ -253,6 +253,28 @@ class AttendanceAggregator(BaseAggregator):
                         trips_by_date[current] = trip
                     current += timedelta(days=1)
             
+            # Get holidays for the period
+            holidays = []
+            try:
+                holidays = await self._calendar_client.get_holidays(
+                    year=start_date.year,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+            except Exception as e:
+                logger.warning(f"Could not fetch holidays: {e}")
+
+            holiday_dates = set()
+            for h in holidays:
+                try:
+                    h_date = h.get("date")
+                    if isinstance(h_date, str):
+                        from datetime import datetime
+                        h_date = datetime.fromisoformat(h_date).date()
+                    holiday_dates.add(h_date)
+                except:
+                    pass
+
             # Build daily records
             results = []
             current_date = start_date
@@ -262,6 +284,7 @@ class AttendanceAggregator(BaseAggregator):
                 status = "Presente"
                 leave_type = None
                 hours_worked = 8.0
+                hours_expected = 8.0
                 notes = None
                 
                 # Check if on leave
@@ -295,11 +318,17 @@ class AttendanceAggregator(BaseAggregator):
                 if weekday >= 5:  # Saturday or Sunday
                     status = "Weekend"
                     hours_worked = 0.0
+                    hours_expected = 0.0
+                elif current_date in holiday_dates:
+                    status = "Festività"
+                    hours_worked = 0.0
+                    hours_expected = 0.0
                 
                 results.append({
                     "date": current_date,
                     "status": status,
                     "hours_worked": hours_worked,
+                    "hours_expected": hours_expected,
                     "leave_type": leave_type,
                     "notes": notes,
                     "weekday": weekday,

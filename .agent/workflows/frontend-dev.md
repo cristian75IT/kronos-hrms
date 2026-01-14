@@ -112,6 +112,7 @@ Before ANY coding, internalize these non-negotiable rules:
 | Store | 80 | Split by domain. |
 
 ### ✅ Verification Commands
+// turbo
 ```bash
 # Type check
 npm run type-check

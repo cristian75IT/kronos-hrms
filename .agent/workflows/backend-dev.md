@@ -112,6 +112,7 @@ Before ANY coding, internalize these non-negotiable rules:
 | `schemas.py` | 200 | Group by domain or use `schemas/` folder. |
 
 ### ✅ Verification Commands
+// turbo
 ```bash
 # Type check
 mypy src/services/{service}/
