@@ -281,9 +281,11 @@ class AttendanceAggregator(BaseAggregator):
             
             while current_date <= end_date:
                 # Determine status for this day
-                status = "Presente"
+                is_future = current_date > date.today()
+                
+                status = "" if is_future else "Presente"
                 leave_type = None
-                hours_worked = 8.0
+                hours_worked = 0.0 if is_future else 8.0
                 hours_expected = 8.0
                 notes = None
                 
