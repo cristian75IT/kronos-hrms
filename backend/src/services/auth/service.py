@@ -4,6 +4,9 @@ from typing import Optional
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from keycloak import KeycloakAdmin, KeycloakOpenIDConnection
+
+from src.core.config import settings
 
 # Import extracted services
 from src.services.auth.services import MfaService, KeycloakSyncService

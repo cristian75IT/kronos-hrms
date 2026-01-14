@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { format, subMonths, addMonths, parseISO, isWeekend } from 'date-fns';
 import { it } from 'date-fns/locale';
 import {

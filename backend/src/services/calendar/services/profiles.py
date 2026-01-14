@@ -4,6 +4,7 @@ KRONOS - Calendar Profiles Service
 Handles work week profiles and holiday profiles management.
 """
 from typing import Optional, List
+import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
@@ -263,6 +264,73 @@ class CalendarProfileService(BaseCalendarService):
         )
         
         return True
+
+    async def generate_default_holidays(self, profile_id: UUID, year: int) -> int:
+        """Generate default (Italian) holidays for a given year in a profile."""
+        profile = await self.get_holiday_profile(profile_id)
+        if not profile:
+            raise HolidayProfileNotFound(profile_id)
+
+        # Italian holidays list
+        italian_holidays = [
+            {"date": f"{year}-01-01", "name": "Capodanno"},
+            {"date": f"{year}-01-06", "name": "Epifania"},
+            {"date": f"{year}-04-25", "name": "Festa della Liberazione"},
+            {"date": f"{year}-05-01", "name": "Festa del Lavoro"},
+            {"date": f"{year}-06-02", "name": "Festa della Repubblica"},
+            {"date": f"{year}-08-15", "name": "Ferragosto"},
+            {"date": f"{year}-11-01", "name": "Ognissanti"},
+            {"date": f"{year}-12-08", "name": "Immacolata Concezione"},
+            {"date": f"{year}-12-25", "name": "Natale"},
+            {"date": f"{year}-12-26", "name": "Santo Stefano"},
+        ]
+        
+        # Easter Calculation (Simple Gauss algorithm for Western Easter)
+        a = year % 19
+        b = year // 100
+        c = year % 100
+        d = b // 4
+        e = b % 4
+        f = (b + 8) // 25
+        g = (b - f + 1) // 3
+        h = (19 * a + b - d - g + 15) % 30
+        i = c // 4
+        k = c % 4
+        l = (32 + 2 * e + 2 * i - h - k) % 7
+        m = (a + 11 * h + 22 * l) // 451
+        
+        month = (h + l - 7 * m + 114) // 31
+        day = ((h + l - 7 * m + 114) % 31) + 1
+        
+        easter_date = f"{year}-{month:02d}-{day:02d}"
+        italian_holidays.append({"date": easter_date, "name": "Pasqua"})
+        
+        # Pasquetta (Easter Monday)
+        dt_easter = datetime.date(year, month, day)
+        dt_pasquetta = dt_easter + datetime.timedelta(days=1)
+        italian_holidays.append({"date": str(dt_pasquetta), "name": "Lunedì dell'Angelo"})
+
+        # Get existing holidays to avoid duplicates
+        existing_models = await self.get_holidays_in_profile(profile_id)
+        existing_dates = {h.date for h in existing_models}
+
+        count = 0
+        for h in italian_holidays:
+            if h["date"] not in existing_dates:
+                try:
+                    await self.create_holiday(profile_id, schemas.HolidayCreate(
+                        name=h["name"],
+                        date=h["date"],
+                        year=year,
+                        scope="national",
+                        is_recurring=False
+                    ))
+                    count += 1
+                except Exception:
+                    pass 
+        
+        return count
+
     
     # ═══════════════════════════════════════════════════════════════════════
     # Location Calendars

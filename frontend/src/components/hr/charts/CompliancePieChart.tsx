@@ -1,5 +1,4 @@
 
-import React from 'react';
 import {
     PieChart,
     Pie,
@@ -12,6 +11,7 @@ interface ComplianceData {
     name: string;
     value: number;
     color: string;
+    [key: string]: string | number; // Index signature for recharts compatibility
 }
 
 interface CompliancePieChartProps {

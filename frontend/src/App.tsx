@@ -21,7 +21,7 @@ const ProfilePage = lazy(() => import('./pages/settings/ProfilePage').then(m => 
 const LeavesPage = lazy(() => import('./pages/leaves/LeavesPage').then(m => ({ default: m.LeavesPage })));
 const LeaveRequestForm = lazy(() => import('./pages/leaves/LeaveRequestForm').then(m => ({ default: m.LeaveRequestForm })));
 const LeaveDetailPage = lazy(() => import('./pages/leaves/LeaveDetailPage').then(m => ({ default: m.LeaveDetailPage })));
-const CalendarPage = lazy(() => import('./pages/CalendarPage').then(m => ({ default: m.CalendarPage })));
+const CalendarPage = lazy(() => import('./pages/CalendarPage'));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage').then(m => ({ default: m.NotificationsPage })));
 const TimesheetPage = lazy(() => import('./pages/TimesheetPage'));
 

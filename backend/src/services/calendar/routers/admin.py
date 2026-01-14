@@ -210,6 +210,23 @@ async def create_holiday(
     # Ensure profile exists? Service could check but we trust create_holiday fails on FK constraint if not
     return await service.create_holiday(profile_id, data)
 
+@router.post(
+    "/holiday-profiles/{profile_id}/generate-defaults",
+    status_code=201,
+    tags=["Calendar Admin"],
+    summary="Generate default holidays for a year"
+)
+async def generate_default_holidays(
+    profile_id: UUID,
+    year: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: TokenPayload = Depends(require_permission("settings:edit")),
+):
+    service = CalendarService(db)
+    count = await service.generate_default_holidays(profile_id, year)
+    return {"generated_count": count}
+
+
 @router.put("/holidays/{holiday_id}", response_model=HolidayResponse)
 async def update_holiday(
     holiday_id: UUID,

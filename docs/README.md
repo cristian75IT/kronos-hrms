@@ -12,6 +12,7 @@ Documentazione tecnica per agenti AI (Antigravity) per implementare il sistema i
 ### Architettura e Setup
 | File | Descrizione |
 |------|-------------|
+| [openspec.md](./openspec.md) | **OpenSpec (Master Specification)** - Documento di riferimento |
 | [architecture.md](./architecture.md) | Architettura microservizi, database schema isolation |
 | [tech-stack.md](./tech-stack.md) | Stack con DataTables.net, FullCalendar, Keycloak SSO |
 | [project-structure.md](./project-structure.md) | Struttura directory e convenzioni file |
@@ -85,7 +86,8 @@ Documentazione tecnica per agenti AI (Antigravity) per implementare il sistema i
 
 ## 🔗 Link Rapidi
 
-- **Documento Originale**: [../progetto.md](../progetto.md)
+- **OpenSpec (Master Spec)**: [openspec.md](./openspec.md) 🌟
+- **Documento Originale**: [../progetto.md](../progetto.md) (Legacy/Reference)
 - **Schema Database**: [database/schema.md](./database/schema.md)
 - **SSO/Auth**: [modules/auth.md](./modules/auth.md)
 - **Regole Business**: [business/leave-policies.md](./business/leave-policies.md)
