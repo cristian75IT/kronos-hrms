@@ -8,9 +8,13 @@ import { Header } from './Header';
 import { useState, useEffect } from 'react';
 import { BottomNav } from './BottomNav';
 import { clsx } from 'clsx';
+import { useRealtimeSync } from '../../hooks/useRealtimeSync';
 
 export function MainLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Enable real-time data synchronization via SSE
+  useRealtimeSync();
 
   // Initialize from localStorage or default to false (expanded)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {

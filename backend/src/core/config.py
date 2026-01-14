@@ -29,9 +29,9 @@ class Settings(BaseSettings):
         default="INFO", alias="LOG_LEVEL"
     )
     cors_origins: str = Field(
-        default="*",
+        default="http://localhost,http://localhost:3000,http://localhost:80",
         alias="CORS_ORIGINS",
-        description="Comma-separated list of allowed CORS origins, or '*' for all"
+        description="Comma-separated list of allowed CORS origins"
     )
     auto_fix_reconciliation: bool = Field(
         default=False,

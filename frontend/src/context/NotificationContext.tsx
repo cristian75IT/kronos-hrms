@@ -51,7 +51,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         if (!isAuthenticated) return;
 
         refreshUnreadCount();
-        const interval = setInterval(refreshUnreadCount, 300000); // 5 minutes fallback
+        const interval = setInterval(refreshUnreadCount, 30000); // Poll every 30 seconds
         return () => clearInterval(interval);
     }, [isAuthenticated, refreshUnreadCount]);
 

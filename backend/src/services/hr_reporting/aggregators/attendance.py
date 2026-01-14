@@ -165,3 +165,150 @@ class AttendanceAggregator(BaseAggregator):
         except Exception as e:
             logger.error(f"Error fetching aggregate attendance: {e}")
             return []
+
+    async def get_employee_daily_attendance_range(
+        self,
+        employee_id: UUID,
+        start_date: date,
+        end_date: date,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get daily attendance data for a specific employee over a date range.
+        
+        Returns a list of daily attendance records with status, hours, etc.
+        Used primarily for generating monthly timesheets.
+        """
+        try:
+            from datetime import timedelta
+            
+            # Get employee info
+            user = await self._auth_client.get_user(str(employee_id))
+            if not user:
+                logger.warning(f"User {employee_id} not found")
+                return []
+            
+            # Get all leaves for this employee in the period
+            leaves = await self._leaves_client.get_leaves_in_period(
+                start_date=start_date,
+                end_date=end_date,
+                user_id=employee_id,
+                status="APPROVED"  # Only approved leaves count
+            )
+            
+            # Try to get trips - the endpoint might not exist
+            trips = []
+            try:
+                trips_response = await self._expense_client.get_safe(
+                    "/api/v1/trips/internal/in-period",
+                    default=[],
+                    params={
+                        "start_date": start_date.isoformat(),
+                        "end_date": end_date.isoformat(),
+                        "user_id": str(employee_id),
+                    }
+                )
+                trips = trips_response if trips_response else []
+            except Exception as e:
+                logger.debug(f"Could not fetch trips for employee {employee_id}: {e}")
+            
+            # Build a dictionary of leaves by date
+            leaves_by_date = {}
+            for leave in leaves:
+                leave_start = leave.get("start_date")
+                leave_end = leave.get("end_date")
+                
+                # Handle date parsing if needed
+                if isinstance(leave_start, str):
+                    from datetime import datetime
+                    leave_start = datetime.fromisoformat(leave_start.replace('Z', '+00:00')).date()
+                if isinstance(leave_end, str):
+                    from datetime import datetime
+                    leave_end = datetime.fromisoformat(leave_end.replace('Z', '+00:00')).date()
+                
+                # Add this leave to each day it covers
+                current = leave_start
+                while current <= leave_end:
+                    if start_date <= current <= end_date:
+                        leaves_by_date[current] = leave
+                    current += timedelta(days=1)
+            
+            # Build a dictionary of trips by date
+            trips_by_date = {}
+            for trip in trips:
+                trip_start = trip.get("start_date")
+                trip_end = trip.get("end_date")
+                
+                # Handle date parsing if needed
+                if isinstance(trip_start, str):
+                    from datetime import datetime
+                    trip_start = datetime.fromisoformat(trip_start.replace('Z', '+00:00')).date()
+                if isinstance(trip_end, str):
+                    from datetime import datetime
+                    trip_end = datetime.fromisoformat(trip_end.replace('Z', '+00:00')).date()
+                
+                # Add this trip to each day it covers
+                current = trip_start
+                while current <= trip_end:
+                    if start_date <= current <= end_date:
+                        trips_by_date[current] = trip
+                    current += timedelta(days=1)
+            
+            # Build daily records
+            results = []
+            current_date = start_date
+            
+            while current_date <= end_date:
+                # Determine status for this day
+                status = "Presente"
+                leave_type = None
+                hours_worked = 8.0
+                notes = None
+                
+                # Check if on leave
+                if current_date in leaves_by_date:
+                    leave = leaves_by_date[current_date]
+                    leave_type = leave.get("leave_type_code", "")
+                    
+                    if leave_type.startswith("MAL"):
+                        status = "Malattia"
+                    elif leave_type in ("FER", "FERIE"):
+                        status = "Ferie"
+                    elif leave_type == "ROL":
+                        status = "ROL"
+                    elif leave_type in ("PER", "PERM"):
+                        status = "Permesso"
+                    else:
+                        status = f"Assente ({leave_type})"
+                    
+                    hours_worked = 0.0
+                    notes = leave.get("notes")
+                
+                # Check if on trip
+                elif current_date in trips_by_date:
+                    status = "Trasferta"
+                    hours_worked = 8.0
+                    trip = trips_by_date[current_date]
+                    notes = trip.get("destination")
+                
+                # Check if weekend or holiday
+                weekday = current_date.weekday()
+                if weekday >= 5:  # Saturday or Sunday
+                    status = "Weekend"
+                    hours_worked = 0.0
+                
+                results.append({
+                    "date": current_date,
+                    "status": status,
+                    "hours_worked": hours_worked,
+                    "leave_type": leave_type,
+                    "notes": notes,
+                    "weekday": weekday,
+                })
+                
+                current_date += timedelta(days=1)
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error fetching employee daily attendance: {e}", exc_info=True)
+            return []

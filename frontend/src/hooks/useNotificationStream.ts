@@ -42,9 +42,8 @@ export function useNotificationStream(onMessage: (notification: Notification) =>
             if (eventSourceRef.current) {
                 eventSourceRef.current.close();
             }
-            // Use the debug endpoint temporarily
-            const streamUrl = `${API_URL}/notifications/sse-test?token=${encodeURIComponent(token)}`;
-            // const streamUrl = `${API_URL}/notifications/stream?token=${encodeURIComponent(token)}`;
+            // Use the real stream endpoint
+            const streamUrl = `${API_URL}/notifications/stream?token=${encodeURIComponent(token)}`;
             console.log('[SSE] Connecting to:', streamUrl);
 
             const es = new EventSource(streamUrl);

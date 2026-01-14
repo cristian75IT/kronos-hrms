@@ -16,3 +16,6 @@ proxy_read_timeout 60s;
 proxy_buffering on;
 proxy_buffer_size 4k;
 proxy_buffers 8 4k;
+
+# NOTE: CORS is handled by backend FastAPI CORSMiddleware
+# Do NOT add CORS headers here to avoid duplication errors

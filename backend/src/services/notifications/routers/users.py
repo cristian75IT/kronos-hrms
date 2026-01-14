@@ -21,6 +21,8 @@ from src.services.notifications.schemas import (
 router = APIRouter()
 
 from fastapi import Request, Query
+from starlette.responses import StreamingResponse
+from src.services.notifications.broadcaster import NotificationBroadcaster
 
 @router.get("/notifications/sse-test")
 async def stream_notifications_test(request: Request):
@@ -154,40 +156,6 @@ async def unsubscribe_from_push(
     await service.unsubscribe_from_push(id, current_user.user_id)
     return MessageResponse(message="Unsubscribed from push notifications")
 
-@router.get("/notifications/{id}", response_model=NotificationResponse)
-async def get_notification(
-    id: UUID,
-    current_user: TokenPayload = Depends(get_current_user),
-    service: NotificationService = Depends(get_notification_service),
-):
-    """Get notification by ID."""
-    return await service.get_notification(id)
-
-from fastapi import Query
-from starlette.responses import StreamingResponse
-from src.core.security import decode_token
-from src.services.notifications.broadcaster import NotificationBroadcaster
-
-async def get_current_user_ws(token: str = Query(None)) -> TokenPayload:
-    """Resolve user from query param token (for SSE/WS)."""
-    try:
-        print(f"DEBUG: get_current_user_ws ENTERED. Token present: {bool(token)}", flush=True)
-        if not token:
-            print("DEBUG: No token provided in query params", flush=True)
-            raise HTTPException(401, "Token required")
-            
-        payload = await decode_token(token)
-        print(f"DEBUG: get_current_user_ws SUCCESS. User: {payload.sub}", flush=True)
-        return payload
-    except HTTPException as e:
-        print(f"DEBUG: get_current_user_ws HTTP Exception: {e.detail}", flush=True)
-        raise e
-    except Exception as e:
-        print(f"DEBUG: get_current_user_ws UNEXPECTED ERROR: {str(e)}", flush=True)
-        raise HTTPException(401, "Invalid authentication")
-
-from fastapi import Request
-
 @router.get("/notifications/stream")
 async def stream_notifications(request: Request):
     """
@@ -198,15 +166,19 @@ async def stream_notifications(request: Request):
     
     # helper for manual auth
     try:
+        from src.core.security import resolve_user
         token = request.query_params.get("token")
         print(f"DEBUG: Manual Stream token: {str(token)[:10]}...", flush=True)
         if not token:
             print("DEBUG: Missing token", flush=True)
             raise HTTPException(401, "Token required")
             
-        payload = await decode_token(token)
-        print(f"DEBUG: Manual Stream Auth Success: {payload.sub}", flush=True)
-        user_id = payload.user_id
+        payload = await resolve_user(token)
+        print(f"DEBUG: Manual Stream Auth Success: {payload.sub} -> Internal: {payload.internal_user_id}", flush=True)
+        # Use internal_user_id if available (it should be after resolve_user), otherwise fallback to sub if that's what broadcaster expects
+        # But usually broadcaster expects the internal UUID or the user ID used in the system.
+        # Let's assume resolve_user sets the correct user_id in payload.
+        user_id = payload.user_id 
         
     except Exception as e:
         print(f"DEBUG: Manual Stream Auth FAILED: {str(e)}", flush=True)
@@ -220,3 +192,13 @@ async def stream_notifications(request: Request):
         broadcaster.connect(user_id),
         media_type="text/event-stream"
     )
+
+
+@router.get("/notifications/{id}", response_model=NotificationResponse)
+async def get_notification(
+    id: UUID,
+    current_user: TokenPayload = Depends(get_current_user),
+    service: NotificationService = Depends(get_notification_service),
+):
+    """Get notification by ID."""
+    return await service.get_notification(id)

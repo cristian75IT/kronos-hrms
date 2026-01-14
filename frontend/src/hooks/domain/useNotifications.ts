@@ -50,6 +50,7 @@ export function useNotifications(filters: NotificationFilters) {
             return filtered;
         },
         staleTime: 30 * 1000, // 30 seconds
+        refetchInterval: 60 * 1000, // Poll every 60 seconds as fallback
     });
 }
 

@@ -7,13 +7,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import './index.css';
 
-// Create React Query client
+// Create React Query client with real-time optimized settings
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 60 * 1000, // Cache for 1 minute
+      staleTime: 30 * 1000, // Data becomes stale after 30 seconds
+      gcTime: 5 * 60 * 1000, // Keep data in cache for 5 minutes
       retry: 1,
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true, // Refetch when user returns to the app
+      refetchOnReconnect: true, // Refetch when network reconnects
     },
   },
 });
